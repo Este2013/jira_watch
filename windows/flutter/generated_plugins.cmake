@@ -3,7 +3,6 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  connectivity_plus
   desktop_webview_window
   irondash_engine_context
   super_native_extensions

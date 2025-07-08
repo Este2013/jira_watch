@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:jira_watch/home/home_overview.dart';
+
 import 'package:jira_watch/main.dart';
 import 'package:jira_watch/settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
   @override
   _HomeScreenState createState() => _HomeScreenState();
 }
@@ -21,8 +24,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildPageContent() {
     switch (_currentPage) {
-      case 'Projects':
-        return Center(child: Text('Projects Page', style: TextStyle(fontSize: 24)));
       case 'Issues':
         return Center(child: Text('Issues Page', style: TextStyle(fontSize: 24)));
       default:
@@ -63,11 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
               title: Text('Overview'),
               onTap: () => _selectPage('Overview'),
             ),
-            ListTile(
-              leading: Icon(Icons.folder),
-              title: Text('Projects'),
-              onTap: () => _selectPage('Projects'),
-            ),
+
             ListTile(
               leading: Icon(Icons.bug_report),
               title: Text('Issues'),

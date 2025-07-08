@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watch/home/home.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:super_clipboard/super_clipboard.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:jira_watch/api_model.dart';
 
 void main() {
   runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Jira API Key Checker',
@@ -41,12 +41,8 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkCredentials() async {
-    final prefs = await SharedPreferences.getInstance();
-    final apiKey = prefs.getString('jira_api_key');
-    final email = prefs.getString('jira_email');
-    final domain = prefs.getString('jira_domain');
-
-    if (apiKey == null || apiKey.isEmpty || email == null || email.isEmpty || domain == null || domain.isEmpty) {
+    await APIModel().load();
+    if (!APIModel().isReady) {
       // ignore: use_build_context_synchronously
       Navigator.pushReplacementNamed(context, '/apikey');
     } else {
@@ -78,10 +74,10 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> {
   }
 
   Future<void> _loadExistingValues() async {
-    final prefs = await SharedPreferences.getInstance();
-    _emailController.text = prefs.getString('jira_email') ?? '';
-    _apiKeyController.text = prefs.getString('jira_api_key') ?? '';
-    _domainController.text = prefs.getString('jira_domain') ?? '';
+    await APIModel().load();
+    _emailController.text = APIModel().email ?? '';
+    _apiKeyController.text = APIModel().apiKey ?? '';
+    _domainController.text = APIModel().domain ?? '';
   }
 
   Future<void> _saveCredentials() async {
@@ -100,10 +96,7 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> {
       domain += '.atlassian.net';
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('jira_email', email);
-    await prefs.setString('jira_api_key', apiKey);
-    await prefs.setString('jira_domain', domain);
+    await APIModel().update(email: email, apiKey: apiKey, domain: domain);
 
     // ignore: use_build_context_synchronously
     Navigator.pushReplacementNamed(context, '/home');

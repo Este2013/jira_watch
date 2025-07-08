@@ -1,7 +1,8 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
+import 'package:jira_watch/api_model.dart';
 
 class OverviewPage extends StatefulWidget {
   const OverviewPage({super.key});
@@ -20,7 +21,7 @@ class _OverviewPageState extends State<OverviewPage> {
   List<dynamic> yesterday = [];
   List<dynamic> thisWeek = [];
   List<String> olderMonths = [];
-  String? apiKey, userEmail;
+  Set<String> starredProjects = {};
 
   @override
   void initState() {
@@ -28,15 +29,12 @@ class _OverviewPageState extends State<OverviewPage> {
     _loadApiKeyAndFetch();
   }
 
-  String? domain;
-
   Future<void> _loadApiKeyAndFetch() async {
+    await APIModel().load();
     final prefs = await SharedPreferences.getInstance();
-    apiKey = prefs.getString('jira_api_key');
-    userEmail = prefs.getString('jira_email');
-    domain = prefs.getString('jira_domain');
+    starredProjects = prefs.getStringList('starred_projects')?.toSet() ?? {};
 
-    if (apiKey != null && domain != null && apiKey!.isNotEmpty && domain!.isNotEmpty) {
+    if (APIModel().apiKey != null && APIModel().domain != null && APIModel().apiKey!.isNotEmpty && APIModel().domain!.isNotEmpty) {
       await _fetchTickets(days: 30);
     }
   }
@@ -44,24 +42,22 @@ class _OverviewPageState extends State<OverviewPage> {
   Future<void> _fetchTickets({required int days, DateTime? before}) async {
     setState(() => isLoading = true);
 
-    final jql = 'updated >= -${days}d ${before != null ? "AND updated <= ${before.toIso8601String()}" : ""} ORDER BY updated DESC';
-    final url = Uri.parse('https://$domain/rest/api/3/search?jql=${Uri.encodeComponent(jql)}&maxResults=100');
+    String projectFilter = '';
+    if (starredProjects.isNotEmpty) {
+      final keys = starredProjects.map((k) => k.trim()).where((k) => k.isNotEmpty).join(',');
+      projectFilter = 'project in ($keys) AND ';
+    }
 
-    final authHeader = 'Basic ${base64Encode(utf8.encode('$userEmail:${apiKey!}'))}';
+    final jql = '${projectFilter}updated >= -${days}d ${before != null ? "AND updated <= ${before.toIso8601String()}" : ""} ORDER BY updated DESC';
 
-    final response = await http.get(
-      url,
-      headers: {
-        'Authorization': authHeader,
-        'Accept': 'application/json',
-      },
-    );
-    print(url.toString());
-    print(authHeader);
-    print(response.body);
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
+    try {
+      final data = await APIModel().getJson(
+        '/rest/api/3/search',
+        queryParameters: {
+          'jql': jql,
+          'maxResults': '100',
+        },
+      );
       final issues = data['issues'] as List<dynamic>;
 
       for (var issue in issues) {
@@ -84,9 +80,9 @@ class _OverviewPageState extends State<OverviewPage> {
         isLoading = false;
         olderMonths = monthGroups.keys.toList()..sort((a, b) => b.compareTo(a));
       });
-    } else {
+    } catch (e) {
       setState(() => isLoading = false);
-      throw Exception('Failed to fetch tickets: ${response.statusCode}');
+      throw Exception('Failed to fetch tickets: $e');
     }
   }
 
@@ -132,12 +128,8 @@ class _OverviewPageState extends State<OverviewPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        ...tickets.map(
-          (t) => ListTile(
-            title: Text(t['fields']['summary'] ?? 'No Title'),
-            subtitle: Text('Updated: ${t['fields']['updated']}'),
-          ),
-        ),
+        SizedBox(height: 8),
+        ...tickets.map((t) => JiraTicketPreview(ticket: t)),
         SizedBox(height: 16),
       ],
     );
@@ -152,12 +144,8 @@ class _OverviewPageState extends State<OverviewPage> {
           '${monthDate.year}-${monthDate.month.toString().padLeft(2, '0')}',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        ...tickets.map(
-          (t) => ListTile(
-            title: Text(t['fields']['summary'] ?? 'No Title'),
-            subtitle: Text('Updated: ${t['fields']['updated']}'),
-          ),
-        ),
+        SizedBox(height: 8),
+        ...tickets.map((t) => JiraTicketPreview(ticket: t)),
         SizedBox(height: 16),
       ],
     );
@@ -165,5 +153,141 @@ class _OverviewPageState extends State<OverviewPage> {
 
   bool _isSameDay(DateTime d1, DateTime d2) {
     return d1.year == d2.year && d1.month == d2.month && d1.day == d2.day;
+  }
+}
+
+class JiraTicketPreview extends StatelessWidget {
+  final dynamic ticket;
+
+  const JiraTicketPreview({super.key, required this.ticket});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = _ticketColors(ticket);
+    final issueKey = ticket['key'] ?? '';
+    final summary = ticket['fields']['summary'] ?? 'No Title';
+    final updated = ticket['fields']['updated'];
+    final url = _ticketUrl(context, ticket);
+
+    return Card(
+      color: colors['bg'],
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: colors['border']!, width: 2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                GestureDetector(
+                  onTap: () async {
+                    if (url != null) await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                  },
+                  child: Text(
+                    issueKey,
+                    style: TextStyle(
+                      color: Colors.blue.shade900,
+                      fontWeight: FontWeight.bold,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.copy, size: 18),
+                  tooltip: 'Copy ticket key',
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: issueKey));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Copied $issueKey')),
+                    );
+                  },
+                ),
+                Spacer(),
+                Text(
+                  _timeAgo(updated),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                ),
+              ],
+            ),
+            SizedBox(height: 4),
+            Text(
+              summary,
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Map<String, Color> _ticketColors(ticket) {
+    var type = ticket['fields']['issuetype']['name'];
+    switch (type) {
+      case 'Bug':
+        return {
+          'bg': Colors.red.shade100,
+          'border': Colors.red.shade700,
+        };
+      case 'Task':
+        return {
+          'bg': Colors.blue.shade100,
+          'border': Colors.blue.shade700,
+        };
+      case 'Story':
+        return {
+          'bg': Colors.green.shade100,
+          'border': Colors.green.shade700,
+        };
+      case 'Epic':
+        return {
+          'bg': Colors.purple.shade100,
+          'border': Colors.purple.shade700,
+        };
+      default:
+        return {
+          'bg': Colors.grey.shade100,
+          'border': Colors.grey.shade700,
+        };
+    }
+  }
+
+  String? _ticketUrl(BuildContext context, dynamic ticket) {
+    final key = ticket['key'];
+    final domain = APIModel().domain;
+    if (domain != null && key != null) {
+      return 'https://$domain/browse/$key';
+    }
+    return null;
+  }
+
+  String _timeAgo(String updatedStr) {
+    final updated = DateTime.parse(updatedStr).toLocal();
+    final now = DateTime.now();
+    final diff = now.difference(updated);
+
+    if (diff.inSeconds < 60) {
+      return 'Just now';
+    } else if (diff.inMinutes < 60) {
+      return '${diff.inMinutes} min${diff.inMinutes == 1 ? '' : 's'} ago';
+    } else if (diff.inHours < 24) {
+      return '${diff.inHours} hour${diff.inHours == 1 ? '' : 's'} ago';
+    } else if (diff.inDays < 7) {
+      return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
+    } else if (diff.inDays < 30) {
+      final weeks = (diff.inDays / 7).floor();
+      return '$weeks week${weeks == 1 ? '' : 's'} ago';
+    } else if (diff.inDays < 365) {
+      final months = (diff.inDays / 30).floor();
+      return '$months month${months == 1 ? '' : 's'} ago';
+    } else {
+      final years = (diff.inDays / 365).floor();
+      return '$years year${years == 1 ? '' : 's'} ago';
+    }
   }
 }
