@@ -1,0 +1,30 @@
+name: jira_watch
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.9.0-100.2.beta
+  
+
+dependencies:
+  connectivity_plus: ^6.1.4
+  flutter:
+    sdk: flutter
+  flutter_web_auth_2: ^4.1.0
+  http: ^0.13.6
+  shared_preferences: ^2.5.3
+  shelf: ^1.4.0
+  shelf_router: ^1.1.4
+  shelf_web_socket: ^1.0.1
+  super_clipboard: ^0.9.1
+  url_launcher: ^6.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
