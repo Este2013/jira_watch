@@ -1,3 +1,7 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_svg/svg.dart';
+import 'package:html/parser.dart' as html_parser;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -12,6 +16,8 @@ class APIModel {
   String? email;
   String? apiKey;
   String? domain;
+
+  String get authHeader => 'Basic ${base64Encode(utf8.encode('$email:$apiKey'))}';
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -48,12 +54,13 @@ class APIModel {
   }) async {
     if (!isReady) throw Exception('API credentials not set');
     final uri = Uri.https(domain!, path, queryParameters);
-    final authHeader = 'Basic ${base64Encode(utf8.encode('$email:$apiKey'))}';
+
     final allHeaders = {
       'Authorization': authHeader,
       'Accept': 'application/json',
       if (headers != null) ...headers,
     };
+
     switch (method.toUpperCase()) {
       case 'POST':
         return await http.post(uri, headers: allHeaders, body: body);
@@ -75,17 +82,182 @@ class APIModel {
     throw Exception('Jira API error: ${response.statusCode}');
   }
 
-  /// Fetch starred projects and store locally
-  Future<Set<String>> fetchAndStoreStarredProjects() async {
-    try {
-      final data = await getJson('/rest/api/3/project/starred');
-      final result = (data as List).map((p) => p['key'] as String).toSet();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList('starred_projects', result.toList());
-      return result;
-    } catch (_) {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getStringList('starred_projects')?.toSet() ?? {};
+  ///////// PROJECTS /////////
+
+  List? _projectsCache;
+
+  /// Fetch projects from Jira API, caching results
+  /// https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-projects/#api-rest-api-3-project-get
+  ///
+  /// Each project is a map as follows:
+  /// ```json{
+  //  "avatarUrls": {
+  //    "16x16": "https://your-domain.atlassian.net/secure/projectavatar?size=xsmall&pid=10000",
+  //    "24x24": "https://your-domain.atlassian.net/secure/projectavatar?size=small&pid=10000",
+  //    "32x32": "https://your-domain.atlassian.net/secure/projectavatar?size=medium&pid=10000",
+  //    "48x48": "https://your-domain.atlassian.net/secure/projectavatar?size=large&pid=10000"
+  //  },
+  //  "id": "10000",
+  //  "insight": {
+  //    "lastIssueUpdateTime": 1619069825000,
+  //    "totalIssueCount": 100
+  //  },
+  //  "key": "EX",
+  //  "name": "Example",
+  //  "projectCategory": {
+  //    "description": "First Project Category",
+  //    "id": "10000",
+  //    "name": "FIRST",
+  //    "self": "https://your-domain.atlassian.net/rest/api/3/projectCategory/10000"
+  //  },
+  //  "self": "https://your-domain.atlassian.net/rest/api/3/project/EX",
+  //  "simplified": false,
+  //  "style": "CLASSIC"
+  //
+  /// ```
+  Future<List> fetchProjects({bool refresh = false}) async {
+    if (_projectsCache != null && !refresh) {
+      return _projectsCache!;
     }
+
+    final data = await getJson(
+      '/rest/api/3/project/',
+      // queryParameters: {
+      //   'properties': ['id', 'avatarUrls', 'key', 'favourite', 'isPrivate', 'expand', 'issueTypes', 'name', 'url', 'style'],
+      // },
+    );
+    final result = (data as List);
+    print('Fetched projects: $result');
+    _projectsCache = result;
+    return result;
+  }
+
+  /// Fetch starred projects and store locally
+  Future<List> starredProjects({bool refresh = false}) async {
+    final projects = await fetchProjects(refresh: refresh);
+    return projects.where((p) => p['favourite'] == true).toList();
+  }
+
+  ///////// IMAGES /////////
+
+  Widget avatarFromJira(String url) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(3),
+      child: JiraAvatar(
+        key: Key(url),
+        url: url,
+        authHeader: authHeader,
+      ),
+    );
+  }
+}
+
+class JiraAvatar extends StatefulWidget {
+  final String url;
+  final String authHeader;
+  final double size;
+
+  const JiraAvatar({
+    super.key,
+    required this.url,
+    required this.authHeader,
+    this.size = 32,
+  });
+
+  @override
+  State<JiraAvatar> createState() => _JiraAvatarState();
+}
+
+class _JiraAvatarState extends State<JiraAvatar> {
+  late Future<Widget> _avatarFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _avatarFuture = _loadAvatar(widget.url);
+  }
+
+  Future<Widget> _loadAvatar(String url) async {
+    final uri = Uri.parse(url);
+    final resp = await http.get(
+      uri,
+      headers: {
+        'Authorization': widget.authHeader,
+        // we’ll let the server pick default if HTML
+        'Accept': '*/*',
+      },
+    );
+
+    final contentType = resp.headers['content-type']?.toLowerCase() ?? '';
+    // 1️⃣ HTML → scrape <img>
+    if (contentType.contains('text/html')) {
+      final document = html_parser.parse(resp.body);
+      final img = document.querySelector('img');
+      final src = img?.attributes['src'];
+      if (src != null && src.isNotEmpty) {
+        return _loadAvatar(src);
+      }
+      throw Exception('No <img> found in HTML');
+    }
+    // 2️⃣ SVG → use flutter_svg
+    else if (contentType.contains('svg')) {
+      return SvgPicture.memory(
+        resp.bodyBytes,
+        width: widget.size,
+        height: widget.size,
+        placeholderBuilder: (_) => SizedBox(
+          width: widget.size / 2,
+          height: widget.size / 2,
+          child: const Center(child: FractionallySizedBox(heightFactor: .8, widthFactor: .8, child: CircularProgressIndicator(strokeWidth: 2))),
+        ),
+        fit: BoxFit.contain,
+      );
+    }
+    // 3️⃣ Raster → Image.memory
+    else if (contentType.startsWith('image/')) {
+      return Image.memory(
+        resp.bodyBytes,
+        width: widget.size,
+        height: widget.size,
+        fit: BoxFit.contain,
+        // loadingBuilder: (context, child, progress) =>
+        //     progress == null ? child : SizedBox(
+        //       width: widget.size / 2,
+        //       height: widget.size / 2,
+        //       child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        //     ),
+      );
+    }
+    // 4️⃣ Fallback
+    else {
+      throw Exception('Unsupported content type: $contentType');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Widget>(
+      future: _avatarFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return SizedBox(
+            width: widget.size,
+            height: widget.size,
+            child: const Center(child: FractionallySizedBox(heightFactor: .8, widthFactor: .8, child: CircularProgressIndicator(strokeWidth: 2))),
+          );
+        }
+        if (snapshot.hasError) {
+          return IconButton(
+            icon: const Icon(Icons.error),
+            color: Colors.red,
+            tooltip: '${snapshot.error}\n${widget.url}',
+            onPressed: () => Clipboard.setData(
+              ClipboardData(text: widget.url),
+            ),
+          );
+        }
+        return snapshot.data!;
+      },
+    );
   }
 }

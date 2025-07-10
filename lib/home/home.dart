@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:jira_watch/home/home_overview.dart';
-
 import 'package:jira_watch/main.dart';
 import 'package:jira_watch/settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,11 +14,31 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String _currentPage = 'Overview';
 
-  void _selectPage(String page) {
-    setState(() {
-      _currentPage = page;
-    });
-    Navigator.pop(context); // close drawer on selection
+  int get _selectedIndex {
+    switch (_currentPage) {
+      case 'Overview':
+        return 0;
+      case 'Issues':
+        return 1;
+      case 'Settings':
+        return 2;
+      default:
+        return 0;
+    }
+  }
+
+  void _onRailSelect(int index) {
+    switch (index) {
+      case 0:
+        setState(() => _currentPage = 'Overview');
+        break;
+      case 1:
+        setState(() => _currentPage = 'Issues');
+        break;
+      case 2:
+        showDialog(context: context, builder: (context) => SettingsDialog());
+        break;
+    }
   }
 
   Widget _buildPageContent() {
@@ -50,36 +69,33 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      drawer: Drawer(
-        child: Column(
-          children: [
-            DrawerHeader(
-              child: Text(
-                'Menu',
-                style: TextStyle(fontSize: 24),
+      body: Row(
+        children: [
+          NavigationRail(
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: _onRailSelect,
+            labelType: NavigationRailLabelType.all,
+            destinations: [
+              NavigationRailDestination(
+                icon: Icon(Icons.dashboard),
+                label: Text('Overview'),
               ),
-            ),
-            ListTile(
-              leading: Icon(Icons.dashboard),
-              title: Text('Overview'),
-              onTap: () => _selectPage('Overview'),
-            ),
-
-            ListTile(
-              leading: Icon(Icons.bug_report),
-              title: Text('Issues'),
-              onTap: () => _selectPage('Issues'),
-            ),
-            Divider(),
-            ListTile(
-              leading: Icon(Icons.settings),
-              title: Text('Settings'),
-              onTap: () => showDialog(context: context, builder: (context) => SettingsDialog()),
-            ),
-          ],
-        ),
+              NavigationRailDestination(
+                icon: Icon(Icons.bug_report),
+                label: Text('Issues'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.settings),
+                label: Text('Settings'),
+              ),
+            ],
+          ),
+          VerticalDivider(width: 1),
+          Expanded(
+            child: _buildPageContent(),
+          ),
+        ],
       ),
-      body: _buildPageContent(),
     );
   }
 }

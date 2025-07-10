@@ -10,8 +10,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_svg: ^2.0.9
   flutter_web_auth_2: ^4.1.0
-  http: ^0.13.6
+  html: ^0.15.6
+  http: ^1.4.0
   shared_preferences: ^2.5.3
   shelf: ^1.4.0
   shelf_router: ^1.1.4
