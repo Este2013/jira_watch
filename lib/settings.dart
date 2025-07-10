@@ -1,6 +1,3 @@
-import 'dart:convert';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -168,6 +165,8 @@ class _ConnectionSettingsPageState extends State<ConnectionSettingsPage> {
 
 // --- Extracted Projects Settings Page ---
 class ProjectsSettingsPage extends StatefulWidget {
+  const ProjectsSettingsPage({super.key});
+
   @override
   State<ProjectsSettingsPage> createState() => _ProjectsSettingsPageState();
 }
@@ -240,7 +239,6 @@ class _ProjectsSettingsPageState extends State<ProjectsSettingsPage> {
                   final p = filtered[i];
                   final key = p['key'] as String;
                   final name = p['name'] as String;
-                  final avatarUrl = p['avatarUrls']['16x16'] as String;
 
                   return SwitchListTile(
                     title: Text(key),

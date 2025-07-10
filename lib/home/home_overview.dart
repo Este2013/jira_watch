@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -22,6 +24,8 @@ class _OverviewPageState extends State<OverviewPage> {
   List<dynamic> thisWeek = [];
   List<String> olderMonths = [];
   Set<String> starredProjects = {};
+
+  Widget? view;
 
   @override
   void initState() {
@@ -102,25 +106,35 @@ class _OverviewPageState extends State<OverviewPage> {
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      child: ListView(
+      child: Row(
         children: [
-          _buildTicketGroup('Today', today),
-          _buildTicketGroup('Yesterday', yesterday),
-          _buildTicketGroup('This Week', thisWeek),
-          ...olderMonths.take(loadedMonths + 1).map((monthKey) {
-            return _buildMonthGroup(monthKey, monthGroups[monthKey]!);
-          }),
-          if (loadedMonths + 1 < olderMonths.length)
-            Center(
-              child: ElevatedButton(
-                onPressed: _loadMore,
-                child: isLoadingMore ? CircularProgressIndicator() : Text('Load More'),
-              ),
+          Expanded(
+            child: ListView(
+              children: [
+                _buildTicketGroup('Today', today),
+                _buildTicketGroup('Yesterday', yesterday),
+                _buildTicketGroup('This Week', thisWeek),
+                ...olderMonths.take(loadedMonths + 1).map((monthKey) {
+                  return _buildMonthGroup(monthKey, monthGroups[monthKey]!);
+                }),
+                if (loadedMonths + 1 < olderMonths.length)
+                  Center(
+                    child: ElevatedButton(
+                      onPressed: _loadMore,
+                      child: isLoadingMore ? CircularProgressIndicator() : Text('Load More'),
+                    ),
+                  ),
+              ],
             ),
+          ),
+          VerticalDivider(),
+          Expanded(child: view ?? Placeholder()),
         ],
       ),
     );
   }
+
+  void updateView(Widget w) => setState(() => view = w);
 
   Widget _buildTicketGroup(String title, List<dynamic> tickets) {
     if (tickets.isEmpty) return SizedBox.shrink();
@@ -129,7 +143,7 @@ class _OverviewPageState extends State<OverviewPage> {
       children: [
         Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         SizedBox(height: 8),
-        ...tickets.map((t) => JiraTicketPreview(ticket: t)),
+        ...tickets.map((t) => JiraTicketPreviewItem(ticket: t, updateView: updateView)),
         SizedBox(height: 16),
       ],
     );
@@ -145,7 +159,7 @@ class _OverviewPageState extends State<OverviewPage> {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         SizedBox(height: 8),
-        ...tickets.map((t) => JiraTicketPreview(ticket: t)),
+        ...tickets.map((t) => JiraTicketPreviewItem(ticket: t, updateView: updateView)),
         SizedBox(height: 16),
       ],
     );
@@ -156,18 +170,16 @@ class _OverviewPageState extends State<OverviewPage> {
   }
 }
 
-class JiraTicketPreview extends StatelessWidget {
+class JiraTicketPreviewItem extends StatelessWidget {
   final dynamic ticket;
+  final Function(Widget)? updateView;
 
-  const JiraTicketPreview({super.key, required this.ticket});
+  const JiraTicketPreviewItem({super.key, required this.ticket, this.updateView});
 
   @override
   Widget build(BuildContext context) {
     final colors = _ticketColors(ticket);
-    final issueKey = ticket['key'] ?? '';
     final summary = ticket['fields']['summary'] ?? 'No Title';
-    final updated = ticket['fields']['updated'];
-    final url = _ticketUrl(context, ticket);
 
     return Card(
       color: colors['bg'],
@@ -175,53 +187,24 @@ class JiraTicketPreview extends StatelessWidget {
         side: BorderSide(color: colors['border']!, width: 2),
         borderRadius: BorderRadius.circular(8),
       ),
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                GestureDetector(
-                  onTap: () async {
-                    if (url != null) await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-                  },
-                  child: Text(
-                    issueKey,
-                    style: TextStyle(
-                      color: Colors.blue.shade900,
-                      fontWeight: FontWeight.bold,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.copy, size: 18),
-                  tooltip: 'Copy ticket key',
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: issueKey));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Copied $issueKey')),
-                    );
-                  },
-                ),
-                Spacer(),
-                Text(
-                  _timeAgo(updated),
-                  style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                ),
-              ],
-            ),
-            SizedBox(height: 4),
-            Text(
-              summary,
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+      margin: EdgeInsets.all(4),
+      child: InkWell(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              IssueHeaderRow(ticket),
+              Text(
+                summary,
+                style: Theme.of(context).textTheme.titleMedium,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
+        onTap: () => updateView?.call(SingleChildScrollView(child: Text(JsonEncoder.withIndent('     ').convert(ticket)))),
       ),
     );
   }
@@ -231,40 +214,44 @@ class JiraTicketPreview extends StatelessWidget {
     switch (type) {
       case 'Bug':
         return {
-          'bg': Colors.red.shade100,
+          'bg': Colors.red.shade50,
           'border': Colors.red.shade700,
         };
       case 'Task':
         return {
-          'bg': Colors.blue.shade100,
+          'bg': Colors.blue.shade50,
           'border': Colors.blue.shade700,
         };
       case 'Story':
         return {
-          'bg': Colors.green.shade100,
+          'bg': Colors.green.shade50,
           'border': Colors.green.shade700,
         };
       case 'Epic':
         return {
-          'bg': Colors.purple.shade100,
+          'bg': Colors.purple.shade50,
           'border': Colors.purple.shade700,
         };
       default:
         return {
-          'bg': Colors.grey.shade100,
+          'bg': Colors.grey.shade50,
           'border': Colors.grey.shade700,
         };
     }
   }
+}
 
-  String? _ticketUrl(BuildContext context, dynamic ticket) {
-    final key = ticket['key'];
-    final domain = APIModel().domain;
-    if (domain != null && key != null) {
-      return 'https://$domain/browse/$key';
-    }
-    return null;
-  }
+class IssueHeaderRow extends StatefulWidget {
+  final dynamic ticket;
+
+  const IssueHeaderRow(this.ticket, {super.key});
+
+  @override
+  State<IssueHeaderRow> createState() => _IssueHeaderRowState();
+}
+
+class _IssueHeaderRowState extends State<IssueHeaderRow> {
+  bool _hovering = false;
 
   String _timeAgo(String updatedStr) {
     final updated = DateTime.parse(updatedStr).toLocal();
@@ -290,4 +277,187 @@ class JiraTicketPreview extends StatelessWidget {
       return '$years year${years == 1 ? '' : 's'} ago';
     }
   }
+
+  String? _ticketUrl(BuildContext context, dynamic ticket) {
+    final key = ticket['key'];
+    final domain = APIModel().domain;
+    if (domain != null && key != null) {
+      return 'https://$domain/browse/$key';
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ticket = widget.ticket;
+    final fields = ticket['fields'] ?? {};
+    final project = fields['project'] ?? {};
+    final parent = fields['parent'];
+    final projectName = project['name'] ?? '';
+
+    // avatarUrls is a map of size → URL, choose 48x48 (or iconUrl if available)
+    final projectIconUrl = project['avatarUrls']?['48x48'] ?? project['iconUrl'];
+    final parentKey = parent?['key'];
+    final parentIconUrl = parent?['fields']?['project']?['avatarUrls']?['48x48'];
+
+    final issueKey = ticket['key'] ?? '';
+    final updated = fields['updated'] as String? ?? '';
+    final url = _ticketUrl(context, ticket);
+
+    Widget badge(String? iconUrl, Widget label) {
+      if (iconUrl == null) return label;
+      return Row(
+        children: [
+          // Image.network(iconUrl, width: 20, height: 20),
+          const SizedBox(width: 4),
+          label,
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        // Project badge
+        if (projectIconUrl != null) ...[
+          badge(
+            projectIconUrl,
+            Text(projectName),
+          ),
+          const SizedBox(width: 6),
+          const Text('/'),
+          const SizedBox(width: 6),
+        ],
+
+        // Parent badge, if any
+        if (parentKey != null) ...[
+          badge(
+            parentIconUrl,
+            Text(parentKey),
+          ),
+          const SizedBox(width: 6),
+          const Text('/'),
+          const SizedBox(width: 6),
+        ],
+
+        // Your existing ticket key + copy-on-hover
+        MouseRegion(
+          onEnter: (_) => setState(() => _hovering = true),
+          onExit: (_) => setState(() => _hovering = false),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: () async {
+                  if (url != null) {
+                    await launchUrl(
+                      Uri.parse(url),
+                      mode: LaunchMode.externalApplication,
+                    );
+                  }
+                },
+                child: Text(
+                  issueKey,
+                  style: const TextStyle(decoration: TextDecoration.underline),
+                ),
+              ),
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 150),
+                opacity: _hovering ? 1 : 0,
+                child: IconButton(
+                  icon: const Icon(Icons.copy, size: 18),
+                  tooltip: 'Copy ticket key',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _hovering
+                      ? () {
+                          Clipboard.setData(ClipboardData(text: issueKey));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Copied $issueKey')),
+                          );
+                        }
+                      : null,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const Spacer(),
+
+        Text(
+          _timeAgo(updated),
+          style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+        ),
+      ],
+    );
+  }
+  // @override
+  // Widget build(BuildContext context) {
+  //   var ticket = widget.ticket;
+  //   final issueKey = ticket['key'] ?? '';
+  //   final updated = ticket['fields']['updated'];
+  //   final url = _ticketUrl(context, ticket);
+
+  //   return Row(
+  //     children: [
+  //       // Wrap only the text+icon in a MouseRegion
+  //       MouseRegion(
+  //         onEnter: (_) => setState(() => _hovering = true),
+  //         onExit: (_) => setState(() => _hovering = false),
+  //         child: Row(
+  //           spacing: 4,
+  //           children: [
+  //             GestureDetector(
+  //               onTap: () async {
+  //                 if (url != null) {
+  //                   await launchUrl(
+  //                     Uri.parse(url),
+  //                     mode: LaunchMode.externalApplication,
+  //                   );
+  //                 }
+  //               },
+  //               child: Text(
+  //                 issueKey,
+  //                 style: const TextStyle(
+  //                   decoration: TextDecoration.underline,
+  //                 ),
+  //               ),
+  //             ),
+
+  //             // show the copy button only when _hovering
+  //             AnimatedOpacity(
+  //               duration: const Duration(milliseconds: 150),
+  //               opacity: _hovering ? 1 : 0,
+  //               child: IconButton(
+  //                 icon: const Icon(Icons.copy, size: 18),
+  //                 tooltip: 'Copy ticket key',
+  //                 visualDensity: VisualDensity.compact,
+  //                 onPressed: _hovering
+  //                     ? () {
+  //                         Clipboard.setData(
+  //                           ClipboardData(text: issueKey),
+  //                         );
+  //                         ScaffoldMessenger.of(context).showSnackBar(
+  //                           SnackBar(
+  //                             content: Text('Copied $issueKey'),
+  //                           ),
+  //                         );
+  //                       }
+  //                     : null,
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+
+  //       const Spacer(),
+
+  //       Text(
+  //         _timeAgo(updated),
+  //         style: TextStyle(
+  //           fontSize: 12,
+  //           color: Colors.grey[700],
+  //         ),
+  //       ),
+  //     ],
+  //   );
+  // }
 }
