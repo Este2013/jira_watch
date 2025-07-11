@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watch/api_model.dart';
+import 'package:flutter_json/flutter_json.dart';
 
 class OverviewPage extends StatefulWidget {
   const OverviewPage({super.key});
@@ -204,7 +205,13 @@ class JiraTicketPreviewItem extends StatelessWidget {
             ],
           ),
         ),
-        onTap: () => updateView?.call(SingleChildScrollView(child: Text(JsonEncoder.withIndent('     ').convert(ticket)))),
+        onTap: () => updateView?.call(
+          JsonWidget(
+            json: json.decode(JsonEncoder().convert(ticket)),
+            initialExpandDepth: 2,
+            nodeIndent: 32,
+          ),
+        ),
       ),
     );
   }
@@ -251,8 +258,6 @@ class IssueHeaderRow extends StatefulWidget {
 }
 
 class _IssueHeaderRowState extends State<IssueHeaderRow> {
-  bool _hovering = false;
-
   String _timeAgo(String updatedStr) {
     final updated = DateTime.parse(updatedStr).toLocal();
     final now = DateTime.now();
@@ -278,11 +283,10 @@ class _IssueHeaderRowState extends State<IssueHeaderRow> {
     }
   }
 
-  String? _ticketUrl(BuildContext context, dynamic ticket) {
-    final key = ticket['key'];
+  String? _ticketUrl(dynamic ticketKey) {
     final domain = APIModel().domain;
-    if (domain != null && key != null) {
-      return 'https://$domain/browse/$key';
+    if (domain != null && ticketKey != null) {
+      return 'https://$domain/browse/$ticketKey';
     }
     return null;
   }
@@ -295,33 +299,24 @@ class _IssueHeaderRowState extends State<IssueHeaderRow> {
     final parent = fields['parent'];
     final projectName = project['name'] ?? '';
 
-    // avatarUrls is a map of size → URL, choose 48x48 (or iconUrl if available)
-    final projectIconUrl = project['avatarUrls']?['48x48'] ?? project['iconUrl'];
+    int badgeSize = 16;
+
+    final projectIconUrl = project['avatarUrls']?['${badgeSize}x$badgeSize'] ?? project['iconUrl'];
     final parentKey = parent?['key'];
-    final parentIconUrl = parent?['fields']?['project']?['avatarUrls']?['48x48'];
+    final parentIconUrl = parent?['fields']?['issuetype']?['iconUrl'];
 
     final issueKey = ticket['key'] ?? '';
     final updated = fields['updated'] as String? ?? '';
-    final url = _ticketUrl(context, ticket);
-
-    Widget badge(String? iconUrl, Widget label) {
-      if (iconUrl == null) return label;
-      return Row(
-        children: [
-          // Image.network(iconUrl, width: 20, height: 20),
-          const SizedBox(width: 4),
-          label,
-        ],
-      );
-    }
 
     return Row(
       children: [
         // Project badge
         if (projectIconUrl != null) ...[
-          badge(
-            projectIconUrl,
-            Text(projectName),
+          IssueBadge(
+            projectName,
+            iconUrl: projectIconUrl,
+            // url: projectUrl,
+            badgeSize: badgeSize,
           ),
           const SizedBox(width: 6),
           const Text('/'),
@@ -330,9 +325,11 @@ class _IssueHeaderRowState extends State<IssueHeaderRow> {
 
         // Parent badge, if any
         if (parentKey != null) ...[
-          badge(
-            parentIconUrl,
-            Text(parentKey),
+          IssueBadge(
+            parentKey,
+            iconUrl: parentIconUrl,
+            url: _ticketUrl(parentKey),
+            badgeSize: badgeSize,
           ),
           const SizedBox(width: 6),
           const Text('/'),
@@ -340,44 +337,12 @@ class _IssueHeaderRowState extends State<IssueHeaderRow> {
         ],
 
         // Your existing ticket key + copy-on-hover
-        MouseRegion(
-          onEnter: (_) => setState(() => _hovering = true),
-          onExit: (_) => setState(() => _hovering = false),
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: () async {
-                  if (url != null) {
-                    await launchUrl(
-                      Uri.parse(url),
-                      mode: LaunchMode.externalApplication,
-                    );
-                  }
-                },
-                child: Text(
-                  issueKey,
-                  style: const TextStyle(decoration: TextDecoration.underline),
-                ),
-              ),
-              AnimatedOpacity(
-                duration: const Duration(milliseconds: 150),
-                opacity: _hovering ? 1 : 0,
-                child: IconButton(
-                  icon: const Icon(Icons.copy, size: 18),
-                  tooltip: 'Copy ticket key',
-                  visualDensity: VisualDensity.compact,
-                  onPressed: _hovering
-                      ? () {
-                          Clipboard.setData(ClipboardData(text: issueKey));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Copied $issueKey')),
-                          );
-                        }
-                      : null,
-                ),
-              ),
-            ],
-          ),
+        IssueBadge(
+          issueKey,
+          iconUrl: fields?['issuetype']?['iconUrl'],
+          url: _ticketUrl(issueKey),
+          badgeSize: badgeSize,
+          copyable: true,
         ),
 
         const Spacer(),
@@ -389,75 +354,82 @@ class _IssueHeaderRowState extends State<IssueHeaderRow> {
       ],
     );
   }
-  // @override
-  // Widget build(BuildContext context) {
-  //   var ticket = widget.ticket;
-  //   final issueKey = ticket['key'] ?? '';
-  //   final updated = ticket['fields']['updated'];
-  //   final url = _ticketUrl(context, ticket);
+}
 
-  //   return Row(
-  //     children: [
-  //       // Wrap only the text+icon in a MouseRegion
-  //       MouseRegion(
-  //         onEnter: (_) => setState(() => _hovering = true),
-  //         onExit: (_) => setState(() => _hovering = false),
-  //         child: Row(
-  //           spacing: 4,
-  //           children: [
-  //             GestureDetector(
-  //               onTap: () async {
-  //                 if (url != null) {
-  //                   await launchUrl(
-  //                     Uri.parse(url),
-  //                     mode: LaunchMode.externalApplication,
-  //                   );
-  //                 }
-  //               },
-  //               child: Text(
-  //                 issueKey,
-  //                 style: const TextStyle(
-  //                   decoration: TextDecoration.underline,
-  //                 ),
-  //               ),
-  //             ),
+class IssueBadge extends StatefulWidget {
+  const IssueBadge(
+    this.label, {
+    super.key,
+    this.url,
+    this.iconUrl,
+    this.badgeSize = 24,
+    this.copyable = false,
+  });
 
-  //             // show the copy button only when _hovering
-  //             AnimatedOpacity(
-  //               duration: const Duration(milliseconds: 150),
-  //               opacity: _hovering ? 1 : 0,
-  //               child: IconButton(
-  //                 icon: const Icon(Icons.copy, size: 18),
-  //                 tooltip: 'Copy ticket key',
-  //                 visualDensity: VisualDensity.compact,
-  //                 onPressed: _hovering
-  //                     ? () {
-  //                         Clipboard.setData(
-  //                           ClipboardData(text: issueKey),
-  //                         );
-  //                         ScaffoldMessenger.of(context).showSnackBar(
-  //                           SnackBar(
-  //                             content: Text('Copied $issueKey'),
-  //                           ),
-  //                         );
-  //                       }
-  //                     : null,
-  //               ),
-  //             ),
-  //           ],
-  //         ),
-  //       ),
+  final int badgeSize;
+  final String label;
+  final String? url;
+  final String? iconUrl;
+  final bool copyable;
 
-  //       const Spacer(),
+  @override
+  State<IssueBadge> createState() => _IssueBadgeState();
+}
 
-  //       Text(
-  //         _timeAgo(updated),
-  //         style: TextStyle(
-  //           fontSize: 12,
-  //           color: Colors.grey[700],
-  //         ),
-  //       ),
-  //     ],
-  //   );
-  // }
+class _IssueBadgeState extends State<IssueBadge> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        if (widget.iconUrl != null) SizedBox.square(dimension: widget.badgeSize.toDouble(), child: APIModel().avatarFromJira(widget.iconUrl!)),
+        const SizedBox(width: 4),
+
+        MouseRegion(
+          onEnter: (_) => setState(() => _hovering = true),
+          onExit: (_) => setState(() => _hovering = false),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: () async {
+                  if (widget.url != null) {
+                    await launchUrl(
+                      Uri.parse(widget.url!),
+                      mode: LaunchMode.externalApplication,
+                    );
+                  }
+                },
+                child: Text(
+                  widget.label,
+                  style: widget.url != null && _hovering ? const TextStyle(decoration: TextDecoration.underline) : null,
+                ),
+              ),
+              if (widget.copyable)
+                AnimatedOpacity(
+                  duration: const Duration(milliseconds: 150),
+                  opacity: _hovering ? 1 : 0,
+                  child: IconButton(
+                    icon: const Icon(Icons.copy, size: 18),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: _hovering
+                        ? () {
+                            Clipboard.setData(
+                              ClipboardData(
+                                text: widget.label,
+                              ),
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Copied ${widget.label}')),
+                            );
+                          }
+                        : null,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }

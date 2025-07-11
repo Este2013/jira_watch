@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:html/parser.dart' as html_parser;
+import 'package:mime/mime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -152,6 +154,116 @@ class APIModel {
   }
 }
 
+// class JiraAvatar extends StatefulWidget {
+//   final String url;
+//   final String authHeader;
+//   final double size;
+
+//   const JiraAvatar({
+//     super.key,
+//     required this.url,
+//     required this.authHeader,
+//     this.size = 32,
+//   });
+
+//   @override
+//   State<JiraAvatar> createState() => _JiraAvatarState();
+// }
+
+// class _JiraAvatarState extends State<JiraAvatar> {
+//   late Future<Widget> _avatarFuture;
+
+//   @override
+//   void initState() {
+//     super.initState();
+//     _avatarFuture = _loadAvatar(widget.url);
+//   }
+
+//   Future<Widget> _loadAvatar(String url) async {
+//     final uri = Uri.parse(url);
+//     final resp = await http.get(
+//       uri,
+//       headers: {
+//         'Authorization': widget.authHeader,
+//         // we’ll let the server pick default if HTML
+//         'Accept': '*/*',
+//       },
+//     );
+
+//     final contentType = resp.headers['content-type']?.toLowerCase() ?? '';
+//     // 1️⃣ HTML → scrape <img>
+//     if (contentType.contains('text/html')) {
+//       final document = html_parser.parse(resp.body);
+//       final img = document.querySelector('img');
+//       final src = img?.attributes['src'];
+//       if (src != null && src.isNotEmpty) {
+//         return _loadAvatar(src);
+//       }
+//       throw Exception('No <img> found in HTML');
+//     }
+//     // 2️⃣ SVG → use flutter_svg
+//     else if (contentType.contains('svg')) {
+//       return SvgPicture.memory(
+//         resp.bodyBytes,
+//         width: widget.size,
+//         height: widget.size,
+//         placeholderBuilder: (_) => SizedBox(
+//           width: widget.size / 2,
+//           height: widget.size / 2,
+//           child: const Center(child: FractionallySizedBox(heightFactor: .8, widthFactor: .8, child: CircularProgressIndicator(strokeWidth: 2))),
+//         ),
+//         fit: BoxFit.contain,
+//       );
+//     }
+//     // 3️⃣ Raster → Image.memory
+//     else if (contentType.startsWith('image/')) {
+//       return Image.memory(
+//         resp.bodyBytes,
+//         width: widget.size,
+//         height: widget.size,
+//         fit: BoxFit.contain,
+//       );
+//     }
+//     // 4️⃣ Fallback
+//     else {
+//       throw Exception('Unsupported content type: $contentType');
+//     }
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return FutureBuilder<Widget>(
+//       future: _avatarFuture,
+//       builder: (context, snapshot) {
+//         if (snapshot.connectionState != ConnectionState.done) {
+//           return SizedBox.square(
+//             dimension: widget.size,
+//             child: const Center(child: FractionallySizedBox(heightFactor: .8, widthFactor: .8, child: CircularProgressIndicator(strokeWidth: 2))),
+//           );
+//         }
+//         if (snapshot.hasError) {
+//           return IconButton(
+//             icon: const Icon(Icons.error),
+//             color: Colors.red,
+//             tooltip: '${snapshot.error}\n${widget.url}',
+//             onPressed: () => Clipboard.setData(
+//               ClipboardData(text: widget.url),
+//             ),
+//           );
+//         }
+//         return snapshot.data!;
+//       },
+//     );
+//   }
+// }
+final CacheManager jiraAvatarCacheManager = CacheManager(
+  Config(
+    'jiraAvatarCache',
+    stalePeriod: const Duration(days: 7),
+    maxNrOfCacheObjects: 200,
+  ),
+);
+
 class JiraAvatar extends StatefulWidget {
   final String url;
   final String authHeader;
@@ -169,6 +281,8 @@ class JiraAvatar extends StatefulWidget {
 }
 
 class _JiraAvatarState extends State<JiraAvatar> {
+  // 1️⃣ Create a custom cache manager instance
+
   late Future<Widget> _avatarFuture;
 
   @override
@@ -178,59 +292,55 @@ class _JiraAvatarState extends State<JiraAvatar> {
   }
 
   Future<Widget> _loadAvatar(String url) async {
-    final uri = Uri.parse(url);
-    final resp = await http.get(
-      uri,
+    // 2️⃣ Fetch via cacheManager; it returns a File from disk or network
+    final file = await jiraAvatarCacheManager.getSingleFile(
+      url,
       headers: {
         'Authorization': widget.authHeader,
-        // we’ll let the server pick default if HTML
         'Accept': '*/*',
       },
     );
 
-    final contentType = resp.headers['content-type']?.toLowerCase() ?? '';
-    // 1️⃣ HTML → scrape <img>
-    if (contentType.contains('text/html')) {
-      final document = html_parser.parse(resp.body);
+    final bytes = await file.readAsBytes();
+
+    // 3️⃣ Detect mime—either from extension or from magic‐bytes
+    final mimeType = lookupMimeType(file.path, headerBytes: bytes) ?? '';
+    if (mimeType.contains('text/html')) {
+      // still scrape HTML if Jira wrapped the <img> in a page
+      final document = html_parser.parse(String.fromCharCodes(bytes));
       final img = document.querySelector('img');
       final src = img?.attributes['src'];
       if (src != null && src.isNotEmpty) {
         return _loadAvatar(src);
       }
       throw Exception('No <img> found in HTML');
-    }
-    // 2️⃣ SVG → use flutter_svg
-    else if (contentType.contains('svg')) {
+    } else if (mimeType.contains('svg')) {
       return SvgPicture.memory(
-        resp.bodyBytes,
+        bytes,
         width: widget.size,
         height: widget.size,
         placeholderBuilder: (_) => SizedBox(
           width: widget.size / 2,
           height: widget.size / 2,
-          child: const Center(child: FractionallySizedBox(heightFactor: .8, widthFactor: .8, child: CircularProgressIndicator(strokeWidth: 2))),
+          child: const Center(
+            child: FractionallySizedBox(
+              widthFactor: .8,
+              heightFactor: .8,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
         ),
         fit: BoxFit.contain,
       );
-    }
-    // 3️⃣ Raster → Image.memory
-    else if (contentType.startsWith('image/')) {
+    } else if (mimeType.startsWith('image/')) {
       return Image.memory(
-        resp.bodyBytes,
+        bytes,
         width: widget.size,
         height: widget.size,
         fit: BoxFit.contain,
-        // loadingBuilder: (context, child, progress) =>
-        //     progress == null ? child : SizedBox(
-        //       width: widget.size / 2,
-        //       height: widget.size / 2,
-        //       child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-        //     ),
       );
-    }
-    // 4️⃣ Fallback
-    else {
-      throw Exception('Unsupported content type: $contentType');
+    } else {
+      throw Exception('Unsupported content type: $mimeType');
     }
   }
 
@@ -240,10 +350,15 @@ class _JiraAvatarState extends State<JiraAvatar> {
       future: _avatarFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return SizedBox(
-            width: widget.size,
-            height: widget.size,
-            child: const Center(child: FractionallySizedBox(heightFactor: .8, widthFactor: .8, child: CircularProgressIndicator(strokeWidth: 2))),
+          return SizedBox.square(
+            dimension: widget.size,
+            child: const Center(
+              child: FractionallySizedBox(
+                widthFactor: .8,
+                heightFactor: .8,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
           );
         }
         if (snapshot.hasError) {

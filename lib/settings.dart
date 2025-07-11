@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
@@ -14,10 +15,25 @@ class SettingsDialog extends StatefulWidget {
 class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
+  final tabs = [
+    Tab(
+      text: 'Connection',
+      icon: Icon(Icons.account_circle),
+    ),
+    Tab(
+      text: 'Projects',
+      icon: Icon(Symbols.ad),
+    ),
+    Tab(
+      text: 'Advanced',
+      icon: Icon(Symbols.settings_applications),
+    ),
+  ];
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: tabs.length, vsync: this);
   }
 
   @override
@@ -28,13 +44,7 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TabBar(
-            controller: _tabController,
-            tabs: [
-              Tab(text: 'Connection'),
-              Tab(text: 'Projects'),
-            ],
-          ),
+          TabBar(controller: _tabController, tabs: tabs),
           SizedBox(
             height: 400,
             width: 450,
@@ -43,6 +53,7 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
               children: [
                 ConnectionSettingsPage(),
                 ProjectsSettingsPage(),
+                AdvancedSettingsPage(),
               ],
             ),
           ),
@@ -265,4 +276,28 @@ extension PartitionExtension<T> on Iterable<T> {
       return map;
     });
   }
+}
+
+class AdvancedSettingsPage extends StatefulWidget {
+  const AdvancedSettingsPage({super.key});
+
+  @override
+  State<AdvancedSettingsPage> createState() => _AdvancedSettingsPageState();
+}
+
+class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Row(
+        spacing: 8,
+        children: [
+          Text('Icon cache'),
+          Spacer(),
+          // IconButton(onPressed: () => print(jiraAvatarCacheManager. .config.repo.), icon: Icon(Icons.folder)),
+          IconButton(onPressed: () => jiraAvatarCacheManager.emptyCache(), icon: Icon(Icons.delete)),
+        ],
+      ),
+    ],
+  );
 }
