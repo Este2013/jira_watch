@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
-import 'package:jira_watch/api_model.dart';
+import 'package:jira_watch/models/api_model.dart';
 import 'package:flutter_json/flutter_json.dart';
 
 class OverviewPage extends StatefulWidget {
@@ -179,7 +179,7 @@ class JiraTicketPreviewItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _ticketColors(ticket);
+    final colors = _ticketColors(context, ticket);
     final summary = ticket['fields']['summary'] ?? 'No Title';
 
     return Card(
@@ -216,32 +216,33 @@ class JiraTicketPreviewItem extends StatelessWidget {
     );
   }
 
-  Map<String, Color> _ticketColors(ticket) {
+  Map<String, Color> _ticketColors(context, ticket) {
     var type = ticket['fields']['issuetype']['name'];
+    bool isLightTheme = Theme.of(context).brightness == Brightness.light;
     switch (type) {
       case 'Bug':
         return {
-          'bg': Colors.red.shade50,
+          'bg': isLightTheme ? Colors.red.shade50 : Colors.red.shade900,
           'border': Colors.red.shade700,
         };
       case 'Task':
         return {
-          'bg': Colors.blue.shade50,
+          'bg': isLightTheme ? Colors.blue.shade50 : Colors.blue.shade900,
           'border': Colors.blue.shade700,
         };
       case 'Story':
         return {
-          'bg': Colors.green.shade50,
+          'bg': isLightTheme ? Colors.green.shade50 : Colors.green.shade900,
           'border': Colors.green.shade700,
         };
       case 'Epic':
         return {
-          'bg': Colors.purple.shade50,
+          'bg': isLightTheme ? Colors.purple.shade50 : Colors.purple.shade900,
           'border': Colors.purple.shade700,
         };
       default:
         return {
-          'bg': Colors.grey.shade50,
+          'bg': isLightTheme ? Colors.grey.shade50 : Colors.grey.shade900,
           'border': Colors.grey.shade700,
         };
     }
@@ -349,7 +350,7 @@ class _IssueHeaderRowState extends State<IssueHeaderRow> {
 
         Text(
           _timeAgo(updated),
-          style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+          style: TextStyle(fontSize: 12, color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300]),
         ),
       ],
     );

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:jira_watch/models/settings_model.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
-import 'package:jira_watch/api_model.dart';
+import 'package:jira_watch/models/api_model.dart';
 
 class SettingsDialog extends StatefulWidget {
   const SettingsDialog({super.key});
@@ -16,6 +17,10 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
   late TabController _tabController;
 
   final tabs = [
+    Tab(
+      text: 'General',
+      icon: Icon(Icons.settings),
+    ),
     Tab(
       text: 'Connection',
       icon: Icon(Icons.account_circle),
@@ -51,6 +56,7 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
             child: TabBarView(
               controller: _tabController,
               children: [
+                GeneralSettingsPage(),
                 ConnectionSettingsPage(),
                 ProjectsSettingsPage(),
                 AdvancedSettingsPage(),
@@ -60,10 +66,36 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
         ],
       ),
     ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: Text('Cancel'),
+  );
+}
+
+class GeneralSettingsPage extends StatefulWidget {
+  const GeneralSettingsPage({super.key});
+
+  @override
+  State<GeneralSettingsPage> createState() => _GeneralSettingsPageState();
+}
+
+class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      Row(
+        spacing: 8,
+        children: [
+          Text('Theme'),
+          Spacer(),
+          DropdownMenu(
+            dropdownMenuEntries: [
+              DropdownMenuEntry(value: 'system', label: 'Same as system', leadingIcon: Icon(Icons.computer)),
+              DropdownMenuEntry(value: 'light', label: 'Light theme', leadingIcon: Icon(Icons.light_mode)),
+              DropdownMenuEntry(value: 'dark', label: 'Dark theme', leadingIcon: Icon(Icons.dark_mode)),
+            ],
+            onSelected: (value) => SettingsModel().theme.value = value!,
+            initialSelection: SettingsModel().theme.value,
+          ),
+        ],
       ),
     ],
   );
@@ -77,6 +109,8 @@ class ConnectionSettingsPage extends StatefulWidget {
 }
 
 class _ConnectionSettingsPageState extends State<ConnectionSettingsPage> {
+  bool editingEnabled = false;
+
   final TextEditingController _domainController = TextEditingController();
   final TextEditingController _apiKeyController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -85,23 +119,15 @@ class _ConnectionSettingsPageState extends State<ConnectionSettingsPage> {
   @override
   void initState() {
     super.initState();
-    _loadSettings();
-  }
-
-  Future<void> _loadSettings() async {
-    await APIModel().load();
-    _domainController.text = APIModel().domain ?? '';
-    _apiKeyController.text = APIModel().apiKey ?? '';
-    _emailController.text = APIModel().email ?? '';
+    _domainController.text = SettingsModel().domainController.text;
+    _apiKeyController.text = SettingsModel().apiKeyController.text;
+    _emailController.text = SettingsModel().emailController.text;
   }
 
   Future<void> _saveSettings() async {
-    await APIModel().update(
-      domain: _domainController.text.trim(),
-      apiKey: _apiKeyController.text.trim(),
-      email: _emailController.text.trim(),
-    );
-    Navigator.pop(context);
+    SettingsModel().domainController.text = _domainController.text.trim();
+    SettingsModel().apiKeyController.text = _apiKeyController.text.trim();
+    SettingsModel().emailController.text = _emailController.text.trim();
   }
 
   Future<void> _openInBrowser() async {
@@ -120,6 +146,7 @@ class _ConnectionSettingsPageState extends State<ConnectionSettingsPage> {
       children: [
         TextField(
           controller: _domainController,
+          enabled: editingEnabled,
           decoration: InputDecoration(
             labelText: 'Jira Domain',
             suffixIcon: IconButton(
@@ -130,11 +157,13 @@ class _ConnectionSettingsPageState extends State<ConnectionSettingsPage> {
         ),
         TextField(
           controller: _emailController,
+          enabled: editingEnabled,
           decoration: InputDecoration(labelText: 'User email'),
         ),
         TextField(
           controller: _apiKeyController,
           obscureText: !_apiKeyVisible,
+          enabled: editingEnabled,
           decoration: InputDecoration(
             labelText: 'API Key',
             suffixIcon: Row(
@@ -161,13 +190,24 @@ class _ConnectionSettingsPageState extends State<ConnectionSettingsPage> {
             ),
           ),
         ),
-        SizedBox(height: 24),
-        Align(
-          alignment: Alignment.centerRight,
-          child: ElevatedButton(
-            onPressed: _saveSettings,
-            child: Text('Save'),
-          ),
+        Row(
+          spacing: 8,
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            ElevatedButton(
+              onPressed: () => setState(() {
+                editingEnabled = !editingEnabled;
+                _domainController.text = SettingsModel().domainController.text;
+                _apiKeyController.text = SettingsModel().apiKeyController.text;
+                _emailController.text = SettingsModel().emailController.text;
+              }),
+              child: Text(editingEnabled ? 'Cancel' : 'Edit'),
+            ),
+            ElevatedButton(
+              onPressed: editingEnabled ? _saveSettings : null,
+              child: Text('Save'),
+            ),
+          ],
         ),
       ],
     );
@@ -294,7 +334,6 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
         children: [
           Text('Icon cache'),
           Spacer(),
-          // IconButton(onPressed: () => print(jiraAvatarCacheManager. .config.repo.), icon: Icon(Icons.folder)),
           IconButton(onPressed: () => jiraAvatarCacheManager.emptyCache(), icon: Icon(Icons.delete)),
         ],
       ),

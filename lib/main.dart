@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watch/home/home.dart';
+import 'package:jira_watch/models/settings_model.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:jira_watch/api_model.dart';
+import 'package:jira_watch/models/api_model.dart';
 
 void main() {
   runApp(MyApp());
@@ -12,16 +13,22 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'Jira API Key Checker',
-    theme: ThemeData(
-      primarySwatch: Colors.blue,
-    ),
-    // home: SplashScreen(),
-    routes: {
-      '/apikey': (context) => ApiKeyInputScreen(),
-      '/home': (context) => HomeScreen(),
-      '/': (context) => SplashScreen(),
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: SettingsModel().theme,
+    builder: (context, _) {
+      return MaterialApp(
+        title: 'Jira API Key Checker',
+        theme: ThemeData(primarySwatch: Colors.blue),
+        darkTheme: ThemeData(primarySwatch: Colors.blue, brightness: Brightness.dark),
+        themeMode: ThemeMode.values.firstWhere((element) => element.name == SettingsModel().theme.value),
+        // home: SplashScreen(),
+        routes: {
+          '/settingsError': (context) => ErrorWidget('An error occured while loading the app settings'),
+          '/apikey': (context) => ApiKeyInputScreen(),
+          '/home': (context) => HomeScreen(),
+          '/': (context) => SplashScreen(),
+        },
+      );
     },
   );
 }
@@ -41,6 +48,10 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkCredentials() async {
+    if (!await SettingsModel().isReady) {
+      // ignore: use_build_context_synchronously
+      Navigator.pushReplacementNamed(context, '/settingsError');
+    }
     await APIModel().load();
     if (!APIModel().isReady) {
       // ignore: use_build_context_synchronously
@@ -55,35 +66,14 @@ class _SplashScreenState extends State<SplashScreen> {
   Widget build(BuildContext context) => Scaffold(body: Center(child: CircularProgressIndicator()));
 }
 
-class ApiKeyInputScreen extends StatefulWidget {
+class ApiKeyInputScreen extends StatelessWidget {
   const ApiKeyInputScreen({super.key});
 
-  @override
-  State<ApiKeyInputScreen> createState() => _ApiKeyInputScreenState();
-}
-
-class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> {
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _apiKeyController = TextEditingController();
-  final TextEditingController _domainController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _loadExistingValues();
-  }
-
-  Future<void> _loadExistingValues() async {
-    await APIModel().load();
-    _emailController.text = APIModel().email ?? '';
-    _apiKeyController.text = APIModel().apiKey ?? '';
-    _domainController.text = APIModel().domain ?? '';
-  }
-
-  Future<void> _saveCredentials() async {
-    final email = _emailController.text.trim();
-    final apiKey = _apiKeyController.text.trim();
-    String domain = _domainController.text.trim();
+  Future<void> _saveCredentials(BuildContext context) async {
+    final settings = SettingsModel();
+    final email = settings.emailController.text.trim();
+    final apiKey = settings.apiKeyController.text.trim();
+    String domain = settings.domainController.text.trim();
 
     if (email.isEmpty || apiKey.isEmpty || domain.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -116,7 +106,7 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> {
               Text('Your Jira Credentials', style: Theme.of(context).textTheme.titleLarge),
               SizedBox(height: 16),
               TextField(
-                controller: _domainController,
+                controller: SettingsModel().domainController,
                 decoration: InputDecoration(
                   labelText: 'Jira Domain (e.g. your-site.atlassian.net)',
                   border: OutlineInputBorder(),
@@ -125,7 +115,7 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> {
               ),
               SizedBox(height: 8),
               TextField(
-                controller: _emailController,
+                controller: SettingsModel().emailController,
                 decoration: InputDecoration(
                   labelText: 'Email Address (for API Auth)',
                   border: OutlineInputBorder(),
@@ -134,13 +124,13 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> {
               ),
               SizedBox(height: 8),
               TextField(
-                controller: _apiKeyController,
+                controller: SettingsModel().apiKeyController,
                 decoration: InputDecoration(
                   labelText: 'API Key',
                   border: OutlineInputBorder(),
                   suffixIcon: IconButton(
                     onPressed: () {
-                      Clipboard.setData(ClipboardData(text: _apiKeyController.text));
+                      Clipboard.setData(ClipboardData(text: SettingsModel().apiKeyController.text));
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('API Key copied to clipboard')),
                       );
@@ -164,7 +154,7 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> {
                   ),
                   Spacer(),
                   ElevatedButton(
-                    onPressed: _saveCredentials,
+                    onPressed: () => _saveCredentials(context),
                     child: Text('Save and continue'),
                   ),
                 ],
