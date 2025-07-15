@@ -86,8 +86,9 @@ class _IssueBadgeState extends State<IssueBadge> {
 /// Shows the issues project, parent and key as [IssueBadge]s.
 class IssueHeaderRow extends StatefulWidget {
   final dynamic ticket;
+  final bool showLastUpdateTime;
 
-  const IssueHeaderRow(this.ticket, {super.key});
+  const IssueHeaderRow(this.ticket, {super.key, this.showLastUpdateTime = true});
 
   @override
   State<IssueHeaderRow> createState() => _IssueHeaderRowState();
@@ -156,9 +157,9 @@ class _IssueHeaderRowState extends State<IssueHeaderRow> {
           copyable: true,
         ),
 
-        const Spacer(),
+        if (widget.showLastUpdateTime) const Spacer(),
 
-        TimeAgoDisplay(timeStr: updated),
+        if (widget.showLastUpdateTime) TimeAgoDisplay(timeStr: updated),
       ],
     );
   }

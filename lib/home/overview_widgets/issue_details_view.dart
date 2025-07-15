@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_json/flutter_json.dart';
 import 'package:jira_watch/home/overview_widgets/diff_matcher.dart';
+import 'package:jira_watch/home/overview_widgets/issue_badge.dart';
 import 'package:jira_watch/home/time_utils.dart';
+import 'package:jira_watch/models/api_model.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 class IssueDetailsView extends StatelessWidget {
@@ -27,10 +29,26 @@ class IssueDetailsView extends StatelessWidget {
     return DefaultTabController(
       length: tabs.length,
       child: Scaffold(
-        appBar: TabBar(tabs: tabs),
+        appBar: AppBar(
+          toolbarHeight: kToolbarHeight + 10,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DefaultTextStyle(
+                style: Theme.of(context).textTheme.bodyMedium ?? TextStyle(),
+                child: IssueHeaderRow(
+                  ticket,
+                  showLastUpdateTime: false,
+                ),
+              ),
+              Text(ticket['fields']['summary'] ?? 'null'),
+            ],
+          ),
+          bottom: TabBar(tabs: tabs),
+        ),
         body: TabBarView(
           children: [
-            HistoryPage(issueJson: ticket),
+            HistoryPage(ticket: ticket),
             JsonWidget(
               json: json.decode(JsonEncoder().convert(ticket)),
               initialExpandDepth: 2,
@@ -69,8 +87,10 @@ class HistoryEntry {
   final String created;
   final String author;
   final List<ChangeItem> items;
+  final dynamic data;
 
-  HistoryEntry({
+  HistoryEntry(
+    this.data, {
     required this.created,
     required this.author,
     required this.items,
@@ -78,26 +98,51 @@ class HistoryEntry {
 
   factory HistoryEntry.fromJson(Map<String, dynamic> json) {
     return HistoryEntry(
+      json,
       created: json['created'],
       author: (json['author'] as Map<String, dynamic>)['displayName'] as String,
       items: (json['items'] as List<dynamic>).map((item) => ChangeItem.fromJson(item as Map<String, dynamic>)).toList(),
     );
   }
+
+  String get authorAvatar => data['author']['avatarUrls']['32x32'];
 }
 
 /// A page that displays the changelog for a JIRA issue given its JSON
 class HistoryPage extends StatelessWidget {
   final List<HistoryEntry> _entries;
 
+  final ticket;
+
   /// Provide the raw issue JSON (with `changelog.histories` included)
   HistoryPage({
     super.key,
-    required Map<String, dynamic> issueJson,
-  }) : _entries = (issueJson['changelog']['histories'] as List<dynamic>).map((h) => HistoryEntry.fromJson(h as Map<String, dynamic>)).toList();
+    required this.ticket,
+  }) : _entries = (ticket['changelog']['histories'] as List<dynamic>).map((h) => HistoryEntry.fromJson(h as Map<String, dynamic>)).toList();
 
   @override
   Widget build(BuildContext context) {
+    List<List<HistoryEntry>> groups = [];
+
+    late HistoryEntry last;
+    for (var e in _entries) {
+      if (groups.isEmpty) {
+        groups.add([e]);
+        last = e;
+        continue;
+      }
+
+      if (e.author == last.author && DateTime.parse(e.created).difference(DateTime.parse(last.created)) < Duration(minutes: 5)) {
+        groups.last.add(e);
+        last = e;
+        continue;
+      }
+      groups.add([e]);
+      last = e;
+    }
+
     return Scaffold(
+      key: Key(ticket['key']),
       appBar: AppBar(
         title: const Text('Issue History'),
       ),
@@ -105,42 +150,67 @@ class HistoryPage extends StatelessWidget {
           ? const Center(child: Text('No history available.'))
           : ListView.builder(
               padding: const EdgeInsets.all(8),
-              itemCount: _entries.length,
+              itemCount: groups.length,
               itemBuilder: (context, index) {
-                final entry = _entries[index];
+                final group = groups[index];
                 return Card(
                   margin: const EdgeInsets.symmetric(vertical: 8),
                   child: Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // title
                         Row(
+                          spacing: 8,
                           children: [
+                            ClipRRect(
+                              borderRadius: BorderRadiusGeometry.circular(10000),
+                              child: JiraAvatar(key: Key(group.first.author), url: group.first.authorAvatar, authHeader: APIModel().authHeader),
+                            ),
                             Text(
-                              'By ${entry.author}',
+                              'By ${group.first.author}',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                             Spacer(),
-                            TimeAgoDisplay(timeStr: entry.created),
+                            TimeAgoDisplay(timeStr: group.first.created),
                           ],
                         ),
                         Divider(),
                         const SizedBox(height: 8),
-                        ...entry.items.map(
-                          (item) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            child: Row(
-                              children: [
-                                Chip(label: Text(item.field.capitalize())),
-                                Expanded(
-                                  child: DiffReviewer(before: item.fromString ?? '', after: item.toStringData ?? ''),
+                        // changes
+                        Table(
+                          columnWidths: {0: IntrinsicColumnWidth()},
+                          border: TableBorder(horizontalInside: BorderSide(color: Theme.of(context).dividerColor.withAlpha(100))),
+                          children: group
+                              .fold(
+                                <ChangeItem>[],
+                                (previousValue, element) => previousValue..addAll(element.items.reversed),
+                              )
+                              .map(
+                                (item) => TableRow(
+                                  children: [
+                                    TableCell(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(8.0),
+                                        child: Align(
+                                          alignment: Alignment.topLeft,
+                                          child: Chip(label: Text(item.field.capitalize())),
+                                        ),
+                                      ),
+                                    ),
+                                    TableCell(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: DiffReviewer(before: item.fromString ?? '', after: item.toStringData ?? ''),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          ),
+                              )
+                              .toList(),
                         ),
                       ],
                     ),
