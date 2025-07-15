@@ -110,6 +110,7 @@ class _OverviewPageState extends State<OverviewPage> {
         children: [
           Expanded(
             child: ListView(
+              // TODO better than this bad list: a pagination system
               children: [
                 _buildTicketGroup('Today', today),
                 _buildTicketGroup('Yesterday', yesterday),
