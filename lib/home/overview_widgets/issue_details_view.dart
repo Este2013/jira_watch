@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_json/flutter_json.dart';
+import 'package:jira_watch/home/overview_widgets/diff_matcher.dart';
 import 'package:jira_watch/home/time_utils.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -126,12 +127,18 @@ class HistoryPage extends StatelessWidget {
                             TimeAgoDisplay(timeStr: entry.created),
                           ],
                         ),
+                        Divider(),
                         const SizedBox(height: 8),
                         ...entry.items.map(
                           (item) => Padding(
                             padding: const EdgeInsets.symmetric(vertical: 2),
-                            child: Text(
-                              '${item.field}: "${item.fromString ?? ''}" → "${item.toStringData ?? ''}"',
+                            child: Row(
+                              children: [
+                                Chip(label: Text(item.field.capitalize())),
+                                Expanded(
+                                  child: DiffReviewer(before: item.fromString ?? '', after: item.toStringData ?? ''),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -142,5 +149,15 @@ class HistoryPage extends StatelessWidget {
               },
             ),
     );
+  }
+}
+
+extension StringCasingExtension on String {
+  /// Capitalizes the first letter of this string.
+  ///
+  /// If the string is empty, returns it unchanged.
+  String capitalize() {
+    if (isEmpty) return this;
+    return this[0].toUpperCase() + substring(1);
   }
 }
