@@ -94,6 +94,11 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
             ],
             onSelected: (value) => SettingsModel().theme.value = value!,
             initialSelection: SettingsModel().theme.value,
+            // VVV disable writing VVV
+            enableSearch: false,
+            enableFilter: false,
+            requestFocusOnTap: false,
+            focusNode: FocusNode()..canRequestFocus = false,
           ),
         ],
       ),

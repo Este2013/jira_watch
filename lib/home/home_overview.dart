@@ -1,11 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter/services.dart';
 import 'package:jira_watch/models/api_model.dart';
-import 'package:flutter_json/flutter_json.dart';
+
+import 'overview_widgets/issue_badge.dart';
+import 'overview_widgets/issue_details_view.dart';
 
 class OverviewPage extends StatefulWidget {
   const OverviewPage({super.key});
@@ -61,6 +59,7 @@ class _OverviewPageState extends State<OverviewPage> {
         queryParameters: {
           'jql': jql,
           'maxResults': '100',
+          'expand': 'changelog',
         },
       );
       final issues = data['issues'] as List<dynamic>;
@@ -205,13 +204,7 @@ class JiraTicketPreviewItem extends StatelessWidget {
             ],
           ),
         ),
-        onTap: () => updateView?.call(
-          JsonWidget(
-            json: json.decode(JsonEncoder().convert(ticket)),
-            initialExpandDepth: 2,
-            nodeIndent: 32,
-          ),
-        ),
+        onTap: () => updateView?.call(IssueDetailsView(ticket)),
       ),
     );
   }
@@ -246,191 +239,5 @@ class JiraTicketPreviewItem extends StatelessWidget {
           'border': Colors.grey.shade700,
         };
     }
-  }
-}
-
-class IssueHeaderRow extends StatefulWidget {
-  final dynamic ticket;
-
-  const IssueHeaderRow(this.ticket, {super.key});
-
-  @override
-  State<IssueHeaderRow> createState() => _IssueHeaderRowState();
-}
-
-class _IssueHeaderRowState extends State<IssueHeaderRow> {
-  String _timeAgo(String updatedStr) {
-    final updated = DateTime.parse(updatedStr).toLocal();
-    final now = DateTime.now();
-    final diff = now.difference(updated);
-
-    if (diff.inSeconds < 60) {
-      return 'Just now';
-    } else if (diff.inMinutes < 60) {
-      return '${diff.inMinutes} min${diff.inMinutes == 1 ? '' : 's'} ago';
-    } else if (diff.inHours < 24) {
-      return '${diff.inHours} hour${diff.inHours == 1 ? '' : 's'} ago';
-    } else if (diff.inDays < 7) {
-      return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
-    } else if (diff.inDays < 30) {
-      final weeks = (diff.inDays / 7).floor();
-      return '$weeks week${weeks == 1 ? '' : 's'} ago';
-    } else if (diff.inDays < 365) {
-      final months = (diff.inDays / 30).floor();
-      return '$months month${months == 1 ? '' : 's'} ago';
-    } else {
-      final years = (diff.inDays / 365).floor();
-      return '$years year${years == 1 ? '' : 's'} ago';
-    }
-  }
-
-  String? _ticketUrl(dynamic ticketKey) {
-    final domain = APIModel().domain;
-    if (domain != null && ticketKey != null) {
-      return 'https://$domain/browse/$ticketKey';
-    }
-    return null;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ticket = widget.ticket;
-    final fields = ticket['fields'] ?? {};
-    final project = fields['project'] ?? {};
-    final parent = fields['parent'];
-    final projectName = project['name'] ?? '';
-
-    int badgeSize = 16;
-
-    final projectIconUrl = project['avatarUrls']?['${badgeSize}x$badgeSize'] ?? project['iconUrl'];
-    final parentKey = parent?['key'];
-    final parentIconUrl = parent?['fields']?['issuetype']?['iconUrl'];
-
-    final issueKey = ticket['key'] ?? '';
-    final updated = fields['updated'] as String? ?? '';
-
-    return Row(
-      children: [
-        // Project badge
-        if (projectIconUrl != null) ...[
-          IssueBadge(
-            projectName,
-            iconUrl: projectIconUrl,
-            // url: projectUrl,
-            badgeSize: badgeSize,
-          ),
-          const SizedBox(width: 6),
-          const Text('/'),
-          const SizedBox(width: 6),
-        ],
-
-        // Parent badge, if any
-        if (parentKey != null) ...[
-          IssueBadge(
-            parentKey,
-            iconUrl: parentIconUrl,
-            url: _ticketUrl(parentKey),
-            badgeSize: badgeSize,
-          ),
-          const SizedBox(width: 6),
-          const Text('/'),
-          const SizedBox(width: 6),
-        ],
-
-        // Your existing ticket key + copy-on-hover
-        IssueBadge(
-          issueKey,
-          iconUrl: fields?['issuetype']?['iconUrl'],
-          url: _ticketUrl(issueKey),
-          badgeSize: badgeSize,
-          copyable: true,
-        ),
-
-        const Spacer(),
-
-        Text(
-          _timeAgo(updated),
-          style: TextStyle(fontSize: 12, color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300]),
-        ),
-      ],
-    );
-  }
-}
-
-class IssueBadge extends StatefulWidget {
-  const IssueBadge(
-    this.label, {
-    super.key,
-    this.url,
-    this.iconUrl,
-    this.badgeSize = 24,
-    this.copyable = false,
-  });
-
-  final int badgeSize;
-  final String label;
-  final String? url;
-  final String? iconUrl;
-  final bool copyable;
-
-  @override
-  State<IssueBadge> createState() => _IssueBadgeState();
-}
-
-class _IssueBadgeState extends State<IssueBadge> {
-  bool _hovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        if (widget.iconUrl != null) SizedBox.square(dimension: widget.badgeSize.toDouble(), child: APIModel().avatarFromJira(widget.iconUrl!)),
-        const SizedBox(width: 4),
-
-        MouseRegion(
-          onEnter: (_) => setState(() => _hovering = true),
-          onExit: (_) => setState(() => _hovering = false),
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: () async {
-                  if (widget.url != null) {
-                    await launchUrl(
-                      Uri.parse(widget.url!),
-                      mode: LaunchMode.externalApplication,
-                    );
-                  }
-                },
-                child: Text(
-                  widget.label,
-                  style: widget.url != null && _hovering ? const TextStyle(decoration: TextDecoration.underline) : null,
-                ),
-              ),
-              if (widget.copyable)
-                AnimatedOpacity(
-                  duration: const Duration(milliseconds: 150),
-                  opacity: _hovering ? 1 : 0,
-                  child: IconButton(
-                    icon: const Icon(Icons.copy, size: 18),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: _hovering
-                        ? () {
-                            Clipboard.setData(
-                              ClipboardData(
-                                text: widget.label,
-                              ),
-                            );
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Copied ${widget.label}')),
-                            );
-                          }
-                        : null,
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
   }
 }
