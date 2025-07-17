@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:jira_watch/home/overview_widgets/avatar.dart';
 import 'package:jira_watch/home/time_utils.dart';
 import 'package:jira_watch/models/api_model.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -32,7 +33,11 @@ class _IssueBadgeState extends State<IssueBadge> {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        if (widget.iconUrl != null) SizedBox.square(dimension: widget.badgeSize.toDouble(), child: APIModel().avatarFromJira(widget.iconUrl!)),
+        if (widget.iconUrl != null)
+          SizedBox.square(
+            dimension: widget.badgeSize.toDouble(),
+            child: JiraAvatar(url: widget.iconUrl!),
+          ),
         const SizedBox(width: 4),
 
         MouseRegion(

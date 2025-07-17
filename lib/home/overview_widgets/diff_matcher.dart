@@ -44,7 +44,7 @@ class _DiffReviewerState extends State<DiffReviewer> {
             TextSpan(
               text: diff.text,
               style: TextStyle(
-                backgroundColor: Colors.green.withOpacity(0.3),
+                backgroundColor: Colors.green.withAlpha(255 ~/ 3),
               ),
             ),
           );
@@ -56,7 +56,7 @@ class _DiffReviewerState extends State<DiffReviewer> {
               text: diff.text,
               style: TextStyle(
                 decoration: TextDecoration.lineThrough,
-                backgroundColor: Colors.red.withOpacity(0.3),
+                backgroundColor: Colors.red.withAlpha(255 ~/ 3),
               ),
             ),
           );

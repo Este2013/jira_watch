@@ -24,7 +24,7 @@ class MyApp extends StatelessWidget {
         // home: SplashScreen(),
         routes: {
           '/settingsError': (context) => ErrorWidget('An error occured while loading the app settings'),
-          '/apikey': (context) => ApiKeyInputScreen(),
+          '/apikey': (context) => ApiKeyInputScreen(code: ModalRoute.of(context)!.settings.arguments as int?),
           '/home': (context) => HomeScreen(),
           '/': (context) => SplashScreen(),
         },
@@ -57,6 +57,14 @@ class _SplashScreenState extends State<SplashScreen> {
       // ignore: use_build_context_synchronously
       Navigator.pushReplacementNamed(context, '/apikey');
     } else {
+      // test credentials validity
+      var response = await APIModel().request('/rest/api/3/myself');
+      if (response.statusCode == 401) {
+        // ignore: use_build_context_synchronously
+        Navigator.pushReplacementNamed(context, '/apikey', arguments: 401);
+        return;
+      }
+      print(response.statusCode);
       // ignore: use_build_context_synchronously
       Navigator.pushReplacementNamed(context, '/home');
     }
@@ -67,7 +75,8 @@ class _SplashScreenState extends State<SplashScreen> {
 }
 
 class ApiKeyInputScreen extends StatelessWidget {
-  const ApiKeyInputScreen({super.key});
+  const ApiKeyInputScreen({super.key, this.code});
+  final int? code;
 
   Future<void> _saveCredentials(BuildContext context) async {
     final settings = SettingsModel();
@@ -100,11 +109,34 @@ class ApiKeyInputScreen extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 16,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text('Your Jira Credentials', style: Theme.of(context).textTheme.titleLarge),
-              SizedBox(height: 16),
+
+              if (code == 401)
+                Card(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  margin: EdgeInsets.zero,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Text.rich(
+                      TextSpan(
+                        style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+                        children: [
+                          TextSpan(
+                            text: 'Error 401: Unauthorized\n',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          TextSpan(text: 'Your credentials might have expired. Renew your API key if necessary.'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+              SizedBox(height: 8),
               TextField(
                 controller: SettingsModel().domainController,
                 decoration: InputDecoration(
@@ -113,7 +145,6 @@ class ApiKeyInputScreen extends StatelessWidget {
                   suffix: Text('.atlassian.net'),
                 ),
               ),
-              SizedBox(height: 8),
               TextField(
                 controller: SettingsModel().emailController,
                 decoration: InputDecoration(
@@ -122,7 +153,6 @@ class ApiKeyInputScreen extends StatelessWidget {
                 ),
                 keyboardType: TextInputType.emailAddress,
               ),
-              SizedBox(height: 8),
               TextField(
                 controller: SettingsModel().apiKeyController,
                 decoration: InputDecoration(
@@ -140,7 +170,6 @@ class ApiKeyInputScreen extends StatelessWidget {
                 ),
                 obscureText: true,
               ),
-              SizedBox(height: 16),
               Row(
                 children: [
                   TextButton(

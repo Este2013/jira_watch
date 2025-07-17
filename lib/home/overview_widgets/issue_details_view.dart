@@ -2,10 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_json/flutter_json.dart';
+import 'package:jira_watch/home/overview_widgets/avatar.dart';
 import 'package:jira_watch/home/overview_widgets/diff_matcher.dart';
 import 'package:jira_watch/home/overview_widgets/issue_badge.dart';
 import 'package:jira_watch/home/time_utils.dart';
-import 'package:jira_watch/models/api_model.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 class IssueDetailsView extends StatelessWidget {
@@ -166,7 +166,7 @@ class HistoryPage extends StatelessWidget {
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadiusGeometry.circular(10000),
-                              child: JiraAvatar(key: Key(group.first.author), url: group.first.authorAvatar, authHeader: APIModel().authHeader),
+                              child: JiraAvatar(key: Key(group.first.author), url: group.first.authorAvatar),
                             ),
                             Text(
                               'By ${group.first.author}',

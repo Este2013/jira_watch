@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsModel {
@@ -7,7 +11,6 @@ class SettingsModel {
   factory SettingsModel() => _instance;
 
   late Future<bool> isReady;
-
   SettingsModel._internal() {
     isReady = SharedPreferences.getInstance().then(
       (prefs) {
@@ -32,4 +35,7 @@ class SettingsModel {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController apiKeyController = TextEditingController();
   final TextEditingController domainController = TextEditingController();
+
+  // FOLDERS
+  Future<Directory> tempDir = getTemporaryDirectory().then((v) => Directory(join(v.path, 'jira_watch_cache')));
 }

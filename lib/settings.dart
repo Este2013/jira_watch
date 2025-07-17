@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:jira_watch/home/overview_widgets/avatar.dart';
 import 'package:jira_watch/models/settings_model.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -301,7 +302,7 @@ class _ProjectsSettingsPageState extends State<ProjectsSettingsPage> {
                     subtitle: Text(name),
                     value: _selected.contains(key),
                     onChanged: (_) => _toggle(key),
-                    secondary: APIModel().avatarFromJira(p['avatarUrls']['16x16'] + '?format=png'),
+                    secondary: JiraAvatar(url: p['avatarUrls']['16x16'] + '?format=png', size: 16),
                   );
                 },
               ),

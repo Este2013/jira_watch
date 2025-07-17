@@ -1,12 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
-import 'package:flutter_svg/svg.dart';
-import 'package:html/parser.dart' as html_parser;
-import 'package:mime/mime.dart';
+import 'dart:io';
+
+import 'package:jira_watch/models/settings_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as path;
 
 class APIModel {
   static final APIModel _instance = APIModel._internal();
@@ -138,138 +136,121 @@ class APIModel {
     final projects = await fetchProjects(refresh: refresh);
     return projects.where((p) => p['favourite'] == true).toList();
   }
-
-  ///////// IMAGES /////////
-
-  Widget avatarFromJira(String url) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(3),
-      child: JiraAvatar(
-        key: Key(url),
-        url: url,
-        authHeader: authHeader,
-      ),
-    );
-  }
 }
 
-final CacheManager jiraAvatarCacheManager = CacheManager(
-  Config(
-    'jiraAvatarCache',
-    stalePeriod: const Duration(days: 7),
-    maxNrOfCacheObjects: 200,
-  ),
-);
+class IssueData {
+  dynamic data;
+  DateTime lastCacheUpdate;
 
-class JiraAvatar extends StatefulWidget {
-  final String url;
-  final String authHeader;
-  final double size;
+  IssueData(this.data, {required this.lastCacheUpdate});
+  factory IssueData.fromJson(data) => IssueData(
+    data['data'],
+    lastCacheUpdate: DateTime.parse(data['last_updated']),
+  );
 
-  const JiraAvatar({
-    super.key,
-    required this.url,
-    required this.authHeader,
-    this.size = 32,
+  Map toJson() => {
+    'data': data,
+    'last_updated': lastCacheUpdate.toIso8601String(),
+  };
+
+  operator [](dynamic key) => data[key];
+}
+
+class IssuesModel {
+  static final IssuesModel _instance = IssuesModel._internal();
+
+  factory IssuesModel() => _instance;
+
+  IssuesModel._internal() {}
+
+  /////////////////////////////////////////////////////////////////////
+
+  late Future<List<IssueData>?> issuesCache;
+
+  void updateCache(List<IssueData> newData) async {
+    var cache = await issuesCache;
+    if (cache == null) {
+      _storeCache(newData);
+      return;
+    }
+    var newCache = <IssueData>[];
+    for (var i in newData) {
+      IssueData? overriden = cache.where((element) => element['key'] == i['key']).firstOrNull;
+      if (overriden == null) {
+        newCache.add(i);
+        continue;
+      }
+      newCache.add(
+        IssueData(_mergeMaps(overriden.data, i.data), lastCacheUpdate: i.lastCacheUpdate),
+      );
+    }
+    _storeCache(newData);
+  }
+
+  void _storeCache(List<IssueData>? newCache) {
+    if (newCache == null) {
+      SettingsModel().tempDir.then((tempDir) async {
+        File(path.join(tempDir.path, 'issues_cache.json')).delete();
+      });
+      return;
+    }
+
+    SettingsModel().tempDir.then((tempDir) async {
+      var cacheFile = File(path.join(tempDir.path, 'issues_cache.json'));
+      if (!await cacheFile.exists()) {
+        cacheFile.create(recursive: true);
+      }
+      cacheFile.writeAsString(
+        jsonEncode({
+          'cacheData': newCache.map((e) => e.toJson()),
+          'last_updated': DateTime.now().toIso8601String(),
+        }),
+      );
+    });
+  }
+
+  Future<List<IssueData>?> loadCache() => SettingsModel().tempDir.then((tempDir) async {
+    var cacheFile = File(path.join(tempDir.path, 'issues_cache.json'));
+    if (await cacheFile.exists()) {
+      return cacheFile.readAsString().then(
+        (value) => jsonDecode(value)['cacheData'].map((e) => IssueData.fromJson(e)).toList(),
+      );
+    }
+    return null;
   });
 
-  @override
-  State<JiraAvatar> createState() => _JiraAvatarState();
+  /////////////////////////////////////////////////////////////////////
+
+  Future<List<IssueData>> jqlSearch(String jql, {int maxResults = 100, String? expand}) async {
+    late final dynamic data;
+    data = await APIModel().getJson(
+      '/rest/api/3/search',
+      queryParameters: {
+        'jql': jql,
+        'maxResults': '$maxResults',
+        if (expand != null) 'expand': expand, //'changelog',
+      },
+    );
+    var time = DateTime.now();
+    print(data);
+    return ((data['issues'] as List).map((d) => IssueData(d, lastCacheUpdate: time))).toList().cast();
+  }
 }
 
-class _JiraAvatarState extends State<JiraAvatar> {
-  // 1️⃣ Create a custom cache manager instance
-
-  late Future<Widget> _avatarFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _avatarFuture = _loadAvatar(widget.url);
-  }
-
-  Future<Widget> _loadAvatar(String url) async {
-    // 2️⃣ Fetch via cacheManager; it returns a File from disk or network
-    final file = await jiraAvatarCacheManager.getSingleFile(
-      url,
-      headers: {
-        'Authorization': widget.authHeader,
-        'Accept': '*/*',
-      },
-    );
-
-    final bytes = await file.readAsBytes();
-
-    // 3️⃣ Detect mime—either from extension or from magic‐bytes
-    final mimeType = lookupMimeType(file.path, headerBytes: bytes) ?? '';
-    if (mimeType.contains('text/html')) {
-      // still scrape HTML if Jira wrapped the <img> in a page
-      final document = html_parser.parse(String.fromCharCodes(bytes));
-      final img = document.querySelector('img');
-      final src = img?.attributes['src'];
-      if (src != null && src.isNotEmpty) {
-        return _loadAvatar(src);
-      }
-      throw Exception('No <img> found in HTML');
-    } else if (mimeType.contains('svg')) {
-      return SvgPicture.memory(
-        bytes,
-        width: widget.size,
-        height: widget.size,
-        placeholderBuilder: (_) => SizedBox(
-          width: widget.size / 2,
-          height: widget.size / 2,
-          child: const Center(
-            child: FractionallySizedBox(
-              widthFactor: .8,
-              heightFactor: .8,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          ),
-        ),
-        fit: BoxFit.contain,
-      );
-    } else if (mimeType.startsWith('image/')) {
-      return Image.memory(
-        bytes,
-        width: widget.size,
-        height: widget.size,
-        fit: BoxFit.contain,
-      );
+/// Deep-merges [src] into [dest], modifying and returning [dest].
+Map<String, dynamic> _mergeMaps(
+  Map<String, dynamic> dest,
+  Map<String, dynamic> src,
+) {
+  src.forEach((key, srcValue) {
+    final destValue = dest[key];
+    if (srcValue is Map<String, dynamic> && destValue is Map<String, dynamic>) {
+      // both sides are maps → recurse
+      _mergeMaps(destValue, srcValue);
     } else {
-      throw Exception('Unsupported content type: $mimeType');
+      // otherwise overwrite (or insert new)
+      dest[key] = srcValue;
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<Widget>(
-      future: _avatarFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return SizedBox.square(
-            dimension: widget.size,
-            child: const Center(
-              child: FractionallySizedBox(
-                widthFactor: .8,
-                heightFactor: .8,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          );
-        }
-        if (snapshot.hasError) {
-          return IconButton(
-            icon: const Icon(Icons.error),
-            color: Colors.red,
-            tooltip: '${snapshot.error}\n${widget.url}',
-            onPressed: () => Clipboard.setData(
-              ClipboardData(text: widget.url),
-            ),
-          );
-        }
-        return snapshot.data!;
-      },
-    );
-  }
+  });
+  return dest;
 }
