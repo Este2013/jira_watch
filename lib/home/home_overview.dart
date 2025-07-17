@@ -1,7 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -230,7 +226,7 @@ class _OldOverviewPageState extends State<OldOverviewPage> {
   bool isLoadingMore = false;
   int loadedMonths = 0;
   Map<String, List<dynamic>> monthGroups = {};
-  List<dynamic> today = [];
+  late Stream<dynamic> shown;
   List<dynamic> yesterday = [];
   List<dynamic> thisWeek = [];
   List<String> olderMonths = [];
@@ -257,40 +253,11 @@ class _OldOverviewPageState extends State<OldOverviewPage> {
   Future<void> _fetchTickets({required int days, DateTime? before}) async {
     setState(() => isLoading = true);
 
-    String projectFilter = '';
-    if (starredProjects.isNotEmpty) {
-      final keys = starredProjects.map((k) => k.trim()).where((k) => k.isNotEmpty).join(',');
-      projectFilter = 'project in ($keys) AND ';
-    }
-
-    final jql = '${projectFilter}updated >= -${days}d ${before != null ? "AND updated <= ${before.toIso8601String()}" : ""} ORDER BY updated DESC';
-
     try {
-      final data = await APIModel().getJson(
-        '/rest/api/3/search',
-        queryParameters: {
-          'jql': jql,
-          'maxResults': '100',
-          'expand': 'changelog',
-        },
-      );
-      final issues = data['issues'] as List<dynamic>;
+      final issues = await IssuesModel().getLastUpdatedIssues();
 
-      for (var issue in issues) {
-        final updatedStr = issue['fields']['updated'];
-        final updated = DateTime.parse(updatedStr);
-
-        if (_isSameDay(updated, now)) {
-          today.add(issue);
-        } else if (_isSameDay(updated, now.subtract(Duration(days: 1)))) {
-          yesterday.add(issue);
-        } else if (updated.isAfter(now.subtract(Duration(days: 7)))) {
-          thisWeek.add(issue);
-        } else {
-          final monthKey = '${updated.year}-${updated.month.toString().padLeft(2, '0')}';
-          monthGroups.putIfAbsent(monthKey, () => []).add(issue);
-        }
-      }
+      issues.take(25);
+      today.addAll(issues);
 
       setState(() {
         isLoading = false;
@@ -324,12 +291,12 @@ class _OldOverviewPageState extends State<OldOverviewPage> {
             child: ListView(
               // TODO better than this bad list: a pagination system
               children: [
-                _buildTicketGroup('Today', today),
-                _buildTicketGroup('Yesterday', yesterday),
-                _buildTicketGroup('This Week', thisWeek),
-                ...olderMonths.take(loadedMonths + 1).map((monthKey) {
-                  return _buildMonthGroup(monthKey, monthGroups[monthKey]!);
-                }),
+                ...today.map((t) => JiraTicketPreviewItem(ticket: t, updateView: updateView)),
+                // _buildTicketGroup('Yesterday', yesterday),
+                // _buildTicketGroup('This Week', thisWeek),
+                // ...olderMonths.take(loadedMonths + 1).map((monthKey) {
+                //   return _buildMonthGroup(monthKey, monthGroups[monthKey]!);
+                // }),
                 if (loadedMonths + 1 < olderMonths.length)
                   Center(
                     child: ElevatedButton(
@@ -348,39 +315,6 @@ class _OldOverviewPageState extends State<OldOverviewPage> {
   }
 
   void updateView(Widget w) => setState(() => view = w);
-
-  Widget _buildTicketGroup(String title, List<dynamic> tickets) {
-    if (tickets.isEmpty) return SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        SizedBox(height: 8),
-        ...tickets.map((t) => JiraTicketPreviewItem(ticket: t, updateView: updateView)),
-        SizedBox(height: 16),
-      ],
-    );
-  }
-
-  Widget _buildMonthGroup(String month, List<dynamic> tickets) {
-    final monthDate = DateTime.parse('$month-01');
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '${monthDate.year}-${monthDate.month.toString().padLeft(2, '0')}',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        SizedBox(height: 8),
-        ...tickets.map((t) => JiraTicketPreviewItem(ticket: t, updateView: updateView)),
-        SizedBox(height: 16),
-      ],
-    );
-  }
-
-  bool _isSameDay(DateTime d1, DateTime d2) {
-    return d1.year == d2.year && d1.month == d2.month && d1.day == d2.day;
-  }
 }
 
 class JiraTicketPreviewItem extends StatelessWidget {

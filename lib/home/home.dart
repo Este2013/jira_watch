@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:jira_watch/home/home_overview.dart';
-import 'package:jira_watch/main.dart';
 import 'package:jira_watch/settings.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -56,17 +54,15 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: Text('Home - $_currentPage'),
         actions: [
-          IconButton(
-            icon: Icon(Icons.logout),
-            onPressed: () async {
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.remove('jira_api_key');
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => ApiKeyInputScreen()),
-              );
-            },
-          ),
+          // IconButton(
+          //   icon: Icon(Icons.logout),
+          //   onPressed: () async {
+          //     final prefs = await SharedPreferences.getInstance();
+          //     await prefs.remove('jira_api_key');
+          //     // ignore: use_build_context_synchronously
+          //     Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ApiKeyInputScreen()));
+          //   },
+          // ),
         ],
       ),
       body: Row(

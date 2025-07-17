@@ -6,6 +6,7 @@ import 'package:jira_watch/home/overview_widgets/avatar.dart';
 import 'package:jira_watch/home/overview_widgets/diff_matcher.dart';
 import 'package:jira_watch/home/overview_widgets/issue_badge.dart';
 import 'package:jira_watch/home/time_utils.dart';
+import 'package:jira_watch/models/api_model.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 class IssueDetailsView extends StatelessWidget {
@@ -112,7 +113,7 @@ class HistoryEntry {
 class HistoryPage extends StatelessWidget {
   final List<HistoryEntry> _entries;
 
-  final ticket;
+  final IssueData ticket;
 
   /// Provide the raw issue JSON (with `changelog.histories` included)
   HistoryPage({

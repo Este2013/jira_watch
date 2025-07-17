@@ -126,7 +126,6 @@ class APIModel {
       // },
     );
     final result = (data as List);
-    print('Fetched projects: $result');
     _projectsCache = result;
     return result;
   }
@@ -142,15 +141,20 @@ class IssueData {
   dynamic data;
   DateTime lastCacheUpdate;
 
+  /// A distinct way to know which method added this to the cache / null if read from cache or irrelevant.
+  String? providerToCache;
+
   IssueData(this.data, {required this.lastCacheUpdate});
   factory IssueData.fromJson(data) => IssueData(
     data['data'],
     lastCacheUpdate: DateTime.parse(data['last_updated']),
+    // providerToCache left null
   );
 
   Map toJson() => {
     'data': data,
     'last_updated': lastCacheUpdate.toIso8601String(),
+    'provider_to_cache': providerToCache,
   };
 
   operator [](dynamic key) => data[key];
@@ -234,6 +238,61 @@ class IssuesModel {
     var time = DateTime.now();
     print(data);
     return ((data['issues'] as List).map((d) => IssueData(d, lastCacheUpdate: time))).toList().cast();
+  }
+
+  Stream<IssueData> getLastUpdatedIssues({acceptCache = true}) async* {
+    Future<(IssueData, DateTime?)?>? mostRecentlyUpdatedFromCache;
+    if (acceptCache) {
+      // Filter the cache by only what was added by this method specifically.
+
+      mostRecentlyUpdatedFromCache = issuesCache.then((cache) async {
+        if (cache == null || cache.isEmpty) {
+          return null;
+        }
+        return cache
+            .map(
+              (e) => (e, DateTime.tryParse(e['fields']['updated'])),
+            )
+            .where((element) => element.$2 != null)
+            .reduce((value, element) {
+              if (value.$2!.isBefore(element.$2!)) {
+                return element;
+              }
+              return value;
+            });
+      });
+    }
+
+    // get projects of interest
+    await APIModel().load();
+    final prefs = await SharedPreferences.getInstance();
+    var starredProjects = prefs.getStringList('starred_projects')?.toSet() ?? {};
+
+    // prepare jql query
+    DateTime? after = mostRecentlyUpdatedFromCache == null ? null : (await mostRecentlyUpdatedFromCache)?.$2;
+    String projectFilter = '';
+    if (starredProjects.isNotEmpty) {
+      final keys = starredProjects.map((k) => k.trim()).where((k) => k.isNotEmpty).join(',');
+      projectFilter = 'project in ($keys) AND ';
+    }
+
+    final jql = '$projectFilter ${after != null ? "AND updated >= ${after.toIso8601String()}" : ""} ORDER BY updated DESC';
+
+    // fetch data
+
+    final data = await APIModel().getJson(
+      '/rest/api/3/search',
+      queryParameters: {
+        'jql': jql,
+        'maxResults': '100',
+        'startAt': '0',
+        'expand': 'changelog',
+      },
+    );
+
+    var now = DateTime.now();
+    final issues = (data['issues'] as List).map((e) => IssueData(data, lastCacheUpdate: now));
+    yield* Stream.fromIterable(issues);
   }
 }
 

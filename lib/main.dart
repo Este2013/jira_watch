@@ -64,7 +64,6 @@ class _SplashScreenState extends State<SplashScreen> {
         Navigator.pushReplacementNamed(context, '/apikey', arguments: 401);
         return;
       }
-      print(response.statusCode);
       // ignore: use_build_context_synchronously
       Navigator.pushReplacementNamed(context, '/home');
     }
