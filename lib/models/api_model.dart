@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:jira_watch/models/settings_model.dart';
@@ -69,6 +70,7 @@ class APIModel {
       case 'DELETE':
         return await http.delete(uri, headers: allHeaders, body: body);
       default:
+        print(uri);
         return await http.get(uri, headers: allHeaders);
     }
   }
@@ -240,6 +242,69 @@ class IssuesModel {
     return ((data['issues'] as List).map((d) => IssueData(d, lastCacheUpdate: time))).toList().cast();
   }
 
+  Stream<Iterable<IssueData>> getLastUpdatedIssuesPageCached({
+    required int pageSize,
+    required Stream<int> pageIndexStream,
+  }) async* {
+    Map<int, Iterable<IssueData>> cache = {};
+
+    // for each requested index, decide cache vs. fetch
+    yield* pageIndexStream.asyncMap<Iterable<IssueData>>((pageIndex) async {
+      if (cache.containsKey(pageIndex)) {
+        // already loaded → return cached immediately
+        return cache[pageIndex]!;
+      }
+      // first time → fetch from network
+      final page = (await fetchLastUpdatedIssuesPage(
+        pageSize: pageSize,
+        pageIndex: pageIndex,
+      )).toList();
+
+      cache[pageIndex] = page;
+      return page;
+    });
+  }
+
+  Future<Iterable<IssueData>> fetchLastUpdatedIssuesPage({required int pageSize, int pageIndex = 0, DateTime? after}) => fetchLastUpdatedIssues(
+    maxResults: pageSize,
+    startAt: pageIndex * pageSize,
+    after: after,
+  );
+
+  Future<Iterable<IssueData>> fetchLastUpdatedIssues({int maxResults = 100, int startAt = 0, DateTime? after}) async {
+    // get projects of interest
+    await APIModel().load();
+    final prefs = await SharedPreferences.getInstance();
+    var starredProjects = prefs.getStringList('starred_projects')?.toSet() ?? {};
+
+    // prepare jql query
+    String projectFilter = '';
+    if (starredProjects.isNotEmpty) {
+      final keys = starredProjects.map((k) => k.trim()).where((k) => k.isNotEmpty).join(',');
+      projectFilter = 'project in ($keys) ';
+    }
+
+    final jql = '$projectFilter ${after != null ? "AND updated >= ${after.toIso8601String()}" : ""} ORDER BY updated DESC';
+
+    print(jql);
+
+    // fetch data
+    final data = await APIModel().getJson(
+      '/rest/api/3/search',
+      queryParameters: {
+        'jql': jql,
+        'maxResults': '$maxResults',
+        'startAt': '$startAt',
+        'expand': 'changelog',
+      },
+    );
+
+    var now = DateTime.now();
+    final issues = (data['issues'] as List).map((e) => IssueData(e, lastCacheUpdate: now));
+
+    return issues;
+  }
+
   Stream<IssueData> getLastUpdatedIssues({acceptCache = true}) async* {
     Future<(IssueData, DateTime?)?>? mostRecentlyUpdatedFromCache;
     if (acceptCache) {
@@ -273,11 +338,11 @@ class IssuesModel {
     String projectFilter = '';
     if (starredProjects.isNotEmpty) {
       final keys = starredProjects.map((k) => k.trim()).where((k) => k.isNotEmpty).join(',');
-      projectFilter = 'project in ($keys) AND ';
+      projectFilter = 'project in ($keys) ';
     }
 
     final jql = '$projectFilter ${after != null ? "AND updated >= ${after.toIso8601String()}" : ""} ORDER BY updated DESC';
-
+    print(jql);
     // fetch data
 
     final data = await APIModel().getJson(
