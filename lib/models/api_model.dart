@@ -242,36 +242,43 @@ class IssuesModel {
     return ((data['issues'] as List).map((d) => IssueData(d, lastCacheUpdate: time))).toList().cast();
   }
 
-  Stream<Iterable<IssueData>> getLastUpdatedIssuesPageCached({
+  Stream<FutureOr<(Iterable<IssueData>, int)>> getLastUpdatedIssuesPageCached({
     required int pageSize,
     required Stream<int> pageIndexStream,
   }) async* {
     Map<int, Iterable<IssueData>> cache = {};
+    int resultNb = -1;
 
     // for each requested index, decide cache vs. fetch
-    yield* pageIndexStream.asyncMap<Iterable<IssueData>>((pageIndex) async {
+    yield* pageIndexStream.asyncMap<(Iterable<IssueData>, int)>((pageIndex) async {
       if (cache.containsKey(pageIndex)) {
         // already loaded → return cached immediately
-        return cache[pageIndex]!;
+        return (cache[pageIndex]!, resultNb);
       }
       // first time → fetch from network
-      final page = (await fetchLastUpdatedIssuesPage(
+
+      final res = (await fetchLastUpdatedIssuesPage(
         pageSize: pageSize,
         pageIndex: pageIndex,
-      )).toList();
+      ));
+      final page = res.$1.toList();
+      if (resultNb != res.$2) {
+        resultNb = res.$2;
+        cache = {};
+      }
 
       cache[pageIndex] = page;
-      return page;
+      return (page, resultNb);
     });
   }
 
-  Future<Iterable<IssueData>> fetchLastUpdatedIssuesPage({required int pageSize, int pageIndex = 0, DateTime? after}) => fetchLastUpdatedIssues(
+  Future<(Iterable<IssueData>, int)> fetchLastUpdatedIssuesPage({required int pageSize, int pageIndex = 0, DateTime? after}) => fetchLastUpdatedIssues(
     maxResults: pageSize,
     startAt: pageIndex * pageSize,
     after: after,
   );
 
-  Future<Iterable<IssueData>> fetchLastUpdatedIssues({int maxResults = 100, int startAt = 0, DateTime? after}) async {
+  Future<(Iterable<IssueData>, int)> fetchLastUpdatedIssues({int maxResults = 100, int startAt = 0, DateTime? after}) async {
     // get projects of interest
     await APIModel().load();
     final prefs = await SharedPreferences.getInstance();
@@ -286,23 +293,27 @@ class IssuesModel {
 
     final jql = '$projectFilter ${after != null ? "AND updated >= ${after.toIso8601String()}" : ""} ORDER BY updated DESC';
 
-    print(jql);
+    // print(jql);
 
-    // fetch data
-    final data = await APIModel().getJson(
-      '/rest/api/3/search',
-      queryParameters: {
-        'jql': jql,
-        'maxResults': '$maxResults',
-        'startAt': '$startAt',
-        'expand': 'changelog',
-      },
-    );
+    return APIModel()
+        .getJson(
+          '/rest/api/3/search',
+          queryParameters: {
+            'jql': jql,
+            'maxResults': '$maxResults',
+            'startAt': '$startAt',
+            'expand': 'changelog',
+          },
+        )
+        .then(
+          (data) {
+            var now = DateTime.now();
+            final issues = (data['issues'] as List).map((e) => IssueData(e, lastCacheUpdate: now));
 
-    var now = DateTime.now();
-    final issues = (data['issues'] as List).map((e) => IssueData(e, lastCacheUpdate: now));
-
-    return issues;
+            // print(data.keys);
+            return (issues, data['total'] as int);
+          },
+        );
   }
 
   Stream<IssueData> getLastUpdatedIssues({acceptCache = true}) async* {

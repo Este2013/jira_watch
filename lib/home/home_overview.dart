@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:jira_watch/home/overview_widgets/issue_details/issue_details.dart';
 import 'package:jira_watch/models/api_model.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import 'overview_widgets/issue_badge.dart';
-import 'overview_widgets/issue_details_view.dart';
 
 class OverviewPage extends StatefulWidget {
   const OverviewPage({super.key});
@@ -17,7 +19,8 @@ class _OverviewPageState extends State<OverviewPage> {
   final now = DateTime.now();
   int pageShown = 0;
   late StreamController<int> pageRequester;
-  late Stream<Iterable<IssueData>> pageStream;
+  late Stream<FutureOr<(Iterable<IssueData>, int)>> pageStream;
+  final ValueNotifier<int> maxPageNb = ValueNotifier(-1);
 
   Widget? view;
 
@@ -25,7 +28,7 @@ class _OverviewPageState extends State<OverviewPage> {
   void initState() {
     super.initState();
     pageRequester = StreamController()..add(0);
-    pageStream = IssuesModel().getLastUpdatedIssuesPageCached(pageSize: 25, pageIndexStream: pageRequester.stream);
+    pageStream = IssuesModel().getLastUpdatedIssuesPageCached(pageSize: 25, pageIndexStream: pageRequester.stream); // TODO isolate nb per page
   }
 
   @override
@@ -54,7 +57,8 @@ class _OverviewPageState extends State<OverviewPage> {
                       if (snapshot.hasError) return ErrorWidget('${snapshot.error}');
 
                       if (snapshot.hasData) {
-                        return FutureBuilder<Iterable<dynamic>>(
+                        return FutureBuilder(
+                          key: ValueKey(pageShown),
                           //TODO this thing needs to recieve actual Futures.
                           future: Future.value(snapshot.data!),
                           builder: (context, futureSnapshot) {
@@ -65,9 +69,12 @@ class _OverviewPageState extends State<OverviewPage> {
                               return ErrorWidget('${futureSnapshot.error}\n\n${(futureSnapshot.error as Error).stackTrace}');
                             }
                             if (futureSnapshot.hasData) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                maxPageNb.value = futureSnapshot.data!.$2 ~/ 25; // TODO isolate nb per page
+                              });
                               return ListView(
                                 children: [
-                                  ...futureSnapshot.data!.map((t) => JiraTicketPreviewItem(ticket: t, updateView: updateView)),
+                                  ...futureSnapshot.data!.$1.map((t) => JiraTicketPreviewItem(ticket: t, updateView: updateView)),
                                 ],
                               );
                             }
@@ -79,37 +86,64 @@ class _OverviewPageState extends State<OverviewPage> {
                     },
                   ),
                 ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      onPressed: pageShown == 0
-                          ? null
-                          : () {
-                              pageRequester.add(pageShown - 1);
-                              setState(() {
-                                pageShown--;
-                              });
-                            },
-                      icon: Icon(Icons.navigate_before),
-                    ),
-                    //TODO surrounding pages.
-                    IconButton(
-                      onPressed: null,
-                      icon: Text(pageShown.toString()),
-                    ),
 
-                    //TODO detect end
-                    IconButton(
-                      onPressed: () {
-                        pageRequester.add(pageShown + 1);
-                        setState(() {
-                          pageShown++;
-                        });
-                      },
-                      icon: Icon(Icons.navigate_next),
-                    ),
-                  ],
+                AnimatedBuilder(
+                  animation: maxPageNb,
+                  builder: (context, _) {
+                    var pageWin = getPageWindow();
+
+                    return Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            onPressed: () {
+                              pageRequester.add(0);
+                              setState(() => pageShown = 0);
+                            },
+                            icon: Icon(Symbols.keyboard_double_arrow_left),
+                          ),
+                          IconButton(
+                            onPressed: () {
+                              pageRequester.add(pageShown - 1);
+                              setState(() => pageShown--);
+                            },
+                            icon: Icon(Symbols.keyboard_arrow_left),
+                          ),
+
+                          for (var i = pageWin.$1; i <= pageWin.$2; i++)
+                            i == pageShown
+                                ? IconButton.filled(
+                                    onPressed: null,
+                                    icon: Text(i.toString()),
+                                  )
+                                : IconButton(
+                                    onPressed: () {
+                                      pageRequester.add(i);
+                                      setState(() => pageShown = i);
+                                    },
+                                    icon: Text(i.toString()),
+                                  ),
+
+                          IconButton(
+                            onPressed: () {
+                              pageRequester.add(pageShown + 1);
+                              setState(() => pageShown++);
+                            },
+                            icon: Icon(Symbols.keyboard_arrow_right),
+                          ),
+                          IconButton(
+                            onPressed: () {
+                              pageRequester.add(maxPageNb.value);
+                              setState(() => pageShown = maxPageNb.value);
+                            },
+                            icon: Icon(Symbols.keyboard_double_arrow_right),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -122,6 +156,31 @@ class _OverviewPageState extends State<OverviewPage> {
   }
 
   void updateView(Widget w) => setState(() => view = w);
+
+  (int, int) getPageWindow() {
+    if (maxPageNb.value < 5) {
+      // Less than 5 pages, show all
+      return (0, maxPageNb.value);
+    }
+    // Try to center pageShown in a window of 5
+    int minWindow = pageShown - 2;
+    int maxWindow = pageShown + 2;
+
+    if (minWindow < 0) {
+      // Shift right if at the start
+      maxWindow += -minWindow;
+      minWindow = 0;
+    }
+    if (maxWindow > maxPageNb.value) {
+      // Shift left if at the end
+      minWindow -= (maxWindow - maxPageNb.value);
+      maxWindow = maxPageNb.value;
+    }
+    minWindow = max(0, minWindow);
+    maxWindow = min(maxPageNb.value, maxWindow);
+
+    return (minWindow, maxWindow);
+  }
 }
 
 class JiraTicketPreviewItem extends StatelessWidget {
@@ -158,7 +217,12 @@ class JiraTicketPreviewItem extends StatelessWidget {
             ],
           ),
         ),
-        onTap: () => updateView?.call(IssueDetailsView(ticket)),
+        onTap: () => updateView?.call(
+          IssueDetailsView(
+            ticket,
+            key: Key(ticket.data['key']),
+          ),
+        ),
       ),
     );
   }

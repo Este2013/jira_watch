@@ -9,59 +9,6 @@ import 'package:jira_watch/home/time_utils.dart';
 import 'package:jira_watch/models/api_model.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-class IssueDetailsView extends StatelessWidget {
-  const IssueDetailsView(this.ticket, {super.key});
-
-  final dynamic ticket;
-
-  @override
-  Widget build(BuildContext context) {
-    final tabs = [
-      Tab(
-        text: 'History',
-        icon: Icon(Symbols.history),
-      ),
-      Tab(
-        text: 'Json',
-        icon: Icon(Symbols.data_object),
-      ),
-    ];
-
-    return DefaultTabController(
-      length: tabs.length,
-      child: Scaffold(
-        appBar: AppBar(
-          toolbarHeight: kToolbarHeight + 10,
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DefaultTextStyle(
-                style: Theme.of(context).textTheme.bodyMedium ?? TextStyle(),
-                child: IssueHeaderRow(
-                  ticket,
-                  showLastUpdateTime: false,
-                ),
-              ),
-              Text(ticket['fields']['summary'] ?? 'null'),
-            ],
-          ),
-          bottom: TabBar(tabs: tabs),
-        ),
-        body: TabBarView(
-          children: [
-            HistoryPage(ticket: ticket),
-            JsonWidget(
-              json: json.decode(JsonEncoder().convert(ticket)),
-              initialExpandDepth: 2,
-              nodeIndent: 32,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// Model for an individual change item in the changelog
 class ChangeItem {
   final String field;

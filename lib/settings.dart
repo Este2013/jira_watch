@@ -235,6 +235,8 @@ class _ProjectsSettingsPageState extends State<ProjectsSettingsPage> {
   // Normal in-memory state:
   Set<String> _selected = {};
 
+  bool showOnlySelected = false;
+
   @override
   void initState() {
     super.initState();
@@ -271,23 +273,42 @@ class _ProjectsSettingsPageState extends State<ProjectsSettingsPage> {
           return Center(child: Text('Error: ${snap.error}'));
         }
         final all = snap.data!..sort((a, b) => (a['name'] as String).compareTo(b['name']));
-        final filtered = all.where((p) {
-          final txt = _searchController.text.toLowerCase();
-          return p['name'].toLowerCase().contains(txt) || p['key'].toLowerCase().contains(txt);
-        }).toList();
+        final filtered = all
+            .where((p) {
+              final txt = _searchController.text.toLowerCase();
+              return p['name'].toLowerCase().contains(txt) || p['key'].toLowerCase().contains(txt);
+            })
+            .where(
+              (p) => !showOnlySelected || _selected.contains(p['key']),
+            )
+            .toList();
 
         return Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  prefixIcon: Icon(Icons.search),
-                  labelText: 'Search',
+            Row(
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        labelText: 'Search',
+                      ),
+                      onChanged: (_) => setState(() {}), // just rebuild the list
+                    ),
+                  ),
                 ),
-                onChanged: (_) => setState(() {}), // just rebuild the list
-              ),
+                IconButton(
+                  onPressed: () => setState(() {
+                    showOnlySelected = !showOnlySelected;
+                  }),
+                  icon: Icon(Symbols.star),
+                  selectedIcon: Icon(Symbols.star, fill: 1),
+                  isSelected: showOnlySelected,
+                ),
+              ],
             ),
             Expanded(
               child: ListView.builder(
