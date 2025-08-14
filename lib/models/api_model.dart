@@ -282,7 +282,7 @@ class IssuesModel {
     // get projects of interest
     await APIModel().load();
     final prefs = await SharedPreferences.getInstance();
-    var starredProjects = prefs.getStringList('starred_projects')?.toSet() ?? {};
+    var starredProjects = SettingsModel().starredProjects.value?.toSet() ?? {};
 
     // prepare jql query
     String projectFilter = '';
@@ -342,7 +342,7 @@ class IssuesModel {
     // get projects of interest
     await APIModel().load();
     final prefs = await SharedPreferences.getInstance();
-    var starredProjects = prefs.getStringList('starred_projects')?.toSet() ?? {};
+    var starredProjects = SettingsModel().starredProjects.value?.toSet() ?? {};
 
     // prepare jql query
     DateTime? after = mostRecentlyUpdatedFromCache == null ? null : (await mostRecentlyUpdatedFromCache)?.$2;

@@ -17,16 +17,16 @@ class IssueDetailsView extends StatelessWidget {
   Widget build(BuildContext context) {
     final tabs = [
       Tab(
-        text: 'Edit',
-        icon: Icon(Symbols.edit),
-      ),
-      Tab(
         text: 'History',
         icon: Icon(Symbols.history),
       ),
       Tab(
         text: 'Json',
         icon: Icon(Symbols.data_object),
+      ),
+      Tab(
+        text: 'Edit',
+        icon: Icon(Symbols.edit),
       ),
     ];
 
@@ -52,13 +52,13 @@ class IssueDetailsView extends StatelessWidget {
         ),
         body: TabBarView(
           children: [
-            IssueEditFieldsWidget(issueData: ticket),
             HistoryPage(ticket: ticket),
             JsonWidget(
               json: json.decode(JsonEncoder().convert(ticket)),
               initialExpandDepth: 2,
               nodeIndent: 32,
             ),
+            IssueEditFieldsWidget(issueData: ticket),
           ],
         ),
       ),

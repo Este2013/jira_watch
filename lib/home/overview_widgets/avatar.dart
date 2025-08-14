@@ -14,6 +14,66 @@ final CacheManager jiraAvatarCacheManager = CacheManager(
   ),
 );
 
+
+class JiraProjectAvatar extends StatelessWidget {
+  final String projectCode;
+  final String resolution; // e.g. '16x16', '24x24', '32x32', '48x48'
+  final double size;
+
+  const JiraProjectAvatar({
+    super.key,
+    required this.projectCode,
+    this.resolution = '32x32',
+    this.size = 32,
+  });
+
+  Future<String?> _getAvatarUrl() async {
+    List projects = await APIModel().fetchProjects();
+    var project = projects.firstWhere(
+      (p) => p['key'] == projectCode,
+      orElse: () => null,
+    );
+    if (project == null) {
+      // Try refresh if not found
+      projects = await APIModel().fetchProjects(refresh: true);
+      project = projects.firstWhere(
+        (p) => p['key'] == projectCode,
+        orElse: () => null,
+      );
+    }
+    if (project != null && project['avatarUrls'] != null) {
+      return project['avatarUrls'][resolution] ?? project['avatarUrls']['32x32'];
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String?>(
+      future: _getAvatarUrl(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return SizedBox.square(
+            dimension: size,
+            child: const Center(
+              child: FractionallySizedBox(
+                widthFactor: .8,
+                heightFactor: .8,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        }
+        final url = snapshot.data;
+        if (url == null) {
+          return Icon(Icons.folder, size: size);
+        }
+        return JiraAvatar(url: url, size: size);
+      },
+    );
+  }
+}
+
 class JiraAvatar extends StatefulWidget {
   final String url;
   final double size;

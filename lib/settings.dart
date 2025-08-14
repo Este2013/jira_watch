@@ -244,13 +244,12 @@ class _ProjectsSettingsPageState extends State<ProjectsSettingsPage> {
 
     // Load prefs into _selected once:
     SharedPreferences.getInstance().then((prefs) {
-      final list = prefs.getStringList('starred_projects') ?? <String>[];
+      final list = SettingsModel().starredProjects.value ?? [];
       setState(() => _selected = list.toSet());
     });
   }
 
-  Future<void> _toggle(String key) async {
-    final prefs = await SharedPreferences.getInstance();
+  void _toggle(String key) {
     setState(() {
       if (_selected.contains(key)) {
         _selected.remove(key);
@@ -258,7 +257,7 @@ class _ProjectsSettingsPageState extends State<ProjectsSettingsPage> {
         _selected.add(key);
       }
     });
-    await prefs.setStringList('starred_projects', _selected.toList());
+    SettingsModel().starredProjects.value = _selected.toList();
   }
 
   @override

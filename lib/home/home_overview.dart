@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:jira_watch/home/overview_widgets/avatar.dart';
 import 'package:jira_watch/home/overview_widgets/issue_details/issue_details.dart';
 import 'package:jira_watch/models/api_model.dart';
+import 'package:jira_watch/models/settings_model.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'overview_widgets/issue_badge.dart';
@@ -21,6 +23,9 @@ class _OverviewPageState extends State<OverviewPage> {
   late StreamController<int> pageRequester;
   late Stream<FutureOr<(Iterable<IssueData>, int)>> pageStream;
   final ValueNotifier<int> maxPageNb = ValueNotifier(-1);
+
+  //TODO this is currently useless
+  Set<String> activeProjectFilters = {};
 
   Widget? view;
 
@@ -46,6 +51,37 @@ class _OverviewPageState extends State<OverviewPage> {
           Expanded(
             child: Column(
               children: [
+                // filters
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Row(
+                    children: [
+                      // TODO per project filtering
+                      Expanded(
+                        child: Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Row(
+                              spacing: 8,
+                              children:
+                                  SettingsModel().starredProjects.value
+                                      ?.map(
+                                        (p) => ProjectFilteringButton(
+                                          projectCode: p,
+                                          activeFilters: activeProjectFilters,
+                                          toggleFilter: (code) => setState(() => activeProjectFilters.toggle(p)),
+                                        ),
+                                      )
+                                      .toList() ??
+                                  [],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // list
                 Expanded(
                   child: StreamBuilder(
                     stream: pageStream,
@@ -183,6 +219,48 @@ class _OverviewPageState extends State<OverviewPage> {
   }
 }
 
+class ProjectFilteringButton extends StatelessWidget {
+  const ProjectFilteringButton({
+    super.key,
+    required this.projectCode,
+    required this.activeFilters,
+    required this.toggleFilter,
+  });
+
+  final String projectCode;
+  final Set<String> activeFilters;
+  final void Function(String code) toggleFilter;
+
+  @override
+  Widget build(BuildContext context) => ClipOval(
+    child: Material(
+      child: InkWell(
+        onTap: () => toggleFilter(projectCode),
+        child: Tooltip(
+          message: projectCode,
+          child: Builder(
+            builder: (context) {
+              Widget base = ClipOval(child: JiraProjectAvatar(projectCode: projectCode));
+              if (activeFilters.contains(projectCode)) {
+                base = Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.green, width: 2),
+                  ),
+                  padding: EdgeInsets.all(2),
+                  child: base,
+                );
+              }
+
+              return base;
+            },
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class JiraTicketPreviewItem extends StatelessWidget {
   final dynamic ticket;
   final Function(Widget)? updateView;
@@ -257,5 +335,15 @@ class JiraTicketPreviewItem extends StatelessWidget {
           'border': Colors.grey.shade700,
         };
     }
+  }
+}
+
+extension on Set {
+  void toggle(element) {
+    if (contains(element)) {
+      remove(element);
+      return;
+    }
+    add(element);
   }
 }

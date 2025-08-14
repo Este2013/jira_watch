@@ -11,6 +11,8 @@ class SettingsModel {
   factory SettingsModel() => _instance;
 
   late Future<bool> isReady;
+  late ValueNotifier<List<String>?> starredProjects = ValueNotifier(null);
+
   SettingsModel._internal() {
     isReady = SharedPreferences.getInstance().then(
       (prefs) {
@@ -20,6 +22,11 @@ class SettingsModel {
         emailController.text = prefs.getString('jira_email') ?? '';
         apiKeyController.text = prefs.getString('jira_api_key') ?? '';
         domainController.text = prefs.getString('jira_domain') ?? '';
+
+        // PROJECTS
+        starredProjects.value = prefs.getStringList('starred_projects') ?? [];
+        starredProjects.addListener(() => prefs.setStringList('starred_projects', starredProjects.value ?? []));
+
         return true;
       },
       onError: (_) => false,
