@@ -44,7 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'Issues':
         return Center(child: Text('Issues Page', style: TextStyle(fontSize: 24)));
       default:
-        return OverviewPage();
+        return OverviewSynchronousPage();
     }
   }
 

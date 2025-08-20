@@ -10,18 +10,239 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import 'overview_widgets/issue_badge.dart';
 
-class OverviewPage extends StatefulWidget {
-  const OverviewPage({super.key});
+// class OverviewPage extends StatefulWidget {
+//   const OverviewPage({super.key});
+
+//   @override
+//   State<OverviewPage> createState() => _OverviewPageState();
+// }
+
+// class _OverviewPageState extends State<OverviewPage> {
+//   final now = DateTime.now();
+//   int pageShown = 0;
+//   late StreamController<int> pageRequester;
+//   late Stream<FutureOr<(Iterable<IssueData>, int)>> pageStream;
+//   final ValueNotifier<int> maxPageNb = ValueNotifier(-1);
+
+//   //TODO this is currently useless
+//   Set<String> activeProjectFilters = {};
+
+//   Widget? view;
+
+//   @override
+//   void initState() {
+//     super.initState();
+//     // add -1 to close the pageStream
+//     pageRequester = StreamController()..add(0);
+//     pageStream = IssuesModel().getLastUpdatedIssuesPageCached(
+//       pageSize: 25,
+//       pageIndexStream: pageRequester.stream,
+//       filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
+//     ); // TODO isolate {nb per page}
+//   }
+
+//   @override
+//   void dispose() {
+//     pageRequester.close();
+//     super.dispose();
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return Padding(
+//       padding: const EdgeInsets.all(16.0),
+//       child: Row(
+//         children: [
+//           Expanded(
+//             child: Column(
+//               children: [
+//                 // filters
+//                 Padding(
+//                   padding: const EdgeInsets.symmetric(vertical: 8.0),
+//                   child: Row(
+//                     children: [
+//                       // TODO per project filtering
+//                       Expanded(
+//                         child: Card(
+//                           child: Padding(
+//                             padding: const EdgeInsets.all(8.0),
+//                             child: Row(
+//                               spacing: 8,
+//                               children:
+//                                   SettingsModel().starredProjects.value
+//                                       ?.map(
+//                                         (p) => ProjectFilteringButton(
+//                                           projectCode: p,
+//                                           activeFilters: activeProjectFilters,
+//                                           toggleFilter: (code) => setState(() {
+//                                             activeProjectFilters.toggle(p);
+//                                             // TODO this handling is raelly bad. Find a better way. pageRequester.add(-1);
+//                                             // pageStream = IssuesModel().getLastUpdatedIssuesPageCached(
+//                                             //   pageSize: 25,
+//                                             //   pageIndexStream: pageRequester.stream,
+//                                             //   filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
+//                                             // );
+//                                           }),
+//                                         ),
+//                                       )
+//                                       .toList() ??
+//                                   [],
+//                             ),
+//                           ),
+//                         ),
+//                       ),
+//                     ],
+//                   ),
+//                 ),
+//                 // list
+//                 Expanded(
+//                   child: StreamBuilder(
+//                     stream: pageStream,
+//                     builder: (context, snapshot) {
+//                       print(snapshot.connectionState);
+//                       if (snapshot.connectionState == ConnectionState.waiting) {
+//                         return Center(child: CircularProgressIndicator());
+//                       }
+//                       if (snapshot.hasError) return ErrorWidget('${snapshot.error}');
+
+//                       if (snapshot.hasData) {
+//                         return FutureBuilder(
+//                           key: ValueKey(pageShown),
+//                           //TODO this thing needs to recieve actual Futures.
+//                           future: Future.value(snapshot.data!),
+//                           builder: (context, futureSnapshot) {
+//                             if (futureSnapshot.connectionState == ConnectionState.waiting) {
+//                               return Center(child: CircularProgressIndicator());
+//                             }
+//                             if (futureSnapshot.hasError) {
+//                               return ErrorWidget('${futureSnapshot.error}\n\n${(futureSnapshot.error as Error).stackTrace}');
+//                             }
+//                             if (futureSnapshot.hasData) {
+//                               WidgetsBinding.instance.addPostFrameCallback((_) {
+//                                 maxPageNb.value = futureSnapshot.data!.$2 ~/ 25; // TODO isolate nb per page
+//                               });
+//                               return ListView(
+//                                 children: [
+//                                   ...futureSnapshot.data!.$1.map((t) => JiraTicketPreviewItem(ticket: t, updateView: updateView)),
+//                                 ],
+//                               );
+//                             }
+//                             return Center(child: CircularProgressIndicator(color: Colors.amber));
+//                           },
+//                         );
+//                       }
+//                       return Center(child: CircularProgressIndicator(color: Colors.amber));
+//                     },
+//                   ),
+//                 ),
+
+//                 AnimatedBuilder(
+//                   animation: maxPageNb,
+//                   builder: (context, _) {
+//                     var pageWin = getPageWindow();
+
+//                     return Padding(
+//                       padding: const EdgeInsets.all(8.0),
+//                       child: Row(
+//                         mainAxisAlignment: MainAxisAlignment.center,
+//                         children: [
+//                           IconButton(
+//                             onPressed: () {
+//                               pageRequester.add(0);
+//                               setState(() => pageShown = 0);
+//                             },
+//                             icon: Icon(Symbols.keyboard_double_arrow_left),
+//                           ),
+//                           IconButton(
+//                             onPressed: () {
+//                               pageRequester.add(pageShown - 1);
+//                               setState(() => pageShown--);
+//                             },
+//                             icon: Icon(Symbols.keyboard_arrow_left),
+//                           ),
+
+//                           for (var i = pageWin.$1; i <= pageWin.$2; i++)
+//                             i == pageShown
+//                                 ? IconButton.filled(
+//                                     onPressed: null,
+//                                     icon: Text(i.toString()),
+//                                   )
+//                                 : IconButton(
+//                                     onPressed: () {
+//                                       pageRequester.add(i);
+//                                       setState(() => pageShown = i);
+//                                     },
+//                                     icon: Text(i.toString()),
+//                                   ),
+
+//                           IconButton(
+//                             onPressed: () {
+//                               pageRequester.add(pageShown + 1);
+//                               setState(() => pageShown++);
+//                             },
+//                             icon: Icon(Symbols.keyboard_arrow_right),
+//                           ),
+//                           IconButton(
+//                             onPressed: () {
+//                               pageRequester.add(maxPageNb.value);
+//                               setState(() => pageShown = maxPageNb.value);
+//                             },
+//                             icon: Icon(Symbols.keyboard_double_arrow_right),
+//                           ),
+//                         ],
+//                       ),
+//                     );
+//                   },
+//                 ),
+//               ],
+//             ),
+//           ),
+//           VerticalDivider(),
+//           Expanded(child: view ?? Placeholder()),
+//         ],
+//       ),
+//     );
+//   }
+
+//   void updateView(Widget w) => setState(() => view = w);
+
+//   (int, int) getPageWindow() {
+//     if (maxPageNb.value < 5) {
+//       // Less than 5 pages, show all
+//       return (0, maxPageNb.value);
+//     }
+//     // Try to center pageShown in a window of 5
+//     int minWindow = pageShown - 2;
+//     int maxWindow = pageShown + 2;
+
+//     if (minWindow < 0) {
+//       // Shift right if at the start
+//       maxWindow += -minWindow;
+//       minWindow = 0;
+//     }
+//     if (maxWindow > maxPageNb.value) {
+//       // Shift left if at the end
+//       minWindow -= (maxWindow - maxPageNb.value);
+//       maxWindow = maxPageNb.value;
+//     }
+//     minWindow = max(0, minWindow);
+//     maxWindow = min(maxPageNb.value, maxWindow);
+
+//     return (minWindow, maxWindow);
+//   }
+// }
+
+class OverviewSynchronousPage extends StatefulWidget {
+  const OverviewSynchronousPage({super.key});
 
   @override
-  State<OverviewPage> createState() => _OverviewPageState();
+  State<OverviewSynchronousPage> createState() => _OverviewSynchronousPageState();
 }
 
-class _OverviewPageState extends State<OverviewPage> {
+class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
   final now = DateTime.now();
   int pageShown = 0;
-  late StreamController<int> pageRequester;
-  late Stream<FutureOr<(Iterable<IssueData>, int)>> pageStream;
+  late FutureOr<(Iterable<IssueData>, int)> futurePage;
   final ValueNotifier<int> maxPageNb = ValueNotifier(-1);
 
   //TODO this is currently useless
@@ -32,164 +253,186 @@ class _OverviewPageState extends State<OverviewPage> {
   @override
   void initState() {
     super.initState();
-    pageRequester = StreamController()..add(0);
-    pageStream = IssuesModel().getLastUpdatedIssuesPageCached(pageSize: 25, pageIndexStream: pageRequester.stream); // TODO isolate nb per page
+    // add -1 to close the pageStream
+    // pageRequester = StreamController()..add(0);
+    futurePage = IssuesModel().fetchLastUpdatedIssuesPage(
+      pageSize: 25,
+      pageIndex: pageShown,
+      filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
+    ); // TODO isolate {nb per page}
   }
 
   @override
-  void dispose() {
-    pageRequester.close();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              children: [
-                // filters
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Row(
-                    children: [
-                      // TODO per project filtering
-                      Expanded(
-                        child: Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Row(
-                              spacing: 8,
-                              children:
-                                  SettingsModel().starredProjects.value
-                                      ?.map(
-                                        (p) => ProjectFilteringButton(
-                                          projectCode: p,
-                                          activeFilters: activeProjectFilters,
-                                          toggleFilter: (code) => setState(() => activeProjectFilters.toggle(p)),
-                                        ),
-                                      )
-                                      .toList() ??
-                                  [],
-                            ),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(16.0),
+    child: Row(
+      children: [
+        Expanded(
+          child: Column(
+            children: [
+              // filters
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Row(
+                  children: [
+                    // TODO per project filtering
+                    Expanded(
+                      child: Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Row(
+                            spacing: 8,
+                            children:
+                                SettingsModel().starredProjects.value
+                                    ?.map(
+                                      (p) => ProjectFilteringButton(
+                                        projectCode: p,
+                                        activeFilters: activeProjectFilters,
+                                        toggleFilter: (code) => setState(() {
+                                          activeProjectFilters.toggle(p);
+                                          pageShown = 0;
+                                          futurePage = IssuesModel().fetchLastUpdatedIssuesPage(
+                                            pageSize: 25,
+                                            pageIndex: pageShown,
+                                            filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
+                                          );
+                                        }),
+                                      ),
+                                    )
+                                    .toList() ??
+                                [],
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                // list
-                Expanded(
-                  child: StreamBuilder(
-                    stream: pageStream,
-                    builder: (context, snapshot) {
-                      print(snapshot.connectionState);
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return Center(child: CircularProgressIndicator());
-                      }
-                      if (snapshot.hasError) return ErrorWidget('${snapshot.error}');
+              ),
+              // list
+              Expanded(
+                child: FutureBuilder(
+                  key: ValueKey(pageShown),
 
-                      if (snapshot.hasData) {
-                        return FutureBuilder(
-                          key: ValueKey(pageShown),
-                          //TODO this thing needs to recieve actual Futures.
-                          future: Future.value(snapshot.data!),
-                          builder: (context, futureSnapshot) {
-                            if (futureSnapshot.connectionState == ConnectionState.waiting) {
-                              return Center(child: CircularProgressIndicator());
-                            }
-                            if (futureSnapshot.hasError) {
-                              return ErrorWidget('${futureSnapshot.error}\n\n${(futureSnapshot.error as Error).stackTrace}');
-                            }
-                            if (futureSnapshot.hasData) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                maxPageNb.value = futureSnapshot.data!.$2 ~/ 25; // TODO isolate nb per page
-                              });
-                              return ListView(
-                                children: [
-                                  ...futureSnapshot.data!.$1.map((t) => JiraTicketPreviewItem(ticket: t, updateView: updateView)),
-                                ],
-                              );
-                            }
-                            return Center(child: CircularProgressIndicator(color: Colors.amber));
-                          },
-                        );
-                      }
-                      return Center(child: CircularProgressIndicator(color: Colors.amber));
-                    },
-                  ),
-                ),
-
-                AnimatedBuilder(
-                  animation: maxPageNb,
-                  builder: (context, _) {
-                    var pageWin = getPageWindow();
-
-                    return Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                  //TODO this thing needs to recieve actual Futures.
+                  future: Future.value(futurePage),
+                  builder: (context, futureSnapshot) {
+                    if (futureSnapshot.connectionState == ConnectionState.waiting) {
+                      return Center(child: CircularProgressIndicator());
+                    }
+                    if (futureSnapshot.hasError) {
+                      return ErrorWidget('${futureSnapshot.error}${(futureSnapshot.error is Error) ? '\n\n${(futureSnapshot.error as Error).stackTrace}' : ''}');
+                    }
+                    if (futureSnapshot.hasData) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        maxPageNb.value = futureSnapshot.data!.$2 ~/ 25; // TODO isolate nb per page
+                      });
+                      return ListView(
                         children: [
-                          IconButton(
-                            onPressed: () {
-                              pageRequester.add(0);
-                              setState(() => pageShown = 0);
-                            },
-                            icon: Icon(Symbols.keyboard_double_arrow_left),
-                          ),
-                          IconButton(
-                            onPressed: () {
-                              pageRequester.add(pageShown - 1);
-                              setState(() => pageShown--);
-                            },
-                            icon: Icon(Symbols.keyboard_arrow_left),
-                          ),
-
-                          for (var i = pageWin.$1; i <= pageWin.$2; i++)
-                            i == pageShown
-                                ? IconButton.filled(
-                                    onPressed: null,
-                                    icon: Text(i.toString()),
-                                  )
-                                : IconButton(
-                                    onPressed: () {
-                                      pageRequester.add(i);
-                                      setState(() => pageShown = i);
-                                    },
-                                    icon: Text(i.toString()),
-                                  ),
-
-                          IconButton(
-                            onPressed: () {
-                              pageRequester.add(pageShown + 1);
-                              setState(() => pageShown++);
-                            },
-                            icon: Icon(Symbols.keyboard_arrow_right),
-                          ),
-                          IconButton(
-                            onPressed: () {
-                              pageRequester.add(maxPageNb.value);
-                              setState(() => pageShown = maxPageNb.value);
-                            },
-                            icon: Icon(Symbols.keyboard_double_arrow_right),
-                          ),
+                          ...futureSnapshot.data!.$1.map((t) => JiraTicketPreviewItem(ticket: t, updateView: updateView)),
                         ],
-                      ),
-                    );
+                      );
+                    }
+                    return Center(child: CircularProgressIndicator(color: Colors.amber));
                   },
                 ),
-              ],
-            ),
+              ),
+
+              AnimatedBuilder(
+                animation: maxPageNb,
+                builder: (context, _) {
+                  var pageWin = getPageWindow();
+
+                  return Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              pageShown = 0;
+                              futurePage = IssuesModel().fetchLastUpdatedIssuesPage(
+                                pageSize: 25,
+                                pageIndex: pageShown,
+                                filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
+                              );
+                            });
+                          },
+                          icon: Icon(Symbols.keyboard_double_arrow_left),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              pageShown--;
+                              futurePage = IssuesModel().fetchLastUpdatedIssuesPage(
+                                pageSize: 25,
+                                pageIndex: pageShown,
+                                filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
+                              );
+                            });
+                          },
+                          icon: Icon(Symbols.keyboard_arrow_left),
+                        ),
+
+                        for (var i = pageWin.$1; i <= pageWin.$2; i++)
+                          i == pageShown
+                              ? IconButton.filled(
+                                  onPressed: null,
+                                  icon: Text(i.toString()),
+                                )
+                              : IconButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      pageShown = i;
+                                      futurePage = IssuesModel().fetchLastUpdatedIssuesPage(
+                                        pageSize: 25,
+                                        pageIndex: pageShown,
+                                        filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
+                                      );
+                                    });
+                                  },
+                                  icon: Text(i.toString()),
+                                ),
+
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              pageShown++;
+                              futurePage = IssuesModel().fetchLastUpdatedIssuesPage(
+                                pageSize: 25,
+                                pageIndex: pageShown,
+                                filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
+                              );
+                            });
+                          },
+                          icon: Icon(Symbols.keyboard_arrow_right),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              pageShown = maxPageNb.value;
+                              futurePage = IssuesModel().fetchLastUpdatedIssuesPage(
+                                pageSize: 25,
+                                pageIndex: pageShown,
+                                filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
+                              );
+                            });
+                          },
+                          icon: Icon(Symbols.keyboard_double_arrow_right),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-          VerticalDivider(),
-          Expanded(child: view ?? Placeholder()),
-        ],
-      ),
-    );
-  }
+        ),
+        VerticalDivider(),
+        Expanded(child: view ?? Placeholder()),
+      ],
+    ),
+  );
 
   void updateView(Widget w) => setState(() => view = w);
 

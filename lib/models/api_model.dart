@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:jira_watch/models/settings_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -160,6 +161,16 @@ class IssueData {
   };
 
   operator [](dynamic key) => data[key];
+
+  int? get databaseId => this['id'];
+  String? get key => this['key'];
+  Map? get changelog => this['changelog'];
+  Map? get fields => this['fields'];
+
+  Map? get parent => fields?['parent'];
+  Map? get statusCategory => fields?['statusCategory'];
+  Map? get priority => fields?['priority'];
+  List<String>? get labels => fields?['labels'];
 }
 
 class IssuesModel {
@@ -245,12 +256,14 @@ class IssuesModel {
   Stream<FutureOr<(Iterable<IssueData>, int)>> getLastUpdatedIssuesPageCached({
     required int pageSize,
     required Stream<int> pageIndexStream,
+    List<String>? filterByProjectCodes,
   }) async* {
     Map<int, Iterable<IssueData>> cache = {};
     int resultNb = -1;
 
     // for each requested index, decide cache vs. fetch
     yield* pageIndexStream.asyncMap<(Iterable<IssueData>, int)>((pageIndex) async {
+      if (pageIndex == -1) throw Exception('Ending stream');
       if (cache.containsKey(pageIndex)) {
         // already loaded → return cached immediately
         return (cache[pageIndex]!, resultNb);
@@ -260,6 +273,7 @@ class IssuesModel {
       final res = (await fetchLastUpdatedIssuesPage(
         pageSize: pageSize,
         pageIndex: pageIndex,
+        filterByProjectCodes: filterByProjectCodes,
       ));
       final page = res.$1.toList();
       if (resultNb != res.$2) {
@@ -272,13 +286,19 @@ class IssuesModel {
     });
   }
 
-  Future<(Iterable<IssueData>, int)> fetchLastUpdatedIssuesPage({required int pageSize, int pageIndex = 0, DateTime? after}) => fetchLastUpdatedIssues(
+  Future<(Iterable<IssueData>, int)> fetchLastUpdatedIssuesPage({
+    required int pageSize,
+    int pageIndex = 0,
+    DateTime? after,
+    List<String>? filterByProjectCodes,
+  }) => fetchLastUpdatedIssues(
     maxResults: pageSize,
     startAt: pageIndex * pageSize,
     after: after,
+    filterByProjectCodes: filterByProjectCodes,
   );
 
-  Future<(Iterable<IssueData>, int)> fetchLastUpdatedIssues({int maxResults = 100, int startAt = 0, DateTime? after}) async {
+  Future<(Iterable<IssueData>, int)> fetchLastUpdatedIssues({int maxResults = 100, int startAt = 0, DateTime? after, List<String>? filterByProjectCodes}) async {
     // get projects of interest
     await APIModel().load();
     final prefs = await SharedPreferences.getInstance();
@@ -287,13 +307,13 @@ class IssuesModel {
     // prepare jql query
     String projectFilter = '';
     if (starredProjects.isNotEmpty) {
-      final keys = starredProjects.map((k) => k.trim()).where((k) => k.isNotEmpty).join(',');
+      final keys = filterByProjectCodes?.join(', ') ?? starredProjects.map((k) => k.trim()).where((k) => k.isNotEmpty).join(',');
       projectFilter = 'project in ($keys) ';
     }
 
     final jql = '$projectFilter ${after != null ? "AND updated >= ${after.toIso8601String()}" : ""} ORDER BY updated DESC';
 
-    // print(jql);
+    print(jql);
 
     return APIModel()
         .getJson(

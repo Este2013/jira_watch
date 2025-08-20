@@ -322,7 +322,7 @@ class _ProjectsSettingsPageState extends State<ProjectsSettingsPage> {
                     subtitle: Text(name),
                     value: _selected.contains(key),
                     onChanged: (_) => _toggle(key),
-                    secondary: JiraAvatar(url: p['avatarUrls']['16x16'] + '?format=png', size: 16),
+                    secondary: JiraAvatar(url: p['avatarUrls']['32x32'] + '?format=png', size: 32),
                   );
                 },
               ),
