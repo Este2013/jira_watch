@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import '../../../models/api_model.dart';
+import '../../../../models/api_model.dart';
 
 /// Widget to view and edit the fields of a given issue.
 class IssueEditFieldsWidget extends StatefulWidget {

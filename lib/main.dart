@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:jira_watch/home/home.dart';
+import 'package:jira_watch/ui/home/home.dart';
 import 'package:jira_watch/models/settings_model.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:jira_watch/models/api_model.dart';
+import 'package:jira_watch/dao/api_dao.dart';
 
 void main() {
   runApp(MyApp());

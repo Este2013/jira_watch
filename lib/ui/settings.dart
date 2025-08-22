@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:jira_watch/home/overview_widgets/avatar.dart';
+import 'package:jira_watch/ui/home/overview_widgets/avatar.dart';
 import 'package:jira_watch/models/settings_model.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
-import 'package:jira_watch/models/api_model.dart';
+import 'package:jira_watch/dao/api_dao.dart';
 
 class SettingsDialog extends StatefulWidget {
   const SettingsDialog({super.key});

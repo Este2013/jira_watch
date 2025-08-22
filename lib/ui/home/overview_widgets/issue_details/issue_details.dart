@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_json/flutter_json.dart';
-import 'package:jira_watch/home/overview_widgets/issue_badge.dart';
-import 'package:jira_watch/home/overview_widgets/issue_details/issue_history_view.dart';
+import 'package:jira_watch/ui/home/overview_widgets/issue_badge.dart';
+import 'package:jira_watch/ui/home/overview_widgets/issue_details/issue_history_view.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'issue_edit_view.dart';

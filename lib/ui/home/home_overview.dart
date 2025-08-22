@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:jira_watch/home/overview_widgets/avatar.dart';
-import 'package:jira_watch/home/overview_widgets/issue_details/issue_details.dart';
-import 'package:jira_watch/models/api_model.dart';
+import 'package:jira_watch/ui/home/overview_widgets/avatar.dart';
+import 'package:jira_watch/ui/home/overview_widgets/issue_details/issue_details.dart';
+import 'package:jira_watch/dao/api_dao.dart';
 import 'package:jira_watch/models/settings_model.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
