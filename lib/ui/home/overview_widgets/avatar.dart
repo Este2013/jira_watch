@@ -4,6 +4,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:jira_watch/dao/api_dao.dart';
+import 'package:jira_watch/models/data_model.dart';
 import 'package:mime/mime.dart';
 
 final CacheManager jiraAvatarCacheManager = CacheManager(
@@ -27,14 +28,14 @@ class JiraProjectAvatar extends StatelessWidget {
   });
 
   Future<String?> _getAvatarUrl() async {
-    List projects = await APIDao().fetchProjects();
+    List projects = await DataModel().fetchProjects();
     var project = projects.firstWhere(
       (p) => p['key'] == projectCode,
       orElse: () => null,
     );
     if (project == null) {
       // Try refresh if not found
-      projects = await APIDao().fetchProjects(refresh: true);
+      projects = await DataModel().fetchProjects(refresh: true);
       project = projects.firstWhere(
         (p) => p['key'] == projectCode,
         orElse: () => null,

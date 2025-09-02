@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:jira_watch/models/data_model.dart';
 import 'package:jira_watch/ui/home/overview_widgets/avatar.dart';
 import 'package:jira_watch/models/settings_model.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
-import 'package:jira_watch/dao/api_dao.dart';
 
 class SettingsDialog extends StatefulWidget {
   const SettingsDialog({super.key});
@@ -240,7 +240,7 @@ class _ProjectsSettingsPageState extends State<ProjectsSettingsPage> {
   @override
   void initState() {
     super.initState();
-    _allProjectsFuture = APIDao().fetchProjects();
+    _allProjectsFuture = DataModel().fetchProjects();
 
     // Load prefs into _selected once:
     SharedPreferences.getInstance().then((prefs) {

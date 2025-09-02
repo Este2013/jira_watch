@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:jira_watch/models/data_model.dart';
 import 'package:jira_watch/ui/home/overview_widgets/avatar.dart';
 import 'package:jira_watch/ui/home/overview_widgets/issue_details/issue_details.dart';
 import 'package:jira_watch/dao/api_dao.dart';
@@ -245,8 +246,8 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
   late FutureOr<(Iterable<IssueData>, int)> futurePage;
   final ValueNotifier<int> maxPageNb = ValueNotifier(-1);
 
-  //TODO this is currently useless
   Set<String> activeProjectFilters = {};
+  String? timeFilter;
 
   Widget? view;
 
@@ -255,11 +256,57 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
     super.initState();
     // add -1 to close the pageStream
     // pageRequester = StreamController()..add(0);
-    futurePage = IssuesDAO().fetchLastUpdatedIssuesPage(
+    futurePage = DataModel().fetchLastUpdatedIssuesByPage(
       pageSize: 25,
       pageIndex: pageShown,
       filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
     ); // TODO isolate {nb per page}
+  }
+
+  void startFetchingNewPage() => setState(() {
+    futurePage = DataModel().fetchLastUpdatedIssuesByPage(
+      pageSize: 25,
+      pageIndex: pageShown,
+      filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
+      before: beforeDateTime,
+      after: afterDateTime,
+    );
+  });
+
+  DateTime? get afterDateTime {
+    switch (timeFilter) {
+      case null:
+        return null;
+      case 'today':
+        return DateTime(now.year, now.month, now.day);
+      case 'yesterday':
+        return DateTime(now.year, now.month, now.day).subtract(const Duration(days: 1));
+      case 'week':
+        {
+          int weekday = now.weekday; // Monday = 1, Sunday = 7
+          return DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1));
+        }
+    }
+    throw Exception();
+    // return null;
+  }
+
+  DateTime? get beforeDateTime {
+    switch (timeFilter) {
+      case null:
+        return null;
+      case 'today':
+        return null;
+      case 'yesterday':
+        return DateTime(now.year, now.month, now.day);
+      case 'week':
+        {
+          int weekday = now.weekday; // Monday = 1, Sunday = 7
+          DateTime startOfWeek = DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1));
+          return DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day, 23, 59, 59, 999).add(const Duration(days: 6));
+        }
+    }
+    throw Exception();
   }
 
   @override
@@ -274,8 +321,9 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Row(
+                  spacing: 8,
                   children: [
-                    // TODO per project filtering
+                    // per project filtering
                     Expanded(
                       child: Card(
                         child: Padding(
@@ -291,11 +339,7 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
                                         toggleFilter: (code) => setState(() {
                                           activeProjectFilters.toggle(p);
                                           pageShown = 0;
-                                          futurePage = IssuesDAO().fetchLastUpdatedIssuesPage(
-                                            pageSize: 25,
-                                            pageIndex: pageShown,
-                                            filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
-                                          );
+                                          startFetchingNewPage();
                                         }),
                                       ),
                                     )
@@ -305,12 +349,34 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
                         ),
                       ),
                     ),
+                    // Time filtering
+                    Row(
+                      spacing: 8,
+                      children: [
+                        DropdownMenu<String?>(
+                          leadingIcon: Icon(Icons.calendar_today),
+                          initialSelection: timeFilter,
+                          dropdownMenuEntries: const [
+                            DropdownMenuEntry(value: null, label: 'All time'),
+                            DropdownMenuEntry(value: 'today', label: 'Today'),
+                            DropdownMenuEntry(value: 'yesterday', label: 'Yesterday'),
+                            DropdownMenuEntry(value: 'week', label: 'This week'),
+                          ],
+                          onSelected: (value) {
+                            setState(() {
+                              timeFilter = value;
+                            });
+                            startFetchingNewPage();
+                          },
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
               // list
               Expanded(
-                child: FutureBuilder(
+                child: FutureBuilder<(Iterable<IssueData>, int)>(
                   key: ValueKey(pageShown),
 
                   //TODO this thing needs to recieve actual Futures.
@@ -320,11 +386,20 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
                       return Center(child: CircularProgressIndicator());
                     }
                     if (futureSnapshot.hasError) {
+                      if (futureSnapshot.error.toString().endsWith('400')) {
+                        // need to check which project has been deleted
+                        return OnError400TestForProjects();
+                      }
                       return ErrorWidget('${futureSnapshot.error}${(futureSnapshot.error is Error) ? '\n\n${(futureSnapshot.error as Error).stackTrace}' : ''}');
                     }
                     if (futureSnapshot.hasData) {
                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                        maxPageNb.value = futureSnapshot.data!.$2 ~/ 25; // TODO isolate nb per page
+                        if (maxPageNb.value != futureSnapshot.data!.$2 ~/ 25) {
+                          setState(() {
+                            // TODO isolate nb per page
+                            maxPageNb.value = futureSnapshot.data!.$2 ~/ 25;
+                          });
+                        }
                       });
                       return ListView(
                         children: [
@@ -351,11 +426,7 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
                           onPressed: () {
                             setState(() {
                               pageShown = 0;
-                              futurePage = IssuesDAO().fetchLastUpdatedIssuesPage(
-                                pageSize: 25,
-                                pageIndex: pageShown,
-                                filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
-                              );
+                              startFetchingNewPage();
                             });
                           },
                           icon: Icon(Symbols.keyboard_double_arrow_left),
@@ -364,11 +435,7 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
                           onPressed: () {
                             setState(() {
                               pageShown--;
-                              futurePage = IssuesDAO().fetchLastUpdatedIssuesPage(
-                                pageSize: 25,
-                                pageIndex: pageShown,
-                                filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
-                              );
+                              startFetchingNewPage();
                             });
                           },
                           icon: Icon(Symbols.keyboard_arrow_left),
@@ -384,11 +451,7 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
                                   onPressed: () {
                                     setState(() {
                                       pageShown = i;
-                                      futurePage = IssuesDAO().fetchLastUpdatedIssuesPage(
-                                        pageSize: 25,
-                                        pageIndex: pageShown,
-                                        filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
-                                      );
+                                      startFetchingNewPage();
                                     });
                                   },
                                   icon: Text(i.toString()),
@@ -398,11 +461,8 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
                           onPressed: () {
                             setState(() {
                               pageShown++;
-                              futurePage = IssuesDAO().fetchLastUpdatedIssuesPage(
-                                pageSize: 25,
-                                pageIndex: pageShown,
-                                filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
-                              );
+
+                              startFetchingNewPage();
                             });
                           },
                           icon: Icon(Symbols.keyboard_arrow_right),
@@ -411,11 +471,8 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
                           onPressed: () {
                             setState(() {
                               pageShown = maxPageNb.value;
-                              futurePage = IssuesDAO().fetchLastUpdatedIssuesPage(
-                                pageSize: 25,
-                                pageIndex: pageShown,
-                                filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
-                              );
+
+                              startFetchingNewPage();
                             });
                           },
                           icon: Icon(Symbols.keyboard_double_arrow_right),
@@ -578,6 +635,94 @@ class JiraTicketPreviewItem extends StatelessWidget {
           'border': Colors.grey.shade700,
         };
     }
+  }
+}
+
+class OnError400TestForProjects extends StatefulWidget {
+  const OnError400TestForProjects({super.key});
+
+  @override
+  State<OnError400TestForProjects> createState() => _OnError400TestForProjectsState();
+}
+
+class _OnError400TestForProjectsState extends State<OnError400TestForProjects> {
+  late List<Future> projectsData;
+  @override
+  void initState() {
+    projectsData = [for (var p in SettingsModel().starredProjects.value ?? []) DataModel().fetchSingleProject(p)];
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Card(
+          color: Theme.of(context).colorScheme.errorContainer,
+          child: Padding(
+            padding: EdgeInsetsGeometry.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'An error occured while fetching your projects data',
+                  style: Theme.of(context).textTheme.titleLarge!.merge(TextStyle(color: Theme.of(context).colorScheme.onErrorContainer)),
+                ),
+                Text(
+                  'Error 404: Some of the projects might have been deleted',
+                  style: Theme.of(context).textTheme.titleMedium!.merge(TextStyle(color: Theme.of(context).colorScheme.onErrorContainer)),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            itemCount: projectsData.length,
+            itemBuilder: (context, index) {
+              return FutureBuilder(
+                future: projectsData[index],
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return ListTile(
+                      title: Text('Checking project ${SettingsModel().starredProjects.value?[index] ?? ''}...'),
+                      trailing: CircularProgressIndicator(),
+                    );
+                  }
+                  if (snapshot.hasError) {
+                    final errorMsg = snapshot.error.toString();
+                    if (errorMsg.endsWith('400') || errorMsg.endsWith('404')) {
+                      return ListTile(
+                        title: Text('Project ${SettingsModel().starredProjects.value?[index] ?? ''}'),
+                        subtitle: Text('Status: Error 400 - Project may have been deleted or is inaccessible.'),
+                        leading: Icon(Icons.error, color: Colors.red),
+                        trailing: IconButton(
+                          onPressed: () => SettingsModel().starredProjects.value = List.from(SettingsModel().starredProjects.value?.where((p) => p != SettingsModel().starredProjects.value?[index]) ?? []),
+                          icon: Icon(Icons.delete_forever),
+                          tooltip: 'Remove from my starred projects',
+                          //TODO make this refresh the main page (need to listen to starred projects in the main page)
+                        ),
+                      );
+                    }
+                    return ListTile(
+                      title: Text('Project ${SettingsModel().starredProjects.value?[index] ?? ''}'),
+                      subtitle: Text('Status: ${snapshot.error}'),
+                      leading: Icon(Icons.error_outline, color: Colors.orange),
+                    );
+                  }
+                  return ListTile(
+                    title: Text('Project ${SettingsModel().starredProjects.value?[index] ?? ''}'),
+                    subtitle: Text('Status: OK'),
+                    leading: Icon(Icons.check_circle, color: Colors.green),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
   }
 }
 

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:jira_watch/ui/home/home_overview.dart';
+import 'package:jira_watch/home/home_overview.dart';
 import 'package:jira_watch/ui/settings.dart';
 
 class HomeScreen extends StatefulWidget {

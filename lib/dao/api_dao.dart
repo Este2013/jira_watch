@@ -1,7 +1,6 @@
 import 'dart:async';
-import 'dart:io';
 
-import 'package:jira_watch/models/settings_model.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -26,7 +25,7 @@ class APIDao {
     domain = prefs.getString('jira_domain');
   }
 
-  Future<void> update({String? email, String? apiKey, String? domain}) async {
+  Future<void> updateCredentials({String? email, String? apiKey, String? domain}) async {
     final prefs = await SharedPreferences.getInstance();
     if (email != null) {
       this.email = email;
@@ -75,6 +74,7 @@ class APIDao {
 
   /// Convenience for GET requests, returns decoded JSON
   Future<dynamic> getJson(String path, {Map<String, dynamic>? queryParameters}) async {
+    print(queryParameters?['jql']);
     final response = await request(path, queryParameters: queryParameters);
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -83,76 +83,6 @@ class APIDao {
   }
 
   ///////// PROJECTS /////////
-
-  List? _projectsCache;
-
-  /// Fetch projects from Jira API, caching results
-  /// https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-projects/#api-rest-api-3-project-get
-  ///
-  /// Each project is a map as follows: s
-  /// ```json{
-  ///  "avatarUrls": {
-  ///    "16x16": "https://your-domain.atlassian.net/secure/projectavatar?size=xsmall&pid=10000",
-  ///    "24x24": "https://your-domain.atlassian.net/secure/projectavatar?size=small&pid=10000",
-  ///    "32x32": "https://your-domain.atlassian.net/secure/projectavatar?size=medium&pid=10000",
-  ///    "48x48": "https://your-domain.atlassian.net/secure/projectavatar?size=large&pid=10000"
-  ///  },
-  ///  "id": "10000",
-  ///  "insight": {
-  ///    "lastIssueUpdateTime": 1619069825000,
-  ///    "totalIssueCount": 100
-  ///  },
-  ///  "key": "EX",
-  ///  "name": "Example",
-  ///  "projectCategory": {
-  ///    "description": "First Project Category",
-  ///    "id": "10000",
-  ///    "name": "FIRST",
-  ///    "self": "https://your-domain.atlassian.net/rest/api/3/projectCategory/10000"
-  ///  },
-  ///  "self": "https://your-domain.atlassian.net/rest/api/3/project/EX",
-  ///  "simplified": false,
-  ///  "style": "CLASSIC"
-  /// ```
-  Future<List> fetchProjects({bool refresh = false}) async {
-    if (_projectsCache != null && !refresh) {
-      return _projectsCache!;
-    }
-
-    final data = await getJson(
-      '/rest/api/3/project/',
-      // queryParameters: {
-      //   'properties': ['id', 'avatarUrls', 'key', 'favourite', 'isPrivate', 'expand', 'issueTypes', 'name', 'url', 'style'],
-      // },
-    );
-    final result = (data as List);
-    _projectsCache = result;
-    return result;
-  }
-
-  /// Use expand to include additional information in the response. This parameter accepts a comma-separated list. Note that the project description, issue types, and project lead are included in all responses by default. Expand options include:
-  ///  - description The project description.
-  ///  - issueTypes The issue types associated with the project.
-  ///  - lead The project lead.
-  ///  - projectKeys All project keys associated with the project.
-  ///  - issueTypeHierarchy The project issue type hierarchy.
-  ///
-  /// Or use properties for a select set of returned properties.
-  Future fetchSingleProject(String code, {List<String>? expand}) async {
-    final data = await getJson(
-      '/rest/api/3/project/$code',
-      // queryParameters: {
-      //   'properties': ['id', 'avatarUrls', 'key', 'favourite', 'isPrivate', 'expand', 'issueTypes', 'name', 'url', 'style'],
-      // },
-    );
-    return data;
-  }
-
-  /// Fetch starred projects and store locally
-  Future<List> starredProjects({bool refresh = false}) async {
-    final projects = await fetchProjects(refresh: refresh);
-    return projects.where((p) => p['favourite'] == true).toList();
-  }
 }
 
 class IssueData {
@@ -198,6 +128,7 @@ class IssuesDAO {
   /////////////////////////////////////////////////////////////////////
 
   Future<List<IssueData>> jqlSearch(String jql, {int maxResults = 100, String? expand}) async {
+    if (kDebugMode) print(jql);
     late final dynamic data;
     data = await APIDao().getJson(
       '/rest/api/3/search',
@@ -209,52 +140,5 @@ class IssuesDAO {
     );
     var time = DateTime.now();
     return ((data['issues'] as List).map((d) => IssueData(d, lastCacheUpdate: time))).toList().cast();
-  }
-
-  Future<(Iterable<IssueData>, int)> fetchLastUpdatedIssuesPage({
-    required int pageSize,
-    int pageIndex = 0,
-    DateTime? after,
-    List<String>? filterByProjectCodes,
-  }) => fetchLastUpdatedIssues(
-    maxResults: pageSize,
-    startAt: pageIndex * pageSize,
-    after: after,
-    filterByProjectCodes: filterByProjectCodes,
-  );
-
-  Future<(Iterable<IssueData>, int)> fetchLastUpdatedIssues({int maxResults = 100, int startAt = 0, DateTime? after, List<String>? filterByProjectCodes}) async {
-    // get projects of interest
-    await APIDao().load();
-    var starredProjects = SettingsModel().starredProjects.value?.toSet() ?? {};
-
-    // prepare jql query
-    String projectFilter = '';
-    if (starredProjects.isNotEmpty) {
-      final keys = filterByProjectCodes?.join(', ') ?? starredProjects.map((k) => k.trim()).where((k) => k.isNotEmpty).join(',');
-      projectFilter = 'project in ($keys) ';
-    }
-
-    final jql = '$projectFilter ${after != null ? "AND updated >= ${after.toIso8601String()}" : ""} ORDER BY updated DESC';
-
-    return APIDao()
-        .getJson(
-          '/rest/api/3/search',
-          queryParameters: {
-            'jql': jql,
-            'maxResults': '$maxResults',
-            'startAt': '$startAt',
-            'expand': 'changelog',
-          },
-        )
-        .then(
-          (data) {
-            var now = DateTime.now();
-            final issues = (data['issues'] as List).map((e) => IssueData(e, lastCacheUpdate: now));
-
-            // print(data.keys);
-            return (issues, data['total'] as int);
-          },
-        );
   }
 }

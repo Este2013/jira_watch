@@ -94,7 +94,7 @@ class ApiKeyInputScreen extends StatelessWidget {
       domain += '.atlassian.net';
     }
 
-    await APIDao().update(email: email, apiKey: apiKey, domain: domain);
+    await APIDao().updateCredentials(email: email, apiKey: apiKey, domain: domain);
 
     // ignore: use_build_context_synchronously
     Navigator.pushReplacementNamed(context, '/home');
