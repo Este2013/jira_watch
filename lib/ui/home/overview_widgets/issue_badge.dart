@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:jira_watch/dao/api_dao.dart';
 import 'package:jira_watch/ui/home/overview_widgets/avatar.dart';
 import 'package:jira_watch/ui/home/time_utils.dart';
-import 'package:jira_watch/models/api_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Shows an issues icon and key, formatting appropriately for links and adding a copy button if requested.
@@ -101,7 +101,7 @@ class IssueHeaderRow extends StatefulWidget {
 
 class _IssueHeaderRowState extends State<IssueHeaderRow> {
   String? _ticketUrl(dynamic ticketKey) {
-    final domain = APIModel().domain;
+    final domain = APIDao().domain;
     if (domain != null && ticketKey != null) {
       return 'https://$domain/browse/$ticketKey';
     }

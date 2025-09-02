@@ -240,7 +240,7 @@ class _ProjectsSettingsPageState extends State<ProjectsSettingsPage> {
   @override
   void initState() {
     super.initState();
-    _allProjectsFuture = APIModel().fetchProjects();
+    _allProjectsFuture = APIDao().fetchProjects();
 
     // Load prefs into _selected once:
     SharedPreferences.getInstance().then((prefs) {

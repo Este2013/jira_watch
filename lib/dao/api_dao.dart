@@ -1,19 +1,17 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:jira_watch/models/settings_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:path/path.dart' as path;
 
-class APIModel {
-  static final APIModel _instance = APIModel._internal();
+class APIDao {
+  static final APIDao _instance = APIDao._internal();
 
-  factory APIModel() => _instance;
+  factory APIDao() => _instance;
 
-  APIModel._internal();
+  APIDao._internal();
 
   String? email;
   String? apiKey;
@@ -71,7 +69,6 @@ class APIModel {
       case 'DELETE':
         return await http.delete(uri, headers: allHeaders, body: body);
       default:
-        print(uri);
         return await http.get(uri, headers: allHeaders);
     }
   }
@@ -133,6 +130,24 @@ class APIModel {
     return result;
   }
 
+  /// Use expand to include additional information in the response. This parameter accepts a comma-separated list. Note that the project description, issue types, and project lead are included in all responses by default. Expand options include:
+  ///  - description The project description.
+  ///  - issueTypes The issue types associated with the project.
+  ///  - lead The project lead.
+  ///  - projectKeys All project keys associated with the project.
+  ///  - issueTypeHierarchy The project issue type hierarchy.
+  ///
+  /// Or use properties for a select set of returned properties.
+  Future fetchSingleProject(String code, {List<String>? expand}) async {
+    final data = await getJson(
+      '/rest/api/3/project/$code',
+      // queryParameters: {
+      //   'properties': ['id', 'avatarUrls', 'key', 'favourite', 'isPrivate', 'expand', 'issueTypes', 'name', 'url', 'style'],
+      // },
+    );
+    return data;
+  }
+
   /// Fetch starred projects and store locally
   Future<List> starredProjects({bool refresh = false}) async {
     final projects = await fetchProjects(refresh: refresh);
@@ -173,74 +188,18 @@ class IssueData {
   List<String>? get labels => fields?['labels'];
 }
 
-class IssuesModel {
-  static final IssuesModel _instance = IssuesModel._internal();
+class IssuesDAO {
+  static final IssuesDAO _instance = IssuesDAO._internal();
 
-  factory IssuesModel() => _instance;
+  factory IssuesDAO() => _instance;
 
-  IssuesModel._internal() {}
-
-  /////////////////////////////////////////////////////////////////////
-
-  late Future<List<IssueData>?> issuesCache;
-
-  void updateCache(List<IssueData> newData) async {
-    var cache = await issuesCache;
-    if (cache == null) {
-      _storeCache(newData);
-      return;
-    }
-    var newCache = <IssueData>[];
-    for (var i in newData) {
-      IssueData? overriden = cache.where((element) => element['key'] == i['key']).firstOrNull;
-      if (overriden == null) {
-        newCache.add(i);
-        continue;
-      }
-      newCache.add(
-        IssueData(_mergeMaps(overriden.data, i.data), lastCacheUpdate: i.lastCacheUpdate),
-      );
-    }
-    _storeCache(newData);
-  }
-
-  void _storeCache(List<IssueData>? newCache) {
-    if (newCache == null) {
-      SettingsModel().tempDir.then((tempDir) async {
-        File(path.join(tempDir.path, 'issues_cache.json')).delete();
-      });
-      return;
-    }
-
-    SettingsModel().tempDir.then((tempDir) async {
-      var cacheFile = File(path.join(tempDir.path, 'issues_cache.json'));
-      if (!await cacheFile.exists()) {
-        cacheFile.create(recursive: true);
-      }
-      cacheFile.writeAsString(
-        jsonEncode({
-          'cacheData': newCache.map((e) => e.toJson()),
-          'last_updated': DateTime.now().toIso8601String(),
-        }),
-      );
-    });
-  }
-
-  Future<List<IssueData>?> loadCache() => SettingsModel().tempDir.then((tempDir) async {
-    var cacheFile = File(path.join(tempDir.path, 'issues_cache.json'));
-    if (await cacheFile.exists()) {
-      return cacheFile.readAsString().then(
-        (value) => jsonDecode(value)['cacheData'].map((e) => IssueData.fromJson(e)).toList(),
-      );
-    }
-    return null;
-  });
+  IssuesDAO._internal();
 
   /////////////////////////////////////////////////////////////////////
 
   Future<List<IssueData>> jqlSearch(String jql, {int maxResults = 100, String? expand}) async {
     late final dynamic data;
-    data = await APIModel().getJson(
+    data = await APIDao().getJson(
       '/rest/api/3/search',
       queryParameters: {
         'jql': jql,
@@ -249,41 +208,7 @@ class IssuesModel {
       },
     );
     var time = DateTime.now();
-    print(data);
     return ((data['issues'] as List).map((d) => IssueData(d, lastCacheUpdate: time))).toList().cast();
-  }
-
-  Stream<FutureOr<(Iterable<IssueData>, int)>> getLastUpdatedIssuesPageCached({
-    required int pageSize,
-    required Stream<int> pageIndexStream,
-    List<String>? filterByProjectCodes,
-  }) async* {
-    Map<int, Iterable<IssueData>> cache = {};
-    int resultNb = -1;
-
-    // for each requested index, decide cache vs. fetch
-    yield* pageIndexStream.asyncMap<(Iterable<IssueData>, int)>((pageIndex) async {
-      if (pageIndex == -1) throw Exception('Ending stream');
-      if (cache.containsKey(pageIndex)) {
-        // already loaded → return cached immediately
-        return (cache[pageIndex]!, resultNb);
-      }
-      // first time → fetch from network
-
-      final res = (await fetchLastUpdatedIssuesPage(
-        pageSize: pageSize,
-        pageIndex: pageIndex,
-        filterByProjectCodes: filterByProjectCodes,
-      ));
-      final page = res.$1.toList();
-      if (resultNb != res.$2) {
-        resultNb = res.$2;
-        cache = {};
-      }
-
-      cache[pageIndex] = page;
-      return (page, resultNb);
-    });
   }
 
   Future<(Iterable<IssueData>, int)> fetchLastUpdatedIssuesPage({
@@ -300,8 +225,7 @@ class IssuesModel {
 
   Future<(Iterable<IssueData>, int)> fetchLastUpdatedIssues({int maxResults = 100, int startAt = 0, DateTime? after, List<String>? filterByProjectCodes}) async {
     // get projects of interest
-    await APIModel().load();
-    final prefs = await SharedPreferences.getInstance();
+    await APIDao().load();
     var starredProjects = SettingsModel().starredProjects.value?.toSet() ?? {};
 
     // prepare jql query
@@ -313,9 +237,7 @@ class IssuesModel {
 
     final jql = '$projectFilter ${after != null ? "AND updated >= ${after.toIso8601String()}" : ""} ORDER BY updated DESC';
 
-    print(jql);
-
-    return APIModel()
+    return APIDao()
         .getJson(
           '/rest/api/3/search',
           queryParameters: {
@@ -335,77 +257,4 @@ class IssuesModel {
           },
         );
   }
-
-  Stream<IssueData> getLastUpdatedIssues({acceptCache = true}) async* {
-    Future<(IssueData, DateTime?)?>? mostRecentlyUpdatedFromCache;
-    if (acceptCache) {
-      // Filter the cache by only what was added by this method specifically.
-
-      mostRecentlyUpdatedFromCache = issuesCache.then((cache) async {
-        if (cache == null || cache.isEmpty) {
-          return null;
-        }
-        return cache
-            .map(
-              (e) => (e, DateTime.tryParse(e['fields']['updated'])),
-            )
-            .where((element) => element.$2 != null)
-            .reduce((value, element) {
-              if (value.$2!.isBefore(element.$2!)) {
-                return element;
-              }
-              return value;
-            });
-      });
-    }
-
-    // get projects of interest
-    await APIModel().load();
-    final prefs = await SharedPreferences.getInstance();
-    var starredProjects = SettingsModel().starredProjects.value?.toSet() ?? {};
-
-    // prepare jql query
-    DateTime? after = mostRecentlyUpdatedFromCache == null ? null : (await mostRecentlyUpdatedFromCache)?.$2;
-    String projectFilter = '';
-    if (starredProjects.isNotEmpty) {
-      final keys = starredProjects.map((k) => k.trim()).where((k) => k.isNotEmpty).join(',');
-      projectFilter = 'project in ($keys) ';
-    }
-
-    final jql = '$projectFilter ${after != null ? "AND updated >= ${after.toIso8601String()}" : ""} ORDER BY updated DESC';
-    print(jql);
-    // fetch data
-
-    final data = await APIModel().getJson(
-      '/rest/api/3/search',
-      queryParameters: {
-        'jql': jql,
-        'maxResults': '100',
-        'startAt': '0',
-        'expand': 'changelog',
-      },
-    );
-
-    var now = DateTime.now();
-    final issues = (data['issues'] as List).map((e) => IssueData(data, lastCacheUpdate: now));
-    yield* Stream.fromIterable(issues);
-  }
-}
-
-/// Deep-merges [src] into [dest], modifying and returning [dest].
-Map<String, dynamic> _mergeMaps(
-  Map<String, dynamic> dest,
-  Map<String, dynamic> src,
-) {
-  src.forEach((key, srcValue) {
-    final destValue = dest[key];
-    if (srcValue is Map<String, dynamic> && destValue is Map<String, dynamic>) {
-      // both sides are maps → recurse
-      _mergeMaps(destValue, srcValue);
-    } else {
-      // otherwise overwrite (or insert new)
-      dest[key] = srcValue;
-    }
-  });
-  return dest;
 }

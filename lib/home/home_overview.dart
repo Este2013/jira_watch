@@ -8,7 +8,7 @@ import 'package:jira_watch/dao/api_dao.dart';
 import 'package:jira_watch/models/settings_model.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import 'overview_widgets/issue_badge.dart';
+import '../ui/home/overview_widgets/issue_badge.dart';
 
 // class OverviewPage extends StatefulWidget {
 //   const OverviewPage({super.key});
@@ -275,7 +275,7 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Row(
                   children: [
-                    // per project filtering
+                    // TODO per project filtering
                     Expanded(
                       child: Card(
                         child: Padding(
@@ -310,7 +310,7 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
               ),
               // list
               Expanded(
-                child: FutureBuilder<(Iterable<IssueData>, int)>(
+                child: FutureBuilder(
                   key: ValueKey(pageShown),
 
                   //TODO this thing needs to recieve actual Futures.
@@ -320,10 +320,6 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
                       return Center(child: CircularProgressIndicator());
                     }
                     if (futureSnapshot.hasError) {
-                      if (futureSnapshot.error.toString().endsWith('400')) {
-                        // need to check which project has been deleted
-                        return OnError400TestForProjects();
-                      }
                       return ErrorWidget('${futureSnapshot.error}${(futureSnapshot.error is Error) ? '\n\n${(futureSnapshot.error as Error).stackTrace}' : ''}');
                     }
                     if (futureSnapshot.hasData) {
@@ -582,94 +578,6 @@ class JiraTicketPreviewItem extends StatelessWidget {
           'border': Colors.grey.shade700,
         };
     }
-  }
-}
-
-class OnError400TestForProjects extends StatefulWidget {
-  const OnError400TestForProjects({super.key});
-
-  @override
-  State<OnError400TestForProjects> createState() => _OnError400TestForProjectsState();
-}
-
-class _OnError400TestForProjectsState extends State<OnError400TestForProjects> {
-  late List<Future> projectsData;
-  @override
-  void initState() {
-    projectsData = [for (var p in SettingsModel().starredProjects.value ?? []) APIDao().fetchSingleProject(p)];
-    super.initState();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Card(
-          color: Theme.of(context).colorScheme.errorContainer,
-          child: Padding(
-            padding: EdgeInsetsGeometry.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'An error occured while fetching your projects data',
-                  style: Theme.of(context).textTheme.titleLarge!.merge(TextStyle(color: Theme.of(context).colorScheme.onErrorContainer)),
-                ),
-                Text(
-                  'Error 404: Some of the projects might have been deleted',
-                  style: Theme.of(context).textTheme.titleMedium!.merge(TextStyle(color: Theme.of(context).colorScheme.onErrorContainer)),
-                ),
-              ],
-            ),
-          ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            itemCount: projectsData.length,
-            itemBuilder: (context, index) {
-              return FutureBuilder(
-                future: projectsData[index],
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return ListTile(
-                      title: Text('Checking project ${SettingsModel().starredProjects.value?[index] ?? ''}...'),
-                      trailing: CircularProgressIndicator(),
-                    );
-                  }
-                  if (snapshot.hasError) {
-                    final errorMsg = snapshot.error.toString();
-                    if (errorMsg.endsWith('400') || errorMsg.endsWith('404')) {
-                      return ListTile(
-                        title: Text('Project ${SettingsModel().starredProjects.value?[index] ?? ''}'),
-                        subtitle: Text('Status: Error 400 - Project may have been deleted or is inaccessible.'),
-                        leading: Icon(Icons.error, color: Colors.red),
-                        trailing: IconButton(
-                          onPressed: () => SettingsModel().starredProjects.value = List.from(SettingsModel().starredProjects.value?.where((p) => p != SettingsModel().starredProjects.value?[index]) ?? []),
-                          icon: Icon(Icons.delete_forever),
-                          tooltip: 'Remove from my starred projects',
-                          //TODO make this refresh the main page (need to listen to starred projects in the main page)
-                        ),
-                      );
-                    }
-                    return ListTile(
-                      title: Text('Project ${SettingsModel().starredProjects.value?[index] ?? ''}'),
-                      subtitle: Text('Status: ${snapshot.error}'),
-                      leading: Icon(Icons.error_outline, color: Colors.orange),
-                    );
-                  }
-                  return ListTile(
-                    title: Text('Project ${SettingsModel().starredProjects.value?[index] ?? ''}'),
-                    subtitle: Text('Status: OK'),
-                    leading: Icon(Icons.check_circle, color: Colors.green),
-                  );
-                },
-              );
-            },
-          ),
-        ),
-      ],
-    );
   }
 }
 

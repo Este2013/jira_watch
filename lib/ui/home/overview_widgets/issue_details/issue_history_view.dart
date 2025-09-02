@@ -1,13 +1,8 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_json/flutter_json.dart';
+import 'package:jira_watch/dao/api_dao.dart';
 import 'package:jira_watch/ui/home/overview_widgets/avatar.dart';
 import 'package:jira_watch/ui/home/overview_widgets/diff_matcher.dart';
-import 'package:jira_watch/ui/home/overview_widgets/issue_badge.dart';
 import 'package:jira_watch/ui/home/time_utils.dart';
-import 'package:jira_watch/models/api_model.dart';
-import 'package:material_symbols_icons/symbols.dart';
 
 /// Model for an individual change item in the changelog
 class ChangeItem {

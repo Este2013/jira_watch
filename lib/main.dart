@@ -52,13 +52,13 @@ class _SplashScreenState extends State<SplashScreen> {
       // ignore: use_build_context_synchronously
       Navigator.pushReplacementNamed(context, '/settingsError');
     }
-    await APIModel().load();
-    if (!APIModel().isReady) {
+    await APIDao().load();
+    if (!APIDao().isReady) {
       // ignore: use_build_context_synchronously
       Navigator.pushReplacementNamed(context, '/apikey');
     } else {
       // test credentials validity
-      var response = await APIModel().request('/rest/api/3/myself');
+      var response = await APIDao().request('/rest/api/3/myself');
       if (response.statusCode == 401) {
         // ignore: use_build_context_synchronously
         Navigator.pushReplacementNamed(context, '/apikey', arguments: 401);
@@ -94,7 +94,7 @@ class ApiKeyInputScreen extends StatelessWidget {
       domain += '.atlassian.net';
     }
 
-    await APIModel().update(email: email, apiKey: apiKey, domain: domain);
+    await APIDao().update(email: email, apiKey: apiKey, domain: domain);
 
     // ignore: use_build_context_synchronously
     Navigator.pushReplacementNamed(context, '/home');

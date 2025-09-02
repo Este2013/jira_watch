@@ -27,14 +27,14 @@ class JiraProjectAvatar extends StatelessWidget {
   });
 
   Future<String?> _getAvatarUrl() async {
-    List projects = await APIModel().fetchProjects();
+    List projects = await APIDao().fetchProjects();
     var project = projects.firstWhere(
       (p) => p['key'] == projectCode,
       orElse: () => null,
     );
     if (project == null) {
       // Try refresh if not found
-      projects = await APIModel().fetchProjects(refresh: true);
+      projects = await APIDao().fetchProjects(refresh: true);
       project = projects.firstWhere(
         (p) => p['key'] == projectCode,
         orElse: () => null,
@@ -103,7 +103,7 @@ class _JiraAvatarState extends State<JiraAvatar> {
     final file = await jiraAvatarCacheManager.getSingleFile(
       url,
       headers: {
-        'Authorization': APIModel().authHeader,
+        'Authorization': APIDao().authHeader,
         'Accept': '*/*',
       },
     );

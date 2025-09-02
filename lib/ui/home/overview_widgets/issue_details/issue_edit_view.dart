@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import '../../../../models/api_model.dart';
+import 'package:jira_watch/dao/api_dao.dart';
 
 /// Widget to view and edit the fields of a given issue.
 class IssueEditFieldsWidget extends StatefulWidget {
@@ -10,11 +10,11 @@ class IssueEditFieldsWidget extends StatefulWidget {
   final VoidCallback? onCancel;
 
   const IssueEditFieldsWidget({
-    Key? key,
+    super.key,
     required this.issueData,
     this.onSave,
     this.onCancel,
-  }) : super(key: key);
+  });
 
   @override
   State<IssueEditFieldsWidget> createState() => _IssueEditFieldsWidgetState();
@@ -92,7 +92,7 @@ class _IssueEditFieldsWidgetState extends State<IssueEditFieldsWidget> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _priority,
+              initialValue: _priority,
               decoration: const InputDecoration(labelText: 'Priority'),
               items: {'Low', 'Medium', 'High', _priority}.map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
               onChanged: (val) {
@@ -325,7 +325,6 @@ class _Toolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dense = Theme.of(context).visualDensity;
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -360,7 +359,7 @@ class _TBtn extends StatelessWidget {
       child: Ink(
         decoration: ShapeDecoration(
           shape: const StadiumBorder(),
-          color: Theme.of(context).colorScheme.surfaceVariant,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
         ),
         child: IconButton(
           visualDensity: VisualDensity.compact,
@@ -535,7 +534,7 @@ class _JsonDebug extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.4),
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(100),
             borderRadius: BorderRadius.circular(12),
           ),
           child: SelectableText(const JsonEncoder.withIndent('  ').convert(adf)),
@@ -623,7 +622,7 @@ class _InlineText extends StatelessWidget {
               style = style.merge(
                 TextStyle(
                   fontFamily: 'monospace',
-                  backgroundColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.6),
+                  backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(100),
                 ),
               );
               break;
@@ -697,7 +696,7 @@ String _adfToMarkdown(Map<String, dynamic> adf) {
     switch (n['type']) {
       case 'heading':
         final level = (n['attrs']?['level'] ?? 1).clamp(1, 6);
-        buf.writeln('#' * level + ' ' + _inlineToMd(n));
+        buf.writeln('${'#' * level} ${_inlineToMd(n)}');
         buf.writeln();
         break;
       case 'paragraph':
@@ -709,7 +708,7 @@ String _adfToMarkdown(Map<String, dynamic> adf) {
         for (final item in (n['content'] as List? ?? [])) {
           final ic = (item as Map<String, dynamic>)['content'] as List? ?? [];
           for (final p in ic) {
-            buf.writeln('- ' + _inlineToMd(p as Map<String, dynamic>));
+            buf.writeln('- ${_inlineToMd(p as Map<String, dynamic>)}');
           }
         }
         buf.writeln();
@@ -719,7 +718,7 @@ String _adfToMarkdown(Map<String, dynamic> adf) {
         for (final item in (n['content'] as List? ?? [])) {
           final ic = (item as Map<String, dynamic>)['content'] as List? ?? [];
           for (final p in ic) {
-            buf.writeln('${i++}. ' + _inlineToMd(p as Map<String, dynamic>));
+            buf.writeln('${i++}. ${_inlineToMd(p as Map<String, dynamic>)}');
           }
         }
         buf.writeln();
