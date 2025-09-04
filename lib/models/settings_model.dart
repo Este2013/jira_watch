@@ -21,7 +21,24 @@ class SettingsModel {
         // CONNECTION
         emailController.text = prefs.getString('jira_email') ?? '';
         apiKeyController.text = prefs.getString('jira_api_key') ?? '';
-        domainController.text = prefs.getString('jira_domain') ?? '';
+        var domain = prefs.getString('jira_domain') ?? '';
+
+        if (domain.startsWith(
+          //https://elgato.atlassian.net/
+          'https://',
+        )) {
+          domain = domain.replaceFirst('https://', '');
+        }
+        if (domain.split('/').length > 1) {
+          domain = domain.split('/').first;
+        }
+        if (domain.endsWith(
+          //https://elgato.atlassian.net/
+          '.atlassian.net',
+        )) {
+          domain = domain.replaceFirst('.atlassian.net', '');
+        }
+        domainController.text = domain;
 
         // PROJECTS
         starredProjects.value = prefs.getStringList('starred_projects') ?? [];
