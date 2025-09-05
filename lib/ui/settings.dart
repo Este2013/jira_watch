@@ -7,8 +7,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 
+enum SettingsDialogPage { general, connection, projects, advanced }
+
 class SettingsDialog extends StatefulWidget {
-  const SettingsDialog({super.key});
+  const SettingsDialog({super.key, this.initialPage = SettingsDialogPage.general});
+
+  final SettingsDialogPage initialPage;
 
   @override
   State<SettingsDialog> createState() => _SettingsDialogState();
@@ -39,7 +43,11 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: tabs.length, vsync: this);
+    _tabController = TabController(
+      length: tabs.length,
+      initialIndex: SettingsDialogPage.values.indexed.firstWhere((t) => t.$2 == widget.initialPage).$1,
+      vsync: this,
+    );
   }
 
   @override

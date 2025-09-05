@@ -7,6 +7,7 @@ import 'package:jira_watch/ui/home/overview_widgets/avatar.dart';
 import 'package:jira_watch/ui/home/overview_widgets/issue_details/issue_details.dart';
 import 'package:jira_watch/dao/api_dao.dart';
 import 'package:jira_watch/models/settings_model.dart';
+import 'package:jira_watch/ui/settings.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../ui/home/overview_widgets/issue_badge.dart';
@@ -331,20 +332,31 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
                           child: Row(
                             spacing: 8,
                             children:
-                                SettingsModel().starredProjects.value
-                                    ?.map(
-                                      (p) => ProjectFilteringButton(
-                                        projectCode: p,
-                                        activeFilters: activeProjectFilters,
-                                        toggleFilter: (code) => setState(() {
-                                          activeProjectFilters.toggle(p);
-                                          pageShown = 0;
-                                          startFetchingNewPage();
-                                        }),
-                                      ),
-                                    )
-                                    .toList() ??
-                                [],
+                                (SettingsModel().starredProjects.value
+                                          ?.map<Widget>(
+                                            (p) => ProjectFilteringButton(
+                                              projectCode: p,
+                                              activeFilters: activeProjectFilters,
+                                              toggleFilter: (code) => setState(() {
+                                                activeProjectFilters.toggle(p);
+                                                pageShown = 0;
+                                                startFetchingNewPage();
+                                              }),
+                                            ),
+                                          )
+                                          .toList() ??
+                                      <Widget>[])
+                                  ..add(
+                                    IconButton(
+                                      onPressed: () {
+                                        showDialog(
+                                          context: context,
+                                          builder: (context) => SettingsDialog(initialPage: SettingsDialogPage.projects),
+                                        );
+                                      },
+                                      icon: Icon(Icons.add),
+                                    ),
+                                  ),
                           ),
                         ),
                       ),
