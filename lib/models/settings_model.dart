@@ -58,7 +58,7 @@ class SettingsModel {
 
   final TextEditingController emailController = TextEditingController();
   final TextEditingController apiKeyController = TextEditingController();
-  final TextEditingController domainController = TextEditingController();
+  final TextEditingController domainController = TextEditingController(text: 'elgato');
 
   // FOLDERS
   Future<Directory> tempDir = getTemporaryDirectory().then((v) => Directory(join(v.path, 'jira_watch_cache')));

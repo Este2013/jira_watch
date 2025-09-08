@@ -11,9 +11,8 @@ A new Flutter project.
 ### EASY, IMPORTANT
  - improve user onboarding
    - input validation
-   - preselect domain to 'Elgato'
+   - ☀️ preselect domain to 'Elgato'
    - Add a empty project list page to select projects to view
- - ☀️projects refresh after clicking a ticket or mainframe
 
 ### TOUGH, IMPORTANT
  - view ticket status

@@ -57,7 +57,7 @@ class _SplashScreenState extends State<SplashScreen> {
       // ignore: use_build_context_synchronously
       Navigator.pushReplacementNamed(context, '/apikey');
     } else {
-      // test credentials validity
+      // test credentials validityc
       var response = await APIDao().request('/rest/api/3/myself');
       if (response.statusCode == 401) {
         // ignore: use_build_context_synchronously
