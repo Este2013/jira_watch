@@ -262,6 +262,12 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
       pageIndex: pageShown,
       filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
     ); // TODO isolate {nb per page}
+
+    SettingsModel().starredProjects.addListener(
+      () => setState(() {
+        startFetchingNewPage();
+      }),
+    );
   }
 
   void startFetchingNewPage() => setState(() {

@@ -326,6 +326,7 @@ class _ProjectsSettingsPageState extends State<ProjectsSettingsPage> {
                   final name = p['name'] as String;
 
                   return SwitchListTile(
+                    key: Key(key),
                     title: Text(key),
                     subtitle: Text(name),
                     value: _selected.contains(key),
