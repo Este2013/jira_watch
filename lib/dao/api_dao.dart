@@ -53,7 +53,7 @@ class APIDao {
   }) async {
     if (!isReady) throw Exception('API credentials not set');
     final uri = Uri.https(domain!, path, queryParameters);
-
+    print(uri);
     final allHeaders = {
       'Authorization': authHeader,
       'Accept': 'application/json',
@@ -127,11 +127,11 @@ class IssuesDAO {
 
   /////////////////////////////////////////////////////////////////////
 
-  Future<List<IssueData>> jqlSearch(String jql, {int maxResults = 100, String? expand}) async {
+  Future<List<IssueData>> jqlSearch(String jql, {int maxResults = 0, String? expand}) async {
     if (kDebugMode) print(jql);
     late final dynamic data;
     data = await APIDao().getJson(
-      '/rest/api/3/search',
+      '/rest/api/3/search/jql',
       queryParameters: {
         'jql': jql,
         'maxResults': '$maxResults',

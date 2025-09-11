@@ -37,28 +37,28 @@ class DataModel {
   /// In the same temp/.../issues_cache/ folder, updates last_project_updates.json to remember the last time we updated.
   ///
   /// EDGE CASE: if the int value returned by fetchLastUpdatedIssues changes during the fetching, the offset startAt is correctly adjusted to not miss issues whose index have changed.
-  Future<List<IssueData>> registerProject(String projectCode) async {
-    List<IssueData> allIssues = [];
-    int startAt = 0;
-    int? total;
+  // Future<List<IssueData>> registerProject(String projectCode) async {
+  //   List<IssueData> allIssues = [];
+  //   int startAt = 0;
+  //   int? total;
 
-    do {
-      final (issues, fetchedTotal) = await DataModel().fetchLastUpdatedIssues(
-        maxResults: 100,
-        startAt: startAt,
-        filterByProjectCodes: [projectCode],
-      );
-      if (total == null) {
-        total = fetchedTotal;
-      } else if (fetchedTotal != total) {
-        total = fetchedTotal;
-      }
-      allIssues.addAll(issues);
-      startAt = allIssues.length;
-    } while (allIssues.length < total);
+  //   do {
+  //     final (issues, fetchedTotal) = await DataModel().fetchLastUpdatedIssues(
+  //       maxResults: 100,
+  //       startAt: startAt,
+  //       filterByProjectCodes: [projectCode],
+  //     );
+  //     if (total == null) {
+  //       total = fetchedTotal;
+  //     } else if (fetchedTotal != total) {
+  //       total = fetchedTotal;
+  //     }
+  //     allIssues.addAll(issues);
+  //     startAt = allIssues.length;
+  //   } while (allIssues.length < total);
 
-    return allIssues;
-  }
+  //   return allIssues;
+  // }
 
   /// Fetch projects from Jira API, caching results
   /// https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-projects/#api-rest-api-3-project-get
@@ -110,14 +110,21 @@ class DataModel {
     return api.fetchSingleProject(code, expand: expand);
   }
 
-  Future<(Iterable<IssueData>, int)> fetchLastUpdatedIssues({int maxResults = 100, int startAt = 0, DateTime? before, DateTime? after, List<String>? filterByProjectCodes}) {
+  Future<(Iterable<IssueData>, bool, String?)> fetchLastUpdatedIssues({int maxResults = 0, String? nextPageToken, DateTime? before, DateTime? after, List<String>? filterByProjectCodes}) {
     // TODO missing cache check
-    return api.fetchLastUpdatedIssues(maxResults: maxResults, startAt: startAt, before: before, after: after, filterByProjectCodes: filterByProjectCodes);
+    return api.fetchLastUpdatedIssues(
+      maxResults: maxResults,
+      before: before,
+      after: after,
+      filterByProjectCodes: filterByProjectCodes,
+      nextPageToken: nextPageToken,
+    );
   }
 
-  Future<(Iterable<IssueData>, int)> fetchLastUpdatedIssuesByPage({
+  Future<(Iterable<IssueData>, bool, String?)> fetchLastUpdatedIssuesByPage({
     required int pageSize,
     int pageIndex = 0,
+    String? nextPageToken,
     DateTime? before,
     DateTime? after,
     List<String>? filterByProjectCodes,
@@ -125,7 +132,7 @@ class DataModel {
     // TODO missing cache check
     return fetchLastUpdatedIssues(
       maxResults: pageSize,
-      startAt: pageIndex * pageSize,
+      nextPageToken: nextPageToken,
       before: before,
       after: after,
       filterByProjectCodes: filterByProjectCodes,
@@ -172,7 +179,13 @@ class APIModel {
     return data;
   }
 
-  Future<(Iterable<IssueData>, int)> fetchLastUpdatedIssues({int maxResults = 100, int startAt = 0, DateTime? before, DateTime? after, List<String>? filterByProjectCodes}) async {
+  Future<(Iterable<IssueData>, bool, String?)> fetchLastUpdatedIssues({
+    int maxResults = 0,
+    DateTime? before,
+    DateTime? after,
+    List<String>? filterByProjectCodes,
+    String? nextPageToken,
+  }) async {
     // get projects of interest
     await APIDao().load();
     var starredProjects = SettingsModel().starredProjects.value?.toSet() ?? {};
@@ -190,11 +203,12 @@ class APIModel {
 
     return APIDao()
         .getJson(
-          '/rest/api/3/search',
+          '/rest/api/3/search/jql',
           queryParameters: {
             'jql': jql,
+            'nextPageToken': nextPageToken,
+            'fields': '*all',
             'maxResults': '$maxResults',
-            'startAt': '$startAt',
             'expand': 'changelog',
           },
         )
@@ -204,7 +218,7 @@ class APIModel {
             final issues = (data['issues'] as List).map((e) => IssueData(e, lastCacheUpdate: now));
 
             // print(data.keys);
-            return (issues, data['total'] as int);
+            return (issues, data['isLast'] as bool, data['nextPageToken'] as String?);
           },
         );
   }

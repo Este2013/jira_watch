@@ -1,284 +1,116 @@
 import 'dart:async';
-import 'dart:math';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:jira_watch/models/data_model.dart';
 import 'package:jira_watch/ui/home/overview_widgets/avatar.dart';
 import 'package:jira_watch/ui/home/overview_widgets/issue_details/issue_details.dart';
 import 'package:jira_watch/dao/api_dao.dart';
 import 'package:jira_watch/models/settings_model.dart';
+import 'package:jira_watch/ui/home/time_utils.dart';
 import 'package:jira_watch/ui/settings.dart';
-import 'package:material_symbols_icons/symbols.dart';
 
 import '../ui/home/overview_widgets/issue_badge.dart';
 
-// class OverviewPage extends StatefulWidget {
-//   const OverviewPage({super.key});
-
-//   @override
-//   State<OverviewPage> createState() => _OverviewPageState();
-// }
-
-// class _OverviewPageState extends State<OverviewPage> {
-//   final now = DateTime.now();
-//   int pageShown = 0;
-//   late StreamController<int> pageRequester;
-//   late Stream<FutureOr<(Iterable<IssueData>, int)>> pageStream;
-//   final ValueNotifier<int> maxPageNb = ValueNotifier(-1);
-
-//   //TODO this is currently useless
-//   Set<String> activeProjectFilters = {};
-
-//   Widget? view;
-
-//   @override
-//   void initState() {
-//     super.initState();
-//     // add -1 to close the pageStream
-//     pageRequester = StreamController()..add(0);
-//     pageStream = IssuesModel().getLastUpdatedIssuesPageCached(
-//       pageSize: 25,
-//       pageIndexStream: pageRequester.stream,
-//       filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
-//     ); // TODO isolate {nb per page}
-//   }
-
-//   @override
-//   void dispose() {
-//     pageRequester.close();
-//     super.dispose();
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Padding(
-//       padding: const EdgeInsets.all(16.0),
-//       child: Row(
-//         children: [
-//           Expanded(
-//             child: Column(
-//               children: [
-//                 // filters
-//                 Padding(
-//                   padding: const EdgeInsets.symmetric(vertical: 8.0),
-//                   child: Row(
-//                     children: [
-//                       // TODO per project filtering
-//                       Expanded(
-//                         child: Card(
-//                           child: Padding(
-//                             padding: const EdgeInsets.all(8.0),
-//                             child: Row(
-//                               spacing: 8,
-//                               children:
-//                                   SettingsModel().starredProjects.value
-//                                       ?.map(
-//                                         (p) => ProjectFilteringButton(
-//                                           projectCode: p,
-//                                           activeFilters: activeProjectFilters,
-//                                           toggleFilter: (code) => setState(() {
-//                                             activeProjectFilters.toggle(p);
-//                                             // TODO this handling is raelly bad. Find a better way. pageRequester.add(-1);
-//                                             // pageStream = IssuesModel().getLastUpdatedIssuesPageCached(
-//                                             //   pageSize: 25,
-//                                             //   pageIndexStream: pageRequester.stream,
-//                                             //   filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
-//                                             // );
-//                                           }),
-//                                         ),
-//                                       )
-//                                       .toList() ??
-//                                   [],
-//                             ),
-//                           ),
-//                         ),
-//                       ),
-//                     ],
-//                   ),
-//                 ),
-//                 // list
-//                 Expanded(
-//                   child: StreamBuilder(
-//                     stream: pageStream,
-//                     builder: (context, snapshot) {
-//                       print(snapshot.connectionState);
-//                       if (snapshot.connectionState == ConnectionState.waiting) {
-//                         return Center(child: CircularProgressIndicator());
-//                       }
-//                       if (snapshot.hasError) return ErrorWidget('${snapshot.error}');
-
-//                       if (snapshot.hasData) {
-//                         return FutureBuilder(
-//                           key: ValueKey(pageShown),
-//                           //TODO this thing needs to recieve actual Futures.
-//                           future: Future.value(snapshot.data!),
-//                           builder: (context, futureSnapshot) {
-//                             if (futureSnapshot.connectionState == ConnectionState.waiting) {
-//                               return Center(child: CircularProgressIndicator());
-//                             }
-//                             if (futureSnapshot.hasError) {
-//                               return ErrorWidget('${futureSnapshot.error}\n\n${(futureSnapshot.error as Error).stackTrace}');
-//                             }
-//                             if (futureSnapshot.hasData) {
-//                               WidgetsBinding.instance.addPostFrameCallback((_) {
-//                                 maxPageNb.value = futureSnapshot.data!.$2 ~/ 25; // TODO isolate nb per page
-//                               });
-//                               return ListView(
-//                                 children: [
-//                                   ...futureSnapshot.data!.$1.map((t) => JiraTicketPreviewItem(ticket: t, updateView: updateView)),
-//                                 ],
-//                               );
-//                             }
-//                             return Center(child: CircularProgressIndicator(color: Colors.amber));
-//                           },
-//                         );
-//                       }
-//                       return Center(child: CircularProgressIndicator(color: Colors.amber));
-//                     },
-//                   ),
-//                 ),
-
-//                 AnimatedBuilder(
-//                   animation: maxPageNb,
-//                   builder: (context, _) {
-//                     var pageWin = getPageWindow();
-
-//                     return Padding(
-//                       padding: const EdgeInsets.all(8.0),
-//                       child: Row(
-//                         mainAxisAlignment: MainAxisAlignment.center,
-//                         children: [
-//                           IconButton(
-//                             onPressed: () {
-//                               pageRequester.add(0);
-//                               setState(() => pageShown = 0);
-//                             },
-//                             icon: Icon(Symbols.keyboard_double_arrow_left),
-//                           ),
-//                           IconButton(
-//                             onPressed: () {
-//                               pageRequester.add(pageShown - 1);
-//                               setState(() => pageShown--);
-//                             },
-//                             icon: Icon(Symbols.keyboard_arrow_left),
-//                           ),
-
-//                           for (var i = pageWin.$1; i <= pageWin.$2; i++)
-//                             i == pageShown
-//                                 ? IconButton.filled(
-//                                     onPressed: null,
-//                                     icon: Text(i.toString()),
-//                                   )
-//                                 : IconButton(
-//                                     onPressed: () {
-//                                       pageRequester.add(i);
-//                                       setState(() => pageShown = i);
-//                                     },
-//                                     icon: Text(i.toString()),
-//                                   ),
-
-//                           IconButton(
-//                             onPressed: () {
-//                               pageRequester.add(pageShown + 1);
-//                               setState(() => pageShown++);
-//                             },
-//                             icon: Icon(Symbols.keyboard_arrow_right),
-//                           ),
-//                           IconButton(
-//                             onPressed: () {
-//                               pageRequester.add(maxPageNb.value);
-//                               setState(() => pageShown = maxPageNb.value);
-//                             },
-//                             icon: Icon(Symbols.keyboard_double_arrow_right),
-//                           ),
-//                         ],
-//                       ),
-//                     );
-//                   },
-//                 ),
-//               ],
-//             ),
-//           ),
-//           VerticalDivider(),
-//           Expanded(child: view ?? Placeholder()),
-//         ],
-//       ),
-//     );
-//   }
-
-//   void updateView(Widget w) => setState(() => view = w);
-
-//   (int, int) getPageWindow() {
-//     if (maxPageNb.value < 5) {
-//       // Less than 5 pages, show all
-//       return (0, maxPageNb.value);
-//     }
-//     // Try to center pageShown in a window of 5
-//     int minWindow = pageShown - 2;
-//     int maxWindow = pageShown + 2;
-
-//     if (minWindow < 0) {
-//       // Shift right if at the start
-//       maxWindow += -minWindow;
-//       minWindow = 0;
-//     }
-//     if (maxWindow > maxPageNb.value) {
-//       // Shift left if at the end
-//       minWindow -= (maxWindow - maxPageNb.value);
-//       maxWindow = maxPageNb.value;
-//     }
-//     minWindow = max(0, minWindow);
-//     maxWindow = min(maxPageNb.value, maxWindow);
-
-//     return (minWindow, maxWindow);
-//   }
-// }
-
-class OverviewSynchronousPage extends StatefulWidget {
-  const OverviewSynchronousPage({super.key});
+class OverviewPage extends StatefulWidget {
+  const OverviewPage({super.key});
 
   @override
-  State<OverviewSynchronousPage> createState() => _OverviewSynchronousPageState();
+  State<OverviewPage> createState() => _OverviewPageState();
 }
 
-class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
+class _OverviewPageState extends State<OverviewPage> {
   final now = DateTime.now();
-  int pageShown = 0;
-  late FutureOr<(Iterable<IssueData>, int)> futurePage;
-  final ValueNotifier<int> maxPageNb = ValueNotifier(-1);
+
+  // paging
+  int pageShown = 0; // current page index
+  final int pageSize = 25; // keep your existing page size here
+  bool isLoading = false; // fetching in progress?
+  bool hasMore = true; // more pages left?
+  int? totalAvailable; // optional: if your API returns total in value.$2
+
+  late FutureOr<(Iterable<IssueData>, bool, String?)> futurePage;
+  String? nextPageToken;
 
   Set<String> activeProjectFilters = {};
   String? timeFilter;
 
   Widget? view;
 
+  final ScrollController scrollController = ScrollController(keepScrollOffset: true);
+
+  final List<IssueData> allLoadedIssues = [];
+
   @override
   void initState() {
     super.initState();
-    // add -1 to close the pageStream
-    // pageRequester = StreamController()..add(0);
-    futurePage = DataModel().fetchLastUpdatedIssuesByPage(
-      pageSize: 25,
-      pageIndex: pageShown,
-      filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
-    ); // TODO isolate {nb per page}
+
+    // Start listening for bottom reach to trigger next page
+    scrollController.addListener(_onScrollNearBottom);
+
+    // initial load
+    _resetAndFetchFirstPage();
 
     SettingsModel().starredProjects.addListener(
       () => setState(() {
-        startFetchingNewPage();
+        _resetAndFetchFirstPage();
       }),
     );
   }
 
-  void startFetchingNewPage() => setState(() {
-    futurePage = DataModel().fetchLastUpdatedIssuesByPage(
-      pageSize: 25,
-      pageIndex: pageShown,
-      filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
-      before: beforeDateTime,
-      after: afterDateTime,
-    );
-  });
+  void _onScrollNearBottom() {
+    // Fetch when we're within ~100px of the bottom
+    if (!isLoading && hasMore && scrollController.position.pixels >= scrollController.position.maxScrollExtent - 100) {
+      startFetchingNewPage();
+    }
+  }
+
+  void _resetAndFetchFirstPage() {
+    pageShown = 0;
+    hasMore = true;
+    isLoading = false;
+    totalAvailable = null;
+    nextPageToken = null;
+    allLoadedIssues.clear();
+    startFetchingNewPage();
+  }
+
+  void startFetchingNewPage() {
+    if (isLoading || !hasMore) return;
+
+    setState(() => isLoading = true);
+
+    futurePage =
+        DataModel().fetchLastUpdatedIssuesByPage(
+            pageSize: pageSize,
+            pageIndex: pageShown,
+            filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
+            before: beforeDateTime,
+            after: afterDateTime,
+            nextPageToken: nextPageToken,
+          )
+          ..then((value) {
+            final items = value.$1.toList();
+            final isLastPage = value.$2;
+
+            setState(() {
+              pageShown += 1;
+              nextPageToken = value.$3;
+              allLoadedIssues.addAll(items);
+
+              // Determine whether there are more pages:
+              // Option A (robust if API provides total):
+
+              hasMore = !isLastPage;
+
+              isLoading = false;
+            });
+          }).catchError((e, st) {
+            setState(() => isLoading = false);
+            // (Optional) surface the error if you wish
+            debugPrint('Paging error: $e\n$st');
+          });
+  }
 
   DateTime? get afterDateTime {
     switch (timeFilter) {
@@ -292,6 +124,11 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
         {
           int weekday = now.weekday; // Monday = 1, Sunday = 7
           return DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1));
+        }
+      case 'last week':
+        {
+          int weekday = now.weekday; // Monday = 1, Sunday = 7
+          return DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1)).subtract(Duration(days: 7));
         }
     }
     throw Exception();
@@ -310,6 +147,12 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
         {
           int weekday = now.weekday; // Monday = 1, Sunday = 7
           DateTime startOfWeek = DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1));
+          return DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day, 23, 59, 59, 999).add(const Duration(days: 6));
+        }
+      case 'last week':
+        {
+          int weekday = now.weekday; // Monday = 1, Sunday = 7
+          DateTime startOfWeek = DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1)).subtract(Duration(days: 7));
           return DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day, 23, 59, 59, 999).add(const Duration(days: 6));
         }
     }
@@ -344,9 +187,8 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
                                               projectCode: p,
                                               activeFilters: activeProjectFilters,
                                               toggleFilter: (code) => setState(() {
-                                                activeProjectFilters.toggle(p);
-                                                pageShown = 0;
-                                                startFetchingNewPage();
+                                                activeProjectFilters.toggle(code); // (note: use the param "code", not "p")
+                                                _resetAndFetchFirstPage();
                                               }),
                                             ),
                                           )
@@ -372,6 +214,7 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
                       spacing: 8,
                       children: [
                         DropdownMenu<String?>(
+                          enableSearch: false,
                           leadingIcon: Icon(Icons.calendar_today),
                           initialSelection: timeFilter,
                           dropdownMenuEntries: const [
@@ -379,12 +222,11 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
                             DropdownMenuEntry(value: 'today', label: 'Today'),
                             DropdownMenuEntry(value: 'yesterday', label: 'Yesterday'),
                             DropdownMenuEntry(value: 'week', label: 'This week'),
+                            DropdownMenuEntry(value: 'last week', label: 'Last week'),
                           ],
                           onSelected: (value) {
-                            setState(() {
-                              timeFilter = value;
-                            });
-                            startFetchingNewPage();
+                            setState(() => timeFilter = value);
+                            _resetAndFetchFirstPage();
                           },
                         ),
                       ],
@@ -394,111 +236,44 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
               ),
               // list
               Expanded(
-                child: FutureBuilder<(Iterable<IssueData>, int)>(
-                  key: ValueKey(pageShown),
-
-                  //TODO this thing needs to recieve actual Futures.
-                  future: Future.value(futurePage),
-                  builder: (context, futureSnapshot) {
-                    if (futureSnapshot.connectionState == ConnectionState.waiting) {
-                      return Center(child: CircularProgressIndicator());
+                child: EdgeOverscrollListener(
+                  childScrollCtrl: scrollController,
+                  onOverscrollAtBottom: () {
+                    if (!isLoading && hasMore) {
+                      // If user overscrolls past the bottom, kick off next page too
+                      startFetchingNewPage();
                     }
-                    if (futureSnapshot.hasError) {
-                      if (futureSnapshot.error.toString().endsWith('400')) {
-                        // need to check which project has been deleted
-                        return OnError400TestForProjects();
-                      }
-                      return ErrorWidget('${futureSnapshot.error}${(futureSnapshot.error is Error) ? '\n\n${(futureSnapshot.error as Error).stackTrace}' : ''}');
-                    }
-                    if (futureSnapshot.hasData) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (maxPageNb.value != futureSnapshot.data!.$2 ~/ 25) {
-                          setState(() {
-                            // TODO isolate nb per page
-                            maxPageNb.value = futureSnapshot.data!.$2 ~/ 25;
-                          });
-                        }
-                      });
-                      return ListView(
-                        children: [
-                          ...futureSnapshot.data!.$1.map((t) => JiraTicketPreviewItem(ticket: t, updateView: updateView)),
-                        ],
-                      );
-                    }
-                    return Center(child: CircularProgressIndicator(color: Colors.amber));
                   },
-                ),
-              ),
+                  onOverscrollAtTop: null,
+                  child: NotificationListener<OverscrollNotification>(
+                    // keep your overscroll prints if you like
+                    onNotification: (overscroll) {
+                      if (overscroll.overscroll > 0 && !isLoading && hasMore) {
+                        // If user overscrolls past the bottom, kick off next page too
+                        startFetchingNewPage();
+                      }
+                      return false;
+                    },
+                    child: ListView.builder(
+                      controller: scrollController,
+                      itemCount: allLoadedIssues.length + (isLoading || hasMore ? 1 : 0), // +1 for footer
+                      itemBuilder: (context, index) {
+                        if (index < allLoadedIssues.length) {
+                          final t = allLoadedIssues[index];
+                          return JiraTicketPreviewItem(ticket: t, updateView: updateView);
+                        }
 
-              AnimatedBuilder(
-                animation: maxPageNb,
-                builder: (context, _) {
-                  var pageWin = getPageWindow();
-
-                  return Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              pageShown = 0;
-                              startFetchingNewPage();
-                            });
-                          },
-                          icon: Icon(Symbols.keyboard_double_arrow_left),
-                        ),
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              pageShown--;
-                              startFetchingNewPage();
-                            });
-                          },
-                          icon: Icon(Symbols.keyboard_arrow_left),
-                        ),
-
-                        for (var i = pageWin.$1; i <= pageWin.$2; i++)
-                          i == pageShown
-                              ? IconButton.filled(
-                                  onPressed: null,
-                                  icon: Text(i.toString()),
-                                )
-                              : IconButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      pageShown = i;
-                                      startFetchingNewPage();
-                                    });
-                                  },
-                                  icon: Text(i.toString()),
-                                ),
-
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              pageShown++;
-
-                              startFetchingNewPage();
-                            });
-                          },
-                          icon: Icon(Symbols.keyboard_arrow_right),
-                        ),
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              pageShown = maxPageNb.value;
-
-                              startFetchingNewPage();
-                            });
-                          },
-                          icon: Icon(Symbols.keyboard_double_arrow_right),
-                        ),
-                      ],
+                        // Footer row: show a loader while fetching; when finished and !hasMore, show a subtle end cap.
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 16.0),
+                          child: Center(
+                            child: isLoading ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('No more items'),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
+                  ),
+                ),
               ),
             ],
           ),
@@ -511,29 +286,11 @@ class _OverviewSynchronousPageState extends State<OverviewSynchronousPage> {
 
   void updateView(Widget w) => setState(() => view = w);
 
-  (int, int) getPageWindow() {
-    if (maxPageNb.value < 5) {
-      // Less than 5 pages, show all
-      return (0, maxPageNb.value);
-    }
-    // Try to center pageShown in a window of 5
-    int minWindow = pageShown - 2;
-    int maxWindow = pageShown + 2;
-
-    if (minWindow < 0) {
-      // Shift right if at the start
-      maxWindow += -minWindow;
-      minWindow = 0;
-    }
-    if (maxWindow > maxPageNb.value) {
-      // Shift left if at the end
-      minWindow -= (maxWindow - maxPageNb.value);
-      maxWindow = maxPageNb.value;
-    }
-    minWindow = max(0, minWindow);
-    maxWindow = min(maxPageNb.value, maxWindow);
-
-    return (minWindow, maxWindow);
+  @override
+  void dispose() {
+    scrollController.removeListener(_onScrollNearBottom);
+    scrollController.dispose();
+    super.dispose();
   }
 }
 
@@ -588,10 +345,16 @@ class JiraTicketPreviewItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = _ticketColors(context, ticket);
-    final summary = ticket['fields']['summary'] ?? 'No Title';
+    final fields = ticket['fields'] ?? {};
+
+    final summary = fields['summary'] ?? 'No Title';
+    final updated = fields['updated'] as String? ?? '';
+    final lastUpdateData = (ticket['changelog']['histories'] as List).firstOrNull;
+    // print(lastUpdateData);
 
     return Card(
-      color: colors['bg'],
+      clipBehavior: Clip.hardEdge,
+      color: colors['bg']?.withAlpha(Theme.brightnessOf(context) == Brightness.light ? 255 : 50),
       shape: RoundedRectangleBorder(
         side: BorderSide(color: colors['border']!, width: 2),
         borderRadius: BorderRadius.circular(8),
@@ -603,7 +366,33 @@ class JiraTicketPreviewItem extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              IssueHeaderRow(ticket),
+              Row(
+                children: [
+                  IssueLinkWithParentsRow(ticket),
+                  const Spacer(),
+
+                  TimeAgoDisplay(timeStr: updated),
+                  Text(
+                    ', by ',
+                    style: TextStyle(fontSize: 12, color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300]),
+                  ),
+                  SizedBox.square(
+                    dimension: 24,
+                    child: ClipRRect(
+                      borderRadius: BorderRadiusGeometry.circular(10000),
+                      child: lastUpdateData == null
+                          ? Tooltip(
+                              message: fields['creator']['displayName'],
+                              child: JiraAvatar(key: Key(ticket['id']), url: fields['creator']['avatarUrls']['32x32']),
+                            )
+                          : Tooltip(
+                              message: lastUpdateData['author']['displayName'],
+                              child: JiraAvatar(key: Key(lastUpdateData['id']), url: lastUpdateData['author']['avatarUrls']['32x32']),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
               Text(
                 summary,
                 style: Theme.of(context).textTheme.titleMedium,
@@ -752,4 +541,45 @@ extension on Set {
     }
     add(element);
   }
+}
+
+class EdgeOverscrollListener extends StatefulWidget {
+  const EdgeOverscrollListener({super.key, required this.child, required this.childScrollCtrl, required this.onOverscrollAtTop, required this.onOverscrollAtBottom});
+  final Widget child;
+  final ScrollController childScrollCtrl;
+
+  final VoidCallback? onOverscrollAtTop, onOverscrollAtBottom;
+  @override
+  State<EdgeOverscrollListener> createState() => _EdgeOverscrollListenerState();
+}
+
+class _EdgeOverscrollListenerState extends State<EdgeOverscrollListener> {
+  ScrollController get _controller => widget.childScrollCtrl;
+
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    if (!_controller.hasClients) return;
+
+    final pos = _controller.position;
+    final dy = event.scrollDelta.dy; // >0 scrolls down, <0 scrolls up
+
+    final atTop = pos.pixels <= pos.minScrollExtent && !pos.outOfRange;
+    final atBottom = pos.pixels >= pos.maxScrollExtent && !pos.outOfRange;
+
+    if (dy > 0 && atBottom) {
+      // user is trying to scroll further down past bottom
+      widget.onOverscrollAtBottom?.call();
+      // trigger your action here
+    } else if (dy < 0 && atTop) {
+      // user is trying to scroll further up past top
+      widget.onOverscrollAtTop?.call();
+      // trigger your action here
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    onPointerSignal: _onPointerSignal,
+    child: widget.child,
+  );
 }

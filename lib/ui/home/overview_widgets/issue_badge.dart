@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watch/dao/api_dao.dart';
 import 'package:jira_watch/ui/home/overview_widgets/avatar.dart';
-import 'package:jira_watch/ui/home/time_utils.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Shows an issues icon and key, formatting appropriately for links and adding a copy button if requested.
@@ -89,17 +88,17 @@ class _IssueBadgeState extends State<IssueBadge> {
 }
 
 /// Shows the issues project, parent and key as [IssueBadge]s.
-class IssueHeaderRow extends StatefulWidget {
+class IssueLinkWithParentsRow extends StatefulWidget {
   final dynamic ticket;
-  final bool showLastUpdateTime;
+  // final bool showLastUpdateTime;
 
-  const IssueHeaderRow(this.ticket, {super.key, this.showLastUpdateTime = true});
+  const IssueLinkWithParentsRow(this.ticket, {super.key});
 
   @override
-  State<IssueHeaderRow> createState() => _IssueHeaderRowState();
+  State<IssueLinkWithParentsRow> createState() => _IssueLinkWithParentsRowState();
 }
 
-class _IssueHeaderRowState extends State<IssueHeaderRow> {
+class _IssueLinkWithParentsRowState extends State<IssueLinkWithParentsRow> {
   String? _ticketUrl(dynamic ticketKey) {
     final domain = APIDao().domain;
     if (domain != null && ticketKey != null) {
@@ -123,7 +122,6 @@ class _IssueHeaderRowState extends State<IssueHeaderRow> {
     final parentIconUrl = parent?['fields']?['issuetype']?['iconUrl'];
 
     final issueKey = ticket['key'] ?? '';
-    final updated = fields['updated'] as String? ?? '';
 
     return Row(
       children: [
@@ -161,10 +159,6 @@ class _IssueHeaderRowState extends State<IssueHeaderRow> {
           badgeSize: badgeSize,
           copyable: true,
         ),
-
-        if (widget.showLastUpdateTime) const Spacer(),
-
-        if (widget.showLastUpdateTime) TimeAgoDisplay(timeStr: updated),
       ],
     );
   }

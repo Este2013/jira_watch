@@ -40,10 +40,7 @@ class IssueDetailsView extends StatelessWidget {
             children: [
               DefaultTextStyle(
                 style: Theme.of(context).textTheme.bodyMedium ?? TextStyle(),
-                child: IssueHeaderRow(
-                  ticket,
-                  showLastUpdateTime: false,
-                ),
+                child: IssueLinkWithParentsRow(ticket),
               ),
               Text(ticket['fields']['summary'] ?? 'null'),
             ],

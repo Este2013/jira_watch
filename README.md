@@ -8,6 +8,8 @@ A new Flutter project.
 
 ## PRIO
 
+CRITICAL fix deprecation of search API
+
 ### EASY, IMPORTANT
  - improve user onboarding
    - input validation
