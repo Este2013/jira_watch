@@ -1,5 +1,5 @@
-import 'package:jira_watch/dao/api_dao.dart';
-import 'package:jira_watch/models/settings_model.dart';
+import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/models/settings_model.dart';
 import 'package:path/path.dart' as path;
 import 'dart:io';
 

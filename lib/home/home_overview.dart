@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:jira_watch/models/data_model.dart';
-import 'package:jira_watch/ui/home/overview_widgets/avatar.dart';
-import 'package:jira_watch/ui/home/overview_widgets/issue_details/issue_details.dart';
-import 'package:jira_watch/dao/api_dao.dart';
-import 'package:jira_watch/models/settings_model.dart';
-import 'package:jira_watch/ui/home/time_utils.dart';
-import 'package:jira_watch/ui/settings.dart';
+import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
+import 'package:jira_watcher/ui/home/overview_widgets/issue_details/issue_details.dart';
+import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/models/settings_model.dart';
+import 'package:jira_watcher/ui/home/time_utils.dart';
+import 'package:jira_watcher/ui/settings.dart';
 
 import '../ui/home/overview_widgets/issue_badge.dart';
 

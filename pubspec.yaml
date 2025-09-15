@@ -1,11 +1,10 @@
-name: jira_watch
+name: jira_watcher
 description: "A new Flutter project."
-publish_to: 'none'
+publish_to: "none"
 version: 0.1.0
 
 environment:
   sdk: ^3.9.0-100.2.beta
-  
 
 dependencies:
   diff_match_patch: ^0.4.1
@@ -35,4 +34,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-

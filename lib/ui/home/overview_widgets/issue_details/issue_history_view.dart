@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:jira_watch/dao/api_dao.dart';
-import 'package:jira_watch/ui/home/overview_widgets/avatar.dart';
-import 'package:jira_watch/ui/home/overview_widgets/diff_matcher.dart';
-import 'package:jira_watch/ui/home/time_utils.dart';
+import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
+import 'package:jira_watcher/ui/home/overview_widgets/diff_matcher.dart';
+import 'package:jira_watcher/ui/home/time_utils.dart';
 
 /// Model for an individual change item in the changelog
 class ChangeItem {

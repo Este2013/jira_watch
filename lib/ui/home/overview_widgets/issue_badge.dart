@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:jira_watch/dao/api_dao.dart';
-import 'package:jira_watch/ui/home/overview_widgets/avatar.dart';
+import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Shows an issues icon and key, formatting appropriately for links and adding a copy button if requested.

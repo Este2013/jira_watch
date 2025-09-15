@@ -43,6 +43,30 @@ class APIDao {
 
   bool get isReady => email != null && email!.isNotEmpty && apiKey != null && apiKey!.isNotEmpty && domain != null && domain!.isNotEmpty;
 
+  Future<http.Response> testJiraAuth({
+    required String domainOrHost, // e.g. "mycompany" or "mycompany.atlassian.net"
+    required String email,
+    required String apiToken, // from id.atlassian.com -> Security -> API tokens
+  }) async {
+    // Normalize host
+    var host = domainOrHost.trim();
+    host = host.replaceFirst(RegExp(r'^https?://'), '');
+    host = host.replaceAll(RegExp(r'/$'), '');
+    if (!host.endsWith('.atlassian.net')) host = '$host.atlassian.net';
+
+    final uri = Uri.https(host, '/rest/api/3/myself');
+
+    final basicAuth = 'Basic ${base64Encode(utf8.encode('$email:$apiToken'))}';
+
+    return http.get(
+      uri,
+      headers: {
+        'Authorization': basicAuth,
+        'Accept': 'application/json',
+      },
+    );
+  }
+
   /// General authenticated request helper
   Future<http.Response> request(
     String path, {
@@ -53,7 +77,9 @@ class APIDao {
   }) async {
     if (!isReady) throw Exception('API credentials not set');
     final uri = Uri.https(domain!, path, queryParameters);
-    print(uri);
+
+    debugPrint(uri.toString());
+
     final allHeaders = {
       'Authorization': authHeader,
       'Accept': 'application/json',

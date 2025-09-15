@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:jira_watch/models/data_model.dart';
-import 'package:jira_watch/ui/home/overview_widgets/avatar.dart';
-import 'package:jira_watch/models/settings_model.dart';
+import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
+import 'package:jira_watcher/models/settings_model.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -53,6 +53,7 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text('Settings'),
+    // TODO add a button that opens the settings folder at %AppData%\Roaming\com.este\jira_watcher
     content: SizedBox(
       width: 600,
       child: Column(

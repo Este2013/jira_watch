@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "jira_watch" "\0"
+            VALUE "CompanyName", "com.este" "\0"
+            VALUE "FileDescription", "jira_watcher" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "jira_watch" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
             VALUE "OriginalFilename", "jira_watch.exe" "\0"
-            VALUE "ProductName", "jira_watch" "\0"
+            VALUE "ProductName", "jira_watcher" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

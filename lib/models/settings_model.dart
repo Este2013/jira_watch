@@ -38,7 +38,7 @@ class SettingsModel {
         )) {
           domain = domain.replaceFirst('.atlassian.net', '');
         }
-        domainController.text = domain;
+        if (domain.isNotEmpty) domainController.text = domain;
 
         // PROJECTS
         starredProjects.value = prefs.getStringList('starred_projects') ?? [];

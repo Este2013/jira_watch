@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:jira_watch/dao/api_dao.dart';
+import 'package:jira_watcher/dao/api_dao.dart';
 
 /// Widget to view and edit the fields of a given issue.
 class IssueEditFieldsWidget extends StatefulWidget {

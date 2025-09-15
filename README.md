@@ -8,16 +8,22 @@ A new Flutter project.
 
 ## PRIO
 
-CRITICAL fix deprecation of search API
+### CRITICAL 
+ - ✅ [BREAKING] Correct path for saving settings
+   - old settings will have to be migrated for users.
+ - ✅ fix deprecation of search API
 
 ### EASY, IMPORTANT
+ - refresh (per few minutes, or manually)
  - improve user onboarding
-   - input validation
-   - ☀️ preselect domain to 'Elgato'
-   - Add a empty project list page to select projects to view
+   - ✅ input validation
+   - ✅ preselect domain to 'Elgato'
+   - ✅ [when no project is selected, all is shown] Add a empty project list page to select projects to view
 
 ### TOUGH, IMPORTANT
- - view ticket status
+ - mark update as read
+ - ticket status
+ - flag tkts for meetings 
  - keep filter saved
 
 ### EASY, nice
