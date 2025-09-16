@@ -21,7 +21,7 @@ class MyApp extends StatelessWidget {
     animation: SettingsModel().theme,
     builder: (context, _) {
       return MaterialApp(
-        title: 'Jira API Key Checker',
+        title: 'Jira Watcher',
         theme: ThemeData(primarySwatch: Colors.blue),
         darkTheme: ThemeData(primarySwatch: Colors.blue, brightness: Brightness.dark),
         themeMode: ThemeMode.values.firstWhere((element) => element.name == SettingsModel().theme.value),
@@ -61,7 +61,7 @@ class _SplashScreenState extends State<SplashScreen> {
       // ignore: use_build_context_synchronously
       Navigator.pushReplacementNamed(context, '/apikey');
     } else {
-      // test credentials validityc
+      // test credentials validity
       var response = await APIDao().request('/rest/api/3/myself');
       if (response.statusCode == 401) {
         // ignore: use_build_context_synchronously

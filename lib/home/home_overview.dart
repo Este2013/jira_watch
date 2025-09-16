@@ -267,7 +267,24 @@ class _OverviewPageState extends State<OverviewPage> {
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 16.0),
                           child: Center(
-                            child: isLoading ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('No more items'),
+                            child: isLoading
+                                ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                                : Column(
+                                    spacing: 8,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Text('No project is selected'),
+                                      FilledButton(
+                                        onPressed: () {
+                                          showDialog(
+                                            context: context,
+                                            builder: (context) => SettingsDialog(initialPage: SettingsDialogPage.projects),
+                                          );
+                                        },
+                                        child: const Text('Choose my projects'),
+                                      ),
+                                    ],
+                                  ),
                           ),
                         );
                       },

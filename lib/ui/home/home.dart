@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/home/home_overview.dart';
+import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/settings.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -49,6 +50,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void initState() {
+    var lastVersion = SettingsModel().lastAppVersion;
+    SettingsModel().appInfo.version.then((ver) {
+      if (isVersionGreaterThan(ver, lastVersion)) {
+        WidgetsBinding.instance.addPostFrameCallback(
+          (timeStamp) => showDialog(
+            context: context,
+            builder: (context) => ChangeLogsDialog(),
+          ),
+        );
+      }
+    });
+
+    super.initState();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -93,5 +111,28 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+
+  bool isVersionGreaterThan(String newVersion, String currentVersion) {
+    List<String> currentV = currentVersion.split(".");
+    List<String> newV = newVersion.split(".");
+    bool a = false;
+    for (var i = 0; i <= 2; i++) {
+      a = int.parse(newV[i]) > int.parse(currentV[i]);
+      if (int.parse(newV[i]) != int.parse(currentV[i])) break;
+    }
+    return a;
+  }
+}
+
+class ChangeLogsDialog extends StatelessWidget {
+  const ChangeLogsDialog({
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // TODO implement real changelog dialog that reads in an assets file
+    return AlertDialog(title: Text("New version POG"));
   }
 }

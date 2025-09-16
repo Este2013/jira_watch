@@ -1,8 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/ui/home/home.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
+import 'package:path/path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
@@ -53,7 +57,6 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text('Settings'),
-    // TODO add a button that opens the settings folder at %AppData%\Roaming\com.este\jira_watcher
     content: SizedBox(
       width: 600,
       child: Column(
@@ -89,8 +92,51 @@ class GeneralSettingsPage extends StatefulWidget {
 class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
   @override
   Widget build(BuildContext context) => Column(
+    spacing: 8,
     mainAxisAlignment: MainAxisAlignment.center,
     children: [
+      Spacer(),
+      Row(
+        spacing: 8,
+        children: [
+          Text('Application version'),
+          Spacer(),
+          FutureBuilder(
+            future: SettingsModel().appInfo.version,
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(),
+                );
+              }
+              return Row(
+                children: [
+                  Text(snapshot.data!),
+                  SizedBox(width: 8),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => Clipboard.setData(ClipboardData(text: snapshot.data!)),
+                    tooltip: "Copy version",
+                    icon: Icon(Icons.copy),
+                    iconSize: 16,
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => showDialog(
+                      context: context,
+                      builder: (context) => ChangeLogsDialog(),
+                    ),
+                    tooltip: "See what's new",
+                    icon: Icon(Icons.new_releases),
+                    iconSize: 16,
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
       Row(
         spacing: 8,
         children: [
@@ -111,6 +157,13 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
             focusNode: FocusNode()..canRequestFocus = false,
           ),
         ],
+      ),
+      Spacer(),
+      Center(
+        child: TextButton(
+          onPressed: () => showAboutDialog(context: context),
+          child: Text("About"),
+        ),
       ),
     ],
   );
@@ -205,6 +258,7 @@ class _ConnectionSettingsPageState extends State<ConnectionSettingsPage> {
             ),
           ),
         ),
+
         Row(
           spacing: 8,
           mainAxisAlignment: MainAxisAlignment.end,
@@ -364,6 +418,8 @@ class AdvancedSettingsPage extends StatefulWidget {
 class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
   @override
   Widget build(BuildContext context) => Column(
+    spacing: 8,
+    mainAxisAlignment: MainAxisAlignment.center,
     children: [
       Row(
         spacing: 8,
@@ -371,6 +427,14 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
           Text('Icon cache'),
           Spacer(),
           IconButton(onPressed: () => jiraAvatarCacheManager.emptyCache(), icon: Icon(Icons.delete)),
+        ],
+      ),
+      Row(
+        spacing: 8,
+        children: [
+          Text('Settings files'),
+          Spacer(),
+          TextButton(onPressed: () => launchUrl(Uri.directory(join(Platform.environment['APPDATA']!, "com.este", "jira_watcher"))), child: Text("View in folder")),
         ],
       ),
     ],
