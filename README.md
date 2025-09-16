@@ -13,6 +13,10 @@ A new Flutter project.
    - old settings will have to be migrated for users.
  - ✅ fix deprecation of search API
 
+### Base features
+ - make asset file containing change log
+ - keep track of whether this is the first boot in that version of the app
+
 ### EASY, IMPORTANT
  - refresh (per few minutes, or manually)
  - improve user onboarding
