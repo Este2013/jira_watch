@@ -100,7 +100,7 @@ class APIDao {
 
   /// Convenience for GET requests, returns decoded JSON
   Future<dynamic> getJson(String path, {Map<String, dynamic>? queryParameters}) async {
-    print(queryParameters?['jql']);
+    debugPrint(queryParameters?['jql']);
     final response = await request(path, queryParameters: queryParameters);
     if (response.statusCode == 200) {
       return jsonDecode(response.body);

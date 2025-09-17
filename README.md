@@ -8,26 +8,13 @@ A new Flutter project.
 
 ## PRIO
 
-### CRITICAL 
- - ✅ [BREAKING] Correct path for saving settings
-   - NOTE: old settings will have to be migrated for users.
- - ✅ fix deprecation of search API
 
+### CRITICAL
 ### Base features
- - make asset file containing change log
- - added version number
- - added link to settings files
- - keep track of whether this is the first boot in that version of the app and show a changelog
-   - added changelog dialog TO COMPLETE
-   - ✅ will show up on the first run of a new app version
- - Added about page
 
 ### EASY, IMPORTANT
  - refresh (per few minutes, or manually)
- - improve user onboarding
-   - ✅ input validation
-   - ✅ preselect domain to 'Elgato'
-   - ✅ [when no project is selected, all is shown] Add a empty project list page to select projects to view
+ - improve Login page in settings dialog
 
 ### TOUGH, IMPORTANT
  - mark update as read

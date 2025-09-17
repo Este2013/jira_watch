@@ -525,7 +525,6 @@ class _OnError400TestForProjectsState extends State<OnError400TestForProjects> {
                           onPressed: () => SettingsModel().starredProjects.value = List.from(SettingsModel().starredProjects.value?.where((p) => p != SettingsModel().starredProjects.value?[index]) ?? []),
                           icon: Icon(Icons.delete_forever),
                           tooltip: 'Remove from my starred projects',
-                          //TODO make this refresh the main page (need to listen to starred projects in the main page)
                         ),
                       );
                     }

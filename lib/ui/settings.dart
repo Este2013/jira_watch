@@ -57,6 +57,16 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text('Settings'),
+    actions: [
+      TextButton(
+        onPressed: () => showAboutDialog(context: context),
+        child: Text("About"),
+      ),
+      TextButton(
+        onPressed: Navigator.of(context).pop,
+        child: Text("Close"),
+      ),
+    ],
     content: SizedBox(
       width: 600,
       child: Column(
@@ -159,12 +169,6 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
         ],
       ),
       Spacer(),
-      Center(
-        child: TextButton(
-          onPressed: () => showAboutDialog(context: context),
-          child: Text("About"),
-        ),
-      ),
     ],
   );
 }
