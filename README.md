@@ -19,8 +19,7 @@ A new Flutter project.
 ### TOUGH, IMPORTANT
  - mark update as read
  - ticket status
- - flag tkts for meetings 
- - keep filter saved
+ - flag tkts for meetings
 
 ### EASY, nice
  - assing ticket to me

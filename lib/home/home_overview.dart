@@ -48,6 +48,11 @@ class _OverviewPageState extends State<OverviewPage> {
     // Start listening for bottom reach to trigger next page
     scrollController.addListener(_onScrollNearBottom);
 
+    // Set any eventual filters from the previous session
+    var filters = SettingsModel().filters.value;
+    activeProjectFilters = ((filters['active_projects'] ?? []) as List).cast<String>().toSet();
+    timeFilter = filters['time_filter'];
+
     // initial load
     _resetAndFetchFirstPage();
 
@@ -56,6 +61,14 @@ class _OverviewPageState extends State<OverviewPage> {
         _resetAndFetchFirstPage();
       }),
     );
+  }
+
+  void _saveFilters() {
+    var filters = <String, dynamic>{};
+    filters['active_projects'] = activeProjectFilters.toList();
+    filters['time_filter'] = timeFilter;
+
+    SettingsModel().filters.value = filters;
   }
 
   void _onScrollNearBottom() {
@@ -189,6 +202,7 @@ class _OverviewPageState extends State<OverviewPage> {
                                               toggleFilter: (code) => setState(() {
                                                 activeProjectFilters.toggle(code); // (note: use the param "code", not "p")
                                                 _resetAndFetchFirstPage();
+                                                _saveFilters();
                                               }),
                                             ),
                                           )
@@ -226,6 +240,7 @@ class _OverviewPageState extends State<OverviewPage> {
                           ],
                           onSelected: (value) {
                             setState(() => timeFilter = value);
+                            _saveFilters();
                             _resetAndFetchFirstPage();
                           },
                         ),

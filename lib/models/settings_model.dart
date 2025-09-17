@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -47,6 +48,9 @@ class SettingsModel {
         starredProjects.value = prefs.getStringList('starred_projects') ?? [];
         starredProjects.addListener(() => prefs.setStringList('starred_projects', starredProjects.value ?? []));
 
+        // FILTERS
+        filters = ValueNotifier(jsonDecode(prefs.getString('overview_filters') ?? '{}') as Map<String, dynamic>);
+        filters.addListener(() => prefs.setString('overview_filters', jsonEncode(filters.value)));
         return true;
       },
       onError: (_) => false,
@@ -77,6 +81,9 @@ class SettingsModel {
 
   // PROJECTS
   late ValueNotifier<List<String>?> starredProjects = ValueNotifier(null);
+
+  // FILTERS
+  late ValueNotifier<Map<String, dynamic>> filters;
 }
 
 class PackageInfoData {
