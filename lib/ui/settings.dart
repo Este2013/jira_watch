@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/home/home.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
@@ -141,6 +142,15 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                     icon: Icon(Icons.new_releases),
                     iconSize: 16,
                   ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () async {
+                      downloadAndOpenAppinstaller(context);
+                    },
+                    tooltip: "Check for updates",
+                    icon: Icon(Icons.new_releases),
+                    iconSize: 16,
+                  ),
                 ],
               );
             },
@@ -171,6 +181,60 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       Spacer(),
     ],
   );
+
+  Future<void> downloadAndOpenAppinstaller(BuildContext ctx) async {
+    try {
+      Uri appInstallerUri = Uri.parse("https://este2013.github.io/jira_watch/jira_watcher.appinstaller");
+
+      // 1) Download to a temp file
+      final tempDir = await SettingsModel().tempDir;
+      final file = File(join(tempDir.path, 'jira_watcher-${DateTime.now().millisecondsSinceEpoch}.appinstaller'));
+
+      final resp = await http.get(appInstallerUri);
+      if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
+        throw Exception('Failed to download .appinstaller (HTTP ${resp.statusCode}).');
+      }
+
+      // String? expectedSha256; // e.g., 'c1a2...'
+      // // 2) (Optional) Verify checksum
+      // if (expectedSha256 != null) {
+      //   final actual = crypto.sha256.convert(resp.bodyBytes).toString();
+      //   if (actual.toLowerCase() != expectedSha256!.toLowerCase()) {
+      //     throw Exception('Checksum mismatch for .appinstaller.');
+      //   }
+      // }
+
+      // 3) Write file
+      if (!await file.parent.exists()) {
+        await file.parent.create(recursive: true);
+      }
+      await file.writeAsBytes(resp.bodyBytes, flush: true);
+
+      // 4) Open with system handler (App Installer)
+      final ok = await launchUrl(Uri.file(file.path), mode: LaunchMode.externalApplication);
+
+      if (!ok) {
+        // Fallback: try PowerShell Start-Process (some environments need this)
+        await Process.run('powershell', [
+          '-NoProfile',
+          '-Command',
+          'Start-Process',
+          file.path,
+        ]);
+      }
+
+      // 5) Schedule cleanup (don’t delete immediately in case App Installer still reading)
+      Future.delayed(const Duration(minutes: 5), () {
+        if (file.existsSync()) {
+          file.delete().catchError((_) {});
+        }
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        SnackBar(content: Text('Update check failed: $e')),
+      );
+    }
+  }
 }
 
 class ConnectionSettingsPage extends StatefulWidget {
