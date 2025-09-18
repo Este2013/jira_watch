@@ -53,7 +53,7 @@ A new Flutter project.
 <?xml version="1.0" encoding="UTF-8"?>
 <AppInstaller
   xmlns="http://schemas.microsoft.com/appx/appinstaller/2018"
-  Uri="https://YOUR_HOST/MyApp.appinstaller"
+  Uri="https://este2013.github.io/jira_watch/jira_watcher.appinstaller"
  
   Version="1.2.3.0"> 
 
@@ -61,7 +61,7 @@ A new Flutter project.
     Name="com.example.myapp"
     Publisher="CN=Your Company"
     Version="1.2.3.0"
-    Uri="https://YOUR_HOST/releases/download/v1.2.3/MyApp_1.2.3.0_x64.msix" />
+    Uri="https://este2013.github.io/jira_watch/VERSION/MSIX FILE.msix" />
 
   <UpdateSettings>
     <!-- Check every 24h on app launch; prompt user -->
@@ -71,4 +71,5 @@ A new Flutter project.
   </UpdateSettings>
 </AppInstaller>
 ```
- - 
+ - Then publish the installer .msix file to the `gh-pages` branch
+ - And add the files to GitHub releases
