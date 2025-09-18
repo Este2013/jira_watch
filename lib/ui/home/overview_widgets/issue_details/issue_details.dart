@@ -24,10 +24,10 @@ class IssueDetailsView extends StatelessWidget {
         text: 'Json',
         icon: Icon(Symbols.data_object),
       ),
-      Tab(
-        text: 'Edit',
-        icon: Icon(Symbols.edit),
-      ),
+      // Tab(
+      //   text: 'Edit',
+      //   icon: Icon(Symbols.edit),
+      // ),
     ];
 
     return DefaultTabController(
@@ -55,7 +55,7 @@ class IssueDetailsView extends StatelessWidget {
               initialExpandDepth: 2,
               nodeIndent: 32,
             ),
-            IssueEditFieldsWidget(issueData: ticket),
+            // IssueEditFieldsWidget(issueData: ticket),
           ],
         ),
       ),

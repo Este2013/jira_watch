@@ -229,20 +229,19 @@ class ChangeLogsDialog extends StatelessWidget {
                       ),
 
                       TextSpan(text: "\t ᛫ Overview filters are now kept through app restarts and page navigation\n"),
-                      TextSpan(text: "\t ᛫ \n"),
-                      TextSpan(text: "\t ᛫ \n"),
+                      TextSpan(text: "\t ᛫ Implemented auto-update mechanic\n"),
+                      // TextSpan(text: "\t ᛫ \n"),
 
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "\n🪲 "),
-                          TextSpan(
-                            text: "Bug fixes:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-                      TextSpan(text: "\t ᛫ \n"),
-
+                      // TextSpan(
+                      //   children: [
+                      //     TextSpan(text: "\n🪲 "),
+                      //     TextSpan(
+                      //       text: "Bug fixes:\n",
+                      //       style: TextStyle(decoration: TextDecoration.underline),
+                      //     ),
+                      //   ],
+                      // ),
+                      // TextSpan(text: "\t ᛫ \n"),
                       TextSpan(
                         children: [
                           TextSpan(text: "\n🧼 "),
@@ -254,6 +253,7 @@ class ChangeLogsDialog extends StatelessWidget {
                       ),
                       TextSpan(text: "\t ᛫ Bumped version number.\n"),
                       TextSpan(text: "\t ᛫ Added application icon 👁️.\n"),
+                      TextSpan(text: "\t ᛫ Temporarily removed edit tag (its not working yet).\n"),
 
                       TextSpan(
                         children: [
