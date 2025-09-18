@@ -1,0 +1,22 @@
+<!-- Bump BOTH version attributes every release. -->
+
+<?xml version="1.0" encoding="UTF-8"?>
+<AppInstaller
+  xmlns="http://schemas.microsoft.com/appx/appinstaller/2018"
+  Uri="https://Este2013.github.io/jira_watch/jira_watcher.appinstaller"
+ 
+  Version="1.0.0.0"> 
+
+  <MainPackage
+    Name="com.este2013.jira-watcher"
+    Publisher="CN=Este2013"
+    Version="0.1.2.0"
+    Uri="https://Este2013.github.io/jira_watch/v0.1.2/jira_watcher.msix" />
+
+  <UpdateSettings>
+    <!-- Check every 24h on app launch; prompt user -->
+    <OnLaunch HoursBetweenUpdateChecks="24" ShowPrompt="true" UpdateBlocksActivation="false" />
+    <!-- Or replace the line above with this for silent background checks: -->
+    <!-- <AutomaticBackgroundTask /> -->
+  </UpdateSettings>
+</AppInstaller>
