@@ -265,7 +265,7 @@ class ChangeLogsDialog extends StatelessWidget {
                         ],
                       ),
                       TextSpan(text: "\t ᛫ If project filters are changed before request completes, the newer request is not taken into account\n"),
-                      TextSpan(text: "\t ᛫ \n"),
+                      // TextSpan(text: "\t ᛫ \n"),
                     ],
                   ),
                 ),
