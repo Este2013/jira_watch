@@ -1,5 +1,3 @@
-<!-- Bump BOTH version attributes every release. -->
-
 <?xml version="1.0" encoding="UTF-8"?>
 <AppInstaller
   xmlns="http://schemas.microsoft.com/appx/appinstaller/2018"
@@ -9,9 +7,9 @@
 
   <MainPackage
     Name="com.este2013.jira-watcher"
-    Publisher="CN=Este2013"
-    Version="0.1.2.0"
-    Uri="https://Este2013.github.io/jira_watch/v0.1.2/jira_watcher.msix" />
+    Publisher="CN=este2013"
+    Version="1.0.0.0"
+    Uri="https://Este2013.github.io/jira_watch/v1.0.0/jira_watcher.msix" />
 
   <UpdateSettings>
     <!-- Check every 24h on app launch; prompt user -->
