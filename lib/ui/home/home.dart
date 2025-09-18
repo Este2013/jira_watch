@@ -253,6 +253,7 @@ class ChangeLogsDialog extends StatelessWidget {
                         ],
                       ),
                       TextSpan(text: "\t ᛫ Bumped version number.\n"),
+                      TextSpan(text: "\t ᛫ Added application icon 👁️.\n"),
 
                       TextSpan(
                         children: [
