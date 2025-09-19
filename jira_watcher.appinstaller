@@ -2,14 +2,13 @@
 <AppInstaller
   xmlns="http://schemas.microsoft.com/appx/appinstaller/2018"
   Uri="https://Este2013.github.io/jira_watch/jira_watcher.appinstaller"
- 
-  Version="1.0.0.0"> 
+  Version="1.0.1.0">
 
   <MainPackage
     Name="este.custom-tools.jira-watcher"
     Publisher="CN=github@Este2013"
-    Version="1.0.0.0"
-    Uri="https://Este2013.github.io/jira_watch/v1.0.0/jira_watcher.msix" />
+    Version="1.0.1.0"
+    Uri="https://Este2013.github.io/jira_watch/v1.0.1/jira_watcher.msix" />
 
   <UpdateSettings>
     <OnLaunch HoursBetweenUpdateChecks="24" ShowPrompt="true" UpdateBlocksActivation="false" />
