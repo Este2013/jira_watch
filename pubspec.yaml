@@ -47,3 +47,5 @@ msix_config:
   msix_version: 1.0.1.0
   logo_path: assets/app_icon.png
   capabilities: internetClient
+  certificate_path: certs/myapp.pfx
+  certificate_password: NEVER UPLOAD THE PASSWORD
