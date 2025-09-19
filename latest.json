@@ -1,6 +1,6 @@
 {
-    "1.0.1": {
-        "changelog": null,
-        "x64": "v1.0.1/Binaries (x64).zip"
+    "1.0.2": {
+        "changelog": "✨Features:\n\t᛫ Adds a manual refresh button\n\t᛫ Also I can test if my update mechanic works now :)",
+        "x64": "v1.0.2/Binaries (x64).zip"
     }
 }
