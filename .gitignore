@@ -47,4 +47,4 @@ app.*.map.json
 
 
 # BUILD CERTIFICATES: DO NOT COMMIT PASSWORDS
-.certs/
+certs/
