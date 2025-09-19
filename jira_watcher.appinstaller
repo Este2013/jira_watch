@@ -6,11 +6,12 @@
 
   <MainPackage
     Name="este.custom-tools.jira-watcher"
-    Publisher="CN=github@Este2013"
+    Publisher="CN=github@Este2013, O=github@Este2013,  C=FR"
     Version="1.0.1.0"
+    Architecture="x64"
     Uri="https://Este2013.github.io/jira_watch/v1.0.1/jira_watcher.msix" />
 
   <UpdateSettings>
-    <OnLaunch HoursBetweenUpdateChecks="24" ShowPrompt="true" UpdateBlocksActivation="false" />
+    <OnLaunch HoursBetweenUpdateChecks="0" ShowPrompt="true" UpdateBlocksActivation="false" />
   </UpdateSettings>
 </AppInstaller>
