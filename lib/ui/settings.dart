@@ -148,7 +148,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                       downloadAndOpenAppinstaller(context);
                     },
                     tooltip: "Check for updates",
-                    icon: Icon(Icons.new_releases),
+                    icon: Icon(Icons.update),
                     iconSize: 16,
                   ),
                 ],

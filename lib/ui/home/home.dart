@@ -274,6 +274,42 @@ class ChangeLogsDialog extends StatelessWidget {
           ),
         ),
       ),
+      // version 1.0.1
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: ScrollbarTheme(
+            data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: "What's new in 1.0.1?\n\n",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+
+                      TextSpan(
+                        children: [
+                          TextSpan(text: "✨ "),
+                          TextSpan(
+                            text: "Features:\n",
+                            style: TextStyle(decoration: TextDecoration.underline),
+                          ),
+                        ],
+                      ),
+
+                      TextSpan(text: "\t ᛫ Trying to get the update mechanic going\n"),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     ];
     var ctrl = PageController(initialPage: versionsData.length - 1);
     return AlertDialog(

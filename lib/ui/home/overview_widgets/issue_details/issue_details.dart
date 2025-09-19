@@ -6,6 +6,7 @@ import 'package:jira_watcher/ui/home/overview_widgets/issue_badge.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/issue_details/issue_history_view.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+// ignore: unused_import
 import 'issue_edit_view.dart';
 
 class IssueDetailsView extends StatelessWidget {
@@ -55,7 +56,7 @@ class IssueDetailsView extends StatelessWidget {
               initialExpandDepth: 2,
               nodeIndent: 32,
             ),
-            // IssueEditFieldsWidget(issueData: ticket),
+            // TODO IssueEditFieldsWidget(issueData: ticket),
           ],
         ),
       ),
