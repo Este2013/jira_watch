@@ -1,7 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:jira_watcher/home/home_overview.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/settings.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -60,10 +64,97 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (context) => ChangeLogsDialog(),
           ),
         );
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
+          var data = await fetchNewUpdateData(context, currentVersion: ver);
+          if (!data.$1) return;
+          showDialog(
+            // ignore: use_build_context_synchronously
+            context: context,
+            builder: (context) => AlertDialog(
+              title: Text('A new update is available!'),
+              content: SizedBox(
+                width: 400,
+                height: 400,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: 16,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: Text('Version ${data.$2!}', style: Theme.of(context).textTheme.titleMedium)),
+                        Text('(Current: $ver)'),
+                      ],
+                    ),
+                    if (data.$3?['changelog'] == null)
+                      Expanded(child: Center(child: Text(data.$3?['changelog'] ?? 'No changelog :(')))
+                    else
+                      Card(
+                        child: Padding(
+                          padding: EdgeInsetsGeometry.all(16),
+                          child: SingleChildScrollView(child: Text(data.$3?['changelog'] ?? 'No changelog :(')),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                Row(
+                  spacing: 8,
+                  children: [
+                    TextButton(onPressed: Navigator.of(context).pop, child: Text('Not now')),
+                    Spacer(),
+                    TextButton(
+                      onPressed: () => launchUrl(Uri.parse('https://github.com/Este2013/jira_watch/releases')),
+                      child: Text('Github'),
+                    ),
+                    FilledButton(onPressed: () => launchUrl(Uri.parse('https://este2013.github.io/jira_watch/${data.$3?['x64']}')), child: Text('Download')),
+                  ],
+                ),
+              ],
+            ),
+          );
+        });
       }
     });
 
     super.initState();
+  }
+
+  Future<(bool, String?, Map?)> fetchNewUpdateData(BuildContext context, {required String currentVersion}) async {
+    Uri latestDataUri = Uri.parse("https://este2013.github.io/jira_watch/latest.json");
+    final resp = await http.get(latestDataUri);
+
+    if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
+      return (false, null, null);
+    }
+
+    Map<String, dynamic> data = jsonDecode(resp.body);
+    MapEntry? mostRecent = data.entries.firstOrNull;
+    if (mostRecent == null) {
+      return (false, null, null);
+    }
+
+    bool isVersioStrictlyAbove(String version, {required String baseline}) {
+      var versionL = version.split('.').map(int.parse);
+      var baselineL = baseline.split('.').map(int.parse).toList();
+      for (var v in versionL.indexed) {
+        if (baselineL.length == v.$1) baselineL.add(0);
+        if (v.$2 > baselineL[v.$1]) {
+          return true;
+        }
+        if (v.$2 < baselineL[v.$1]) {
+          return false;
+        }
+      }
+      return false;
+    }
+
+    if (!isVersioStrictlyAbove(mostRecent.key, baseline: currentVersion)) {
+      return (false, null, null);
+    }
+
+    return (true, mostRecent.key as String, mostRecent.value as Map);
   }
 
   @override
@@ -301,7 +392,44 @@ class ChangeLogsDialog extends StatelessWidget {
                         ],
                       ),
 
-                      TextSpan(text: "\t ᛫ Trying to get the update mechanic going\n"),
+                      TextSpan(text: "\t ᛫ Update detection for binaries (msix are not working)"),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      // version 1.0.1
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: ScrollbarTheme(
+            data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: "What's new in 1.0.2?\n\n",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+
+                      TextSpan(
+                        children: [
+                          TextSpan(text: "✨ "),
+                          TextSpan(
+                            text: "Features:\n",
+                            style: TextStyle(decoration: TextDecoration.underline),
+                          ),
+                        ],
+                      ),
+
+                      TextSpan(text: "\t ᛫ Adds a manual refresh button\n"),
+                      TextSpan(text: "\t ᛫ Also I can test if my update mechanic works now :)"),
                     ],
                   ),
                 ),

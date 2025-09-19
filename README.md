@@ -13,7 +13,7 @@ A new Flutter project.
 ### Base features
 
 ### EASY, IMPORTANT
- - refresh (per few minutes, or manually)
+ - refresh (per few minutes)
  - improve Login page in settings dialog
 
 ### TOUGH, IMPORTANT

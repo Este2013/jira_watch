@@ -246,6 +246,11 @@ class _OverviewPageState extends State<OverviewPage> {
                         ),
                       ],
                     ),
+                    IconButton(
+                      onPressed: _resetAndFetchFirstPage,
+                      icon: Icon(Icons.refresh),
+                      tooltip: 'Refresh',
+                    ),
                   ],
                 ),
               ),

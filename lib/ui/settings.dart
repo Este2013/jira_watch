@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -145,7 +146,54 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                   IconButton(
                     visualDensity: VisualDensity.compact,
                     onPressed: () async {
-                      downloadAndOpenAppinstaller(context);
+                      var data = await fetchNewUpdateData(context, currentVersion: snapshot.data!);
+                      if (!data.$1) return;
+                      showDialog(
+                        // ignore: use_build_context_synchronously
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: Text('A new update is available!'),
+                          content: SizedBox(
+                            width: 400,
+                            height: 400,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              spacing: 16,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(child: Text('Version ${data.$2!}', style: Theme.of(context).textTheme.titleMedium)),
+                                    Text('(Current: ${snapshot.data})'),
+                                  ],
+                                ),
+                                if (data.$3?['changelog'] == null)
+                                  Expanded(child: Center(child: Text(data.$3?['changelog'] ?? 'No changelog :(')))
+                                else
+                                  Card(
+                                    child: Padding(
+                                      padding: EdgeInsetsGeometry.all(16),
+                                      child: SingleChildScrollView(child: Text(data.$3?['changelog'] ?? 'No changelog :(')),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          actions: [
+                            Row(
+                              spacing: 8,
+                              children: [
+                                TextButton(onPressed: Navigator.of(context).pop, child: Text('Not now')),
+                                Spacer(),
+                                TextButton(
+                                  onPressed: () => launchUrl(Uri.parse('https://github.com/Este2013/jira_watch/releases')),
+                                  child: Text('Github'),
+                                ),
+                                FilledButton(onPressed: () => launchUrl(Uri.parse('https://este2013.github.io/jira_watch/${data.$3?['x64']}')), child: Text('Download')),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
                     },
                     tooltip: "Check for updates",
                     icon: Icon(Icons.update),
@@ -182,7 +230,72 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
     ],
   );
 
-  Future<void> downloadAndOpenAppinstaller(BuildContext ctx) async {
+  Future<(bool, String?, Map?)> fetchNewUpdateData(BuildContext context, {required String currentVersion}) async {
+    Uri latestDataUri = Uri.parse("https://este2013.github.io/jira_watch/latest.json");
+    final resp = await http.get(latestDataUri);
+
+    Widget upToDateDialog(String details) => AlertDialog(
+      title: Row(
+        spacing: 8,
+        children: [
+          Icon(Icons.check_circle, color: Colors.green),
+          Text('You are up to date'),
+        ],
+      ),
+      content: Text(details),
+      actions: [
+        TextButton(
+          onPressed: Navigator.of(context).pop,
+          child: Text('Got it'),
+        ),
+      ],
+    );
+
+    if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
+      return showDialog(
+        // ignore: use_build_context_synchronously
+        context: context,
+        builder: (context) => upToDateDialog('Server has no latest version data (empty response)'),
+      ).then((value) => (false, null, null));
+    }
+
+    Map<String, dynamic> data = jsonDecode(resp.body);
+    MapEntry? mostRecent = data.entries.firstOrNull;
+    if (mostRecent == null) {
+      return showDialog(
+        // ignore: use_build_context_synchronously
+        context: context,
+        builder: (context) => upToDateDialog('Server has no latest version data (no entries: empty map)'),
+      ).then((value) => (false, null, null));
+    }
+
+    bool isVersioStrictlyAbove(String version, {required String baseline}) {
+      var versionL = version.split('.').map(int.parse);
+      var baselineL = baseline.split('.').map(int.parse).toList();
+      for (var v in versionL.indexed) {
+        if (baselineL.length == v.$1) baselineL.add(0);
+        if (v.$2 > baselineL[v.$1]) {
+          return true;
+        }
+        if (v.$2 < baselineL[v.$1]) {
+          return false;
+        }
+      }
+      return false;
+    }
+
+    if (!isVersioStrictlyAbove(mostRecent.key, baseline: currentVersion)) {
+      return showDialog(
+        // ignore: use_build_context_synchronously
+        context: context,
+        builder: (context) => upToDateDialog('You are running the server\'s latest version (${mostRecent.key})'),
+      ).then((value) => (false, null, null));
+    }
+
+    return (true, mostRecent.key as String, mostRecent.value as Map);
+  }
+
+  Future<void> downloadAndOpenAppinstallerMSIX(BuildContext ctx) async {
     try {
       Uri appInstallerUri = Uri.parse("https://este2013.github.io/jira_watch/jira_watcher.appinstaller");
 
