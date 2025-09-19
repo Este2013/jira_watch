@@ -44,6 +44,6 @@ msix_config:
   display_name: Jira Watcher
   publisher_display_name: github@Este2013
   identity_name: este.custom-tools.jira-watcher
-  msix_version: 1.0.0.0
+  msix_version: 1.0.1.0
   logo_path: assets/app_icon.png
   capabilities: internetClient

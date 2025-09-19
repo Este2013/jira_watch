@@ -41,8 +41,9 @@ A new Flutter project.
 
 # DEV DOCUMENTATION
 
-## How to pubish a release 
+## How to publish a release 
 ### Windows
+ - In pubspec.yaml, update **both appversion and msix version**
  - Build an installer by running `dart run msix:create`
  - Create a jira_watcher.appinstaller file on the template:
 ``` XML
