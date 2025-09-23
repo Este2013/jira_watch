@@ -22,6 +22,10 @@ class IssueDetailsView extends StatelessWidget {
         icon: Icon(Symbols.history),
       ),
       Tab(
+        text: 'Comments',
+        icon: Icon(Symbols.chat_bubble),
+      ),
+      Tab(
         text: 'Json',
         icon: Icon(Symbols.data_object),
       ),
@@ -51,6 +55,7 @@ class IssueDetailsView extends StatelessWidget {
         body: TabBarView(
           children: [
             HistoryPage(ticket: ticket),
+            CommentsPage(ticket: ticket),
             JsonWidget(
               json: json.decode(JsonEncoder().convert(ticket)),
               initialExpandDepth: 2,

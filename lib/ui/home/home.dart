@@ -438,6 +438,75 @@ class ChangeLogsDialog extends StatelessWidget {
           ),
         ),
       ),
+      // version 1.1.0
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: ScrollbarTheme(
+            data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: "What's new in 1.1.0?\n\n",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+
+                      TextSpan(
+                        children: [
+                          TextSpan(text: "✨ "),
+                          TextSpan(
+                            text: "Features:\n",
+                            style: TextStyle(decoration: TextDecoration.underline),
+                          ),
+                        ],
+                      ),
+
+                      TextSpan(text: "\t ᛫ 💬 View issue comments in the comments tab (all formatting isnt handled)\n"),
+                      // TextSpan(text: "\t ᛫ \n"),
+
+                      // TextSpan(
+                      //   children: [
+                      //     TextSpan(text: "\n🪲 "),
+                      //     TextSpan(
+                      //       text: "Bug fixes:\n",
+                      //       style: TextStyle(decoration: TextDecoration.underline),
+                      //     ),
+                      //   ],
+                      // ),
+                      // TextSpan(text: "\t ᛫ \n"),
+                      TextSpan(
+                        children: [
+                          TextSpan(text: "\n🧼 "),
+                          TextSpan(
+                            text: "Chores:\n",
+                            style: TextStyle(decoration: TextDecoration.underline),
+                          ),
+                        ],
+                      ),
+                      TextSpan(text: "\t ᛫ Bumped version number.\n"),
+
+                      TextSpan(
+                        children: [
+                          TextSpan(text: "\n🐞"),
+                          TextSpan(
+                            text: "Known bugs:\n",
+                            style: TextStyle(decoration: TextDecoration.underline),
+                          ),
+                        ],
+                      ),
+                      // TextSpan(text: "\t ᛫ \n"),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     ];
     var ctrl = PageController(initialPage: versionsData.length - 1);
     return AlertDialog(

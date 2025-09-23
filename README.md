@@ -2,18 +2,24 @@
 
 A new Flutter project.
 
-
 # TODO
+ - indicate the selected tkt in the list
  - View ticket (not edit)
    - Def. fields
    - Also custom fields
- - View tkt comments and make sure they appear as updates
+ - Comments
+   - 🏃‍♂️View tkt comments 
+     - TODO IMPROVE AdfRenderer
+   - make sure they appear as updates
+     - 🐞They are counted in the update sort, but dont actually appear in the history
  - ticket status
  - Filters:
    - ticket status filter ( bugs features req, stories, epics etc. )
    - Assignee filter
    - Creator filter
    - Type filter (bug, feat.)
+
+
 
 ## PRIO
 
