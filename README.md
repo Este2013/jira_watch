@@ -3,13 +3,22 @@
 A new Flutter project.
 
 
-# TODO 
-
+# TODO
+ - View ticket (not edit)
+   - Def. fields
+   - Also custom fields
+ - View tkt comments and make sure they appear as updates
+ - ticket status
+ - Filters:
+   - ticket status filter ( bugs features req, stories, epics etc. )
+   - Assignee filter
+   - Creator filter
+   - Type filter (bug, feat.)
 
 ## PRIO
 
-
 ### CRITICAL
+
 ### Base features
 
 ### EASY, IMPORTANT
@@ -18,8 +27,8 @@ A new Flutter project.
 
 ### TOUGH, IMPORTANT
  - mark update as read
- - ticket status
  - flag tkts for meetings
+
 
 ### EASY, nice
  - assing ticket to me
@@ -28,14 +37,24 @@ A new Flutter project.
  - local favorites (hold a ticket always on top)
  - control ticket status
    - UI/UX make ticket drag and dropable in certain statuses ( e.g In progress, Done , etc)
- - ticket status filter ( bugs features req, stories, epics etc. )
+ - Reverse update sorting
+ - Linked test cases and builds (Jira integrations) 
+   - test coverage overview
+ - custom filters
  - comments
  - hide tickets
+ - [OPT] Websocket exposition for SD plugin
+   - stats
+   - new tickets, updates...
+ - Tree graph 
+ - Similarity detection view (via [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity))
+ - add to [MS TODO](https://support.microsoft.com/en-au/office/using-microsoft-to-do-s-api-f944256d-3b08-4945-ba69-2c17afeb60b4#:~:text=Microsoft%20To%20Do%20uses%20Exchange,API%20reference%20(version%202.0))
 
 ## BUGS
  - if project filters are changed before request completes, the newer request is not taken into account
 
-
+# Furthemore
+ - GitLab view
 
 
 
