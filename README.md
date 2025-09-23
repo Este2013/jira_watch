@@ -19,8 +19,6 @@ A new Flutter project.
 
 ### CRITICAL
 
-### Base features
-
 ### EASY, IMPORTANT
  - refresh (per few minutes)
  - improve Login page in settings dialog
