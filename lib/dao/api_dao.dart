@@ -142,6 +142,7 @@ class IssueData {
   Map? get statusCategory => fields?['statusCategory'];
   Map? get priority => fields?['priority'];
   List<String>? get labels => fields?['labels'];
+  Map? get commentsData => fields?['comment'];
 }
 
 class IssuesDAO {

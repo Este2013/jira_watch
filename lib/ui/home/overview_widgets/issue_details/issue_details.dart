@@ -2,17 +2,18 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_json/flutter_json.dart';
+import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/issue_badge.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/issue_details/issue_history_view.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // ignore: unused_import
-import 'issue_edit_view.dart';
+import 'issue_comments_view.dart';
 
 class IssueDetailsView extends StatelessWidget {
   const IssueDetailsView(this.ticket, {super.key});
 
-  final dynamic ticket;
+  final IssueData ticket;
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +23,7 @@ class IssueDetailsView extends StatelessWidget {
         icon: Icon(Symbols.history),
       ),
       Tab(
-        text: 'Comments',
+        text: 'Comments (${ticket.commentsData?['comments']?.length ?? 0})',
         icon: Icon(Symbols.chat_bubble),
       ),
       Tab(
