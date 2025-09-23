@@ -10,6 +10,7 @@ A new Flutter project.
  - Comments
    - 🏃‍♂️View tkt comments 
      - TODO IMPROVE AdfRenderer
+     - Check how nested replies get shown
    - make sure they appear as updates
      - 🐞They are counted in the update sort, but dont actually appear in the history
  - ticket status
