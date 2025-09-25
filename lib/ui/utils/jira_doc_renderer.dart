@@ -1,5 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/models/settings_model.dart';
+import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
+import 'package:jira_watcher/ui/settings.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// A lightweight renderer for Atlassian Document Format (Jira doc) JSON.
 ///
@@ -84,6 +92,8 @@ class AdfRenderer extends StatelessWidget {
         // `text` nodes are handled inside paragraph RichText. If we get here
         // directly (edge cases), just render a Text.
         return Text(_textOf(node), style: _defaultTextStyle(context));
+      case 'mention':
+        return _buildMention(context, node);
       case 'bulletList':
         return _buildBulletList(context, node, indentLevel);
       case 'listItem':
@@ -92,6 +102,8 @@ class AdfRenderer extends StatelessWidget {
         return _buildMediaSingle(context, node, indentLevel);
       case 'media':
         return _buildMedia(context, node);
+      case 'inlineCard':
+        return _buildInlineCard(context, node);
       default:
         // Unknown node: render its children (best-effort) to avoid data loss.
         final children = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
@@ -187,7 +199,10 @@ class AdfRenderer extends StatelessWidget {
         final emojiText = (node['attrs']?['text'] ?? node['attrs']?['shortName'] ?? '') as String;
         spans.add(TextSpan(text: emojiText, style: _defaultTextStyle(context)));
       } else {
-        // Fallback: ignore unknown inlines quietly.
+        var nodeRender = _buildNode(context, node, 0);
+        if (nodeRender != null) {
+          spans.add(WidgetSpan(child: nodeRender, alignment: PlaceholderAlignment.middle));
+        }
       }
     }
     return spans;
@@ -327,6 +342,91 @@ class AdfRenderer extends StatelessWidget {
       return v.whereType<Map<String, dynamic>>().toList();
     }
     return const [];
+  }
+
+  Widget? _buildMention(BuildContext context, Map<String, dynamic> node) {
+    return Chip(
+      label: Text(node['attrs']['text']),
+    );
+  }
+
+  Widget? _buildInlineCard(BuildContext context, Map<String, dynamic> node) {
+    var url = node['attrs']['url'];
+    if (url == null) return null;
+
+    if ((url as String).startsWith('https://${SettingsModel().domainController.text}.atlassian.net/browse')) {
+      // Jira ticket card
+      var issueKey = url.replaceAll('https://${SettingsModel().domainController.text}.atlassian.net/browse/', '');
+      var response = APIModel().getIssue(issueKey);
+
+      return FutureBuilder(
+        future: response,
+        builder: (context, asyncSnapshot) {
+          var t = Theme.of(context).colorScheme;
+          if (asyncSnapshot.hasError) {
+            return Tooltip(
+              message: 'Error while looking up $url as a Jira inlineCard:\n\n${asyncSnapshot.error}',
+              child: ActionChip(
+                label: Text(
+                  'Error',
+                  style: TextStyle(color: t.onErrorContainer),
+                ),
+                backgroundColor: t.errorContainer,
+                onPressed: () => launchUrl(Uri.parse(url)),
+              ),
+            );
+          }
+          if (asyncSnapshot.hasData) {
+            if (asyncSnapshot.data?.statusCode == 200) {
+              var issue = IssueData(jsonDecode(asyncSnapshot.data?.body ?? ''), lastCacheUpdate: DateTime.now());
+              return ActionChip(
+                label: Wrap(
+                  spacing: 8,
+                  children: [
+                    Text('$issueKey: ${issue.fields?['summary']}'),
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(4),
+                        color: t.surfaceContainerHigh,
+                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(issue.statusCategory?['name']),
+                    ),
+                  ],
+                ),
+                avatar: JiraAvatar(url: issue.fields?['issuetype']['iconUrl']),
+
+                onPressed: () => launchUrl(Uri.parse(url)),
+              );
+            }
+            return Tooltip(
+              message: 'Jira servers said nope while looking up $url as a Jira inlineCard:\n\nResponse status: ${asyncSnapshot.data?.statusCode}\n${asyncSnapshot.data?.reasonPhrase}',
+              child: ActionChip(
+                label: Text(
+                  'Error',
+                  style: TextStyle(color: t.onErrorContainer),
+                ),
+                backgroundColor: t.errorContainer,
+                onPressed: () => launchUrl(Uri.parse(url)),
+              ),
+            );
+          }
+          return ActionChip(
+            label: Text('Fetching $issueKey...'),
+            onPressed: () => launchUrl(Uri.parse(url)),
+          );
+        },
+      );
+    }
+
+    return Chip(
+      label: Text(node['attrs']['url']),
+    );
+  }
+
+  Future startUrl(String url) {
+    // TODO make this open an issue view in a dialog
+    return launchUrl(Uri.parse(url));
   }
 }
 

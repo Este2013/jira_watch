@@ -1,3 +1,4 @@
+import 'package:http/http.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:path/path.dart' as path;
@@ -151,7 +152,7 @@ class APIModel {
 
   late APIDao dao;
 
-  // /////////////////////////////////////////////////////////////////////
+  // PROJECTS /////////////////////////////////////////////////////////////////////
 
   Future fetchProjects() async => dao.getJson(
     '/rest/api/3/project/',
@@ -177,6 +178,12 @@ class APIModel {
       },
     );
     return data;
+  }
+
+  // ISSUES /////////////////////////////////////////////////////////////////////
+
+  Future<Response> getIssue(String issueKey) {
+    return dao.request('/rest/api/3/issue/$issueKey');
   }
 
   Future<(Iterable<IssueData>, bool, String?)> fetchLastUpdatedIssues({

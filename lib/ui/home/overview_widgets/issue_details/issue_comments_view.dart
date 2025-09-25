@@ -292,6 +292,40 @@ class CommentDebugDialog extends StatelessWidget {
                         // TODO true body debugger
                         Text('Body', style: Theme.of(context).textTheme.titleMedium),
                         SizedBox(height: 8),
+                        for (var e in (comment.body as Map).entries.where((e) => !['content'].contains(e.key)))
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Row(
+                                spacing: 8,
+                                children: [
+                                  Text(e.key.toString()),
+                                  Spacer(),
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 100.0),
+                                    child: Text(e.value.toString(), textAlign: TextAlign.end),
+                                  ),
+                                  IconButton(
+                                    iconSize: 16,
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () => Clipboard.setData(ClipboardData(text: e.value.toString())),
+                                    icon: Icon(Icons.copy),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                        SizedBox(height: 8),
+                        Row(
+                          spacing: 8,
+                          children: [
+                            Expanded(child: Divider()),
+                            Text('Body content:'),
+                            Expanded(child: Divider()),
+                          ],
+                        ),
+
                         SelectableText(JsonEncoder.withIndent('  ').convert(comment.body)),
                       ],
                     ),

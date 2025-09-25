@@ -9,7 +9,11 @@ A new Flutter project.
    - Also custom fields
  - Comments
    - 🏃‍♂️View tkt comments 
+     - TODO DBG comments dialog
      - TODO IMPROVE AdfRenderer
+       - mentions should have a special color if targetting logged in user
+       - inlineCards to Jira should get the correct color for status
+       - More unknown formattings need to be checked for
      - Check how nested replies get shown
    - make sure they appear as updates
      - 🐞They are counted in the update sort, but dont actually appear in the history
