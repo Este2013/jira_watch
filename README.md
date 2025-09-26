@@ -17,9 +17,9 @@ A new Flutter project.
  - Comments
    - 🏃‍♂️View tkt comments 
      - TODO DBG comments dialog
-     - TODO IMPROVE AdfRenderer [document formatting](https://developer.atlassian.com/cloud/jira/platform/apis/document/nodes/)
+     - TODO IMPROVE AdfRenderer
        - inlineCards to Jira should get the correct color for status
-       - More unknown formattings need to be checked for
+       - More unknown formattings need to be checked for [document nodes](https://developer.atlassian.com/cloud/jira/platform/apis/document/nodes/)
      - Check how nested replies get shown
    - make sure they appear as updates
      - 🐞They are counted in the update sort, but dont actually appear in the history
