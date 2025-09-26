@@ -152,6 +152,15 @@ class APIModel {
 
   late APIDao dao;
 
+  Future<Response>? _cacheMyself;
+  Future<Response> myself({bool allowCache = true}) async {
+    if (allowCache && _cacheMyself != null) {
+      return _cacheMyself!;
+    }
+    _cacheMyself = dao.myself();
+    return _cacheMyself!;
+  }
+
   // PROJECTS /////////////////////////////////////////////////////////////////////
 
   Future fetchProjects() async => dao.getJson(

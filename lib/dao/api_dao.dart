@@ -67,6 +67,29 @@ class APIDao {
     );
   }
 
+  Future<http.Response> myself() async {
+    // Normalize host
+    var host = domain?.trim();
+    if (host == null) {
+      throw Exception('host cannot be null in ApiDao.myself()');
+    }
+    host = host.replaceFirst(RegExp(r'^https?://'), '');
+    host = host.replaceAll(RegExp(r'/$'), '');
+    if (!host.endsWith('.atlassian.net')) host = '$host.atlassian.net';
+
+    final uri = Uri.https(host, '/rest/api/3/myself');
+
+    final basicAuth = 'Basic ${base64Encode(utf8.encode('$email:$apiKey'))}';
+
+    return http.get(
+      uri,
+      headers: {
+        'Authorization': basicAuth,
+        'Accept': 'application/json',
+      },
+    );
+  }
+
   /// General authenticated request helper
   Future<http.Response> request(
     String path, {

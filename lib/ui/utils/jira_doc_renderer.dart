@@ -345,8 +345,22 @@ class AdfRenderer extends StatelessWidget {
   }
 
   Widget? _buildMention(BuildContext context, Map<String, dynamic> node) {
-    return Chip(
-      label: Text(node['attrs']['text']),
+    var t = Theme.of(context).colorScheme;
+    String userIdMentionned = node['attrs']['id'];
+    var isMe = APIModel().myself().then(
+      (value) => jsonDecode(value.body)['accountId'] == userIdMentionned,
+    );
+
+    return FutureBuilder(
+      future: isMe,
+      builder: (context, asyncSnapshot) {
+        bool isMentionOfMe = asyncSnapshot.hasData && asyncSnapshot.data!;
+        return Chip(
+          backgroundColor: isMentionOfMe ? t.primary : null,
+
+          label: Text(node['attrs']['text'], style: isMentionOfMe ? TextStyle(color: t.onPrimary) : null),
+        );
+      },
     );
   }
 
