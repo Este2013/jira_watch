@@ -3,26 +3,27 @@
 A new Flutter project.
 
 # TODO
- - indicate the selected tkt in the list
+ - ✅ indicate the selected tkt in the list
+ - 🏃‍♂️Mark as read:
+   - Missing whole system
+     - Save read status
+     - Load read status
+     - Change colors based on read status
+     - Update "Mark as unread" button to "Mark as read" if tkt is unread
+     - Setting to toggle "mark auto as read when selecting" off
  - View ticket (not edit)
    - Def. fields
    - Also custom fields
  - Comments
    - 🏃‍♂️View tkt comments 
      - TODO DBG comments dialog
-     - TODO IMPROVE AdfRenderer
-       - mentions should have a special color if targetting logged in user
+     - TODO IMPROVE AdfRenderer [document formatting](https://developer.atlassian.com/cloud/jira/platform/apis/document/nodes/)
        - inlineCards to Jira should get the correct color for status
        - More unknown formattings need to be checked for
      - Check how nested replies get shown
    - make sure they appear as updates
      - 🐞They are counted in the update sort, but dont actually appear in the history
- - ticket status
- - Filters:
-   - ticket status filter ( bugs features req, stories, epics etc. )
-   - Assignee filter
-   - Creator filter
-   - Type filter (bug, feat.)
+
 
 
 
@@ -37,7 +38,12 @@ A new Flutter project.
 ### TOUGH, IMPORTANT
  - mark update as read
  - flag tkts for meetings
-
+ - ticket status
+ - Filters:
+   - ticket type filter ( bugs, features req, stories, epics etc. )
+   - Assignee filter
+   - Creator filter
+   - Type filter (bug, feat.)
 
 ### EASY, nice
  - assing ticket to me

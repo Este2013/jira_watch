@@ -208,6 +208,10 @@ class AdfRenderer extends StatelessWidget {
     return spans;
   }
 
+  // Widget _buildEmoji(BuildContext context, Map<String, dynamic> node){
+  // TODO find how to get this working
+  // }
+
   Widget _buildBulletList(BuildContext context, Map<String, dynamic> node, int indentLevel) {
     final items = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
 

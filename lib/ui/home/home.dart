@@ -15,11 +15,11 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String _currentPage = 'Overview';
+  String _currentPage = 'Updates';
 
   int get _selectedIndex {
     switch (_currentPage) {
-      case 'Overview':
+      case 'Updates':
         return 0;
       case 'Issues':
         return 1;
@@ -33,7 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onRailSelect(int index) {
     switch (index) {
       case 0:
-        setState(() => _currentPage = 'Overview');
+        setState(() => _currentPage = 'Updates');
         break;
       case 1:
         setState(() => _currentPage = 'Issues');
@@ -49,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'Issues':
         return Center(child: Text('Issues Page', style: TextStyle(fontSize: 24)));
       default:
-        return OverviewPage();
+        return UpdatesPage();
     }
   }
 
@@ -121,6 +121,16 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
   }
 
+  String currentPageSubtitle(String currentPage) {
+    switch (currentPage) {
+      case 'Updates':
+        return 'View the latest changes made in projects you work on.';
+      case 'Issues':
+      default:
+        return 'No subtitle for this page, call the dev.';
+    }
+  }
+
   Future<(bool, String?, Map?)> fetchNewUpdateData(BuildContext context, {required String currentVersion}) async {
     Uri latestDataUri = Uri.parse("https://este2013.github.io/jira_watch/latest.json");
     final resp = await http.get(latestDataUri);
@@ -158,51 +168,63 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Home - $_currentPage'),
-        actions: [
-          // IconButton(
-          //   icon: Icon(Icons.logout),
-          //   onPressed: () async {
-          //     final prefs = await SharedPreferences.getInstance();
-          //     await prefs.remove('jira_api_key');
-          //     // ignore: use_build_context_synchronously
-          //     Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ApiKeyInputScreen()));
-          //   },
-          // ),
-        ],
-      ),
-      body: Row(
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: Row(
         children: [
-          NavigationRail(
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: _onRailSelect,
-            labelType: NavigationRailLabelType.all,
-            destinations: [
-              NavigationRailDestination(
-                icon: Icon(Icons.dashboard),
-                label: Text('Overview'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.bug_report),
-                label: Text('Issues'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.settings),
-                label: Text('Settings'),
-              ),
-            ],
-          ),
-          VerticalDivider(width: 1),
+          Expanded(child: Text('Home - $_currentPage')),
           Expanded(
-            child: _buildPageContent(),
+            child: Center(
+              child: Text(
+                currentPageSubtitle(_currentPage),
+                style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+              ),
+            ),
           ),
+          Spacer(),
         ],
       ),
-    );
-  }
+
+      actions: [
+        // IconButton(
+        //   icon: Icon(Icons.logout),
+        //   onPressed: () async {
+        //     final prefs = await SharedPreferences.getInstance();
+        //     await prefs.remove('jira_api_key');
+        //     // ignore: use_build_context_synchronously
+        //     Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ApiKeyInputScreen()));
+        //   },
+        // ),
+      ],
+    ),
+    body: Row(
+      children: [
+        NavigationRail(
+          selectedIndex: _selectedIndex,
+          onDestinationSelected: _onRailSelect,
+          labelType: NavigationRailLabelType.all,
+          destinations: [
+            NavigationRailDestination(
+              icon: Icon(Icons.dashboard),
+              label: Text('Updates'),
+            ),
+            NavigationRailDestination(
+              icon: Icon(Icons.bug_report),
+              label: Text('Issues'),
+            ),
+            NavigationRailDestination(
+              icon: Icon(Icons.settings),
+              label: Text('Settings'),
+            ),
+          ],
+        ),
+        VerticalDivider(width: 1),
+        Expanded(
+          child: _buildPageContent(),
+        ),
+      ],
+    ),
+  );
 
   bool isVersionGreaterThan(String newVersion, String currentVersion) {
     List<String> currentV = currentVersion.split(".");
@@ -464,7 +486,8 @@ class ChangeLogsDialog extends StatelessWidget {
                           ),
                         ],
                       ),
-
+                      TextSpan(text: "\t ᛫ Renamed 'Overview' to 'Updates'\n"),
+                      TextSpan(text: "\t ᛫ Updates can now be marked as Read or Unread\n"),
                       TextSpan(text: "\t ᛫ 💬 View issue comments in the comments tab (all formatting isnt handled)\n"),
                       // TextSpan(text: "\t ᛫ \n"),
 
@@ -498,7 +521,8 @@ class ChangeLogsDialog extends StatelessWidget {
                           ),
                         ],
                       ),
-                      // TextSpan(text: "\t ᛫ \n"),
+                      TextSpan(text: "\t ᛫ Emojis are not rendered in comments (there is no Atlassian API for that)\n"),
+                      TextSpan(text: "\t ᛫ Newer request is dropped by UI if project filters are changed before request completes\n"),
                     ],
                   ),
                 ),

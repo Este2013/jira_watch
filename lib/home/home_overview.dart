@@ -9,17 +9,18 @@ import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/home/time_utils.dart';
 import 'package:jira_watcher/ui/settings.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../ui/home/overview_widgets/issue_badge.dart';
 
-class OverviewPage extends StatefulWidget {
-  const OverviewPage({super.key});
+class UpdatesPage extends StatefulWidget {
+  const UpdatesPage({super.key});
 
   @override
-  State<OverviewPage> createState() => _OverviewPageState();
+  State<UpdatesPage> createState() => _UpdatesPageState();
 }
 
-class _OverviewPageState extends State<OverviewPage> {
+class _UpdatesPageState extends State<UpdatesPage> {
   final now = DateTime.now();
 
   // paging
@@ -35,7 +36,7 @@ class _OverviewPageState extends State<OverviewPage> {
   Set<String> activeProjectFilters = {};
   String? timeFilter;
 
-  Widget? view;
+  IssueData? selectedTicket;
 
   final ScrollController scrollController = ScrollController(keepScrollOffset: true);
 
@@ -280,7 +281,11 @@ class _OverviewPageState extends State<OverviewPage> {
                       itemBuilder: (context, index) {
                         if (index < allLoadedIssues.length) {
                           final t = allLoadedIssues[index];
-                          return JiraTicketPreviewItem(ticket: t, updateView: updateView);
+                          return JiraTicketPreviewItem(
+                            ticket: t,
+                            updateView: updateView,
+                            isSelected: selectedTicket != null && selectedTicket?.key == t.key,
+                          );
                         }
 
                         // Footer row: show a loader while fetching; when finished and !hasMore, show a subtle end cap.
@@ -316,12 +321,19 @@ class _OverviewPageState extends State<OverviewPage> {
           ),
         ),
         VerticalDivider(),
-        Expanded(child: view ?? Placeholder()),
+        Expanded(
+          child: selectedTicket == null
+              ? Placeholder()
+              : IssueDetailsView(
+                  selectedTicket!,
+                  key: Key(selectedTicket!.data['key']),
+                ),
+        ),
       ],
     ),
   );
 
-  void updateView(Widget w) => setState(() => view = w);
+  void updateView(IssueData tkt) => setState(() => selectedTicket = tkt);
 
   @override
   void dispose() {
@@ -374,10 +386,11 @@ class ProjectFilteringButton extends StatelessWidget {
 }
 
 class JiraTicketPreviewItem extends StatelessWidget {
-  final dynamic ticket;
-  final Function(Widget)? updateView;
+  final IssueData ticket;
+  final Function(IssueData ticket)? updateView;
+  final bool isSelected;
 
-  const JiraTicketPreviewItem({super.key, required this.ticket, this.updateView});
+  const JiraTicketPreviewItem({super.key, required this.ticket, this.updateView, required this.isSelected});
 
   @override
   Widget build(BuildContext context) {
@@ -436,15 +449,53 @@ class JiraTicketPreviewItem extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
+              if (isSelected)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0, bottom: 2),
+                  // TODO investigate use of ButtonBar instead
+                  child: ClipRRect(
+                    borderRadius: BorderRadiusGeometry.circular(4),
+                    child: BottomNavigationBar(
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+
+                      items: [
+                        BottomNavigationBarItem(icon: Icon(Icons.mark_as_unread), label: 'Mark as unread'),
+                        BottomNavigationBarItem(icon: Icon(Icons.open_in_browser), label: 'View on website'),
+                      ],
+                      onTap: (value) {
+                        if (value == 0) {
+                          // TODO how to mark as unread
+                        } else if (value == 1) {
+                          String? getTicketUrl(dynamic ticketKey) {
+                            final domain = APIDao().domain;
+                            if (domain != null && ticketKey != null) {
+                              return 'https://$domain/browse/$ticketKey';
+                            }
+                            return null;
+                          }
+
+                          var ticketUrl = getTicketUrl(ticket.key);
+                          if (ticketUrl != null) {
+                            launchUrl(Uri.parse(ticketUrl));
+                          } else {
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: Text('Something went wrong'),
+                                content: Text('The given ticketUrl is null?\nFor ticket key: ${ticket.key}, domain ${APIDao().domain}'),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
-        onTap: () => updateView?.call(
-          IssueDetailsView(
-            ticket,
-            key: Key(ticket.data['key']),
-          ),
-        ),
+        onTap: () => updateView?.call(ticket),
       ),
     );
   }
