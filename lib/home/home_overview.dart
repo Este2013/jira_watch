@@ -452,7 +452,6 @@ class JiraTicketPreviewItem extends StatelessWidget {
               if (isSelected)
                 Padding(
                   padding: const EdgeInsets.only(top: 8.0, bottom: 2),
-                  // TODO investigate use of ButtonBar instead
                   child: ClipRRect(
                     borderRadius: BorderRadiusGeometry.circular(4),
                     child: BottomNavigationBar(

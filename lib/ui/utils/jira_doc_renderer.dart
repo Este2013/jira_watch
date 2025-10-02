@@ -6,7 +6,6 @@ import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
-import 'package:jira_watcher/ui/settings.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// A lightweight renderer for Atlassian Document Format (Jira doc) JSON.
@@ -43,7 +42,7 @@ class AdfRenderer extends StatelessWidget {
   /// Builds a widget for a `media` node using its attrs.
   ///
   /// attrs example (file):
-  /// {"type":"file","id":"<uuid>","alt":"image.png","width":532,"height":477}
+  /// {"type":"file","id":"[uuid]","alt":"image.png","width":532,"height":477}
   final Widget Function(BuildContext context, Map<String, dynamic> attrs)? mediaBuilder;
 
   /// Called when a link is tapped. If null, uses default launcher (if available)
@@ -209,7 +208,7 @@ class AdfRenderer extends StatelessWidget {
   }
 
   // Widget _buildEmoji(BuildContext context, Map<String, dynamic> node){
-  // TODO find how to get this working
+  // TODO emotes are not supported in jira API. feature will not happen for atlassian-custom emotes.
   // }
 
   Widget _buildBulletList(BuildContext context, Map<String, dynamic> node, int indentLevel) {
@@ -447,43 +446,3 @@ class AdfRenderer extends StatelessWidget {
     return launchUrl(Uri.parse(url));
   }
 }
-
-/// ---- Example usage -------------------------------------------------------
-///
-/// AdfRenderer(
-///   adf: adfJsonMap,
-///   mediaBuilder: (context, attrs) {
-///     // Example mapping Jira media to an image (replace with your logic).
-///     final type = attrs['type'];
-///     if (type == 'external') {
-///       final url = attrs['url'] as String?;
-///       if (url != null) {
-///         return Image.network(url, fit: BoxFit.contain);
-///       }
-///     }
-///     if (type == 'file') {
-///       final id = attrs['id'] as String?; // Jira file id
-///       // TODO: turn [id] into a URL via your backend/proxy/Auth.
-///       // return Image.network(fileUrlFor(id));
-///       return AspectRatio(
-///         aspectRatio: (attrs['width'] is num && attrs['height'] is num)
-///             ? (attrs['width'] as num).toDouble() / (attrs['height'] as num).toDouble()
-///             : 4 / 3,
-///         child: Container(
-///           alignment: Alignment.center,
-///           decoration: BoxDecoration(
-///             borderRadius: BorderRadius.circular(8),
-///             color: Theme.of(context).colorScheme.surfaceVariant,
-///           ),
-///           child: Text('Media file: ${attrs['alt'] ?? id ?? 'unknown'}'),
-///         ),
-///       );
-///     }
-///     return const SizedBox.shrink();
-///   },
-///   linkHandler: (url) {
-///     // Handle link taps (e.g., with url_launcher)
-///     // launchUrlString(url);
-///   },
-/// )
-/// -------------------------------------------------------------------------

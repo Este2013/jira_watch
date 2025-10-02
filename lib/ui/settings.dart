@@ -339,10 +339,12 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       // 5) Schedule cleanup (don’t delete immediately in case App Installer still reading)
       Future.delayed(const Duration(minutes: 5), () {
         if (file.existsSync()) {
+          // ignore: body_might_complete_normally_catch_error
           file.delete().catchError((_) {});
         }
       });
     } catch (e) {
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(ctx).showSnackBar(
         SnackBar(content: Text('Update check failed: $e')),
       );
