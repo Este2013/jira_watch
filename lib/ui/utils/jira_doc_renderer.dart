@@ -167,7 +167,7 @@ class AdfRenderer extends StatelessWidget {
             case 'code':
               style = _defaultCodeStyle(context).merge(
                 TextStyle(
-                  backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                  backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                   letterSpacing: 0.25,
                 ),
               );
@@ -335,7 +335,7 @@ class AdfRenderer extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Theme.of(context).dividerColor),
-        color: Theme.of(context).colorScheme.surfaceVariant,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
       ),
       child: Text(alt, style: _defaultTextStyle(context)),
     );
