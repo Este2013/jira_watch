@@ -142,7 +142,7 @@ class IssueData {
   String? providerToCache;
 
   IssueData(this.data, {required this.lastCacheUpdate});
-  factory IssueData.fromJson(data) => IssueData(
+  factory IssueData.fromJson(Map data) => IssueData(
     data['data'],
     lastCacheUpdate: DateTime.parse(data['last_updated']),
     // providerToCache left null
@@ -154,7 +154,7 @@ class IssueData {
     'provider_to_cache': providerToCache,
   };
 
-  operator [](dynamic key) => data[key];
+  dynamic operator [](dynamic key) => data[key];
 
   int? get databaseId => this['id'];
   String? get key => this['key'];

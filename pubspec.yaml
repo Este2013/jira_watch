@@ -7,6 +7,7 @@ environment:
   sdk: ^3.9.0-100.2.beta
 
 dependencies:
+  csv: ^6.0.0
   diff_match_patch: ^0.4.1
   flutter:
     sdk: flutter

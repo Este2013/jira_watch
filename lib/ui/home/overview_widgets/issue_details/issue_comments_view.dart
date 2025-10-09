@@ -150,7 +150,6 @@ class CommentListEntry extends StatelessWidget {
                 adf: comment.body,
                 mediaBuilder: (context, attrs) {
                   // Map Jira media attrs to a widget (image/placeholder/etc.)
-                  print(attrs);
                   return Text(
                     '[medias are not handled yet]',
                     style: TextStyle(color: Colors.red),

@@ -9,6 +9,7 @@ import 'package:package_info_plus/package_info_plus.dart' as pkg;
 
 class SettingsModel {
   static final SettingsModel _instance = SettingsModel._internal();
+  Uri get settingsFolderUri => Uri.directory(join(Platform.environment['APPDATA']!, "com.este", "jira_watcher"));
 
   factory SettingsModel() => _instance;
 
@@ -19,6 +20,12 @@ class SettingsModel {
       (prefs) {
         // GENERAL
         theme.value = prefs.getString('theme') ?? 'system';
+        theme.addListener(() => prefs.setString('theme', theme.value));
+        _lastAppVersion = prefs.getString('last_app_version') ?? '0.0.0';
+        // GENERAL - Updates view settings
+        markAsReadOnOpen.value = prefs.getBool('mark_as_read_on_open') ?? true;
+        markAsReadOnOpen.addListener(() => prefs.setBool('mark_as_read_on_open', markAsReadOnOpen.value));
+
         // CONNECTION
         emailController.text = prefs.getString('jira_email') ?? '';
         apiKeyController.text = prefs.getString('jira_api_key') ?? '';
@@ -40,9 +47,6 @@ class SettingsModel {
           domain = domain.replaceFirst('.atlassian.net', '');
         }
         if (domain.isNotEmpty) domainController.text = domain;
-
-        // GENERAL
-        _lastAppVersion = prefs.getString('last_app_version') ?? '0.0.0';
 
         // PROJECTS
         starredProjects.value = prefs.getStringList('starred_projects') ?? [];
@@ -69,6 +73,9 @@ class SettingsModel {
     );
     return _lastAppVersion;
   }
+
+  // GENERAL - Updates view settings
+  final ValueNotifier<bool> markAsReadOnOpen = ValueNotifier(true);
 
   // CONNECTION
 

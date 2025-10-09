@@ -487,20 +487,21 @@ class ChangeLogsDialog extends StatelessWidget {
                         ],
                       ),
                       TextSpan(text: "\t ᛫ Renamed 'Overview' to 'Updates'\n"),
-                      TextSpan(text: "\t ᛫ Updates can now be marked as Read or Unread\n"),
+                      TextSpan(text: "\t ᛫ 📫 Updates can now be marked as Read or Unread\n"),
+                      TextSpan(text: "\t    ᛫ Added setting \"Mark as read upon selection\"\n"),
                       TextSpan(text: "\t ᛫ 💬 View issue comments in the comments tab (all formatting isnt handled)\n"),
-                      // TextSpan(text: "\t ᛫ \n"),
 
-                      // TextSpan(
-                      //   children: [
-                      //     TextSpan(text: "\n🪲 "),
-                      //     TextSpan(
-                      //       text: "Bug fixes:\n",
-                      //       style: TextStyle(decoration: TextDecoration.underline),
-                      //     ),
-                      //   ],
-                      // ),
                       // TextSpan(text: "\t ᛫ \n"),
+                      TextSpan(
+                        children: [
+                          TextSpan(text: "\n🪲 "),
+                          TextSpan(
+                            text: "Bug fixes:\n",
+                            style: TextStyle(decoration: TextDecoration.underline),
+                          ),
+                        ],
+                      ),
+                      TextSpan(text: "\t ᛫ Chosen app theme is now kept between sessions\n"),
                       TextSpan(
                         children: [
                           TextSpan(text: "\n🧼 "),

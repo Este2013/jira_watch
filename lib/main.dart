@@ -24,7 +24,7 @@ class MyApp extends StatelessWidget {
         title: 'Jira Watcher',
         theme: ThemeData(primarySwatch: Colors.blue),
         darkTheme: ThemeData(primarySwatch: Colors.blue, brightness: Brightness.dark),
-        themeMode: ThemeMode.values.firstWhere((element) => element.name == SettingsModel().theme.value),
+        themeMode: ThemeMode.values.firstWhere((element) => element.name == SettingsModel().theme.value, orElse: () => ThemeMode.system),
         // home: SplashScreen(),
         routes: {
           '/settingsError': (context) => ErrorWidget('An error occured while loading the app settings'),

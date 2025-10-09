@@ -385,7 +385,7 @@ class ProjectFilteringButton extends StatelessWidget {
   );
 }
 
-class JiraTicketPreviewItem extends StatelessWidget {
+class JiraTicketPreviewItem extends StatefulWidget {
   final IssueData ticket;
   final Function(IssueData ticket)? updateView;
   final bool isSelected;
@@ -393,113 +393,145 @@ class JiraTicketPreviewItem extends StatelessWidget {
   const JiraTicketPreviewItem({super.key, required this.ticket, this.updateView, required this.isSelected});
 
   @override
+  State<JiraTicketPreviewItem> createState() => _JiraTicketPreviewItemState();
+}
+
+class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
+  @override
   Widget build(BuildContext context) {
-    final colors = _ticketColors(context, ticket);
-    final fields = ticket['fields'] ?? {};
+    final colors = _ticketColors(context, widget.ticket);
+    final fields = widget.ticket['fields'] ?? {};
 
     final summary = fields['summary'] ?? 'No Title';
     final updated = fields['updated'] as String? ?? '';
-    final lastUpdateData = (ticket['changelog']['histories'] as List).firstOrNull;
-    // print(lastUpdateData);
+    final lastUpdateData = (widget.ticket['changelog']['histories'] as List).firstOrNull;
 
-    return Card(
-      clipBehavior: Clip.hardEdge,
-      color: colors['bg']?.withAlpha(Theme.brightnessOf(context) == Brightness.light ? 255 : 50),
-      shape: RoundedRectangleBorder(
-        side: BorderSide(color: colors['border']!, width: 2),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      margin: EdgeInsets.all(4),
-      child: InkWell(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  IssueLinkWithParentsRow(ticket),
-                  const Spacer(),
+    return AnimatedBuilder(
+      animation: SettingsModel().markAsReadOnOpen,
 
-                  TimeAgoDisplay(timeStr: updated),
-                  Text(
-                    ', by ',
-                    style: TextStyle(fontSize: 12, color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300]),
-                  ),
-                  SizedBox.square(
-                    dimension: 24,
-                    child: ClipRRect(
-                      borderRadius: BorderRadiusGeometry.circular(10000),
-                      child: lastUpdateData == null
-                          ? Tooltip(
-                              message: fields['creator']['displayName'],
-                              child: JiraAvatar(key: Key(ticket['id']), url: fields['creator']['avatarUrls']['32x32']),
-                            )
-                          : Tooltip(
-                              message: lastUpdateData['author']['displayName'],
-                              child: JiraAvatar(key: Key(lastUpdateData['id']), url: lastUpdateData['author']['avatarUrls']['32x32']),
+      builder: (context, _) {
+        bool shouldMarkAsReadOnOpen = SettingsModel().markAsReadOnOpen.value;
+        return FutureBuilder<DateTime?>(
+          future: DataModel().issueMarkedAsReadTime().then((value) => value[widget.ticket.key]),
+          builder: (context, lastReadSnapshot) {
+            DateTime? lastReadTime = lastReadSnapshot.data, updatedTime = DateTime.parse(updated);
+            bool isRead = lastReadTime != null ? lastReadTime.isAfter(updatedTime) || lastReadTime.isAtSameMomentAs(updatedTime) : false;
+            return Card(
+              clipBehavior: Clip.hardEdge,
+              color: colors['bg']?.withAlpha(Theme.brightnessOf(context) == Brightness.light ? 255 : 50),
+              shape: isRead
+                  ? null
+                  : RoundedRectangleBorder(
+                      side: BorderSide(color: colors['border']!, width: 2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+              margin: EdgeInsets.all(4),
+              child: InkWell(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          IssueLinkWithParentsRow(widget.ticket),
+                          const Spacer(),
+
+                          TimeAgoDisplay(timeStr: updated),
+                          Text(
+                            ', by ',
+                            style: TextStyle(fontSize: 12, color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300]),
+                          ),
+                          SizedBox.square(
+                            dimension: 24,
+                            child: ClipRRect(
+                              borderRadius: BorderRadiusGeometry.circular(10000),
+                              child: lastUpdateData == null
+                                  ? Tooltip(
+                                      message: fields['creator']['displayName'],
+                                      child: JiraAvatar(key: Key(widget.ticket['id']), url: fields['creator']['avatarUrls']['32x32']),
+                                    )
+                                  : Tooltip(
+                                      message: lastUpdateData['author']['displayName'],
+                                      child: JiraAvatar(key: Key(lastUpdateData['id']), url: lastUpdateData['author']['avatarUrls']['32x32']),
+                                    ),
                             ),
-                    ),
-                  ),
-                ],
-              ),
-              Text(
-                summary,
-                style: Theme.of(context).textTheme.titleMedium,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (isSelected)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0, bottom: 2),
-                  child: ClipRRect(
-                    borderRadius: BorderRadiusGeometry.circular(4),
-                    child: BottomNavigationBar(
-                      backgroundColor: Colors.transparent,
-                      elevation: 0,
+                          ),
+                        ],
+                      ),
+                      Text(
+                        summary,
+                        style: Theme.of(context).textTheme.titleMedium,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (widget.isSelected)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0, bottom: 2),
+                          child: ClipRRect(
+                            borderRadius: BorderRadiusGeometry.circular(4),
+                            child: BottomNavigationBar(
+                              key: ValueKey(isRead),
+                              backgroundColor: Colors.transparent,
+                              elevation: 0,
+                              items: [
+                                BottomNavigationBarItem(icon: Icon(Icons.mark_as_unread), label: isRead ? 'Mark as unread' : 'Mark as read'),
+                                BottomNavigationBarItem(icon: Icon(Icons.open_in_browser), label: 'View on website'),
+                              ],
+                              onTap: (value) {
+                                if (value == 0) {
+                                  // Mark as unread
+                                  if (widget.ticket.key == null) return;
+                                  setState(() {
+                                    DataModel().markAsRead(widget.ticket.key!, DateTime.parse(updated), isRead: !isRead);
+                                  });
+                                } else if (value == 1) {
+                                  // View on website
+                                  String? getTicketUrl(dynamic ticketKey) {
+                                    final domain = APIDao().domain;
+                                    if (domain != null && ticketKey != null) {
+                                      return 'https://$domain/browse/$ticketKey';
+                                    }
+                                    return null;
+                                  }
 
-                      items: [
-                        BottomNavigationBarItem(icon: Icon(Icons.mark_as_unread), label: 'Mark as unread'),
-                        BottomNavigationBarItem(icon: Icon(Icons.open_in_browser), label: 'View on website'),
-                      ],
-                      onTap: (value) {
-                        if (value == 0) {
-                          // TODO how to mark as unread
-                        } else if (value == 1) {
-                          String? getTicketUrl(dynamic ticketKey) {
-                            final domain = APIDao().domain;
-                            if (domain != null && ticketKey != null) {
-                              return 'https://$domain/browse/$ticketKey';
-                            }
-                            return null;
-                          }
-
-                          var ticketUrl = getTicketUrl(ticket.key);
-                          if (ticketUrl != null) {
-                            launchUrl(Uri.parse(ticketUrl));
-                          } else {
-                            showDialog(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: Text('Something went wrong'),
-                                content: Text('The given ticketUrl is null?\nFor ticket key: ${ticket.key}, domain ${APIDao().domain}'),
-                              ),
-                            );
-                          }
-                        }
-                      },
-                    ),
+                                  var ticketUrl = getTicketUrl(widget.ticket.key);
+                                  if (ticketUrl != null) {
+                                    launchUrl(Uri.parse(ticketUrl));
+                                  } else {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: Text('Something went wrong'),
+                                        content: Text('The given ticketUrl is null?\nFor ticket key: ${widget.ticket.key}, domain ${APIDao().domain}'),
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-            ],
-          ),
-        ),
-        onTap: () => updateView?.call(ticket),
-      ),
+                onTap: () {
+                  if (shouldMarkAsReadOnOpen && widget.ticket.key != null) {
+                    setState(() {
+                      DataModel().markAsRead(widget.ticket.key!, updatedTime);
+                    });
+                  }
+                  widget.updateView?.call(widget.ticket);
+                },
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
-  Map<String, Color> _ticketColors(context, ticket) {
+  Map<String, Color> _ticketColors(BuildContext context, IssueData ticket) {
     var type = ticket['fields']['issuetype']['name'];
     bool isLightTheme = Theme.of(context).brightness == Brightness.light;
     switch (type) {
@@ -513,6 +545,7 @@ class JiraTicketPreviewItem extends StatelessWidget {
           'bg': isLightTheme ? Colors.blue.shade50 : Colors.blue.shade900,
           'border': Colors.blue.shade700,
         };
+      case 'Improvement':
       case 'Story':
         return {
           'bg': isLightTheme ? Colors.green.shade50 : Colors.green.shade900,
@@ -619,8 +652,8 @@ class _OnError400TestForProjectsState extends State<OnError400TestForProjects> {
   }
 }
 
-extension on Set {
-  void toggle(element) {
+extension<T> on Set<T> {
+  void toggle(T element) {
     if (contains(element)) {
       remove(element);
       return;

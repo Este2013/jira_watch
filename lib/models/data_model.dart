@@ -1,3 +1,4 @@
+import 'package:csv/csv.dart';
 import 'package:http/http.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/settings_model.dart';
@@ -18,7 +19,7 @@ class DataModel {
 
   late final APIModel api;
 
-  // /////////////////////////////////////////////////////////////////////
+  // PROJECTS /////////////////////////////////////////////////////////////////////
 
   List? _projectsDataCache;
 
@@ -32,39 +33,10 @@ class DataModel {
     ),
   );
 
-  /// TODO use this and then use the data in the app
-  /// Creates the store to all of the project issue data.
-  /// Fetches all issues from the API, adds them to local cache, and creates a json store in the local temp/.../issues_cache/ folder.
-  /// In the same temp/.../issues_cache/ folder, updates last_project_updates.json to remember the last time we updated.
-  ///
-  /// EDGE CASE: if the int value returned by fetchLastUpdatedIssues changes during the fetching, the offset startAt is correctly adjusted to not miss issues whose index have changed.
-  // Future<List<IssueData>> registerProject(String projectCode) async {
-  //   List<IssueData> allIssues = [];
-  //   int startAt = 0;
-  //   int? total;
-
-  //   do {
-  //     final (issues, fetchedTotal) = await DataModel().fetchLastUpdatedIssues(
-  //       maxResults: 100,
-  //       startAt: startAt,
-  //       filterByProjectCodes: [projectCode],
-  //     );
-  //     if (total == null) {
-  //       total = fetchedTotal;
-  //     } else if (fetchedTotal != total) {
-  //       total = fetchedTotal;
-  //     }
-  //     allIssues.addAll(issues);
-  //     startAt = allIssues.length;
-  //   } while (allIssues.length < total);
-
-  //   return allIssues;
-  // }
-
   /// Fetch projects from Jira API, caching results
   /// https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-projects/#api-rest-api-3-project-get
   ///
-  /// Each project is a map as follows: s
+  /// Each project is a map as follows:
   /// ```json{
   ///  "avatarUrls": {
   ///    "16x16": "https://your-domain.atlassian.net/secure/projectavatar?size=xsmall&pid=10000",
@@ -111,6 +83,8 @@ class DataModel {
     return api.fetchSingleProject(code, expand: expand);
   }
 
+  // ISSUES /////////////////////////////////////////////////////////////////////
+
   Future<(Iterable<IssueData>, bool, String?)> fetchLastUpdatedIssues({int maxResults = 0, String? nextPageToken, DateTime? before, DateTime? after, List<String>? filterByProjectCodes}) {
     // TODO missing cache check
     return api.fetchLastUpdatedIssues(
@@ -138,6 +112,44 @@ class DataModel {
       after: after,
       filterByProjectCodes: filterByProjectCodes,
     );
+  }
+
+  // LOCAL DATA /////////////////////////////////////////////////////////////////////
+  /// Contains for each entry:
+  ///  - issue key (eg. "EVH-1234")
+  ///  - last issue update time that was marked as read.
+  /// If an issue update is more recent than a cache value stored here, then its unread.
+  Future<Map<String, DateTime>>? _issueMarkedAsReadTimeCache;
+  final File _issueMarkedAsReadTimeDataFile = File(
+    path
+        .join(
+          SettingsModel().settingsFolderUri.path,
+          'issue_read_status.csv',
+        )
+        .replaceFirst(RegExp(r'^\\?/?'), ''),
+  );
+  Future<Map<String, DateTime>> issueMarkedAsReadTime() async {
+    _issueMarkedAsReadTimeCache ??= _issueMarkedAsReadTimeDataFile.readAsString().then(
+      (strData) {
+        var csv = const CsvToListConverter().convert(strData);
+        return {for (var line in csv) line.first: DateTime.parse(line.last)};
+      },
+    );
+    return _issueMarkedAsReadTimeCache!;
+  }
+
+  Future<void> markAsRead(String issueKey, DateTime time, {bool isRead = true}) async {
+    var data = await _issueMarkedAsReadTimeCache ?? {};
+    if (isRead) {
+      data[issueKey] = time;
+    } else {
+      data.remove(issueKey);
+    }
+    String csv = const ListToCsvConverter().convert([
+      for (var e in data.entries) [e.key, e.value.toIso8601String()],
+    ]);
+    _issueMarkedAsReadTimeCache = Future.value(data);
+    await _issueMarkedAsReadTimeDataFile.writeAsString(csv);
   }
 }
 

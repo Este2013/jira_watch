@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+// import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -8,7 +8,7 @@ import 'package:jira_watcher/ui/home/home.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
-import 'package:path/path.dart';
+// import 'package:path/path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
@@ -103,131 +103,162 @@ class GeneralSettingsPage extends StatefulWidget {
 
 class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
   @override
-  Widget build(BuildContext context) => Column(
-    spacing: 8,
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      Spacer(),
-      Row(
-        spacing: 8,
-        children: [
-          Text('Application version'),
-          Spacer(),
-          FutureBuilder(
-            future: SettingsModel().appInfo.version,
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return SizedBox.square(
-                  dimension: 16,
-                  child: CircularProgressIndicator(),
-                );
-              }
-              return Row(
-                children: [
-                  Text(snapshot.data!),
-                  SizedBox(width: 8),
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => Clipboard.setData(ClipboardData(text: snapshot.data!)),
-                    tooltip: "Copy version",
-                    icon: Icon(Icons.copy),
-                    iconSize: 16,
-                  ),
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => showDialog(
-                      context: context,
-                      builder: (context) => ChangeLogsDialog(),
+  Widget build(BuildContext context) => Center(
+    child: ListView(
+      shrinkWrap: true,
+      children: [
+        // Application
+        Row(
+          spacing: 8,
+          children: [
+            Text('Application', style: Theme.of(context).textTheme.titleMedium),
+            Expanded(child: Divider()),
+          ],
+        ),
+        Row(
+          spacing: 8,
+          children: [
+            Text('Application version'),
+            Spacer(),
+            FutureBuilder(
+              future: SettingsModel().appInfo.version,
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(),
+                  );
+                }
+                return Row(
+                  children: [
+                    Text(snapshot.data!),
+                    SizedBox(width: 8),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => Clipboard.setData(ClipboardData(text: snapshot.data!)),
+                      tooltip: "Copy version",
+                      icon: Icon(Icons.copy),
+                      iconSize: 16,
                     ),
-                    tooltip: "See what's new",
-                    icon: Icon(Icons.new_releases),
-                    iconSize: 16,
-                  ),
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () async {
-                      var data = await fetchNewUpdateData(context, currentVersion: snapshot.data!);
-                      if (!data.$1) return;
-                      showDialog(
-                        // ignore: use_build_context_synchronously
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => showDialog(
                         context: context,
-                        builder: (context) => AlertDialog(
-                          title: Text('A new update is available!'),
-                          content: SizedBox(
-                            width: 400,
-                            height: 400,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              spacing: 16,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(child: Text('Version ${data.$2!}', style: Theme.of(context).textTheme.titleMedium)),
-                                    Text('(Current: ${snapshot.data})'),
-                                  ],
-                                ),
-                                if (data.$3?['changelog'] == null)
-                                  Expanded(child: Center(child: Text(data.$3?['changelog'] ?? 'No changelog :(')))
-                                else
-                                  Card(
-                                    child: Padding(
-                                      padding: EdgeInsetsGeometry.all(16),
-                                      child: SingleChildScrollView(child: Text(data.$3?['changelog'] ?? 'No changelog :(')),
-                                    ),
+                        builder: (context) => ChangeLogsDialog(),
+                      ),
+                      tooltip: "See what's new",
+                      icon: Icon(Icons.new_releases),
+                      iconSize: 16,
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () async {
+                        var data = await fetchNewUpdateData(context, currentVersion: snapshot.data!);
+                        if (!data.$1) return;
+                        showDialog(
+                          // ignore: use_build_context_synchronously
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text('A new update is available!'),
+                            content: SizedBox(
+                              width: 400,
+                              height: 400,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                spacing: 16,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(child: Text('Version ${data.$2!}', style: Theme.of(context).textTheme.titleMedium)),
+                                      Text('(Current: ${snapshot.data})'),
+                                    ],
                                   ),
-                              ],
+                                  if (data.$3?['changelog'] == null)
+                                    Expanded(child: Center(child: Text(data.$3?['changelog'] ?? 'No changelog :(')))
+                                  else
+                                    Card(
+                                      child: Padding(
+                                        padding: EdgeInsetsGeometry.all(16),
+                                        child: SingleChildScrollView(child: Text(data.$3?['changelog'] ?? 'No changelog :(')),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
+                            actions: [
+                              Row(
+                                spacing: 8,
+                                children: [
+                                  TextButton(onPressed: Navigator.of(context).pop, child: Text('Not now')),
+                                  Spacer(),
+                                  TextButton(
+                                    onPressed: () => launchUrl(Uri.parse('https://github.com/Este2013/jira_watch/releases')),
+                                    child: Text('Github'),
+                                  ),
+                                  FilledButton(onPressed: () => launchUrl(Uri.parse('https://este2013.github.io/jira_watch/${data.$3?['x64']}')), child: Text('Download')),
+                                ],
+                              ),
+                            ],
                           ),
-                          actions: [
-                            Row(
-                              spacing: 8,
-                              children: [
-                                TextButton(onPressed: Navigator.of(context).pop, child: Text('Not now')),
-                                Spacer(),
-                                TextButton(
-                                  onPressed: () => launchUrl(Uri.parse('https://github.com/Este2013/jira_watch/releases')),
-                                  child: Text('Github'),
-                                ),
-                                FilledButton(onPressed: () => launchUrl(Uri.parse('https://este2013.github.io/jira_watch/${data.$3?['x64']}')), child: Text('Download')),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                    tooltip: "Check for updates",
-                    icon: Icon(Icons.update),
-                    iconSize: 16,
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-      Row(
-        spacing: 8,
-        children: [
-          Text('Theme'),
-          Spacer(),
-          DropdownMenu(
-            dropdownMenuEntries: [
-              DropdownMenuEntry(value: 'system', label: 'Same as system', leadingIcon: Icon(Icons.computer)),
-              DropdownMenuEntry(value: 'light', label: 'Light theme', leadingIcon: Icon(Icons.light_mode)),
-              DropdownMenuEntry(value: 'dark', label: 'Dark theme', leadingIcon: Icon(Icons.dark_mode)),
+                        );
+                      },
+                      tooltip: "Check for updates",
+                      icon: Icon(Icons.update),
+                      iconSize: 16,
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+        Row(
+          spacing: 8,
+          children: [
+            Text('Theme'),
+            Spacer(),
+            DropdownMenu(
+              dropdownMenuEntries: [
+                DropdownMenuEntry(value: 'system', label: 'Same as system', leadingIcon: Icon(Icons.computer)),
+                DropdownMenuEntry(value: 'light', label: 'Light theme', leadingIcon: Icon(Icons.light_mode)),
+                DropdownMenuEntry(value: 'dark', label: 'Dark theme', leadingIcon: Icon(Icons.dark_mode)),
+              ],
+              onSelected: (value) => SettingsModel().theme.value = value!,
+              initialSelection: SettingsModel().theme.value,
+              // VVV disable writing VVV
+              enableSearch: false,
+              enableFilter: false,
+              requestFocusOnTap: false,
+              focusNode: FocusNode()..canRequestFocus = false,
+            ),
+          ],
+        ),
+        // Updates view
+        Padding(
+          padding: const EdgeInsets.only(top: 32.0),
+          child: Row(
+            spacing: 8,
+            children: [
+              Text('Updates view', style: Theme.of(context).textTheme.titleMedium),
+              Expanded(child: Divider()),
             ],
-            onSelected: (value) => SettingsModel().theme.value = value!,
-            initialSelection: SettingsModel().theme.value,
-            // VVV disable writing VVV
-            enableSearch: false,
-            enableFilter: false,
-            requestFocusOnTap: false,
-            focusNode: FocusNode()..canRequestFocus = false,
           ),
-        ],
-      ),
-      Spacer(),
-    ],
+        ),
+        Row(
+          spacing: 8,
+          children: [
+            Text('Mark as read upon selection'),
+            Spacer(),
+            Switch(
+              value: SettingsModel().markAsReadOnOpen.value,
+              onChanged: (value) => setState(() {
+                SettingsModel().markAsReadOnOpen.value = value;
+              }),
+            ),
+          ],
+        ),
+      ].expand<Widget>((w) => [w, SizedBox(height: 8)]).toList()..removeLast(),
+    ),
   );
 
   Future<(bool, String?, Map?)> fetchNewUpdateData(BuildContext context, {required String currentVersion}) async {
@@ -295,61 +326,61 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
     return (true, mostRecent.key as String, mostRecent.value as Map);
   }
 
-  Future<void> downloadAndOpenAppinstallerMSIX(BuildContext ctx) async {
-    try {
-      Uri appInstallerUri = Uri.parse("https://este2013.github.io/jira_watch/jira_watcher.appinstaller");
+  // Future<void> downloadAndOpenAppinstallerMSIX(BuildContext ctx) async {
+  //   try {
+  //     Uri appInstallerUri = Uri.parse("https://este2013.github.io/jira_watch/jira_watcher.appinstaller");
 
-      // 1) Download to a temp file
-      final tempDir = await SettingsModel().tempDir;
-      final file = File(join(tempDir.path, 'jira_watcher-${DateTime.now().millisecondsSinceEpoch}.appinstaller'));
+  //     // 1) Download to a temp file
+  //     final tempDir = await SettingsModel().tempDir;
+  //     final file = File(join(tempDir.path, 'jira_watcher-${DateTime.now().millisecondsSinceEpoch}.appinstaller'));
 
-      final resp = await http.get(appInstallerUri);
-      if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
-        throw Exception('Failed to download .appinstaller (HTTP ${resp.statusCode}).');
-      }
+  //     final resp = await http.get(appInstallerUri);
+  //     if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
+  //       throw Exception('Failed to download .appinstaller (HTTP ${resp.statusCode}).');
+  //     }
 
-      // String? expectedSha256; // e.g., 'c1a2...'
-      // // 2) (Optional) Verify checksum
-      // if (expectedSha256 != null) {
-      //   final actual = crypto.sha256.convert(resp.bodyBytes).toString();
-      //   if (actual.toLowerCase() != expectedSha256!.toLowerCase()) {
-      //     throw Exception('Checksum mismatch for .appinstaller.');
-      //   }
-      // }
+  //     // String? expectedSha256; // e.g., 'c1a2...'
+  //     // // 2) (Optional) Verify checksum
+  //     // if (expectedSha256 != null) {
+  //     //   final actual = crypto.sha256.convert(resp.bodyBytes).toString();
+  //     //   if (actual.toLowerCase() != expectedSha256!.toLowerCase()) {
+  //     //     throw Exception('Checksum mismatch for .appinstaller.');
+  //     //   }
+  //     // }
 
-      // 3) Write file
-      if (!await file.parent.exists()) {
-        await file.parent.create(recursive: true);
-      }
-      await file.writeAsBytes(resp.bodyBytes, flush: true);
+  //     // 3) Write file
+  //     if (!await file.parent.exists()) {
+  //       await file.parent.create(recursive: true);
+  //     }
+  //     await file.writeAsBytes(resp.bodyBytes, flush: true);
 
-      // 4) Open with system handler (App Installer)
-      final ok = await launchUrl(Uri.file(file.path), mode: LaunchMode.externalApplication);
+  //     // 4) Open with system handler (App Installer)
+  //     final ok = await launchUrl(Uri.file(file.path), mode: LaunchMode.externalApplication);
 
-      if (!ok) {
-        // Fallback: try PowerShell Start-Process (some environments need this)
-        await Process.run('powershell', [
-          '-NoProfile',
-          '-Command',
-          'Start-Process',
-          file.path,
-        ]);
-      }
+  //     if (!ok) {
+  //       // Fallback: try PowerShell Start-Process (some environments need this)
+  //       await Process.run('powershell', [
+  //         '-NoProfile',
+  //         '-Command',
+  //         'Start-Process',
+  //         file.path,
+  //       ]);
+  //     }
 
-      // 5) Schedule cleanup (don’t delete immediately in case App Installer still reading)
-      Future.delayed(const Duration(minutes: 5), () {
-        if (file.existsSync()) {
-          // ignore: body_might_complete_normally_catch_error
-          file.delete().catchError((_) {});
-        }
-      });
-    } catch (e) {
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(ctx).showSnackBar(
-        SnackBar(content: Text('Update check failed: $e')),
-      );
-    }
-  }
+  //     // 5) Schedule cleanup (don’t delete immediately in case App Installer still reading)
+  //     Future.delayed(const Duration(minutes: 5), () {
+  //       if (file.existsSync()) {
+  //         // ignore: body_might_complete_normally_catch_error
+  //         file.delete().catchError((_) {});
+  //       }
+  //     });
+  //   } catch (e) {
+  //     // ignore: use_build_context_synchronously
+  //     ScaffoldMessenger.of(ctx).showSnackBar(
+  //       SnackBar(content: Text('Update check failed: $e')),
+  //     );
+  //   }
+  // }
 }
 
 class ConnectionSettingsPage extends StatefulWidget {
@@ -617,7 +648,7 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
         children: [
           Text('Settings files'),
           Spacer(),
-          TextButton(onPressed: () => launchUrl(Uri.directory(join(Platform.environment['APPDATA']!, "com.este", "jira_watcher"))), child: Text("View in folder")),
+          TextButton(onPressed: () => launchUrl(SettingsModel().settingsFolderUri), child: Text("View in folder")),
         ],
       ),
     ],

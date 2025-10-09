@@ -3,14 +3,6 @@
 A new Flutter project.
 
 # TODO
- - ✅ indicate the selected tkt in the list
- - 🏃‍♂️Mark as read:
-   - Missing whole system
-     - Save read status
-     - Load read status
-     - Change colors based on read status
-     - Update "Mark as unread" button to "Mark as read" if tkt is unread
-     - Setting to toggle "mark auto as read when selecting" off
  - View ticket (not edit)
    - Def. fields
    - Also custom fields
