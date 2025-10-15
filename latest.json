@@ -1,4 +1,8 @@
 {
+    "1.1.0": {
+        "changelog": "✨Features:\n\t᛫ Renamed 'Overview' to 'Updates'ssssssss\n\t ᛫ 📫 Updates can now be marked as Read or Unread\n\t    ᛫ ⚙️ Added setting \"Mark as read upon selection\"\n\t ᛫ 💬 View issue comments in the comments tab (all formatting isnt handled)\n\t ᛫ 🏃 View issue status in list and details\n\t ᛫ 🧪 [Experiment] Ticket details view\n\n🪲 Bug fixes:\n\t ᛫ Chosen app theme is now kept between sessions\n\n🧼 Chores:\n\t ᛫ Bumped version number.\n\t ᛫ Updated dependencies and SDK to v3.8.\n\n🐞Known bugs:\n\t ᛫ Emojis are not rendered in comments (there is no Atlassian API for that)\n\t ᛫ Newer request is dropped by UI if project filters are changed before request completes\n\t ᛫ Comments: nested replies are not shown as nested\n",
+        "x64": "v1.1.0/Binaries (x64).zip"
+    },
     "1.0.2": {
         "changelog": "✨Features:\n\t᛫ Adds a manual refresh button\n\t᛫ Also I can test if my update mechanic works now :)",
         "x64": "v1.0.2/Binaries (x64).zip"
