@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:jira_watcher/utils/encryption_service.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,7 +18,7 @@ class SettingsModel {
 
   SettingsModel._internal() {
     isReady = SharedPreferences.getInstance().then(
-      (prefs) {
+      (prefs) async {
         // GENERAL
         theme.value = prefs.getString('theme') ?? 'system';
         theme.addListener(() => prefs.setString('theme', theme.value));
@@ -28,7 +29,17 @@ class SettingsModel {
 
         // CONNECTION
         emailController.text = prefs.getString('jira_email') ?? '';
-        apiKeyController.text = prefs.getString('jira_api_key') ?? '';
+
+        var oldAPIKeyStore = prefs.getString('jira_api_key');
+        var encryptedAPIKeyStore = prefs.getString('encrypted_jira_api_key');
+        if (oldAPIKeyStore != null) {
+          prefs.remove('jira_api_key');
+          encryptedAPIKeyStore ??= await EncryptionService.encrypt(oldAPIKeyStore);
+          prefs.setString('encrypted_jira_api_key', encryptedAPIKeyStore);
+        }
+
+        apiKeyController.text = encryptedAPIKeyStore != null ? await EncryptionService.decrypt(encryptedAPIKeyStore) : '';
+
         var domain = prefs.getString('jira_domain') ?? '';
 
         if (domain.startsWith(

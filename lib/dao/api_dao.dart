@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:jira_watcher/utils/encryption_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -21,7 +22,8 @@ class APIDao {
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     email = prefs.getString('jira_email');
-    apiKey = prefs.getString('jira_api_key');
+    var encApiAKey = prefs.getString('encrypted_jira_api_key');
+    if (encApiAKey != null) apiKey = await EncryptionService.decrypt(encApiAKey);
     domain = prefs.getString('jira_domain');
   }
 
@@ -33,7 +35,7 @@ class APIDao {
     }
     if (apiKey != null) {
       this.apiKey = apiKey;
-      await prefs.setString('jira_api_key', apiKey);
+      await prefs.setString('encrypted_jira_api_key', await EncryptionService.encrypt(apiKey));
     }
     if (domain != null) {
       this.domain = domain;

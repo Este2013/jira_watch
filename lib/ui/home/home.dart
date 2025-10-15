@@ -73,29 +73,36 @@ class _HomeScreenState extends State<HomeScreen> {
             context: context,
             builder: (context) => AlertDialog(
               title: Text('A new update is available!'),
-              content: SizedBox(
-                width: 400,
-                height: 400,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  spacing: 16,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: Text('Version ${data.$2!}', style: Theme.of(context).textTheme.titleMedium)),
-                        Text('(Current: $ver)'),
-                      ],
-                    ),
-                    if (data.$3?['changelog'] == null)
-                      Expanded(child: Center(child: Text(data.$3?['changelog'] ?? 'No changelog :(')))
-                    else
-                      Card(
-                        child: Padding(
-                          padding: EdgeInsetsGeometry.all(16),
-                          child: SingleChildScrollView(child: Text(data.$3?['changelog'] ?? 'No changelog :(')),
-                        ),
+              content: ScrollbarTheme(
+                data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
+                child: SizedBox(
+                  width: 400,
+                  height: 400,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: 16,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: Text('Version ${data.$2!}', style: Theme.of(context).textTheme.titleMedium)),
+                          Text('(Current: $ver)'),
+                        ],
                       ),
-                  ],
+                      if (data.$3?['changelog'] == null)
+                        Expanded(
+                          child: SingleChildScrollView(child: Text(data.$3?['changelog'] ?? 'No changelog :(')),
+                        )
+                      else
+                        Expanded(
+                          child: Card(
+                            child: Padding(
+                              padding: EdgeInsetsGeometry.all(16),
+                              child: SingleChildScrollView(child: Text(data.$3?['changelog'] ?? 'No changelog :(')),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
               actions: [
@@ -185,17 +192,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
 
-      actions: [
-        // IconButton(
-        //   icon: Icon(Icons.logout),
-        //   onPressed: () async {
-        //     final prefs = await SharedPreferences.getInstance();
-        //     await prefs.remove('jira_api_key');
-        //     // ignore: use_build_context_synchronously
-        //     Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ApiKeyInputScreen()));
-        //   },
-        // ),
-      ],
+      actions: [],
     ),
     body: Row(
       children: [
@@ -469,7 +466,7 @@ class ChangeLogsDialog extends StatelessWidget {
             child: SingleChildScrollView(
               child: Padding(
                 padding: const EdgeInsets.only(right: 16.0),
-                child: Text.rich(
+                child: SelectableText.rich(
                   TextSpan(
                     children: [
                       TextSpan(
@@ -523,6 +520,78 @@ class ChangeLogsDialog extends StatelessWidget {
                         ],
                       ),
                       TextSpan(text: "\t ᛫ Bumped version number.\n"),
+
+                      TextSpan(
+                        children: [
+                          TextSpan(text: "\n🐞"),
+                          TextSpan(
+                            text: "Known bugs:\n",
+                            style: TextStyle(decoration: TextDecoration.underline),
+                          ),
+                        ],
+                      ),
+                      TextSpan(text: "\t ᛫ Emojis are not rendered in comments (there is no Atlassian API for that)\n"),
+                      TextSpan(text: "\t ᛫ Newer request is dropped by UI if project filters are changed before request completes\n"),
+                      TextSpan(text: "\t ᛫ Comments: nested replies are not shown as nested\n"),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      // version 1.1.1
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: ScrollbarTheme(
+            data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: SelectableText.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: "What's new in 1.1.1?\n\n",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+
+                      TextSpan(
+                        children: [
+                          TextSpan(text: "✨ "),
+                          TextSpan(
+                            text: "Features:\n",
+                            style: TextStyle(decoration: TextDecoration.underline),
+                          ),
+                        ],
+                      ),
+                      TextSpan(text: "\t ᛫ 🔑 [BREAKING] API key is encrypted when stored in file system.\n"),
+                      TextSpan(text: "\t ᛫ ℹ️ Your already saved API key (in plain text) will be encrypted and removed from settings file.\n"),
+
+                      TextSpan(
+                        children: [
+                          TextSpan(text: "\n🪲 "),
+                          TextSpan(
+                            text: "Bug fixes:\n",
+                            style: TextStyle(decoration: TextDecoration.underline),
+                          ),
+                        ],
+                      ),
+                      TextSpan(text: "\t ᛫ File that keeps track of the read status was not created properly\n"),
+                      TextSpan(text: "\t ᛫ Changelog was not scrollable in \"new update\" notification dialog\n"),
+                      TextSpan(
+                        children: [
+                          TextSpan(text: "\n🧼 "),
+                          TextSpan(
+                            text: "Chores:\n",
+                            style: TextStyle(decoration: TextDecoration.underline),
+                          ),
+                        ],
+                      ),
+                      TextSpan(text: "\t ᛫ Bumped version number.\n"),
+                      TextSpan(text: "\t ᛫ Added dependencies to flutter_secure_storage and cryptography packages.\n"),
 
                       TextSpan(
                         children: [

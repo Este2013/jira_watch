@@ -129,6 +129,9 @@ class DataModel {
         .replaceFirst(RegExp(r'^\\?/?'), ''),
   );
   Future<Map<String, DateTime>> issueMarkedAsReadTime() async {
+    if (!await _issueMarkedAsReadTimeDataFile.exists()) {
+      await _issueMarkedAsReadTimeDataFile.create(recursive: true);
+    }
     _issueMarkedAsReadTimeCache ??= _issueMarkedAsReadTimeDataFile.readAsString().then(
       (strData) {
         var csv = const CsvToListConverter().convert(strData);
@@ -139,6 +142,9 @@ class DataModel {
   }
 
   Future<void> markAsRead(String issueKey, DateTime time, {bool isRead = true}) async {
+    if (!await _issueMarkedAsReadTimeDataFile.exists()) {
+      await _issueMarkedAsReadTimeDataFile.create(recursive: true);
+    }
     var data = await _issueMarkedAsReadTimeCache ?? {};
     if (isRead) {
       data[issueKey] = time;
@@ -149,6 +155,9 @@ class DataModel {
       for (var e in data.entries) [e.key, e.value.toIso8601String()],
     ]);
     _issueMarkedAsReadTimeCache = Future.value(data);
+    if (!await _issueMarkedAsReadTimeDataFile.exists()) {
+      await _issueMarkedAsReadTimeDataFile.create(recursive: true);
+    }
     await _issueMarkedAsReadTimeDataFile.writeAsString(csv);
   }
 }
