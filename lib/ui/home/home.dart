@@ -613,6 +613,77 @@ class ChangeLogsDialog extends StatelessWidget {
           ),
         ),
       ),
+      // version 1.1.2
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: ScrollbarTheme(
+            data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: SelectableText.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: "What's new in 1.1.2?\n\n",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+
+                      TextSpan(
+                        children: [
+                          TextSpan(text: "✨ "),
+                          TextSpan(
+                            text: "Features:\n",
+                            style: TextStyle(decoration: TextDecoration.underline),
+                          ),
+                        ],
+                      ),
+                      TextSpan(text: "\t ᛫ 🌐 Added link to GitHub in settings\n"),
+
+                      TextSpan(
+                        children: [
+                          TextSpan(text: "\n🪲 "),
+                          TextSpan(
+                            text: "Bug fixes:\n",
+                            style: TextStyle(decoration: TextDecoration.underline),
+                          ),
+                        ],
+                      ),
+                      // TextSpan(text: "\t ᛫ File that keeps track of the read status was not created properly\n"),
+                      // TextSpan(text: "\t ᛫ Changelog was not scrollable in \"new update\" notification dialog\n"),
+                      TextSpan(
+                        children: [
+                          TextSpan(text: "\n🧼 "),
+                          TextSpan(
+                            text: "Chores:\n",
+                            style: TextStyle(decoration: TextDecoration.underline),
+                          ),
+                        ],
+                      ),
+                      TextSpan(text: "\t ᛫ Bumped version number.\n"),
+                      TextSpan(text: "\t ᛫ Added dependencies to flutter_secure_storage and cryptography packages.\n"),
+
+                      TextSpan(
+                        children: [
+                          TextSpan(text: "\n🐞"),
+                          TextSpan(
+                            text: "Known bugs:\n",
+                            style: TextStyle(decoration: TextDecoration.underline),
+                          ),
+                        ],
+                      ),
+                      TextSpan(text: "\t ᛫ Emojis are not rendered in comments (there is no Atlassian API for that)\n"),
+                      TextSpan(text: "\t ᛫ Newer request is dropped by UI if project filters are changed before request completes\n"),
+                      TextSpan(text: "\t ᛫ Comments: nested replies are not shown as nested\n"),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     ];
     var ctrl = PageController(initialPage: versionsData.length - 1);
     return AlertDialog(

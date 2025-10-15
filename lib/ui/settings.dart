@@ -61,7 +61,10 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
     title: Text('Settings'),
     actions: [
       TextButton(
-        onPressed: () => showAboutDialog(context: context),
+        onPressed: () => showAboutDialog(
+          context: context,
+          children: [TextButton.icon(onPressed: () => launchUrl(Uri.parse('https://github.com/Este2013/jira_watch')), label: Text('GitHub'))],
+        ),
         child: Text("About"),
       ),
       TextButton(
