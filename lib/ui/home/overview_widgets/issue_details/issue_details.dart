@@ -27,6 +27,10 @@ class IssueDetailsView extends StatelessWidget {
         icon: Icon(Symbols.chat_bubble),
       ),
       Tab(
+        text: 'Details',
+        icon: Icon(Symbols.document_scanner),
+      ),
+      Tab(
         text: 'Json',
         icon: Icon(Symbols.data_object),
       ),
@@ -38,6 +42,7 @@ class IssueDetailsView extends StatelessWidget {
 
     return DefaultTabController(
       length: tabs.length,
+
       child: Scaffold(
         appBar: AppBar(
           toolbarHeight: kToolbarHeight + 10,
@@ -57,12 +62,79 @@ class IssueDetailsView extends StatelessWidget {
           children: [
             HistoryPage(ticket: ticket),
             CommentsPage(ticket: ticket),
+            TicketDetailsView(ticket: ticket),
             JsonWidget(
               json: json.decode(JsonEncoder().convert(ticket)),
               initialExpandDepth: 2,
               nodeIndent: 32,
             ),
             // TODO IssueEditFieldsWidget(issueData: ticket),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class TicketDetailsView extends StatelessWidget {
+  const TicketDetailsView({super.key, required this.ticket});
+  final IssueData ticket;
+  @override
+  Widget build(BuildContext context) {
+    if (ticket.fields == null) {
+      return Text('No fields were found');
+    }
+    return Padding(
+      padding: const EdgeInsets.all(32.0),
+      child: SingleChildScrollView(
+        child: Table(
+          border: TableBorder.all(color: Theme.of(context).dividerColor),
+          children: [
+            for (var field
+                in ticket.fields!.entries.where((e) => !(e.key as String).contains('customfield')).toList()..sort(
+                  (a, b) => (a.key as String).compareTo(b.key),
+                ))
+              TableRow(
+                children: [
+                  TableCell(
+                    verticalAlignment: TableCellVerticalAlignment.middle,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Center(
+                        child: SelectableText(field.key),
+                      ),
+                    ),
+                  ),
+                  TableCell(
+                    verticalAlignment: TableCellVerticalAlignment.middle,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Center(child: SelectableText(field.value.runtimeType.toString())),
+                    ),
+                  ),
+                  TableCell(
+                    verticalAlignment: TableCellVerticalAlignment.middle,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: ['String', 'Null', 'int'].contains(field.value.runtimeType.toString())
+                          ? Center(child: SelectableText(field.value.toString()))
+                          : TextButton.icon(
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: Text(field.key),
+                                    content: SingleChildScrollView(child: SelectableText(JsonEncoder.withIndent('    ').convert(field.value))),
+                                  ),
+                                );
+                              },
+                              label: Text('Inspect'),
+                              icon: Icon(Symbols.document_search),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
           ],
         ),
       ),

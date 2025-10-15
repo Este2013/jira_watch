@@ -7,15 +7,14 @@ A new Flutter project.
    - Def. fields
    - Also custom fields
  - Comments
-   - 🏃‍♂️View tkt comments 
-     - TODO DBG comments dialog
-     - TODO IMPROVE AdfRenderer
-       - inlineCards to Jira should get the correct color for status
-       - More unknown formattings need to be checked for [document nodes](https://developer.atlassian.com/cloud/jira/platform/apis/document/nodes/)
+   - View tkt comments 
+     - [document nodes](https://developer.atlassian.com/cloud/jira/platform/apis/document/nodes/)
      - Check how nested replies get shown
    - make sure they appear as updates
      - 🐞They are counted in the update sort, but dont actually appear in the history
 
+ - vertical view: under a width threshold, selected ticket should appear in a dialog instead of next to the list.
+ - Custom time frames in filters
 
 
 

@@ -405,6 +405,12 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
     final summary = fields['summary'] ?? 'No Title';
     final updated = fields['updated'] as String? ?? '';
     final lastUpdateData = (widget.ticket['changelog']['histories'] as List).firstOrNull;
+    bool lastEditWasAComment;
+    if (lastUpdateData == null) {
+      lastEditWasAComment = ((fields['comment']?['comments'] ?? []) as List).isNotEmpty;
+    } else {
+      lastEditWasAComment = DateTime.parse(lastUpdateData['created']).isBefore(DateTime.tryParse(((fields['comment']?['comments'] ?? []) as List).firstOrNull?['updated'] ?? '') ?? DateTime(0));
+    }
 
     return AnimatedBuilder(
       animation: SettingsModel().markAsReadOnOpen,
@@ -459,11 +465,29 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
                           ),
                         ],
                       ),
-                      Text(
-                        summary,
-                        style: Theme.of(context).textTheme.titleMedium,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        spacing: 16,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              summary,
+                              style: Theme.of(context).textTheme.titleMedium,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            (lastUpdateData == null && !lastEditWasAComment)
+                                ? 'Created this issue'
+                                : (!lastEditWasAComment)
+                                ? 'Changed ${((lastUpdateData['items'] as List).firstOrNull?['field'])}'
+                                : 'Commented',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300],
+                            ),
+                          ),
+                        ],
                       ),
                       if (widget.isSelected)
                         Padding(

@@ -488,8 +488,19 @@ class ChangeLogsDialog extends StatelessWidget {
                       ),
                       TextSpan(text: "\t ᛫ Renamed 'Overview' to 'Updates'\n"),
                       TextSpan(text: "\t ᛫ 📫 Updates can now be marked as Read or Unread\n"),
-                      TextSpan(text: "\t    ᛫ Added setting \"Mark as read upon selection\"\n"),
+                      TextSpan(text: "\t    ᛫ ⚙️ Added setting \"Mark as read upon selection\"\n"),
                       TextSpan(text: "\t ᛫ 💬 View issue comments in the comments tab (all formatting isnt handled)\n"),
+                      TextSpan(text: "\t ᛫ 🏃 View issue status in list and details\n"),
+                      TextSpan(
+                        children: [
+                          TextSpan(text: "\t ᛫ 🧪 "),
+                          TextSpan(
+                            text: "[Experiment]",
+                            style: TextStyle(color: Colors.green),
+                          ),
+                          TextSpan(text: " Ticket details view\n"),
+                        ],
+                      ),
 
                       // TextSpan(text: "\t ᛫ \n"),
                       TextSpan(
@@ -524,6 +535,7 @@ class ChangeLogsDialog extends StatelessWidget {
                       ),
                       TextSpan(text: "\t ᛫ Emojis are not rendered in comments (there is no Atlassian API for that)\n"),
                       TextSpan(text: "\t ᛫ Newer request is dropped by UI if project filters are changed before request completes\n"),
+                      TextSpan(text: "\t ᛫ Comments: nested replies are not shown as nested\n"),
                     ],
                   ),
                 ),

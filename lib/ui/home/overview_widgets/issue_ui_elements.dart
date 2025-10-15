@@ -27,10 +27,11 @@ class IssueBadge extends StatefulWidget {
 
 class _IssueBadgeState extends State<IssueBadge> {
   bool _hovering = false;
-
+  bool _hoveringCopy = false;
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         if (widget.iconUrl != null)
           SizedBox.square(
@@ -43,6 +44,7 @@ class _IssueBadgeState extends State<IssueBadge> {
           onEnter: (_) => setState(() => _hovering = true),
           onExit: (_) => setState(() => _hovering = false),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               GestureDetector(
                 onTap: () async {
@@ -58,26 +60,49 @@ class _IssueBadgeState extends State<IssueBadge> {
                   style: widget.url != null && _hovering ? const TextStyle(decoration: TextDecoration.underline) : null,
                 ),
               ),
+
               if (widget.copyable)
-                AnimatedOpacity(
-                  duration: const Duration(milliseconds: 150),
-                  opacity: _hovering ? 1 : 0,
-                  child: IconButton(
-                    icon: const Icon(Icons.copy, size: 16),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: _hovering
-                        ? () {
-                            Clipboard.setData(
-                              ClipboardData(
-                                text: widget.label,
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 100),
+                  curve: Curves.easeOutCubic,
+                  alignment: Alignment.centerLeft,
+                  clipBehavior: Clip.hardEdge,
+                  child: _hovering
+                      ? Row(
+                          key: const ValueKey('copy-area'),
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(width: 4),
+                            AnimatedOpacity(
+                              duration: const Duration(milliseconds: 150),
+                              opacity: 1,
+                              child: MouseRegion(
+                                onEnter: (_) => setState(() => _hoveringCopy = true),
+                                onExit: (_) => setState(() => _hoveringCopy = false),
+                                child: GestureDetector(
+                                  onTap: () {
+                                    Clipboard.setData(
+                                      ClipboardData(text: widget.label),
+                                    );
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Copied ${widget.label}')),
+                                    );
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                                    child: Icon(
+                                      Icons.copy,
+                                      size: 16,
+                                      color: _hoveringCopy ? Theme.of(context).hintColor : Theme.of(context).iconTheme.color,
+                                    ),
+                                  ),
+                                ),
                               ),
-                            );
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Copied ${widget.label}')),
-                            );
-                          }
-                        : null,
-                  ),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                        )
+                      : const SizedBox(width: 8, key: ValueKey('copy-area-empty')),
                 ),
             ],
           ),
@@ -175,14 +200,44 @@ class TicketStatusIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    var t = Theme.of(context).colorScheme;
+    String colorName = issue.fields?['statusCategory']['colorName'];
+
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(4),
-        color: t.surfaceContainerHigh,
+        color: color(context, colorName),
       ),
       padding: EdgeInsets.symmetric(horizontal: 4),
-      child: Text(issue.fields?['status']['name']),
+      child: Text(
+        issue.fields?['status']['name'],
+        style: TextStyle(color: onColor(context, colorName)),
+      ),
     );
+  }
+
+  Color color(BuildContext context, String colorName) {
+    var brightness = Theme.brightnessOf(context);
+    bool isLightTheme = brightness == Brightness.light;
+    switch (colorName) {
+      case 'green':
+        return isLightTheme ? Colors.lightGreen : Colors.green.shade900;
+      case 'yellow':
+        return isLightTheme ? Colors.amber : Colors.deepOrange.shade700;
+      case 'blue-gray':
+      default:
+        return isLightTheme ? Colors.blueGrey.shade200 : Colors.blueGrey.shade800;
+    }
+  }
+
+  Color? onColor(BuildContext context, String colorName) {
+    switch (colorName) {
+      case 'green':
+        return null;
+      case 'yellow':
+        return null;
+      case 'blue-gray':
+      default:
+        return Theme.of(context).colorScheme.onSurface;
+    }
   }
 }
