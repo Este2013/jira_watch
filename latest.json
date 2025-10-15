@@ -1,4 +1,8 @@
 {
+    "1.1.1": {
+        "changelog": "✨Features:\n\t ᛫ 🔑 [BREAKING] API key is encrypted when stored in file system.\n\tℹ️ Your already saved API key (in plain text) will be encrypted and removed from settings file\n\n🪲 Bug fixes:\n\t ᛫ File that keeps track of the read status was not created properly\n ᛫ Changelog was not scrollable in \"new update\" notification dialog\n\n🧼 Chores:\n\t ᛫ Bumped version number.\n\t ᛫ Added dependencies to flutter_secure_storage and cryptography packages.\n\n🐞Known bugs:\n\t ᛫ Emojis are not rendered in comments (there is no Atlassian API for that)\n\t ᛫ Newer request is dropped by UI if project filters are changed before request completes\n\t ᛫ Comments: nested replies are not shown as nested\n",
+        "x64": "v1.1.0/Binaries (x64).zip"
+    },
     "1.1.0": {
         "changelog": "✨Features:\n\t᛫ Renamed 'Overview' to 'Updates'ssssssss\n\t ᛫ 📫 Updates can now be marked as Read or Unread\n\t    ᛫ ⚙️ Added setting \"Mark as read upon selection\"\n\t ᛫ 💬 View issue comments in the comments tab (all formatting isnt handled)\n\t ᛫ 🏃 View issue status in list and details\n\t ᛫ 🧪 [Experiment] Ticket details view\n\n🪲 Bug fixes:\n\t ᛫ Chosen app theme is now kept between sessions\n\n🧼 Chores:\n\t ᛫ Bumped version number.\n\t ᛫ Updated dependencies and SDK to v3.8.\n\n🐞Known bugs:\n\t ᛫ Emojis are not rendered in comments (there is no Atlassian API for that)\n\t ᛫ Newer request is dropped by UI if project filters are changed before request completes\n\t ᛫ Comments: nested replies are not shown as nested\n",
         "x64": "v1.1.0/Binaries (x64).zip"
