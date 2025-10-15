@@ -8,6 +8,8 @@ import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../home/overview_widgets/issue_ui_elements.dart';
+
 /// A lightweight renderer for Atlassian Document Format (Jira doc) JSON.
 ///
 /// Supported nodes (initial set):
@@ -81,7 +83,7 @@ class AdfRenderer extends StatelessWidget {
     return spaced;
   }
 
-  Widget? _buildNode(BuildContext context, Map<String, dynamic>? node, int indentLevel) {
+  Widget? _buildNode(BuildContext context, Map<String, dynamic>? node, int indentLevel, {TextStyle? transferStyle}) {
     if (node == null) return null;
     final type = node['type'] as String?;
     switch (type) {
@@ -90,7 +92,7 @@ class AdfRenderer extends StatelessWidget {
       case 'text':
         // `text` nodes are handled inside paragraph RichText. If we get here
         // directly (edge cases), just render a Text.
-        return Text(_textOf(node), style: _defaultTextStyle(context));
+        return Text(_textOf(node), style: _defaultCodeStyle(context).merge(transferStyle));
       case 'mention':
         return _buildMention(context, node);
       case 'bulletList':
@@ -101,6 +103,8 @@ class AdfRenderer extends StatelessWidget {
         return _buildMediaSingle(context, node, indentLevel);
       case 'media':
         return _buildMedia(context, node);
+      case 'codeBlock':
+        return _buildCodeBlock(context, node);
       case 'inlineCard':
         return _buildInlineCard(context, node);
       default:
@@ -166,7 +170,10 @@ class AdfRenderer extends StatelessWidget {
             case 'code':
               style = _defaultCodeStyle(context).merge(
                 TextStyle(
-                  backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  fontFamily: 'RobotoMono',
+                  background: Paint()
+                    ..color = Theme.of(context).colorScheme.surfaceContainerHighest
+                    ..style = PaintingStyle.fill,
                   letterSpacing: 0.25,
                 ),
               );
@@ -367,13 +374,37 @@ class AdfRenderer extends StatelessWidget {
     );
   }
 
+  Widget? _buildCodeBlock(BuildContext context, Map<String, dynamic> node) {
+    var t = Theme.of(context).colorScheme;
+
+    return Card(
+      color: t.surfaceContainerHighest,
+      child: Padding(
+        padding: EdgeInsetsGeometry.all(16),
+        child: Column(
+          children: [
+            for (var c in node['content'] as List) _buildNode(context, c, 0, transferStyle: TextStyle(fontFamily: 'RobotoMono')),
+          ].where((element) => element != null).toList().cast(),
+        ),
+      ),
+    );
+  }
+
   Widget? _buildInlineCard(BuildContext context, Map<String, dynamic> node) {
     var url = node['attrs']['url'];
     if (url == null) return null;
 
     if ((url as String).startsWith('https://${SettingsModel().domainController.text}.atlassian.net/browse')) {
       // Jira ticket card
-      var issueKey = url.replaceAll('https://${SettingsModel().domainController.text}.atlassian.net/browse/', '');
+      var issueKey = url
+          .replaceAll(
+            'https://${SettingsModel().domainController.text}.atlassian.net/browse/',
+            '',
+          )
+          .replaceAll(
+            RegExp(r'\?.*'),
+            '',
+          );
       var response = APIModel().getIssue(issueKey);
 
       return FutureBuilder(
@@ -400,15 +431,11 @@ class AdfRenderer extends StatelessWidget {
                 label: Wrap(
                   spacing: 8,
                   children: [
-                    Text('$issueKey: ${issue.fields?['summary']}'),
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(4),
-                        color: t.surfaceContainerHigh,
-                      ),
-                      padding: EdgeInsets.symmetric(horizontal: 4),
-                      child: Text(issue.statusCategory?['name']),
+                    Text(
+                      '$issueKey: ${issue.fields?['summary']}',
+                      overflow: TextOverflow.ellipsis,
                     ),
+                    TicketStatusIndicator(issue: issue),
                   ],
                 ),
                 avatar: JiraAvatar(url: issue.fields?['issuetype']['iconUrl']),

@@ -40,6 +40,14 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
+  fonts:
+    - family: RobotoMono
+      fonts:
+        - asset: assets/fonts/Roboto_Mono/static/RobotoMono-Regular.ttf
+        - asset: assets/fonts/Roboto_Mono/static/RobotoMono-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Roboto_Mono/static/RobotoMono-Italic.ttf
+          style: italic
 # msix_config:
 #   display_name: Jira Watcher
 #   publisher_display_name: github@Este2013

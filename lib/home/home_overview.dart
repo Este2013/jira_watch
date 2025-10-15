@@ -11,7 +11,7 @@ import 'package:jira_watcher/ui/home/time_utils.dart';
 import 'package:jira_watcher/ui/settings.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../ui/home/overview_widgets/issue_badge.dart';
+import '../ui/home/overview_widgets/issue_ui_elements.dart';
 
 class UpdatesPage extends StatefulWidget {
   const UpdatesPage({super.key});

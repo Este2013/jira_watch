@@ -63,7 +63,7 @@ class _IssueBadgeState extends State<IssueBadge> {
                   duration: const Duration(milliseconds: 150),
                   opacity: _hovering ? 1 : 0,
                   child: IconButton(
-                    icon: const Icon(Icons.copy, size: 18),
+                    icon: const Icon(Icons.copy, size: 16),
                     visualDensity: VisualDensity.compact,
                     onPressed: _hovering
                         ? () {
@@ -89,7 +89,7 @@ class _IssueBadgeState extends State<IssueBadge> {
 
 /// Shows the issues project, parent and key as [IssueBadge]s.
 class IssueLinkWithParentsRow extends StatefulWidget {
-  final dynamic ticket;
+  final IssueData ticket;
   // final bool showLastUpdateTime;
 
   const IssueLinkWithParentsRow(this.ticket, {super.key});
@@ -159,7 +159,30 @@ class _IssueLinkWithParentsRowState extends State<IssueLinkWithParentsRow> {
           badgeSize: badgeSize,
           copyable: true,
         ),
+        TicketStatusIndicator(issue: ticket),
       ],
+    );
+  }
+}
+
+class TicketStatusIndicator extends StatelessWidget {
+  const TicketStatusIndicator({
+    super.key,
+    required this.issue,
+  });
+
+  final IssueData issue;
+
+  @override
+  Widget build(BuildContext context) {
+    var t = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+        color: t.surfaceContainerHigh,
+      ),
+      padding: EdgeInsets.symmetric(horizontal: 4),
+      child: Text(issue.fields?['status']['name']),
     );
   }
 }
