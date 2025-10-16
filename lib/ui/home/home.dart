@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:jira_watcher/home/home_overview.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/settings.dart';
+import 'package:jira_watcher/ui/utils/locked_page_view.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -731,9 +732,12 @@ class ChangeLogsDialog extends StatelessWidget {
               },
             ),
             Expanded(
-              child: PageView(
-                controller: ctrl,
-                children: versionsData,
+              child: ScrollConfiguration(
+                behavior: NoWheelScrollBehavior(),
+                child: LockedPageView(
+                  controller: ctrl,
+                  children: versionsData,
+                ),
               ),
             ),
           ],

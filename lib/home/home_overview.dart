@@ -324,7 +324,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
         Expanded(
           child: selectedTicket == null
               ? Placeholder()
-              : IssueDetailsView(
+              : IssueAllDetailsHomeView(
                   selectedTicket!,
                   key: Key(selectedTicket!.data['key']),
                 ),

@@ -78,10 +78,13 @@ class JiraAvatar extends StatefulWidget {
   final String url;
   final double size;
 
+  final BoxFit boxFit;
+
   const JiraAvatar({
     super.key,
     required this.url,
     this.size = 32,
+    this.boxFit = BoxFit.contain,
   });
 
   @override
@@ -138,14 +141,14 @@ class _JiraAvatarState extends State<JiraAvatar> {
             ),
           ),
         ),
-        fit: BoxFit.contain,
+        fit: widget.boxFit,
       );
     } else if (mimeType.startsWith('image/')) {
       return Image.memory(
         bytes,
         width: widget.size,
         height: widget.size,
-        fit: BoxFit.contain,
+        fit: widget.boxFit,
       );
     } else {
       throw Exception('Unsupported content type: $mimeType');

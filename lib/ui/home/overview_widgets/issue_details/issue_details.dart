@@ -9,9 +9,10 @@ import 'package:material_symbols_icons/symbols.dart';
 
 // ignore: unused_import
 import 'issue_comments_view.dart';
+import 'issue_details_view.dart';
 
-class IssueDetailsView extends StatelessWidget {
-  const IssueDetailsView(this.ticket, {super.key});
+class IssueAllDetailsHomeView extends StatelessWidget {
+  const IssueAllDetailsHomeView(this.ticket, {super.key});
 
   final IssueData ticket;
 
@@ -59,6 +60,7 @@ class IssueDetailsView extends StatelessWidget {
           bottom: TabBar(tabs: tabs),
         ),
         body: TabBarView(
+          physics: NeverScrollableScrollPhysics(),
           children: [
             HistoryPage(ticket: ticket),
             CommentsPage(ticket: ticket),
@@ -69,72 +71,6 @@ class IssueDetailsView extends StatelessWidget {
               nodeIndent: 32,
             ),
             // TODO IssueEditFieldsWidget(issueData: ticket),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class TicketDetailsView extends StatelessWidget {
-  const TicketDetailsView({super.key, required this.ticket});
-  final IssueData ticket;
-  @override
-  Widget build(BuildContext context) {
-    if (ticket.fields == null) {
-      return Text('No fields were found');
-    }
-    return Padding(
-      padding: const EdgeInsets.all(32.0),
-      child: SingleChildScrollView(
-        child: Table(
-          border: TableBorder.all(color: Theme.of(context).dividerColor),
-          children: [
-            for (var field
-                in ticket.fields!.entries.where((e) => !(e.key as String).contains('customfield')).toList()..sort(
-                  (a, b) => (a.key as String).compareTo(b.key),
-                ))
-              TableRow(
-                children: [
-                  TableCell(
-                    verticalAlignment: TableCellVerticalAlignment.middle,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Center(
-                        child: SelectableText(field.key),
-                      ),
-                    ),
-                  ),
-                  TableCell(
-                    verticalAlignment: TableCellVerticalAlignment.middle,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Center(child: SelectableText(field.value.runtimeType.toString())),
-                    ),
-                  ),
-                  TableCell(
-                    verticalAlignment: TableCellVerticalAlignment.middle,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: ['String', 'Null', 'int'].contains(field.value.runtimeType.toString())
-                          ? Center(child: SelectableText(field.value.toString()))
-                          : TextButton.icon(
-                              onPressed: () {
-                                showDialog(
-                                  context: context,
-                                  builder: (context) => AlertDialog(
-                                    title: Text(field.key),
-                                    content: SingleChildScrollView(child: SelectableText(JsonEncoder.withIndent('    ').convert(field.value))),
-                                  ),
-                                );
-                              },
-                              label: Text('Inspect'),
-                              icon: Icon(Symbols.document_search),
-                            ),
-                    ),
-                  ),
-                ],
-              ),
           ],
         ),
       ),
