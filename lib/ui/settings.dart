@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:jira_watcher/dao/updates_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/home/home.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
@@ -166,7 +166,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                           IconButton(
                             visualDensity: VisualDensity.compact,
                             onPressed: () async {
-                              var data = await fetchNewUpdateData(context, currentVersion: snapshot.data!);
+                              var data = await _fetchNewUpdateData(context, currentVersion: snapshot.data!);
                               if (!data.$1) return;
                               showDialog(
                                 // ignore: use_build_context_synchronously
@@ -281,11 +281,82 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
     ),
   );
 
-  Future<(bool, String?, Map?)> fetchNewUpdateData(BuildContext context, {required String currentVersion}) async {
-    Uri latestDataUri = Uri.parse("https://este2013.github.io/jira_watch/latest.json");
-    final resp = await http.get(latestDataUri);
+  Future<(bool, String?, Map?)> _fetchNewUpdateData(BuildContext context, {required String currentVersion}) async {
+    return fetchNewUpdateData(
+      context: context,
+      currentVersion: currentVersion,
+      onEmpty: (context) => showDialog(
+        // ignore: use_build_context_synchronously
+        context: context,
+        builder: (context) => _UpToDateDialog('Server has no latest version data (empty response)'),
+      ),
+      onNoData: (context) => showDialog(
+        // ignore: use_build_context_synchronously
+        context: context,
+        builder: (context) => _UpToDateDialog('Server has no latest version data (no entries: empty map)'),
+      ),
+      onLatest: (context, mostRecent) => showDialog(
+        // ignore: use_build_context_synchronously
+        context: context,
+        builder: (context) => _UpToDateDialog('You are running the server\'s latest version ($mostRecent)'),
+      ),
+    );
 
-    Widget upToDateDialog(String details) => AlertDialog(
+    // Uri latestDataUri = Uri.parse("https://este2013.github.io/jira_watch/latest.json");
+    // final resp = await http.get(latestDataUri);
+
+    // if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
+    //   return showDialog(
+    //     // ignore: use_build_context_synchronously
+    //     context: context,
+    //     builder: (context) => upToDateDialog('Server has no latest version data (empty response)'),
+    //   ).then((value) => (false, null, null));
+    // }
+
+    // Map<String, dynamic> data = jsonDecode(resp.body);
+    // MapEntry? mostRecent = data.entries.firstOrNull;
+    // if (mostRecent == null) {
+    //   return showDialog(
+    //     // ignore: use_build_context_synchronously
+    //     context: context,
+    //     builder: (context) => upToDateDialog('Server has no latest version data (no entries: empty map)'),
+    //   ).then((value) => (false, null, null));
+    // }
+
+    // bool isVersioStrictlyAbove(String version, {required String baseline}) {
+    //   var versionL = version.split('.').map(int.parse);
+    //   var baselineL = baseline.split('.').map(int.parse).toList();
+    //   for (var v in versionL.indexed) {
+    //     if (baselineL.length == v.$1) baselineL.add(0);
+    //     if (v.$2 > baselineL[v.$1]) {
+    //       return true;
+    //     }
+    //     if (v.$2 < baselineL[v.$1]) {
+    //       return false;
+    //     }
+    //   }
+    //   return false;
+    // }
+
+    // if (!isVersioStrictlyAbove(mostRecent.key, baseline: currentVersion)) {
+    //   return showDialog(
+    //     // ignore: use_build_context_synchronously
+    //     context: context,
+    //     builder: (context) => upToDateDialog('You are running the server\'s latest version (${mostRecent.key})'),
+    //   ).then((value) => (false, null, null));
+    // }
+
+    // return (true, mostRecent.key as String, mostRecent.value as Map);
+  }
+}
+
+class _UpToDateDialog extends StatelessWidget {
+  const _UpToDateDialog(this.details);
+  final String details;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
       title: Row(
         spacing: 8,
         children: [
@@ -301,106 +372,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
         ),
       ],
     );
-
-    if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
-      return showDialog(
-        // ignore: use_build_context_synchronously
-        context: context,
-        builder: (context) => upToDateDialog('Server has no latest version data (empty response)'),
-      ).then((value) => (false, null, null));
-    }
-
-    Map<String, dynamic> data = jsonDecode(resp.body);
-    MapEntry? mostRecent = data.entries.firstOrNull;
-    if (mostRecent == null) {
-      return showDialog(
-        // ignore: use_build_context_synchronously
-        context: context,
-        builder: (context) => upToDateDialog('Server has no latest version data (no entries: empty map)'),
-      ).then((value) => (false, null, null));
-    }
-
-    bool isVersioStrictlyAbove(String version, {required String baseline}) {
-      var versionL = version.split('.').map(int.parse);
-      var baselineL = baseline.split('.').map(int.parse).toList();
-      for (var v in versionL.indexed) {
-        if (baselineL.length == v.$1) baselineL.add(0);
-        if (v.$2 > baselineL[v.$1]) {
-          return true;
-        }
-        if (v.$2 < baselineL[v.$1]) {
-          return false;
-        }
-      }
-      return false;
-    }
-
-    if (!isVersioStrictlyAbove(mostRecent.key, baseline: currentVersion)) {
-      return showDialog(
-        // ignore: use_build_context_synchronously
-        context: context,
-        builder: (context) => upToDateDialog('You are running the server\'s latest version (${mostRecent.key})'),
-      ).then((value) => (false, null, null));
-    }
-
-    return (true, mostRecent.key as String, mostRecent.value as Map);
   }
-
-  // Future<void> downloadAndOpenAppinstallerMSIX(BuildContext ctx) async {
-  //   try {
-  //     Uri appInstallerUri = Uri.parse("https://este2013.github.io/jira_watch/jira_watcher.appinstaller");
-
-  //     // 1) Download to a temp file
-  //     final tempDir = await SettingsModel().tempDir;
-  //     final file = File(join(tempDir.path, 'jira_watcher-${DateTime.now().millisecondsSinceEpoch}.appinstaller'));
-
-  //     final resp = await http.get(appInstallerUri);
-  //     if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
-  //       throw Exception('Failed to download .appinstaller (HTTP ${resp.statusCode}).');
-  //     }
-
-  //     // String? expectedSha256; // e.g., 'c1a2...'
-  //     // // 2) (Optional) Verify checksum
-  //     // if (expectedSha256 != null) {
-  //     //   final actual = crypto.sha256.convert(resp.bodyBytes).toString();
-  //     //   if (actual.toLowerCase() != expectedSha256!.toLowerCase()) {
-  //     //     throw Exception('Checksum mismatch for .appinstaller.');
-  //     //   }
-  //     // }
-
-  //     // 3) Write file
-  //     if (!await file.parent.exists()) {
-  //       await file.parent.create(recursive: true);
-  //     }
-  //     await file.writeAsBytes(resp.bodyBytes, flush: true);
-
-  //     // 4) Open with system handler (App Installer)
-  //     final ok = await launchUrl(Uri.file(file.path), mode: LaunchMode.externalApplication);
-
-  //     if (!ok) {
-  //       // Fallback: try PowerShell Start-Process (some environments need this)
-  //       await Process.run('powershell', [
-  //         '-NoProfile',
-  //         '-Command',
-  //         'Start-Process',
-  //         file.path,
-  //       ]);
-  //     }
-
-  //     // 5) Schedule cleanup (don’t delete immediately in case App Installer still reading)
-  //     Future.delayed(const Duration(minutes: 5), () {
-  //       if (file.existsSync()) {
-  //         // ignore: body_might_complete_normally_catch_error
-  //         file.delete().catchError((_) {});
-  //       }
-  //     });
-  //   } catch (e) {
-  //     // ignore: use_build_context_synchronously
-  //     ScaffoldMessenger.of(ctx).showSnackBar(
-  //       SnackBar(content: Text('Update check failed: $e')),
-  //     );
-  //   }
-  // }
 }
 
 class ConnectionSettingsPage extends StatefulWidget {
@@ -651,119 +623,135 @@ class AdvancedSettingsPage extends StatefulWidget {
 
 class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
   @override
-  Widget build(BuildContext context) => Center(
-    child: ListView(
-      shrinkWrap: true,
-      children: [
-        Row(
-          spacing: 8,
-          children: [
-            Text('Data', style: Theme.of(context).textTheme.titleMedium),
-            Expanded(child: Divider()),
-          ],
-        ),
-        Column(
-          spacing: 8,
-          children: [
-            Row(
-              spacing: 8,
-              children: [
-                Text('Icon cache'),
-                Spacer(),
-                IconButton(onPressed: () => jiraAvatarCacheManager.emptyCache(), icon: Icon(Icons.delete)),
-              ],
-            ),
-            Row(
-              spacing: 8,
-              children: [
-                Text('Settings files'),
-                Spacer(),
-                TextButton(onPressed: () => launchUrl(SettingsModel().settingsFolderUri), child: Text("View in folder")),
-              ],
-            ),
-          ],
-        ),
-        Padding(
-          padding: const EdgeInsets.only(top: 32.0),
-          child: Row(
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 16.0),
+    child: Center(
+      child: ListView(
+        shrinkWrap: true,
+        children: [
+          Row(
             spacing: 8,
             children: [
-              Text('Logging', style: Theme.of(context).textTheme.titleMedium),
+              Text('Data', style: Theme.of(context).textTheme.titleMedium),
               Expanded(child: Divider()),
             ],
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          child: Column(
+          Column(
             spacing: 8,
             children: [
               Row(
                 spacing: 8,
                 children: [
-                  Text('Log path'),
-                  Expanded(
-                    child: SelectableText(
-                      FileLogPrinter.logFile.path,
-                      textAlign: TextAlign.end,
-                    ),
-                  ),
-                ],
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                spacing: 8,
-                children: [
-                  TextButton.icon(
-                    icon: Icon(Icons.menu_book),
-                    onPressed: () => showDialog(context: context, builder: (context) => _LogsDialog()),
-                    label: Text("Read the logs"),
-                  ),
-                  TextButton(onPressed: () => launchUrl(SettingsModel().settingsFolderUri), child: Text("Open in folder")),
-                ],
-              ),
-            ],
-          ),
-        ),
-
-        Padding(
-          padding: const EdgeInsets.only(top: 32.0),
-          child: Row(
-            spacing: 8,
-            children: [
-              Text('Diagnostics', style: Theme.of(context).textTheme.titleMedium),
-              Expanded(child: Divider()),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          child: Column(
-            spacing: 8,
-            children: [
-              Row(
-                spacing: 8,
-                children: [
-                  Text('Test writing to settings folder'),
+                  Text('Icon cache'),
                   Spacer(),
-                  TextButton(
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => DiagnosticsDialog(
-                          testName: 'Writing to settings folder',
-                          stdout: testWritingToSettingsFolder(),
-                        ),
-                      );
-                    },
-                    child: Text('Run test'),
-                  ),
+                  IconButton(onPressed: () => jiraAvatarCacheManager.emptyCache(), icon: Icon(Icons.delete)),
+                ],
+              ),
+              Row(
+                spacing: 8,
+                children: [
+                  Text('Settings files'),
+                  Spacer(),
+                  TextButton(onPressed: () => launchUrl(SettingsModel().settingsFolderUri), child: Text("View in folder")),
                 ],
               ),
             ],
           ),
-        ),
-      ].expand<Widget>((w) => [w, SizedBox(height: 8)]).toList()..removeLast(),
+          Padding(
+            padding: const EdgeInsets.only(top: 32.0),
+            child: Row(
+              spacing: 8,
+              children: [
+                Text('Logging', style: Theme.of(context).textTheme.titleMedium),
+                Expanded(child: Divider()),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: Column(
+              spacing: 8,
+              children: [
+                SelectableText(
+                  FileLogPrinter.logFile.path,
+                  textAlign: TextAlign.end,
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  spacing: 8,
+                  children: [
+                    TextButton.icon(
+                      icon: Icon(Icons.menu_book),
+                      onPressed: () => showDialog(context: context, builder: (context) => _LogsDialog()),
+                      label: Text("Read the logs"),
+                    ),
+                    TextButton.icon(icon: Icon(Icons.folder), onPressed: () => launchUrl(SettingsModel().settingsFolderUri), label: Text("Open in folder")),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.only(top: 32.0),
+            child: Row(
+              spacing: 8,
+              children: [
+                Text('Diagnostics', style: Theme.of(context).textTheme.titleMedium),
+                Expanded(child: Divider()),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: Column(
+              spacing: 8,
+              children: [
+                Row(
+                  spacing: 8,
+                  children: [
+                    Text('Test writing to settings folder'),
+                    Spacer(),
+                    TextButton.icon(
+                      icon: Icon(Icons.settings),
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => DiagnosticsDialog(
+                            testName: 'Writing to settings folder',
+                            stdout: testWritingToSettingsFolder(),
+                          ),
+                        );
+                      },
+                      label: Text('Run test'),
+                    ),
+                  ],
+                ),
+                Row(
+                  spacing: 8,
+                  children: [
+                    Text('Test fetching new update data'),
+                    Spacer(),
+                    TextButton.icon(
+                      icon: Icon(Icons.update),
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => DiagnosticsDialog(
+                            testName: 'Writing to settings folder',
+                            stdout: testFetchingNewUpdateData(context),
+                          ),
+                        );
+                      },
+                      label: Text('Run test'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ].expand<Widget>((w) => [w, SizedBox(height: 8)]).toList()..removeLast(),
+      ),
     ),
   );
 
@@ -793,6 +781,21 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
     await test.delete();
 
     yield 'File was correctly deleted:\n${!await test.exists()}';
+  }
+
+  Stream<String> testFetchingNewUpdateData(BuildContext context) async* {
+    Future<String> currentVersion = SettingsModel().appInfo.version;
+
+    yield '💡 This test fakes the current version as being 0.0.0.';
+    yield 'Fetching release data from:\n$latestDataUri';
+    var data = await fetchNewUpdateData(context: context, currentVersion: '0.0.0');
+    yield 'Found the following:\nIs a new version available? => ${data.$1}\nWhat is that version\'s number? => ${data.$2}\nChangelog:\n${JsonEncoder.withIndent('    ').convert(data.$3)}';
+
+    yield '';
+
+    yield '💡 Now testing with the actual correct version: ${await currentVersion}';
+    data = await fetchNewUpdateData(context: context, currentVersion: await currentVersion);
+    yield 'Found the following:\nIs a new version available? => ${data.$1}\nWhat is that version\'s number? => ${data.$2}\nChangelog:\n${JsonEncoder.withIndent('    ').convert(data.$3)}';
   }
 }
 
