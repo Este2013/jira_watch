@@ -2,13 +2,14 @@ import 'package:csv/csv.dart';
 import 'package:http/http.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/settings_model.dart';
+import 'package:loggy/loggy.dart';
 import 'package:path/path.dart' as path;
 import 'dart:io';
 
 /// Accessor to cached data.
 ///
 /// Handles fetching from local memory or API.
-class DataModel {
+class DataModel with UiLoggy {
   static final DataModel _instance = DataModel._internal();
 
   factory DataModel() => _instance;
@@ -123,11 +124,12 @@ class DataModel {
   final File _issueMarkedAsReadTimeDataFile = File(
     path
         .join(
-          SettingsModel().settingsFolderUri.path,
+          SettingsModel().settingsFolder.path,
           'issue_read_status.csv',
         )
         .replaceFirst(RegExp(r'^\\?/?'), ''),
   );
+
   Future<Map<String, DateTime>> issueMarkedAsReadTime() async {
     if (!await _issueMarkedAsReadTimeDataFile.exists()) {
       await _issueMarkedAsReadTimeDataFile.create(recursive: true);
@@ -142,8 +144,14 @@ class DataModel {
   }
 
   Future<void> markAsRead(String issueKey, DateTime time, {bool isRead = true}) async {
+    loggy.debug('Marking $issueKey as ${isRead ? '' : 'un'}read');
     if (!await _issueMarkedAsReadTimeDataFile.exists()) {
-      await _issueMarkedAsReadTimeDataFile.create(recursive: true);
+      loggy.warning('_issueMarkedAsReadTimeDataFile does not exist. creating it at: ${_issueMarkedAsReadTimeDataFile.path}');
+      try {
+        await _issueMarkedAsReadTimeDataFile.create(recursive: true);
+      } on Exception catch (e) {
+        loggy.error('_issueMarkedAsReadTimeDataFile could not be created!\n${e.toString()}');
+      }
     }
     var data = await _issueMarkedAsReadTimeCache ?? {};
     if (isRead) {
@@ -155,10 +163,11 @@ class DataModel {
       for (var e in data.entries) [e.key, e.value.toIso8601String()],
     ]);
     _issueMarkedAsReadTimeCache = Future.value(data);
-    if (!await _issueMarkedAsReadTimeDataFile.exists()) {
-      await _issueMarkedAsReadTimeDataFile.create(recursive: true);
+    try {
+      await _issueMarkedAsReadTimeDataFile.writeAsString(csv);
+    } on Exception catch (e) {
+      loggy.error('_issueMarkedAsReadTimeDataFile could not be written to!\n${e.toString()}');
     }
-    await _issueMarkedAsReadTimeDataFile.writeAsString(csv);
   }
 }
 

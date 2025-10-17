@@ -1,5 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
-// import 'dart:io';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -7,11 +8,15 @@ import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/home/home.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
 import 'package:jira_watcher/models/settings_model.dart';
+import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
+import 'package:path/path.dart';
 // import 'package:path/path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
+
+import '../utils/🪵.dart';
 
 enum SettingsDialogPage { general, connection, projects, advanced }
 
@@ -118,124 +123,133 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
             Expanded(child: Divider()),
           ],
         ),
-        Row(
-          spacing: 8,
-          children: [
-            Text('Application version'),
-            Spacer(),
-            FutureBuilder(
-              future: SettingsModel().appInfo.version,
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return SizedBox.square(
-                    dimension: 16,
-                    child: CircularProgressIndicator(),
-                  );
-                }
-                return Row(
-                  children: [
-                    Text(snapshot.data!),
-                    SizedBox(width: 8),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () => Clipboard.setData(ClipboardData(text: snapshot.data!)),
-                      tooltip: "Copy version",
-                      icon: Icon(Icons.copy),
-                      iconSize: 16,
-                    ),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () => showDialog(
-                        context: context,
-                        builder: (context) => ChangeLogsDialog(),
-                      ),
-                      tooltip: "See what's new",
-                      icon: Icon(Icons.new_releases),
-                      iconSize: 16,
-                    ),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () async {
-                        var data = await fetchNewUpdateData(context, currentVersion: snapshot.data!);
-                        if (!data.$1) return;
-                        showDialog(
-                          // ignore: use_build_context_synchronously
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: Text('A new update is available!'),
-                            content: SizedBox(
-                              width: 400,
-                              height: 400,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                spacing: 16,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(child: Text('Version ${data.$2!}', style: Theme.of(context).textTheme.titleMedium)),
-                                      Text('(Current: ${snapshot.data})'),
-                                    ],
-                                  ),
-                                  if (data.$3?['changelog'] == null)
-                                    Expanded(child: Center(child: Text(data.$3?['changelog'] ?? 'No changelog :(')))
-                                  else
-                                    Card(
-                                      child: Padding(
-                                        padding: EdgeInsetsGeometry.all(16),
-                                        child: SingleChildScrollView(child: Text(data.$3?['changelog'] ?? 'No changelog :(')),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                            actions: [
-                              Row(
-                                spacing: 8,
-                                children: [
-                                  TextButton(onPressed: Navigator.of(context).pop, child: Text('Not now')),
-                                  Spacer(),
-                                  TextButton(
-                                    onPressed: () => launchUrl(Uri.parse('https://github.com/Este2013/jira_watch/releases')),
-                                    child: Text('Github'),
-                                  ),
-                                  FilledButton(onPressed: () => launchUrl(Uri.parse('https://este2013.github.io/jira_watch/${data.$3?['x64']}')), child: Text('Download')),
-                                ],
-                              ),
-                            ],
-                          ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Column(
+            spacing: 8,
+            children: [
+              Row(
+                spacing: 8,
+                children: [
+                  Text('Application version'),
+                  Spacer(),
+                  FutureBuilder(
+                    future: SettingsModel().appInfo.version,
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(),
                         );
-                      },
-                      tooltip: "Check for updates",
-                      icon: Icon(Icons.update),
-                      iconSize: 16,
-                    ),
-                  ],
-                );
-              },
-            ),
-          ],
+                      }
+                      return Row(
+                        children: [
+                          Text(snapshot.data!),
+                          SizedBox(width: 8),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => Clipboard.setData(ClipboardData(text: snapshot.data!)),
+                            tooltip: "Copy version",
+                            icon: Icon(Icons.copy),
+                            iconSize: 16,
+                          ),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => showDialog(
+                              context: context,
+                              builder: (context) => ChangeLogsDialog(),
+                            ),
+                            tooltip: "See what's new",
+                            icon: Icon(Icons.new_releases),
+                            iconSize: 16,
+                          ),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () async {
+                              var data = await fetchNewUpdateData(context, currentVersion: snapshot.data!);
+                              if (!data.$1) return;
+                              showDialog(
+                                // ignore: use_build_context_synchronously
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: Text('A new update is available!'),
+                                  content: SizedBox(
+                                    width: 400,
+                                    height: 400,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      spacing: 16,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(child: Text('Version ${data.$2!}', style: Theme.of(context).textTheme.titleMedium)),
+                                            Text('(Current: ${snapshot.data})'),
+                                          ],
+                                        ),
+                                        if (data.$3?['changelog'] == null)
+                                          Expanded(child: Center(child: Text(data.$3?['changelog'] ?? 'No changelog :(')))
+                                        else
+                                          Card(
+                                            child: Padding(
+                                              padding: EdgeInsetsGeometry.all(16),
+                                              child: SingleChildScrollView(child: Text(data.$3?['changelog'] ?? 'No changelog :(')),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  actions: [
+                                    Row(
+                                      spacing: 8,
+                                      children: [
+                                        TextButton(onPressed: Navigator.of(context).pop, child: Text('Not now')),
+                                        Spacer(),
+                                        TextButton(
+                                          onPressed: () => launchUrl(Uri.parse('https://github.com/Este2013/jira_watch/releases')),
+                                          child: Text('Github'),
+                                        ),
+                                        FilledButton(onPressed: () => launchUrl(Uri.parse('https://este2013.github.io/jira_watch/${data.$3?['x64']}')), child: Text('Download')),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                            tooltip: "Check for updates",
+                            icon: Icon(Icons.update),
+                            iconSize: 16,
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+              Row(
+                spacing: 8,
+                children: [
+                  Text('Theme'),
+                  Spacer(),
+                  DropdownMenu(
+                    dropdownMenuEntries: [
+                      DropdownMenuEntry(value: 'system', label: 'Same as system', leadingIcon: Icon(Icons.computer)),
+                      DropdownMenuEntry(value: 'light', label: 'Light theme', leadingIcon: Icon(Icons.light_mode)),
+                      DropdownMenuEntry(value: 'dark', label: 'Dark theme', leadingIcon: Icon(Icons.dark_mode)),
+                    ],
+                    onSelected: (value) => SettingsModel().theme.value = value!,
+                    initialSelection: SettingsModel().theme.value,
+                    // VVV disable writing VVV
+                    enableSearch: false,
+                    enableFilter: false,
+                    requestFocusOnTap: false,
+                    focusNode: FocusNode()..canRequestFocus = false,
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        Row(
-          spacing: 8,
-          children: [
-            Text('Theme'),
-            Spacer(),
-            DropdownMenu(
-              dropdownMenuEntries: [
-                DropdownMenuEntry(value: 'system', label: 'Same as system', leadingIcon: Icon(Icons.computer)),
-                DropdownMenuEntry(value: 'light', label: 'Light theme', leadingIcon: Icon(Icons.light_mode)),
-                DropdownMenuEntry(value: 'dark', label: 'Dark theme', leadingIcon: Icon(Icons.dark_mode)),
-              ],
-              onSelected: (value) => SettingsModel().theme.value = value!,
-              initialSelection: SettingsModel().theme.value,
-              // VVV disable writing VVV
-              enableSearch: false,
-              enableFilter: false,
-              requestFocusOnTap: false,
-              focusNode: FocusNode()..canRequestFocus = false,
-            ),
-          ],
-        ),
+
         // Updates view
         Padding(
           padding: const EdgeInsets.only(top: 32.0),
@@ -247,18 +261,21 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
             ],
           ),
         ),
-        Row(
-          spacing: 8,
-          children: [
-            Text('Mark as read upon selection'),
-            Spacer(),
-            Switch(
-              value: SettingsModel().markAsReadOnOpen.value,
-              onChanged: (value) => setState(() {
-                SettingsModel().markAsReadOnOpen.value = value;
-              }),
-            ),
-          ],
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Row(
+            spacing: 8,
+            children: [
+              Text('Mark as read upon selection'),
+              Spacer(),
+              Switch(
+                value: SettingsModel().markAsReadOnOpen.value,
+                onChanged: (value) => setState(() {
+                  SettingsModel().markAsReadOnOpen.value = value;
+                }),
+              ),
+            ],
+          ),
         ),
       ].expand<Widget>((w) => [w, SizedBox(height: 8)]).toList()..removeLast(),
     ),
@@ -634,26 +651,329 @@ class AdvancedSettingsPage extends StatefulWidget {
 
 class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
   @override
-  Widget build(BuildContext context) => Column(
-    spacing: 8,
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      Row(
-        spacing: 8,
-        children: [
-          Text('Icon cache'),
-          Spacer(),
-          IconButton(onPressed: () => jiraAvatarCacheManager.emptyCache(), icon: Icon(Icons.delete)),
-        ],
+  Widget build(BuildContext context) => Center(
+    child: ListView(
+      shrinkWrap: true,
+      children: [
+        Row(
+          spacing: 8,
+          children: [
+            Text('Data', style: Theme.of(context).textTheme.titleMedium),
+            Expanded(child: Divider()),
+          ],
+        ),
+        Column(
+          spacing: 8,
+          children: [
+            Row(
+              spacing: 8,
+              children: [
+                Text('Icon cache'),
+                Spacer(),
+                IconButton(onPressed: () => jiraAvatarCacheManager.emptyCache(), icon: Icon(Icons.delete)),
+              ],
+            ),
+            Row(
+              spacing: 8,
+              children: [
+                Text('Settings files'),
+                Spacer(),
+                TextButton(onPressed: () => launchUrl(SettingsModel().settingsFolderUri), child: Text("View in folder")),
+              ],
+            ),
+          ],
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 32.0),
+          child: Row(
+            spacing: 8,
+            children: [
+              Text('Logging', style: Theme.of(context).textTheme.titleMedium),
+              Expanded(child: Divider()),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Column(
+            spacing: 8,
+            children: [
+              Row(
+                spacing: 8,
+                children: [
+                  Text('Log path'),
+                  Expanded(
+                    child: SelectableText(
+                      FileLogPrinter.logFile.path,
+                      textAlign: TextAlign.end,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                spacing: 8,
+                children: [
+                  TextButton.icon(
+                    icon: Icon(Icons.menu_book),
+                    onPressed: () => showDialog(context: context, builder: (context) => _LogsDialog()),
+                    label: Text("Read the logs"),
+                  ),
+                  TextButton(onPressed: () => launchUrl(SettingsModel().settingsFolderUri), child: Text("Open in folder")),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.only(top: 32.0),
+          child: Row(
+            spacing: 8,
+            children: [
+              Text('Diagnostics', style: Theme.of(context).textTheme.titleMedium),
+              Expanded(child: Divider()),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Column(
+            spacing: 8,
+            children: [
+              Row(
+                spacing: 8,
+                children: [
+                  Text('Test writing to settings folder'),
+                  Spacer(),
+                  TextButton(
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => DiagnosticsDialog(
+                          testName: 'Writing to settings folder',
+                          stdout: testWritingToSettingsFolder(),
+                        ),
+                      );
+                    },
+                    child: Text('Run test'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ].expand<Widget>((w) => [w, SizedBox(height: 8)]).toList()..removeLast(),
+    ),
+  );
+
+  Stream<String> testWritingToSettingsFolder() async* {
+    File test = File(join(SettingsModel().settingsFolder.path, 'diag_test_file.txt'));
+    yield 'Test file is located at:\n${test.path}';
+    var exists = await test.exists();
+    yield 'The file ${exists ? '' : 'does not '}exist';
+    if (!exists) {
+      yield 'Creating file...';
+      await test.create();
+      yield 'File created';
+    }
+    yield 'Writing to file...';
+    await test.writeAsString('How are you doing today?');
+    var sink = test.openWrite(mode: FileMode.append);
+    sink.writeln('\nQuite fine thank you :)');
+    await sink.flush();
+    await sink.close();
+    yield 'File written to.';
+    yield 'Reading file...';
+    String contents = await test.readAsString();
+    yield 'Read the following contents:\n$contents';
+    yield 'Contents are as expected?\n${contents == 'How are you doing today?\nQuite fine thank you :)\n'}';
+
+    yield 'Cleaning up...';
+    await test.delete();
+
+    yield 'File was correctly deleted:\n${!await test.exists()}';
+  }
+}
+
+class DiagnosticsDialog extends StatefulWidget {
+  const DiagnosticsDialog({super.key, required this.testName, required this.stdout});
+  final String testName;
+
+  final Stream<String> stdout;
+  @override
+  State<DiagnosticsDialog> createState() => _DiagnosticsDialogState();
+}
+
+class _DiagnosticsDialogState extends State<DiagnosticsDialog> {
+  late Stream stream;
+  List<String> stdout = [];
+
+  @override
+  void initState() {
+    stream = widget.stdout.asBroadcastStream();
+
+    super.initState();
+    stream
+        .forEach(
+          (element) => setState(() {
+            stdout.add(element.replaceAll('\n', '\n    | '));
+          }),
+        )
+        .onError(
+          (error, stackTrace) => stdout.add('[ERROR] $error\n$stackTrace'.replaceAll('\n', '\n    | ')),
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    constraints: BoxConstraints.expand(),
+    title: Row(
+      spacing: 16,
+      children: [
+        Text(widget.testName),
+        StreamBuilder(
+          stream: stream,
+          builder: (_, snap) {
+            if (snap.hasError) {
+              return IconButton(
+                onPressed: () => Clipboard.setData(ClipboardData(text: snap.error.toString())),
+                icon: Icon(Icons.error),
+                tooltip: snap.error.toString(),
+              );
+            }
+            return snap.connectionState == ConnectionState.active ? CircularProgressIndicator() : SizedBox.shrink();
+          },
+        ),
+      ],
+    ),
+    actions: [TextButton(onPressed: Navigator.of(context).pop, child: Text('Exit'))],
+    content: Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                child: SelectableText(stdout.join('\n')),
+              ),
+            ),
+          ],
+        ),
       ),
-      Row(
-        spacing: 8,
-        children: [
-          Text('Settings files'),
-          Spacer(),
-          TextButton(onPressed: () => launchUrl(SettingsModel().settingsFolderUri), child: Text("View in folder")),
-        ],
+    ),
+  );
+}
+
+class _LogsDialog extends StatefulWidget {
+  const _LogsDialog();
+
+  @override
+  State<_LogsDialog> createState() => _LogsDialogState();
+}
+
+class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
+  late Timer pollTimer;
+  String? contents;
+
+  @override
+  void initState() {
+    super.initState();
+    pollTimer = Timer.periodic(
+      Duration(seconds: 1),
+      (timer) async {
+        var temp = await FileLogPrinter.logFile.readAsString();
+
+        if (contents != temp) {
+          setState(() {
+            contents = temp;
+          });
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    pollTimer.cancel();
+    super.dispose();
+  }
+
+  String emoteForLevel(String level) {
+    if (level == 'Debug') return '🐛';
+    if (level == 'Info') return 'ℹ️';
+    if (level == 'Warning') return '⚠️';
+    if (level == 'Error') return '❌';
+    return '❔';
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text('Logs reader'),
+    constraints: BoxConstraints(minWidth: double.maxFinite),
+    actions: [
+      TextButton(
+        onPressed: () => loggy.debug('Writing a debug message...'),
+        child: Text(emoteForLevel('Debug')),
+      ),
+      TextButton(
+        onPressed: () => loggy.info('Writing an info message...'),
+        child: Text(emoteForLevel('Info')),
+      ),
+      TextButton(
+        onPressed: () => loggy.warning('Writing a warning message...'),
+        child: Text(emoteForLevel('Warning')),
+      ),
+      TextButton(
+        onPressed: () => loggy.error('Writing an error message...'),
+        child: Text(emoteForLevel('Error')),
+      ),
+      TextButton(
+        onPressed: Navigator.of(context).pop,
+        child: Text('Close'),
       ),
     ],
+    content: DefaultTextStyle(
+      style: TextStyle(fontFamily: 'RobotoMono'),
+      child: FutureBuilder(
+        key: ValueKey(hash),
+        future: FileLogPrinter.logFile.readAsLines(),
+        builder: (context, asyncSnapshot) {
+          if (asyncSnapshot.hasData) {
+            return SingleChildScrollView(
+              child: SelectableText.rich(
+                TextSpan(
+                  children: [
+                    for (var line in asyncSnapshot.data!) ...[
+                      if (line.startsWith(RegExp(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T'))) ...[
+                        TextSpan(text: emoteForLevel(line.split(' ')[1])),
+                        TextSpan(text: ' '),
+                        TextSpan(
+                          text: line.split(' ')[0].split('T')[1],
+                          style: TextStyle(color: Colors.greenAccent),
+                        ),
+                        TextSpan(text: ' '),
+
+                        TextSpan(
+                          text: line.split(RegExp(r'[\[\]]'))[1],
+                          style: TextStyle(color: Theme.of(context).hintColor),
+                        ),
+                        TextSpan(text: ' '),
+
+                        TextSpan(text: line.split(RegExp(r']')).sublist(1).join(']')),
+                      ] else
+                        TextSpan(text: line),
+                      TextSpan(text: '\n'),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          }
+          return Center(child: CircularProgressIndicator());
+        },
+      ),
+    ),
   );
 }

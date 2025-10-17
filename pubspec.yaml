@@ -1,7 +1,7 @@
 name: jira_watcher
 description: "A Jira client, built to easily overview recent updates."
 publish_to: "none"
-version: 1.1.2
+version: 1.1.4
 
 environment:
   sdk: ^3.9.0-100.2.beta
@@ -21,6 +21,7 @@ dependencies:
   flutter_web_auth_2: ^4.1.0
   html: ^0.15.6
   http: ^1.4.0
+  loggy: ^2.0.3
   material_symbols_icons: ^4.2815.1
   media_kit: ^1.2.1
   media_kit_libs_windows_video: ^1.0.11

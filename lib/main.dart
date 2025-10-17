@@ -1,40 +1,58 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart';
 import 'package:jira_watcher/ui/home/home.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
+import 'package:jira_watcher/utils/%F0%9F%AA%B5.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:loggy/loggy.dart';
 
 void main() {
+  Loggy.initLoggy(
+    logPrinter: FileLogPrinter(),
+  );
+  logInfo('Starting Jira Watcher app');
+  Future.wait([
+    SettingsModel().appInfo.version,
+    SettingsModel().appInfo.buildNumber,
+  ]).then(
+    (value) => logInfo('App version: ${value[0]} (${value[1]})${kDebugMode ? ", in debug mode" : ""}'),
+  );
   runApp(MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatelessWidget with UiLoggy {
   const MyApp({super.key});
-
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: SettingsModel().theme,
-    builder: (context, _) {
-      return MaterialApp(
-        title: 'Jira Watcher',
-        theme: ThemeData(primarySwatch: Colors.blue),
-        darkTheme: ThemeData(primarySwatch: Colors.blue, brightness: Brightness.dark),
-        themeMode: ThemeMode.values.firstWhere((element) => element.name == SettingsModel().theme.value, orElse: () => ThemeMode.system),
-        // home: SplashScreen(),
-        routes: {
-          '/settingsError': (context) => ErrorWidget('An error occured while loading the app settings'),
-          '/apikey': (context) => ApiKeyInputScreen(code: ModalRoute.of(context)!.settings.arguments as int?),
-          '/home': (context) => HomeScreen(),
-          '/': (context) => SplashScreen(),
-        },
-      );
-    },
-  );
+  Widget build(BuildContext context) {
+    loggy.info('Building main MaterialApp');
+    return AnimatedBuilder(
+      animation: SettingsModel().theme,
+      builder: (context, _) {
+        loggy.debug('Rebuilding MaterialApp with theme changed to: ${SettingsModel().theme.value}');
+        return MaterialApp(
+          title: 'Jira Watcher',
+          theme: ThemeData(primarySwatch: Colors.blue),
+          darkTheme: ThemeData(primarySwatch: Colors.blue, brightness: Brightness.dark),
+          themeMode: ThemeMode.values.firstWhere(
+            (element) => element.name == SettingsModel().theme.value,
+            orElse: () => ThemeMode.system,
+          ),
+          routes: {
+            '/settingsError': (context) => ErrorWidget('An error occured while loading the app settings'),
+            '/apikey': (context) => ApiKeyInputScreen(code: ModalRoute.of(context)!.settings.arguments as int?),
+            '/home': (context) => HomeScreen(),
+            '/': (context) => SplashScreen(),
+          },
+        );
+      },
+    );
+  }
 }
 
 class SplashScreen extends StatefulWidget {
@@ -44,7 +62,7 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends State<SplashScreen> with UiLoggy {
   @override
   void initState() {
     super.initState();
@@ -53,21 +71,27 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _checkCredentials() async {
     if (!await SettingsModel().isReady) {
+      loggy.info('checking credentials...');
       // ignore: use_build_context_synchronously
       Navigator.pushReplacementNamed(context, '/settingsError');
     }
     await APIDao().load();
     if (!APIDao().isReady) {
+      loggy.warning('API DAO not ready, navigating to /apikey');
       // ignore: use_build_context_synchronously
       Navigator.pushReplacementNamed(context, '/apikey');
     } else {
       // test credentials validity
+      loggy.debug('Testing credentials via /rest/api/3/myself');
       var response = await APIDao().request('/rest/api/3/myself');
+      loggy.debug('Response status: ${response.statusCode}');
       if (response.statusCode == 401) {
+        loggy.error('Invalid credentials (401), navigating to /apikey');
         // ignore: use_build_context_synchronously
         Navigator.pushReplacementNamed(context, '/apikey', arguments: 401);
         return;
       }
+      loggy.info('Credentials are valid, navigating to /home');
       // ignore: use_build_context_synchronously
       Navigator.pushReplacementNamed(context, '/home');
     }

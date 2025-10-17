@@ -11,6 +11,7 @@ import 'package:package_info_plus/package_info_plus.dart' as pkg;
 class SettingsModel {
   static final SettingsModel _instance = SettingsModel._internal();
   Uri get settingsFolderUri => Uri.directory(join(Platform.environment['APPDATA']!, "com.este", "jira_watcher"));
+  Directory get settingsFolder => Directory(join(Platform.environment['APPDATA']!, "com.este", "jira_watcher"));
 
   factory SettingsModel() => _instance;
 

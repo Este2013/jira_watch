@@ -2,11 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:jira_watcher/utils/encryption_service.dart';
+import 'package:loggy/loggy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-class APIDao {
+class APIDao with UiLoggy {
   static final APIDao _instance = APIDao._internal();
 
   factory APIDao() => _instance;
@@ -20,11 +21,13 @@ class APIDao {
   String get authHeader => 'Basic ${base64Encode(utf8.encode('$email:$apiKey'))}';
 
   Future<void> load() async {
+    loggy.info('Loading APIDao...');
     final prefs = await SharedPreferences.getInstance();
     email = prefs.getString('jira_email');
     var encApiAKey = prefs.getString('encrypted_jira_api_key');
     if (encApiAKey != null) apiKey = await EncryptionService.decrypt(encApiAKey);
     domain = prefs.getString('jira_domain');
+    loggy.info('APIDao Loaded successfully.');
   }
 
   Future<void> updateCredentials({String? email, String? apiKey, String? domain}) async {
