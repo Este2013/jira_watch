@@ -28,6 +28,9 @@ class SettingsModel {
         markAsReadOnOpen.value = prefs.getBool('mark_as_read_on_open') ?? true;
         markAsReadOnOpen.addListener(() => prefs.setBool('mark_as_read_on_open', markAsReadOnOpen.value));
 
+        useCompactTicketDisplay.value = prefs.getString('use_compact_ticket_display') ?? 'When issue was read';
+        useCompactTicketDisplay.addListener(() => prefs.setString('use_compact_ticket_display', useCompactTicketDisplay.value));
+
         // CONNECTION
         emailController.text = prefs.getString('jira_email') ?? '';
 
@@ -88,6 +91,8 @@ class SettingsModel {
 
   // GENERAL - Updates view settings
   final ValueNotifier<bool> markAsReadOnOpen = ValueNotifier(true);
+
+  final ValueNotifier<String> useCompactTicketDisplay = ValueNotifier('When issue was read');
 
   // CONNECTION
 

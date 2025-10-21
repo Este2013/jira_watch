@@ -48,7 +48,13 @@ class SingleTicketView extends StatelessWidget {
             children: [
               DefaultTextStyle(
                 style: Theme.of(context).textTheme.bodyMedium ?? TextStyle(),
-                child: IssueLinkWithParentsRow(ticket),
+                child: Row(
+                  children: [
+                    IssueLinkWithParentsRow(ticket),
+
+                    TicketStatusIndicator(issue: ticket),
+                  ],
+                ),
               ),
               Text(ticket['fields']['summary'] ?? 'null'),
             ],

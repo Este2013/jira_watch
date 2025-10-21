@@ -4,14 +4,14 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
-import 'package:jira_watcher/ui/home/overview_widgets/updates_view_single_ticket/updates_view.dart';
+import 'package:jira_watcher/ui/home/overview_widgets/updates_view_single_ticket/single_ticket_view.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/home/time_utils.dart';
 import 'package:jira_watcher/ui/settings.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../ui/home/overview_widgets/issue_ui_elements.dart';
+import 'issue_ui_elements.dart';
 
 class UpdatesPage extends StatefulWidget {
   const UpdatesPage({super.key});
@@ -413,15 +413,64 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
     }
 
     return AnimatedBuilder(
-      animation: SettingsModel().markAsReadOnOpen,
+      animation: Listenable.merge([SettingsModel().markAsReadOnOpen, SettingsModel().useCompactTicketDisplay]),
 
       builder: (context, _) {
         bool shouldMarkAsReadOnOpen = SettingsModel().markAsReadOnOpen.value;
+        String useCompactMode = SettingsModel().useCompactTicketDisplay.value;
         return FutureBuilder<DateTime?>(
           future: DataModel().issueMarkedAsReadTime().then((value) => value[widget.ticket.key]),
           builder: (context, lastReadSnapshot) {
             DateTime? lastReadTime = lastReadSnapshot.data, updatedTime = DateTime.parse(updated);
             bool isRead = lastReadTime != null ? lastReadTime.isAfter(updatedTime) || lastReadTime.isAtSameMomentAs(updatedTime) : false;
+            var optionsWhenSelected = Padding(
+              padding: const EdgeInsets.only(top: 8.0, bottom: 2),
+              child: ClipRRect(
+                borderRadius: BorderRadiusGeometry.circular(4),
+                child: BottomNavigationBar(
+                  key: ValueKey(isRead),
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  items: [
+                    BottomNavigationBarItem(icon: Icon(Icons.mark_as_unread), label: isRead ? 'Mark as unread' : 'Mark as read'),
+                    BottomNavigationBarItem(icon: Icon(Icons.open_in_browser), label: 'View on website'),
+                  ],
+                  onTap: (value) {
+                    if (value == 0) {
+                      // Mark as unread
+                      if (widget.ticket.key == null) return;
+                      setState(() {
+                        DataModel().markAsRead(widget.ticket.key!, DateTime.parse(updated), isRead: !isRead);
+                      });
+                    } else if (value == 1) {
+                      // View on website
+                      String? getTicketUrl(dynamic ticketKey) {
+                        final domain = APIDao().domain;
+                        if (domain != null && ticketKey != null) {
+                          return 'https://$domain/browse/$ticketKey';
+                        }
+                        return null;
+                      }
+
+                      var ticketUrl = getTicketUrl(widget.ticket.key);
+                      if (ticketUrl != null) {
+                        launchUrl(Uri.parse(ticketUrl));
+                      } else {
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text('Something went wrong'),
+                            content: Text('The given ticketUrl is null?\nFor ticket key: ${widget.ticket.key}, domain ${APIDao().domain}'),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+              ),
+            );
+            var showAsCompact = (useCompactMode == 'Always' || (useCompactMode == 'When issue was read' && isRead));
+
             return Card(
               clipBehavior: Clip.hardEdge,
               color: colors['bg']?.withAlpha(Theme.brightnessOf(context) == Brightness.light ? 255 : 50),
@@ -432,121 +481,104 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
                       borderRadius: BorderRadius.circular(8),
                     ),
               margin: EdgeInsets.all(4),
-              child: InkWell(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          IssueLinkWithParentsRow(widget.ticket),
-                          const Spacer(),
+              child: AnimatedSize(
+                duration: Durations.medium1,
+                child: InkWell(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            IssueLinkWithParentsRow(widget.ticket, compact: showAsCompact),
+                            if (!showAsCompact)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                child: TicketStatusIndicator(issue: widget.ticket),
+                              ),
+                            if (showAsCompact)
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(left: 8.0),
+                                  child: Text(
+                                    summary,
+                                    style: Theme.of(context).textTheme.titleMedium,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                            else
+                              Spacer(),
 
-                          TimeAgoDisplay(timeStr: updated),
-                          Text(
-                            ', by ',
-                            style: TextStyle(fontSize: 12, color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300]),
-                          ),
-                          SizedBox.square(
-                            dimension: 24,
-                            child: ClipRRect(
-                              borderRadius: BorderRadiusGeometry.circular(10000),
-                              child: lastUpdateData == null
-                                  ? Tooltip(
-                                      message: fields['creator']['displayName'],
-                                      child: JiraAvatar(key: Key(widget.ticket['id']), url: fields['creator']['avatarUrls']['32x32']),
-                                    )
-                                  : Tooltip(
-                                      message: lastUpdateData['author']['displayName'],
-                                      child: JiraAvatar(key: Key(lastUpdateData['id']), url: lastUpdateData['author']['avatarUrls']['32x32']),
+                            if (!showAsCompact) TimeAgoDisplay(timeStr: updated),
+                            if (!showAsCompact)
+                              Text(
+                                ', by ',
+                                style: TextStyle(fontSize: 12, color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300]),
+                              ),
+                            SizedBox.square(
+                              dimension: 24,
+                              child: Builder(
+                                builder: (context) {
+                                  var updatorData = lastUpdateData == null ? fields['creator'] : lastUpdateData['author'];
+                                  return ClipRRect(
+                                    borderRadius: BorderRadiusGeometry.circular(10000),
+                                    child: Tooltip(
+                                      message: showAsCompact
+                                          ? '${updatorData['displayName']}\n${(lastUpdateData == null && !lastEditWasAComment)
+                                                ? 'Created this issue'
+                                                : (!lastEditWasAComment)
+                                                ? 'Changed ${((lastUpdateData['items'] as List).firstOrNull?['field'])}'
+                                                : 'Commented'}'
+                                          : updatorData['displayName'],
+                                      child: JiraAvatar(key: Key(widget.ticket['id']), url: updatorData['avatarUrls']['32x32']),
                                     ),
+                                  );
+                                },
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        spacing: 16,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              summary,
-                              style: Theme.of(context).textTheme.titleMedium,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Text(
-                            (lastUpdateData == null && !lastEditWasAComment)
-                                ? 'Created this issue'
-                                : (!lastEditWasAComment)
-                                ? 'Changed ${((lastUpdateData['items'] as List).firstOrNull?['field'])}'
-                                : 'Commented',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300],
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (widget.isSelected)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8.0, bottom: 2),
-                          child: ClipRRect(
-                            borderRadius: BorderRadiusGeometry.circular(4),
-                            child: BottomNavigationBar(
-                              key: ValueKey(isRead),
-                              backgroundColor: Colors.transparent,
-                              elevation: 0,
-                              items: [
-                                BottomNavigationBarItem(icon: Icon(Icons.mark_as_unread), label: isRead ? 'Mark as unread' : 'Mark as read'),
-                                BottomNavigationBarItem(icon: Icon(Icons.open_in_browser), label: 'View on website'),
-                              ],
-                              onTap: (value) {
-                                if (value == 0) {
-                                  // Mark as unread
-                                  if (widget.ticket.key == null) return;
-                                  setState(() {
-                                    DataModel().markAsRead(widget.ticket.key!, DateTime.parse(updated), isRead: !isRead);
-                                  });
-                                } else if (value == 1) {
-                                  // View on website
-                                  String? getTicketUrl(dynamic ticketKey) {
-                                    final domain = APIDao().domain;
-                                    if (domain != null && ticketKey != null) {
-                                      return 'https://$domain/browse/$ticketKey';
-                                    }
-                                    return null;
-                                  }
-
-                                  var ticketUrl = getTicketUrl(widget.ticket.key);
-                                  if (ticketUrl != null) {
-                                    launchUrl(Uri.parse(ticketUrl));
-                                  } else {
-                                    showDialog(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        title: Text('Something went wrong'),
-                                        content: Text('The given ticketUrl is null?\nFor ticket key: ${widget.ticket.key}, domain ${APIDao().domain}'),
-                                      ),
-                                    );
-                                  }
-                                }
-                              },
-                            ),
-                          ),
+                          ],
                         ),
-                    ],
+                        if (!showAsCompact)
+                          Row(
+                            spacing: 16,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  summary,
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Text(
+                                (lastUpdateData == null && !lastEditWasAComment)
+                                    ? 'Created this issue'
+                                    : (!lastEditWasAComment)
+                                    ? 'Changed ${((lastUpdateData['items'] as List).firstOrNull?['field'])}'
+                                    : 'Commented',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300],
+                                ),
+                              ),
+                            ],
+                          ),
+                        if (widget.isSelected) optionsWhenSelected,
+                      ],
+                    ),
                   ),
+                  onTap: () {
+                    if (shouldMarkAsReadOnOpen && widget.ticket.key != null) {
+                      setState(() {
+                        DataModel().markAsRead(widget.ticket.key!, updatedTime);
+                      });
+                    }
+                    widget.updateView?.call(widget.ticket);
+                  },
                 ),
-                onTap: () {
-                  if (shouldMarkAsReadOnOpen && widget.ticket.key != null) {
-                    setState(() {
-                      DataModel().markAsRead(widget.ticket.key!, updatedTime);
-                    });
-                  }
-                  widget.updateView?.call(widget.ticket);
-                },
               ),
             );
           },

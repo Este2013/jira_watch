@@ -277,6 +277,32 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
             ],
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Row(
+            spacing: 8,
+            children: [
+              Text('Use compact display'),
+              Spacer(),
+              DropdownMenu<String>(
+                enableSearch: false,
+                enableFilter: false,
+                textInputAction: TextInputAction.none,
+                requestFocusOnTap: false,
+                initialSelection: SettingsModel().useCompactTicketDisplay.value,
+                dropdownMenuEntries: [
+                  DropdownMenuEntry(value: 'When issue was read', label: 'When issue was read'),
+                  DropdownMenuEntry(value: 'Never', label: 'Never'),
+                  DropdownMenuEntry(value: 'Always', label: 'Always'),
+                ],
+                onSelected: (value) => setState(() {
+                  if (value == null) return;
+                  SettingsModel().useCompactTicketDisplay.value = value;
+                }),
+              ),
+            ],
+          ),
+        ),
       ].expand<Widget>((w) => [w, SizedBox(height: 8)]).toList()..removeLast(),
     ),
   );
@@ -625,132 +651,137 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 16.0),
-    child: Center(
-      child: ListView(
-        shrinkWrap: true,
-        children: [
-          Row(
-            spacing: 8,
-            children: [
-              Text('Data', style: Theme.of(context).textTheme.titleMedium),
-              Expanded(child: Divider()),
-            ],
-          ),
-          Column(
-            spacing: 8,
+    child: ScrollbarTheme(
+      data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.only(right: 16.0),
+          child: Column(
             children: [
               Row(
                 spacing: 8,
                 children: [
-                  Text('Icon cache'),
-                  Spacer(),
-                  IconButton(onPressed: () => jiraAvatarCacheManager.emptyCache(), icon: Icon(Icons.delete)),
+                  Text('Data', style: Theme.of(context).textTheme.titleMedium),
+                  Expanded(child: Divider()),
                 ],
               ),
-              Row(
+              Column(
                 spacing: 8,
                 children: [
-                  Text('Settings files'),
-                  Spacer(),
-                  TextButton(onPressed: () => launchUrl(SettingsModel().settingsFolderUri), child: Text("View in folder")),
+                  Row(
+                    spacing: 8,
+                    children: [
+                      Text('Icon cache'),
+                      Spacer(),
+                      IconButton(onPressed: () => jiraAvatarCacheManager.emptyCache(), icon: Icon(Icons.delete)),
+                    ],
+                  ),
+                  Row(
+                    spacing: 8,
+                    children: [
+                      Text('Settings files'),
+                      Spacer(),
+                      TextButton(onPressed: () => launchUrl(SettingsModel().settingsFolderUri), child: Text("View in folder")),
+                    ],
+                  ),
                 ],
               ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 32.0),
-            child: Row(
-              spacing: 8,
-              children: [
-                Text('Logging', style: Theme.of(context).textTheme.titleMedium),
-                Expanded(child: Divider()),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: Column(
-              spacing: 8,
-              children: [
-                SelectableText(
-                  FileLogPrinter.logFile.path,
-                  textAlign: TextAlign.end,
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              Padding(
+                padding: const EdgeInsets.only(top: 32.0),
+                child: Row(
                   spacing: 8,
                   children: [
-                    TextButton.icon(
-                      icon: Icon(Icons.menu_book),
-                      onPressed: () => showDialog(context: context, builder: (context) => _LogsDialog()),
-                      label: Text("Read the logs"),
-                    ),
-                    TextButton.icon(icon: Icon(Icons.folder), onPressed: () => launchUrl(SettingsModel().settingsFolderUri), label: Text("Open in folder")),
+                    Text('Logging', style: Theme.of(context).textTheme.titleMedium),
+                    Expanded(child: Divider()),
                   ],
                 ),
-              ],
-            ),
-          ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Column(
+                  spacing: 8,
+                  children: [
+                    SelectableText(
+                      FileLogPrinter.logFile.path,
+                      textAlign: TextAlign.end,
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      spacing: 8,
+                      children: [
+                        TextButton.icon(
+                          icon: Icon(Icons.menu_book),
+                          onPressed: () => showDialog(context: context, builder: (context) => _LogsDialog()),
+                          label: Text("Read the logs"),
+                        ),
+                        TextButton.icon(icon: Icon(Icons.folder), onPressed: () => launchUrl(SettingsModel().settingsFolderUri), label: Text("Open in folder")),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
 
-          Padding(
-            padding: const EdgeInsets.only(top: 32.0),
-            child: Row(
-              spacing: 8,
-              children: [
-                Text('Diagnostics', style: Theme.of(context).textTheme.titleMedium),
-                Expanded(child: Divider()),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: Column(
-              spacing: 8,
-              children: [
-                Row(
+              Padding(
+                padding: const EdgeInsets.only(top: 32.0),
+                child: Row(
                   spacing: 8,
                   children: [
-                    Text('Test writing to settings folder'),
-                    Spacer(),
-                    TextButton.icon(
-                      icon: Icon(Icons.settings),
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => DiagnosticsDialog(
-                            testName: 'Writing to settings folder',
-                            stdout: testWritingToSettingsFolder(),
-                          ),
-                        );
-                      },
-                      label: Text('Run test'),
+                    Text('Diagnostics', style: Theme.of(context).textTheme.titleMedium),
+                    Expanded(child: Divider()),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Column(
+                  spacing: 8,
+                  children: [
+                    Row(
+                      spacing: 8,
+                      children: [
+                        Text('Test writing to settings folder'),
+                        Spacer(),
+                        TextButton.icon(
+                          icon: Icon(Icons.settings),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => DiagnosticsDialog(
+                                testName: 'Writing to settings folder',
+                                stdout: testWritingToSettingsFolder(),
+                              ),
+                            );
+                          },
+                          label: Text('Run test'),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      spacing: 8,
+                      children: [
+                        Text('Test fetching new update data'),
+                        Spacer(),
+                        TextButton.icon(
+                          icon: Icon(Icons.update),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => DiagnosticsDialog(
+                                testName: 'Writing to settings folder',
+                                stdout: testFetchingNewUpdateData(context),
+                              ),
+                            );
+                          },
+                          label: Text('Run test'),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                Row(
-                  spacing: 8,
-                  children: [
-                    Text('Test fetching new update data'),
-                    Spacer(),
-                    TextButton.icon(
-                      icon: Icon(Icons.update),
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => DiagnosticsDialog(
-                            testName: 'Writing to settings folder',
-                            stdout: testFetchingNewUpdateData(context),
-                          ),
-                        );
-                      },
-                      label: Text('Run test'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+              ),
+            ].expand<Widget>((w) => [w, SizedBox(height: 8)]).toList()..removeLast(),
           ),
-        ].expand<Widget>((w) => [w, SizedBox(height: 8)]).toList()..removeLast(),
+        ),
       ),
     ),
   );
@@ -794,6 +825,7 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
     yield '';
 
     yield '💡 Now testing with the actual correct version: ${await currentVersion}';
+    // ignore: use_build_context_synchronously
     data = await fetchNewUpdateData(context: context, currentVersion: await currentVersion);
     yield 'Found the following:\nIs a new version available? => ${data.$1}\nWhat is that version\'s number? => ${data.$2}\nChangelog:\n${JsonEncoder.withIndent('    ').convert(data.$3)}';
   }

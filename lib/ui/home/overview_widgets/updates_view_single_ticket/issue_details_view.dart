@@ -1,15 +1,20 @@
 import 'dart:convert';
 import 'package:charset/charset.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
 import 'package:jira_watcher/ui/utils/jira_doc_renderer.dart';
+import 'package:jira_watcher/ui/utils/labelled_text_presenter.dart';
 import 'package:jira_watcher/ui/utils/network_video_player.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../issue_ui_elements.dart';
 
 class TicketDetailsView extends StatelessWidget {
   const TicketDetailsView({super.key, required this.ticket});
@@ -23,10 +28,38 @@ class TicketDetailsView extends StatelessWidget {
       padding: const EdgeInsets.all(32.0),
       child: ListView(
         children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Row(
+              spacing: 8,
+              children: [
+                Expanded(
+                  child: PersonField('Assigned to', field: 'assignee', ticket: ticket),
+                ),
+                Expanded(
+                  child: PersonField('Reported by', field: 'reporter', ticket: ticket),
+                ),
+                Expanded(child: PriorityField(ticket: ticket)),
+              ],
+            ),
+          ),
+          if (ticket.fields?['labels'] != null)
+            Wrap(
+              runSpacing: 8,
+              spacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  'Labels:',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                for (var t in ticket.fields?['labels']) Chip(label: Text(t)),
+              ],
+            ),
           if (ticket.fields!['description'] != null) DescriptionLikeField('Description', contentData: ticket.fields!['description']),
           if (ticket.fields!['environment'] != null) DescriptionLikeField('Environment', contentData: ticket.fields!['environment']),
           if (ticket.fields!['attachment'] != null && (ticket.fields!['attachment'] as List).isNotEmpty) AttachmentsField(attachmentsData: ticket.fields!['attachment']),
-
+          if (ticket.fields?['issuelinks'] != null) IssueLinksField(issueLinksData: (ticket.fields!['issuelinks']! as List).cast()),
           Table(
             border: TableBorder.all(color: Theme.of(context).dividerColor),
             children: [
@@ -83,6 +116,74 @@ class TicketDetailsView extends StatelessWidget {
   }
 }
 
+class PersonField extends StatelessWidget {
+  const PersonField(
+    this.name, {
+    super.key,
+    required this.field,
+    required this.ticket,
+  });
+
+  final IssueData ticket;
+  final String name, field;
+
+  @override
+  Widget build(BuildContext context) {
+    return Builder(
+      builder: (context) {
+        var hasPerson = ticket.fields?[field] != null;
+        return LabeledPopupTextField(
+          controller: TextEditingController(text: hasPerson ? (ticket.fields?[field]['displayName']) : 'Unnassigned'),
+          label: name,
+          readOnly: true,
+          showPopupOnFocus: true,
+          prefixIcon: Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 4, left: 8),
+            child: hasPerson ? ClipOval(child: JiraAvatar(url: ticket.fields?[field]['avatarUrls']['16x16'])) : Icon(Icons.account_circle_outlined),
+          ),
+          popupBuilder: (context, dismiss, controller) => Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text('dataaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class PriorityField extends StatelessWidget {
+  const PriorityField({
+    super.key,
+    required this.ticket,
+  });
+
+  final IssueData ticket;
+
+  @override
+  Widget build(BuildContext context) {
+    String field = 'priority';
+    return Builder(
+      builder: (context) {
+        var hasField = ticket.fields?[field] != null;
+        return LabeledPopupTextField(
+          controller: TextEditingController(text: hasField ? (ticket.fields?[field]['name']) : 'None'),
+          label: 'Priority',
+          readOnly: true,
+          showPopupOnFocus: true,
+          prefixIcon: Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 8, left: 8),
+            child: hasField ? ClipOval(child: JiraAvatar(url: ticket.fields?[field]['iconUrl'])) : Icon(Icons.block),
+          ),
+          popupBuilder: (context, dismiss, controller) => Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text('dataaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class ExpandablePanel extends StatefulWidget {
   const ExpandablePanel(this.name, {super.key, required this.content});
 
@@ -98,47 +199,49 @@ class _ExpandablePanelState extends State<ExpandablePanel> {
 
   @override
   Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            key: Key('${widget.name}-header'),
-            children: [
-              IconButton(
-                onPressed: () => setState(() => isExpanded = !isExpanded),
-                icon: AnimatedRotation(
-                  // 0 turns  = down   (expanded)
-                  // -0.25    = right  (collapsed)
-                  turns: isExpanded ? 0.0 : -0.25,
-                  duration: Durations.medium1,
-                  curve: Curves.easeInOut,
-                  child: const Icon(Icons.expand_more),
+    clipBehavior: Clip.hardEdge,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: () => setState(() => isExpanded = !isExpanded),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              key: Key('${widget.name}-header'),
+              children: [
+                IconButton(
+                  onPressed: () => setState(() => isExpanded = !isExpanded),
+                  icon: AnimatedRotation(
+                    // 0 turns  = down   (expanded)
+                    // -0.25    = right  (collapsed)
+                    turns: isExpanded ? 0.0 : -0.25,
+                    duration: Durations.medium1,
+                    curve: Curves.easeInOut,
+                    child: const Icon(Icons.expand_more),
+                  ),
+                  visualDensity: VisualDensity.compact,
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                widget.name,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ],
+                const SizedBox(width: 8),
+                Text(
+                  widget.name,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
+            ),
           ),
-          AnimatedSize(
-            duration: Durations.medium1,
-            curve: Curves.easeInOut,
-            child: isExpanded
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Divider(),
-                      widget.content,
-                    ],
-                  )
-                : const SizedBox.shrink(),
-          ),
-        ],
-      ),
+        ),
+        AnimatedSize(
+          duration: Durations.medium1,
+          curve: Curves.easeInOut,
+          child: isExpanded
+              ? Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: widget.content,
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
     ),
   );
 }
@@ -456,4 +559,125 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
       return utf8.decode(res.bodyBytes);
     }
   }
+}
+
+class IssueLinksField extends StatelessWidget {
+  const IssueLinksField({super.key, required this.issueLinksData});
+  final List<Map> issueLinksData;
+
+  @override
+  Widget build(BuildContext context) {
+    // type name => type data and list of links
+    Map<String, (Map, List)> typesSplitData = {};
+
+    for (var section in issueLinksData) {
+      String sectionName = section['type']['name'];
+      if (!typesSplitData.containsKey(sectionName)) {
+        typesSplitData[sectionName] = (section['type'], []);
+      }
+      typesSplitData[sectionName]!.$2.add((section.containsKey('inwardIssue') ? 'in' : 'out', section['inwardIssue'] ?? section['outwardIssue']));
+    }
+
+    return ExpandablePanel(
+      'Related issues',
+      content: Column(
+        spacing: 16,
+        children: [
+          for (var section in typesSplitData.entries) IssueLinkSection(section.value.$1, section.value.$2),
+        ],
+      ),
+    );
+  }
+}
+
+class IssueLinkSection extends StatelessWidget {
+  const IssueLinkSection(this.typeData, this.issueLinksData, {super.key});
+
+  final Map typeData;
+  final List issueLinksData;
+
+  @override
+  Widget build(BuildContext context) {
+    bool containsInward = issueLinksData.any((element) => element.$1 == 'in');
+    bool containsOutward = issueLinksData.any((element) => element.$1 == 'out');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (containsInward) ...[
+          Text(typeData['inward'], style: Theme.of(context).textTheme.titleSmall),
+          SizedBox(height: 4),
+          for (var i in issueLinksData.where((element) => element.$1 == 'in')) IssueLinkTile(i.$2),
+        ],
+        if (containsInward && containsOutward) SizedBox(height: 16),
+        if (containsOutward) ...[
+          Text(typeData['outward'], style: Theme.of(context).textTheme.titleSmall),
+          SizedBox(height: 4),
+          for (var i in issueLinksData.where((element) => element.$1 == 'out')) IssueLinkTile(i.$2),
+        ],
+      ],
+    );
+  }
+}
+
+class IssueLinkTile extends StatelessWidget {
+  const IssueLinkTile(this.issueLinkData, {super.key});
+  final Map issueLinkData;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    titleAlignment: ListTileTitleAlignment.titleHeight,
+    leading: SizedBox.square(dimension: 20, child: JiraAvatar(url: issueLinkData['fields']['issuetype']['iconUrl'])),
+    title: Row(
+      spacing: 16,
+      children: [
+        Expanded(
+          child: Text.rich(
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: issueLinkData['key'],
+                  style: TextStyle(
+                    decoration: issueLinkData['fields']['status']['statusCategory']['key'] == 'done' ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+                WidgetSpan(child: SizedBox(width: 8)),
+                TextSpan(
+                  text: issueLinkData['fields']['summary'],
+                ),
+              ],
+            ),
+            style: Theme.of(context).textTheme.bodyLarge!.copyWith(
+              color: Theme.of(context).hintColor,
+            ),
+          ),
+        ),
+        CustomTicketStatusIndicator(
+          issueLinkData['fields']['status']['name'],
+          colorName: issueLinkData['fields']['status']['statusCategory']['colorName'],
+        ),
+        SizedBox.square(
+          dimension: 20,
+          child: Tooltip(
+            message: issueLinkData['fields']['priority']['name'],
+            child: JiraAvatar(url: issueLinkData['fields']['priority']['iconUrl']),
+          ),
+        ),
+        if (kDebugMode)
+          IconButton(
+            onPressed: () => showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                content: SingleChildScrollView(child: SelectableText(JsonEncoder.withIndent('    ').convert(issueLinkData))),
+              ),
+            ),
+            icon: Icon(Icons.code),
+            color: Colors.amber,
+          ),
+      ],
+    ),
+    onTap: () => launchUrl(Uri.parse('https://${SettingsModel().domainController.text}.atlassian.net/browse/${issueLinkData['key']}')),
+  );
 }

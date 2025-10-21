@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:jira_watcher/home/home_overview.dart';
+import 'package:jira_watcher/ui/home/overview_widgets/home_overview.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/settings.dart';
 import 'package:jira_watcher/ui/utils/locked_page_view.dart';
@@ -41,10 +41,6 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
       case 1:
         loggy.info('User selected Issues tab (#$index)');
         setState(() => _currentPage = 'Issues');
-        break;
-      case 2:
-        loggy.info('User opens the settings dialog (#$index)');
-        showDialog(context: context, builder: (context) => SettingsDialog());
         break;
     }
   }
@@ -133,30 +129,14 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Row(
-        children: [
-          Expanded(child: Text('Home - $_currentPage')),
-          Expanded(
-            child: Center(
-              child: Text(
-                currentPageSubtitle(_currentPage),
-                style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
-              ),
-            ),
-          ),
-          Spacer(),
-        ],
-      ),
-
-      actions: [],
-    ),
     body: Row(
       children: [
         NavigationRail(
+          groupAlignment: 0,
           selectedIndex: _selectedIndex,
           onDestinationSelected: _onRailSelect,
           labelType: NavigationRailLabelType.all,
+          trailingAtBottom: true,
           destinations: [
             NavigationRailDestination(
               icon: Icon(Icons.dashboard),
@@ -166,15 +146,45 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
               icon: Icon(Icons.bug_report),
               label: Text('Issues'),
             ),
-            NavigationRailDestination(
-              icon: Icon(Icons.settings),
-              label: Text('Settings'),
-            ),
+            // NavigationRailDestination(
+            //   icon: Icon(Icons.settings),
+            //   label: Text('Settings'),
+            // ),
           ],
+          trailing: Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: IconButton(
+              onPressed: () {
+                loggy.info('User opens the settings dialog from navigation rail');
+                showDialog(context: context, builder: (context) => SettingsDialog());
+              },
+              icon: Icon(Icons.settings),
+            ),
+          ),
         ),
         VerticalDivider(width: 1),
         Expanded(
-          child: _buildPageContent(),
+          child: Scaffold(
+            appBar: AppBar(
+              title: Row(
+                children: [
+                  Expanded(child: Text(_currentPage)),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        currentPageSubtitle(_currentPage),
+                        style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+                      ),
+                    ),
+                  ),
+                  Spacer(),
+                ],
+              ),
+
+              actions: [],
+            ),
+            body: _buildPageContent(),
+          ),
         ),
       ],
     ),
@@ -658,7 +668,10 @@ class ChangeLogsDialog extends StatelessWidget {
                           ),
                         ],
                       ),
+                      TextSpan(text: "\t ᛫ ⚙️ Settings: Added Compact mode for Updates view\n"),
+                      TextSpan(text: "\t ᛫ 📖 Ticket details view is now available with default fields! (custom fields tbd)\n"),
                       TextSpan(text: "\t ᛫ 🌐 Added link to GitHub in settings\n"),
+                      TextSpan(text: "\t ᛫ 😣 Added logs and diagnostics options to help troubleshooting\n"),
 
                       TextSpan(
                         children: [
