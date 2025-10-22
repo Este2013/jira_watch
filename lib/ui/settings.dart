@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:jira_watcher/dao/updates_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/home/home.dart';
@@ -65,16 +66,42 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
   Widget build(BuildContext context) => AlertDialog(
     title: Text('Settings'),
     actions: [
-      TextButton(
-        onPressed: () => showAboutDialog(
-          context: context,
-          children: [TextButton.icon(onPressed: () => launchUrl(Uri.parse('https://github.com/Este2013/jira_watch')), label: Text('GitHub'))],
-        ),
-        child: Text("About"),
-      ),
-      TextButton(
-        onPressed: Navigator.of(context).pop,
-        child: Text("Close"),
+      Row(
+        children: [
+          TextButton.icon(
+            onPressed: () => launchUrl(Uri.parse('https://github.com/Este2013/jira_watch')),
+            icon: SvgPicture.asset(
+              'assets/icons/github-icon.svg',
+              height: 20,
+              colorFilter: ColorFilter.mode(Theme.of(context).colorScheme.primary, BlendMode.srcIn),
+            ),
+            label: Text('GitHub'),
+          ),
+          Spacer(),
+          TextButton.icon(
+            onPressed: () async {
+              showAboutDialog(
+                // ignore: use_build_context_synchronously
+                context: context,
+                applicationVersion: await SettingsModel().appInfo.version,
+                applicationIcon: Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: SvgPicture.asset(
+                    'assets/app_icon.svg',
+                    height: 48,
+                  ),
+                ),
+                applicationLegalese: """A Jira client, built to easily overview recent ticket updates, and keep tabs on your tasks.\nBuilt and maintained by Esteban Aragon (GitHub @Este2013). \nAdress your dissatisfactions and/or love letters to him. Preferably the latter.""",
+              );
+            },
+            // icon: Icon(),
+            label: Text("About"),
+          ),
+          TextButton(
+            onPressed: Navigator.of(context).pop,
+            child: Text("Close"),
+          ),
+        ],
       ),
     ],
     content: SizedBox(

@@ -48,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
   Widget _buildPageContent() {
     switch (_currentPage) {
       case 'Issues':
-        return Center(child: Text('Issues Page', style: TextStyle(fontSize: 24)));
+        return UnderConstructionNotice();
       default:
         return UpdatesPage();
     }
@@ -200,6 +200,33 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
     }
     return a;
   }
+}
+
+class UnderConstructionNotice extends StatelessWidget {
+  const UnderConstructionNotice({
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Row(
+      spacing: 8,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text('🚧', style: TextStyle(fontSize: 100)),
+        Column(
+          spacing: 8,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(height: 8),
+            Text('Under construction', style: TextStyle(fontSize: 32)),
+            Text('Send me a heart or a coffee to accelerate development.'),
+          ],
+        ),
+      ],
+    ),
+  );
 }
 
 class NewUpdateAvailableAlertDialog extends StatelessWidget {
@@ -642,7 +669,7 @@ class ChangeLogsDialog extends StatelessWidget {
           ),
         ),
       ),
-      // version 1.1.2
+      // version 1.2.0
       Card(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -655,7 +682,7 @@ class ChangeLogsDialog extends StatelessWidget {
                   TextSpan(
                     children: [
                       TextSpan(
-                        text: "What's new in 1.1.2?\n\n",
+                        text: "What's new in 1.2.0?\n\n",
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
 
@@ -668,7 +695,7 @@ class ChangeLogsDialog extends StatelessWidget {
                           ),
                         ],
                       ),
-                      TextSpan(text: "\t ᛫ ⚙️ Settings: Added Compact mode for Updates view\n"),
+                      TextSpan(text: "\t ᛫ ⚙️ Settings: Added Compact listing mode for Updates view\n"),
                       TextSpan(text: "\t ᛫ 📖 Ticket details view is now available with default fields! (custom fields tbd)\n"),
                       TextSpan(text: "\t ᛫ 🌐 Added link to GitHub in settings\n"),
                       TextSpan(text: "\t ᛫ 😣 Added logs and diagnostics options to help troubleshooting\n"),
@@ -763,12 +790,9 @@ class ChangeLogsDialog extends StatelessWidget {
               },
             ),
             Expanded(
-              child: ScrollConfiguration(
-                behavior: NoWheelScrollBehavior(),
-                child: LockedPageView(
-                  controller: ctrl,
-                  children: versionsData,
-                ),
+              child: PageView(
+                controller: ctrl,
+                children: versionsData,
               ),
             ),
           ],

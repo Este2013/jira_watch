@@ -40,10 +40,11 @@ class TicketDetailsView extends StatelessWidget {
                   child: PersonField('Reported by', field: 'reporter', ticket: ticket),
                 ),
                 Expanded(child: PriorityField(ticket: ticket)),
+                SizedBox(width: 50, child: WatchedByField(ticket: ticket)),
               ],
             ),
           ),
-          if (ticket.fields?['labels'] != null)
+          if (ticket.fields?['labels'] != null && ticket.fields!['labels'].isNotEmpty)
             Wrap(
               runSpacing: 8,
               spacing: 8,
@@ -54,6 +55,19 @@ class TicketDetailsView extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 for (var t in ticket.fields?['labels']) Chip(label: Text(t)),
+              ],
+            ),
+          if (ticket.fields?['components'] != null && ticket.fields!['components'].isNotEmpty)
+            Wrap(
+              runSpacing: 8,
+              spacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  'Components:',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                for (var t in ticket.fields?['components']) Chip(label: Text(t['name'])),
               ],
             ),
           if (ticket.fields!['description'] != null) DescriptionLikeField('Description', contentData: ticket.fields!['description']),
@@ -141,10 +155,11 @@ class PersonField extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4, bottom: 4, left: 8),
             child: hasPerson ? ClipOval(child: JiraAvatar(url: ticket.fields?[field]['avatarUrls']['16x16'])) : Icon(Icons.account_circle_outlined),
           ),
-          popupBuilder: (context, dismiss, controller) => Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Text('dataaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
-          ),
+          // TODO
+          // popupBuilder: (context, dismiss, controller) => Padding(
+          //   padding: const EdgeInsets.all(8.0),
+          //   child: Text('dataaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
+          // ),
         );
       },
     );
@@ -162,24 +177,53 @@ class PriorityField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String field = 'priority';
-    return Builder(
-      builder: (context) {
-        var hasField = ticket.fields?[field] != null;
-        return LabeledPopupTextField(
-          controller: TextEditingController(text: hasField ? (ticket.fields?[field]['name']) : 'None'),
-          label: 'Priority',
-          readOnly: true,
-          showPopupOnFocus: true,
-          prefixIcon: Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 8, left: 8),
-            child: hasField ? ClipOval(child: JiraAvatar(url: ticket.fields?[field]['iconUrl'])) : Icon(Icons.block),
-          ),
-          popupBuilder: (context, dismiss, controller) => Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Text('dataaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
-          ),
-        );
-      },
+    var hasField = ticket.fields?[field] != null;
+    return LabeledPopupTextField(
+      controller: TextEditingController(text: hasField ? (ticket.fields?[field]['name']) : 'None'),
+      label: 'Priority',
+      readOnly: true,
+      showPopupOnFocus: true,
+      prefixIcon: Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 8, left: 8),
+        child: hasField ? ClipOval(child: JiraAvatar(url: ticket.fields?[field]['iconUrl'])) : Icon(Icons.block),
+      ),
+      // TODO
+      // popupBuilder: (context, dismiss, controller) => Padding(
+      //   padding: const EdgeInsets.all(8.0),
+      //   child: Text('dataaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
+      // ),
+    );
+  }
+}
+
+class WatchedByField extends StatelessWidget {
+  const WatchedByField({
+    super.key,
+    required this.ticket,
+  });
+
+  final IssueData ticket;
+
+  @override
+  Widget build(BuildContext context) {
+    String field = 'watches';
+    var hasField = ticket.fields?[field] != null;
+    bool isCurrentlyWatching = ticket.fields?[field]['isWatching'] ?? false;
+    return LabeledPopupTextField(
+      controller: TextEditingController(text: hasField ? (ticket.fields?[field]['name']) : 'None'),
+      label: '',
+      readOnly: true,
+      showPopupOnFocus: true,
+      borderColor: isCurrentlyWatching ? null : Theme.of(context).colorScheme.outlineVariant,
+      prefixIcon: Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 8, left: 10),
+        child: hasField ? ClipOval(child: Icon(isCurrentlyWatching ? Icons.visibility : Icons.visibility_off)) : Icon(Icons.block),
+      ),
+      // TODO
+      // popupBuilder: (context, dismiss, controller) => Padding(
+      //   padding: const EdgeInsets.all(8.0),
+      //   child: Text('dataaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
+      // ),
     );
   }
 }
