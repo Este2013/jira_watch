@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/data_model.dart';
-import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
+import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/updates_view_single_ticket/single_ticket_view.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/settings_model.dart';

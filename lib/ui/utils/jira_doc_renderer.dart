@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
-import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
+import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../home/overview_widgets/issue_ui_elements.dart';

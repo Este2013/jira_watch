@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart';
 import 'package:jira_watcher/ui/home/home.dart';
 import 'package:jira_watcher/models/settings_model.dart';
-import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
+import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/utils/%F0%9F%AA%B5.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:jira_watcher/dao/api_dao.dart';

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_json/flutter_json.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/ui/home/home.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/issue_ui_elements.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/updates_view_single_ticket/issue_history_view.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -67,15 +68,174 @@ class SingleTicketView extends StatelessWidget {
             HistoryPage(ticket: ticket),
             CommentsPage(ticket: ticket),
             TicketDetailsView(ticket: ticket),
-            JsonWidget(
-              json: json.decode(JsonEncoder().convert(ticket)),
-              initialExpandDepth: 2,
-              nodeIndent: 32,
-            ),
+            AdvancedDataView(ticket: ticket),
             // TODO IssueEditFieldsWidget(issueData: ticket),
           ],
         ),
       ),
+    );
+  }
+}
+
+class AdvancedDataView extends StatelessWidget {
+  const AdvancedDataView({
+    super.key,
+    required this.ticket,
+  });
+
+  final IssueData ticket;
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 3,
+      child: Column(
+        children: [
+          TabBar.secondary(
+            tabs: [
+              Tab(text: 'Full json'),
+              Tab(text: 'Default fields'),
+              Tab(text: '🚧 Custom fields'),
+            ],
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TabBarView(
+                children: [
+                  JsonWidget(
+                    json: json.decode(JsonEncoder().convert(ticket)),
+                    initialExpandDepth: 2,
+                    nodeIndent: 32,
+                  ),
+                  FieldsTable(ticket),
+                  UnderConstructionNotice(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class FieldsTable extends StatefulWidget {
+  const FieldsTable(this.ticket, {super.key});
+
+  final IssueData ticket;
+  @override
+  State<FieldsTable> createState() => _FieldsTableState();
+}
+
+class _FieldsTableState extends State<FieldsTable> {
+  TextEditingController searchController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      spacing: 8,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+
+      children: [
+        TextField(
+          autofocus: true,
+          controller: searchController,
+          decoration: InputDecoration(
+            border: OutlineInputBorder(),
+            icon: Icon(Icons.search),
+          ),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            child: AnimatedBuilder(
+              animation: searchController,
+
+              builder: (context, _) {
+                return Table(
+                  border: TableBorder.all(color: Theme.of(context).dividerColor),
+                  children: [
+                    for (var field
+                        in widget.ticket.fields!.entries
+                            .where(
+                              (e) => !(e.key as String).contains('customfield'),
+                            )
+                            .where(
+                              (e) => (e.key as String).toLowerCase().contains(searchController.text.toLowerCase()),
+                            )
+                            .toList()
+                          ..sort(
+                            (a, b) => (a.key as String).compareTo(b.key),
+                          ))
+                      TableRow(
+                        children: [
+                          TableCell(
+                            verticalAlignment: TableCellVerticalAlignment.middle,
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Center(
+                                child: Builder(
+                                  builder: (context) {
+                                    String type = field.value.runtimeType.toString().replaceAll(RegExp('^_'), '').replaceAll(RegExp('<.*>'), '');
+                                    var typeSpan = TextSpan(
+                                      text: type,
+                                      style: TextStyle(
+                                        color: type == 'Null' ? Colors.red : Colors.green.shade600,
+                                      ),
+                                    );
+                                    return SelectableText.rich(
+                                      TextSpan(
+                                        children: [
+                                          if (type != 'Null') typeSpan,
+                                          const TextSpan(text: ' '),
+                                          TextSpan(text: field.key),
+                                          if (type == 'Null')
+                                            TextSpan(
+                                              children: [
+                                                TextSpan(text: ' ('),
+                                                typeSpan,
+                                                TextSpan(text: ')'),
+                                              ],
+                                            ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          TableCell(
+                            verticalAlignment: TableCellVerticalAlignment.middle,
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: ['String', 'Null', 'int'].contains(field.value.runtimeType.toString())
+                                  ? Center(child: SelectableText(field.value.toString()))
+                                  : TextButton.icon(
+                                      onPressed: () {
+                                        showDialog(
+                                          context: context,
+                                          builder: (context) => AlertDialog(
+                                            title: Text(field.key),
+                                            content: SingleChildScrollView(child: SelectableText(JsonEncoder.withIndent('    ').convert(field.value))),
+                                          ),
+                                        );
+                                      },
+                                      label: Text('Inspect'),
+                                      icon: Icon(Symbols.document_search),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
-import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
+import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/ui/home/time_utils.dart';
 import 'package:jira_watcher/ui/utils/jira_doc_renderer.dart';
 

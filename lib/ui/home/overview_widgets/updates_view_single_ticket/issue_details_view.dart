@@ -6,11 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/settings_model.dart';
-import 'package:jira_watcher/ui/home/overview_widgets/avatar.dart';
+import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/ui/utils/jira_doc_renderer.dart';
 import 'package:jira_watcher/ui/utils/labelled_text_presenter.dart';
 import 'package:jira_watcher/ui/utils/network_video_player.dart';
-import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -73,57 +72,12 @@ class TicketDetailsView extends StatelessWidget {
           if (ticket.fields!['description'] != null) DescriptionLikeField('Description', contentData: ticket.fields!['description']),
           if (ticket.fields!['environment'] != null) DescriptionLikeField('Environment', contentData: ticket.fields!['environment']),
           if (ticket.fields!['attachment'] != null && (ticket.fields!['attachment'] as List).isNotEmpty) AttachmentsField(attachmentsData: ticket.fields!['attachment']),
-          if (ticket.fields?['issuelinks'] != null) IssueLinksField(issueLinksData: (ticket.fields!['issuelinks']! as List).cast()),
-          Table(
-            border: TableBorder.all(color: Theme.of(context).dividerColor),
-            children: [
-              for (var field
-                  in ticket.fields!.entries.where((e) => !(e.key as String).contains('customfield')).toList()..sort(
-                    (a, b) => (a.key as String).compareTo(b.key),
-                  ))
-                TableRow(
-                  children: [
-                    TableCell(
-                      verticalAlignment: TableCellVerticalAlignment.middle,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Center(
-                          child: SelectableText(field.key),
-                        ),
-                      ),
-                    ),
-                    TableCell(
-                      verticalAlignment: TableCellVerticalAlignment.middle,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Center(child: SelectableText(field.value.runtimeType.toString())),
-                      ),
-                    ),
-                    TableCell(
-                      verticalAlignment: TableCellVerticalAlignment.middle,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: ['String', 'Null', 'int'].contains(field.value.runtimeType.toString())
-                            ? Center(child: SelectableText(field.value.toString()))
-                            : TextButton.icon(
-                                onPressed: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: Text(field.key),
-                                      content: SingleChildScrollView(child: SelectableText(JsonEncoder.withIndent('    ').convert(field.value))),
-                                    ),
-                                  );
-                                },
-                                label: Text('Inspect'),
-                                icon: Icon(Symbols.document_search),
-                              ),
-                      ),
-                    ),
-                  ],
-                ),
-            ],
-          ),
+          if (ticket.fields?['issuelinks'] != null && ticket.fields!['issuelinks'].isNotEmpty) IssueLinksField(issueLinksData: (ticket.fields!['issuelinks']! as List).cast()),
+
+          Row(),
+
+          Text(ticket.fields!['fixVersions'].toString()),
+          Text(ticket.fields!['versions'].toString()),
         ].expand((w) => [w, SizedBox(height: 8)]).toList(),
       ),
     );
@@ -229,17 +183,24 @@ class WatchedByField extends StatelessWidget {
 }
 
 class ExpandablePanel extends StatefulWidget {
-  const ExpandablePanel(this.name, {super.key, required this.content});
+  const ExpandablePanel(this.name, {super.key, required this.content, this.isInitiallyExpanded = true});
 
   final String name;
   final Widget content;
+  final bool isInitiallyExpanded;
 
   @override
   State<ExpandablePanel> createState() => _ExpandablePanelState();
 }
 
 class _ExpandablePanelState extends State<ExpandablePanel> {
-  bool isExpanded = true;
+  late bool isExpanded;
+
+  @override
+  void initState() {
+    isExpanded = widget.isInitiallyExpanded;
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) => Card(
