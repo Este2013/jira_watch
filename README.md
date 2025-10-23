@@ -59,6 +59,7 @@ A new Flutter project.
 ## BUGS
  - if project filters are changed before request completes, the newer request is not taken into account
  - if a ticket is selected and a refresh occurs, the selected ticket does not update on right side 
+ - [TODO] prevent anymation of collapse when scrolling  
 
 # Furthemore
  - GitLab view

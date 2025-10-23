@@ -125,7 +125,7 @@ class _JsonViewerState extends State<JsonViewer> {
 
   @override
   Widget build(BuildContext context) {
-    final style = widget.style ?? const JsonViewerStyle();
+    final style = widget.style ?? JsonViewerStyle.fromTheme(Theme.of(context));
     return _filteredData == null
         ? _EmptyFilteredNotice(style: style)
         : _JsonNode(
@@ -162,21 +162,35 @@ class JsonViewerStyle {
     TextStyle? countBadgeStyle,
     Color? countBadgeBg,
     this.nodePadding = const EdgeInsets.symmetric(vertical: 2.5),
-    this.indent = 8.0,
+    this.indent = 14.0,
   }) : keyStyle = keyStyle ?? const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1565C0)),
-       stringStyle = stringStyle ?? const TextStyle(color: Color(0xFF2E7D32)), // green-ish
-       numberStyle = numberStyle ?? const TextStyle(color: Color(0xFF6A1B9A)), // purple-ish
+       stringStyle = stringStyle ?? const TextStyle(color: Color(0xFF2E7D32)),
+       numberStyle = numberStyle ?? const TextStyle(color: Color(0xFF6A1B9A)),
        boolStyle = boolStyle ?? const TextStyle(color: Color(0xFF00838F), fontStyle: FontStyle.italic),
        nullStyle = nullStyle ?? const TextStyle(color: Color(0xFF757575), fontStyle: FontStyle.italic),
        punctuationStyle = punctuationStyle ?? const TextStyle(color: Color(0xFF9E9E9E)),
-       countBadgeStyle =
-           countBadgeStyle ??
-           const TextStyle(
-             fontSize: 11,
-             fontWeight: FontWeight.w600,
-             color: Colors.white,
-           ),
+       countBadgeStyle = countBadgeStyle ?? const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
        countBadgeBg = countBadgeBg ?? const Color(0xFFB0BEC5);
+
+  /// Dark mode preset
+  factory JsonViewerStyle.dark() => JsonViewerStyle(
+    keyStyle: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF81D4FA)), // light blue
+    stringStyle: const TextStyle(color: Color.fromARGB(255, 137, 204, 137)), // teal-ish
+    numberStyle: const TextStyle(color: Color(0xFFB39DDB)), // purple
+    boolStyle: const TextStyle(color: Color(0xFF64B5F6), fontStyle: FontStyle.italic), // blue
+    nullStyle: const TextStyle(color: Color(0xFF9E9E9E), fontStyle: FontStyle.italic),
+    punctuationStyle: const TextStyle(color: Color(0xFFBDBDBD)),
+    countBadgeStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.black),
+    countBadgeBg: const Color(0xFF90CAF9), // light blue chip on dark bg
+  );
+
+  /// Light mode preset (explicit, same as default constructor’s defaults but grouped here for symmetry)
+  factory JsonViewerStyle.light() => const JsonViewerStyle();
+
+  /// Auto-pick based on Theme brightness (fallback to light)
+  static JsonViewerStyle fromTheme(ThemeData theme) {
+    return theme.brightness == Brightness.dark ? JsonViewerStyle.dark() : JsonViewerStyle.light();
+  }
 }
 
 class _EmptyFilteredNotice extends StatelessWidget {

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/ui/home/home.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/issue_ui_elements.dart';
@@ -185,12 +186,59 @@ class FieldsTable extends StatefulWidget {
 }
 
 class _FieldsTableState extends State<FieldsTable> {
+  String? selectedKey;
+
   TextEditingController searchController = TextEditingController();
 
   bool onlyNonHandled = false;
 
   @override
   Widget build(BuildContext context) {
+    List<MapEntry<dynamic, dynamic>> fields =
+        widget.ticket.fields!.entries
+            .where(
+              (e) => !(e.key as String).contains('customfield'),
+            )
+            .where(
+              // search
+              (e) => (e.key as String).toLowerCase().contains(searchController.text.toLowerCase()),
+            )
+            .where(
+              // non-handled filtering
+              (e) =>
+                  !onlyNonHandled ||
+                  ![
+                    'assignee',
+                    'assignee',
+                    'attachment',
+                    'comment',
+                    'components',
+                    'created',
+                    'description',
+                    'environment',
+                    'fixVersions',
+                    'issuelinks',
+                    'issuetype',
+                    'labels',
+                    'lastViewed',
+                    'priority',
+                    'project',
+                    'reporter',
+                    'resolutiondate',
+                    'status',
+                    'statusCategory',
+                    'statuscategorychangedate',
+                    'summary',
+                    'updated',
+                    'versions',
+                    'watches',
+                  ].contains(e.key as String),
+            )
+            .toList()
+          ..sort(
+            (a, b) => (a.key as String).compareTo(b.key),
+          );
+
     return Column(
       spacing: 8,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -213,6 +261,7 @@ class _FieldsTableState extends State<FieldsTable> {
               onPressed: () => setState(() {
                 onlyNonHandled = !onlyNonHandled;
               }),
+              tooltip: 'Hide fields that are handled in Details view: ${onlyNonHandled ? 'ON' : 'OFF'}',
               icon: Icon(Icons.filter_alt_off),
               selectedIcon: Icon(Icons.filter_alt),
               isSelected: onlyNonHandled,
@@ -220,123 +269,101 @@ class _FieldsTableState extends State<FieldsTable> {
           ],
         ),
         Expanded(
-          child: SingleChildScrollView(
-            child: AnimatedBuilder(
-              animation: searchController,
-
-              builder: (context, _) {
-                return Table(
-                  border: TableBorder.all(color: Theme.of(context).dividerColor),
+          child: Row(
+            spacing: 8,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: ListView(
                   children: [
-                    for (var field
-                        in widget.ticket.fields!.entries
-                            .where(
-                              (e) => !(e.key as String).contains('customfield'),
-                            )
-                            .where(
-                              // search
-                              (e) => (e.key as String).toLowerCase().contains(searchController.text.toLowerCase()),
-                            )
-                            .where(
-                              // non-handled filtering
-                              (e) =>
-                                  !onlyNonHandled ||
-                                  ![
-                                    'assignee',
-                                    'assignee',
-                                    'attachment',
-                                    'comment',
-                                    'components',
-                                    'created',
-                                    'description',
-                                    'environment',
-                                    'fixVersions',
-                                    'issuelinks',
-                                    'issuetype',
-                                    'labels',
-                                    'lastViewed',
-                                    'priority',
-                                    'project',
-                                    'reporter',
-                                    'status',
-                                    'statusCategory',
-                                    'statuscategorychangedate',
-                                    'summary',
-                                    'updated',
-                                    'versions',
-                                    'watches',
-                                  ].contains(e.key as String),
-                            )
-                            .toList()
-                          ..sort(
-                            (a, b) => (a.key as String).compareTo(b.key),
-                          ))
-                      TableRow(
-                        children: [
-                          TableCell(
-                            verticalAlignment: TableCellVerticalAlignment.middle,
-                            child: Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: Center(
-                                child: Builder(
-                                  builder: (context) {
-                                    String type = field.value.runtimeType.toString().replaceAll(RegExp('^_'), '').replaceAll(RegExp('<.*>'), '');
-                                    var typeSpan = TextSpan(
-                                      text: type,
-                                      style: TextStyle(
-                                        color: type == 'Null' ? Colors.red : Colors.green.shade600,
-                                      ),
-                                    );
-                                    return SelectableText.rich(
-                                      TextSpan(
-                                        children: [
-                                          if (type != 'Null') typeSpan,
-                                          const TextSpan(text: ' '),
-                                          TextSpan(text: field.key),
-                                          if (type == 'Null')
-                                            TextSpan(
-                                              children: [
-                                                TextSpan(text: ' ('),
-                                                typeSpan,
-                                                TextSpan(text: ')'),
-                                              ],
-                                            ),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                ),
+                    for (var field in fields)
+                      Builder(
+                        builder: (context) {
+                          String type = field.value.runtimeType.toString().replaceAll(RegExp('^_'), '').replaceAll(RegExp('<.*>'), '');
+                          var typeSpan = TextSpan(
+                            text: type,
+                            style: TextStyle(
+                              color: type == 'Null' ? Colors.red : Colors.green.shade600,
+                            ),
+                          );
+                          return ListTile(
+                            title: Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(text: field.key),
+
+                                  TextSpan(
+                                    children: [
+                                      TextSpan(text: ' ('),
+                                      typeSpan,
+                                      TextSpan(text: ')'),
+                                    ],
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
-
-                          TableCell(
-                            verticalAlignment: TableCellVerticalAlignment.middle,
-                            child: Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: ['String', 'Null', 'int'].contains(field.value.runtimeType.toString())
-                                  ? Center(child: SelectableText(field.value.toString()))
-                                  : TextButton.icon(
-                                      onPressed: () {
-                                        showDialog(
-                                          context: context,
-                                          builder: (context) => AlertDialog(
-                                            title: Text(field.key),
-                                            content: SingleChildScrollView(child: SelectableText(JsonEncoder.withIndent('    ').convert(field.value))),
-                                          ),
-                                        );
-                                      },
-                                      label: Text('Inspect'),
-                                      icon: Icon(Symbols.document_search),
-                                    ),
+                            subtitle: type == 'Map'
+                                ? Text('{ ${(field.value as Map).length} }')
+                                : type == 'List'
+                                ? Text('[ ${(field.value as List).length} ]')
+                                : Text(field.value.toString()),
+                            trailing: Wrap(
+                              children: [
+                                IconButton(
+                                  onPressed: () => Clipboard.setData(ClipboardData(text: field.key)),
+                                  icon: Icon(Icons.key),
+                                  tooltip: 'Copy key',
+                                ),
+                                IconButton(
+                                  onPressed: () => Clipboard.setData(ClipboardData(text: JsonEncoder.withIndent('    ').convert(field.value))),
+                                  icon: Icon(Icons.data_object),
+                                  tooltip: 'Copy value',
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
+                            onTap: () => setState(() => selectedKey = field.key),
+                            selected: selectedKey == field.key,
+                            selectedTileColor: Theme.of(context).colorScheme.secondaryContainer.withAlpha(200),
+                          );
+                        },
                       ),
                   ],
-                );
-              },
-            ),
+                ),
+              ),
+
+              AnimatedSize(
+                key: Key(selectedKey ?? 'none is selected'),
+                duration: Durations.medium1,
+                child: selectedKey == null
+                    ? SizedBox.shrink()
+                    : SizedBox(
+                        width: 500,
+                        child: Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              spacing: 16,
+                              children: [
+                                Text(
+                                  selectedKey!,
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                ),
+                                Divider(),
+                                Expanded(
+                                  child: SingleChildScrollView(
+                                    child: JsonViewer(
+                                      key: Key('viewer:${selectedKey ?? 'none is selected'}'),
+                                      data: widget.ticket.fields![selectedKey],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+              ),
+            ],
           ),
         ),
       ],
