@@ -1,11 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_json/flutter_json.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/ui/home/home.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/issue_ui_elements.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/updates_view_single_ticket/issue_history_view.dart';
+import 'package:jira_watcher/ui/utils/json_viewer.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // ignore: unused_import
@@ -103,11 +103,12 @@ class AdvancedDataView extends StatelessWidget {
               padding: const EdgeInsets.all(16.0),
               child: TabBarView(
                 children: [
-                  JsonWidget(
-                    json: json.decode(JsonEncoder().convert(ticket)),
-                    initialExpandDepth: 2,
-                    nodeIndent: 32,
-                  ),
+                  JsonTicketView(ticket: ticket),
+                  // JsonWidget(
+                  //   json: json.decode(JsonEncoder().convert(ticket)),
+                  //   initialExpandDepth: 2,
+                  //   nodeIndent: 32,
+                  // ),
                   FieldsTable(ticket),
                   UnderConstructionNotice(),
                 ],
@@ -118,6 +119,61 @@ class AdvancedDataView extends StatelessWidget {
       ),
     );
   }
+}
+
+class JsonTicketView extends StatefulWidget {
+  const JsonTicketView({
+    super.key,
+    required this.ticket,
+  });
+
+  final IssueData ticket;
+
+  @override
+  State<JsonTicketView> createState() => _JsonTicketViewState();
+}
+
+class _JsonTicketViewState extends State<JsonTicketView> {
+  TextEditingController search = TextEditingController();
+  bool filterEmpties = false;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    spacing: 8,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        spacing: 8,
+        children: [
+          Expanded(
+            child: TextField(
+              controller: search,
+              decoration: InputDecoration(border: OutlineInputBorder(), icon: Icon(Icons.search)),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Filtering null values: ${filterEmpties ? 'ON' : 'OFF'}',
+            onPressed: () => setState(() {
+              filterEmpties = !filterEmpties;
+            }),
+            icon: Icon(Icons.circle_outlined),
+            selectedIcon: Icon(Icons.block),
+            isSelected: filterEmpties,
+          ),
+        ],
+      ),
+      Expanded(
+        child: SingleChildScrollView(
+          child: JsonViewer(
+            data: json.decode(JsonEncoder().convert(widget.ticket)),
+            initialExpandDepth: 2,
+            searchController: search,
+            filterNullValues: filterEmpties,
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 class FieldsTable extends StatefulWidget {
@@ -131,6 +187,8 @@ class FieldsTable extends StatefulWidget {
 class _FieldsTableState extends State<FieldsTable> {
   TextEditingController searchController = TextEditingController();
 
+  bool onlyNonHandled = false;
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -138,13 +196,28 @@ class _FieldsTableState extends State<FieldsTable> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
 
       children: [
-        TextField(
-          autofocus: true,
-          controller: searchController,
-          decoration: InputDecoration(
-            border: OutlineInputBorder(),
-            icon: Icon(Icons.search),
-          ),
+        Row(
+          spacing: 8,
+          children: [
+            Expanded(
+              child: TextField(
+                autofocus: true,
+                controller: searchController,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  icon: Icon(Icons.search),
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: () => setState(() {
+                onlyNonHandled = !onlyNonHandled;
+              }),
+              icon: Icon(Icons.filter_alt_off),
+              selectedIcon: Icon(Icons.filter_alt),
+              isSelected: onlyNonHandled,
+            ),
+          ],
         ),
         Expanded(
           child: SingleChildScrollView(
@@ -161,7 +234,38 @@ class _FieldsTableState extends State<FieldsTable> {
                               (e) => !(e.key as String).contains('customfield'),
                             )
                             .where(
+                              // search
                               (e) => (e.key as String).toLowerCase().contains(searchController.text.toLowerCase()),
+                            )
+                            .where(
+                              // non-handled filtering
+                              (e) =>
+                                  !onlyNonHandled ||
+                                  ![
+                                    'assignee',
+                                    'assignee',
+                                    'attachment',
+                                    'comment',
+                                    'components',
+                                    'created',
+                                    'description',
+                                    'environment',
+                                    'fixVersions',
+                                    'issuelinks',
+                                    'issuetype',
+                                    'labels',
+                                    'lastViewed',
+                                    'priority',
+                                    'project',
+                                    'reporter',
+                                    'status',
+                                    'statusCategory',
+                                    'statuscategorychangedate',
+                                    'summary',
+                                    'updated',
+                                    'versions',
+                                    'watches',
+                                  ].contains(e.key as String),
                             )
                             .toList()
                           ..sort(

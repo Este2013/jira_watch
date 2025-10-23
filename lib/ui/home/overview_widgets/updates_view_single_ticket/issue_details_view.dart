@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:charset/charset.dart';
 import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -85,6 +86,11 @@ class TicketDetailsView extends StatelessWidget {
             ],
           ),
 
+          DateDisplay('Created', date: ticket.fields!['created']),
+          if (ticket.fields?['updated'] != null) DateDisplay('Updated', date: ticket.fields!['updated']),
+          if (ticket.fields?['resolutiondate'] != null) DateDisplay('Resolution date', date: ticket.fields!['resolutiondate']),
+          if (ticket.fields?['statuscategorychangedate'] != null) DateDisplay('Last status category change', date: ticket.fields!['statuscategorychangedate']),
+          if (ticket.fields?['lastViewed'] != null) DateDisplay('Last viewed', date: ticket.fields!['lastViewed']),
           // Text(ticket.fields!['fixVersions'].toString()),
         ].expand((w) => [w, SizedBox(height: 8)]).toList(),
       ),
@@ -755,4 +761,30 @@ class IssueLinkTile extends StatelessWidget {
     ),
     onTap: () => launchUrl(Uri.parse('https://${SettingsModel().domainController.text}.atlassian.net/browse/${issueLinkData['key']}')),
   );
+}
+
+class DateDisplay extends StatelessWidget {
+  const DateDisplay(this.title, {super.key, required this.date});
+  final String title, date;
+  @override
+  Widget build(BuildContext context) => Text('$title: ${formatDateString(date)}');
+
+  String formatDateString(String input) {
+    try {
+      // Parse the input string — note that the timezone offset format (+0100)
+      // isn't ISO 8601-compliant, so we insert a colon for Dart's parser.
+      final normalized = input.replaceFirstMapped(
+        RegExp(r'([+-]\d{2})(\d{2})$'),
+        (match) => '${match[1]}:${match[2]}',
+      );
+
+      final dateTime = DateTime.parse(normalized);
+
+      // Example: "December 6, 2024 at 10:32 AM"
+      final formatted = DateFormat("MMMM d, y 'at' h:mm a").format(dateTime);
+      return formatted;
+    } catch (e) {
+      return 'Invalid date';
+    }
+  }
 }

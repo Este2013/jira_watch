@@ -5,7 +5,6 @@ import 'package:http/http.dart' as http;
 import 'package:jira_watcher/ui/home/overview_widgets/home_overview.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/settings.dart';
-import 'package:jira_watcher/ui/utils/locked_page_view.dart';
 import 'package:loggy/loggy.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -721,7 +720,8 @@ class ChangeLogsDialog extends StatelessWidget {
                         ],
                       ),
                       TextSpan(text: "\t ᛫ Bumped version number.\n"),
-                      TextSpan(text: "\t ᛫ Added dependencies to flutter_secure_storage and cryptography packages.\n"),
+                      TextSpan(text: "\t ᛫ Removed dependency to flutter_json.\n"),
+                      TextSpan(text: "\t ᛫ Refactored the ticket details => json view for more helpful debugging and inspection.\n"),
 
                       TextSpan(
                         children: [
