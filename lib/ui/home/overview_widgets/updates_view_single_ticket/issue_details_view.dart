@@ -74,11 +74,83 @@ class TicketDetailsView extends StatelessWidget {
           if (ticket.fields!['attachment'] != null && (ticket.fields!['attachment'] as List).isNotEmpty) AttachmentsField(attachmentsData: ticket.fields!['attachment']),
           if (ticket.fields?['issuelinks'] != null && ticket.fields!['issuelinks'].isNotEmpty) IssueLinksField(issueLinksData: (ticket.fields!['issuelinks']! as List).cast()),
 
-          Row(),
+          Row(
+            children: [
+              Expanded(
+                child: VersionsField('Affected version', ticket: ticket, property: 'versions', icon: Icon(Icons.bug_report)),
+              ),
+              Expanded(
+                child: VersionsField('Fix version', ticket: ticket, property: 'fixVersions', icon: Icon(Icons.auto_awesome)),
+              ),
+            ],
+          ),
 
-          Text(ticket.fields!['fixVersions'].toString()),
-          Text(ticket.fields!['versions'].toString()),
+          // Text(ticket.fields!['fixVersions'].toString()),
         ].expand((w) => [w, SizedBox(height: 8)]).toList(),
+      ),
+    );
+  }
+}
+
+class VersionsField extends StatelessWidget {
+  const VersionsField(
+    this.name, {
+    super.key,
+    required this.ticket,
+    required this.property,
+    this.icon,
+  });
+
+  final String name, property;
+  final IssueData ticket;
+  final Widget? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    var versionList = ticket.fields![property] as List?;
+    return Card(
+      child: Container(
+        height: 50,
+        padding: EdgeInsetsGeometry.symmetric(vertical: 8, horizontal: 16),
+        child: Row(
+          spacing: 8,
+          children: [
+            ?icon,
+            Text(
+              '$name${(versionList?.length ?? 0) > 1 ? 's' : ''}:',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            Expanded(
+              child: (versionList == null || versionList.isEmpty)
+                  ? Text('None')
+                  : ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        for (var v
+                            in versionList..sort(
+                              (a, b) {
+                                if (a['released'] && b['released']) {
+                                  return DateTime.parse(b['releaseDate']).compareTo(DateTime.parse(a['releaseDate']));
+                                } else if (a['released']) {
+                                  return DateTime(9999).compareTo(DateTime.parse(a['releaseDate']));
+                                } else if (b['released']) {
+                                  return DateTime.parse(b['releaseDate']).compareTo(DateTime(9999));
+                                }
+                                return int.parse(b['id']).compareTo(int.parse(a['id']));
+                              },
+                            ))
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: Tooltip(
+                              message: v['description'] ?? '',
+                              child: Chip(label: Text(v['name'])),
+                            ),
+                          ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -218,8 +290,6 @@ class _ExpandablePanelState extends State<ExpandablePanel> {
                 IconButton(
                   onPressed: () => setState(() => isExpanded = !isExpanded),
                   icon: AnimatedRotation(
-                    // 0 turns  = down   (expanded)
-                    // -0.25    = right  (collapsed)
                     turns: isExpanded ? 0.0 : -0.25,
                     duration: Durations.medium1,
                     curve: Curves.easeInOut,

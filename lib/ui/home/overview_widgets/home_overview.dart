@@ -469,7 +469,7 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
                 ),
               ),
             );
-            var showAsCompact = (useCompactMode == 'Always' || (useCompactMode == 'When issue was read' && isRead));
+            var showAsCompact = (useCompactMode == 'Always' || (useCompactMode == 'When issue was read' && !widget.isSelected && isRead));
 
             return Card(
               clipBehavior: Clip.hardEdge,
