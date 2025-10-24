@@ -1,7 +1,9 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:jira_watcher/main.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/home_overview.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/settings.dart';
@@ -302,446 +304,123 @@ class ChangeLogsDialog extends StatelessWidget {
       Card(
         child: Center(child: Text("V0: The app now exist 😎")),
       ),
-      // version 0.1.1
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: ScrollbarTheme(
-            data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16.0),
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: "What's new in 0.1.1?\n\n",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "✨ "),
-                          TextSpan(
-                            text: "Features:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-
-                      TextSpan(text: "\t ᛫ Changelog: on first boot after installing a new version, a changelog is shown. It is also accessible in Settings > General.\n"),
-                      TextSpan(text: "\t ᛫ Better login page, with basic input validation.\n"),
-                      TextSpan(text: "\t ᛫ Added a default page for when no user project is set.\n"),
-                      TextSpan(text: "\t ᛫ Added a button to open the app settings files, in Settings > Advanced.\n"),
-
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "\n🪲 "),
-                          TextSpan(
-                            text: "Bug fixes:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-                      TextSpan(text: "\t ᛫ 💡 Jira deprecated their /search API, now using /search/jql instead.\n"),
-
-                      // TextSpan(text: "\t ᛫ \n"),
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "\n🧼 "),
-                          TextSpan(
-                            text: "Chores:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-                      TextSpan(text: "\t ᛫ Bumped version number.\n"),
-                      TextSpan(text: "\t ᛫ Added About and Licences pages.\n"),
-                      TextSpan(text: "\t ᛫ 🛑 BREAKING: set a correct path for app settings. Old settings wont be kept from previous versions.\n"),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+      ChangeLogCard(
+        '0.1.1',
+        sections: [
+          ChangeLogSection.features([
+            ChangeLogItem('📋 On first boot after installing a new version, a changelog is shown. It is also accessible in Settings > General.'),
+            ChangeLogItem('🧑 Better login page, with basic input validation.'),
+            ChangeLogItem('📄 Added a default page for when no user project is set.'),
+            ChangeLogItem('⚙️ Added a button to open the app settings files, in Settings > Advanced.'),
+          ]),
+          ChangeLogSection.bugFixes([
+            ChangeLogItem('💡 Jira deprecated their /search API, now using /search/jql instead.'),
+          ]),
+          ChangeLogSection.chores([
+            ChangeLogItem('Bumped version number.'),
+            ChangeLogItem('Added About and Licences pages.'),
+            ChangeLogItem('🛑 BREAKING: set a correct path for app settings. Old settings won’t be kept from previous versions.'),
+          ]),
+        ],
       ),
-      // version 0.1.2
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: ScrollbarTheme(
-            data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16.0),
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: "What's new in 0.1.2?\n\n",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
 
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "✨ "),
-                          TextSpan(
-                            text: "Features:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-
-                      TextSpan(text: "\t ᛫ Overview filters are now kept through app restarts and page navigation\n"),
-                      TextSpan(text: "\t ᛫ Implemented auto-update mechanic\n"),
-                      // TextSpan(text: "\t ᛫ \n"),
-
-                      // TextSpan(
-                      //   children: [
-                      //     TextSpan(text: "\n🪲 "),
-                      //     TextSpan(
-                      //       text: "Bug fixes:\n",
-                      //       style: TextStyle(decoration: TextDecoration.underline),
-                      //     ),
-                      //   ],
-                      // ),
-                      // TextSpan(text: "\t ᛫ \n"),
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "\n🧼 "),
-                          TextSpan(
-                            text: "Chores:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-                      TextSpan(text: "\t ᛫ Bumped version number.\n"),
-                      TextSpan(text: "\t ᛫ Added application icon 👁️.\n"),
-                      TextSpan(text: "\t ᛫ Temporarily removed edit tag (its not working yet).\n"),
-
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "\n🐞"),
-                          TextSpan(
-                            text: "Known bugs:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-                      TextSpan(text: "\t ᛫ If project filters are changed before request completes, the newer request is not taken into account\n"),
-                      // TextSpan(text: "\t ᛫ \n"),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+      ChangeLogCard(
+        '0.1.2',
+        sections: [
+          ChangeLogSection.features([
+            ChangeLogItem('🔍 Overview filters are now kept through app restarts and page navigation'),
+            ChangeLogItem('🔄️ Implemented auto-update mechanic'),
+          ]),
+          ChangeLogSection.chores([
+            ChangeLogItem('Bumped version number.'),
+            ChangeLogItem('Added application icon 👁️.'),
+            ChangeLogItem('Temporarily removed edit tag (it’s not working yet).'),
+          ]),
+          ChangeLogSection.knownBugs([
+            ChangeLogItem('If project filters are changed before request completes, the newer request is not taken into account'),
+          ]),
+        ],
       ),
-      // version 1.0.1
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: ScrollbarTheme(
-            data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16.0),
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: "What's new in 1.0.1?\n\n",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
 
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "✨ "),
-                          TextSpan(
-                            text: "Features:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-
-                      TextSpan(text: "\t ᛫ Update detection for binaries (msix are not working)"),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+      ChangeLogCard(
+        '1.0.2',
+        sections: [
+          ChangeLogSection.features([
+            ChangeLogItem('🔄️ Adds a manual refresh button'),
+            ChangeLogItem('😀 Also I can test if my update mechanic works now :)'),
+          ]),
+        ],
       ),
-      // version 1.0.1
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: ScrollbarTheme(
-            data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16.0),
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: "What's new in 1.0.2?\n\n",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
 
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "✨ "),
-                          TextSpan(
-                            text: "Features:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-
-                      TextSpan(text: "\t ᛫ Adds a manual refresh button\n"),
-                      TextSpan(text: "\t ᛫ Also I can test if my update mechanic works now :)"),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+      ChangeLogCard(
+        '1.1.0',
+        sections: [
+          ChangeLogSection.features([
+            ChangeLogItem("Renamed 'Overview' to 'Updates'"),
+            ChangeLogItem('📫 Updates can now be marked as Read or Unread'),
+            ChangeLogItem('⚙️ Added setting "Mark as read upon selection"'),
+            ChangeLogItem("💬 View issue comments in the comments tab (all formatting isn't handled)"),
+            ChangeLogItem('🏃 View issue status in list and details'),
+            ChangeLogItem('🧪 [Experiment] Ticket details view'),
+          ]),
+          ChangeLogSection.bugFixes([
+            ChangeLogItem('Chosen app theme is now kept between sessions'),
+          ]),
+          ChangeLogSection.chores([
+            ChangeLogItem('Bumped version number.'),
+          ]),
+          ChangeLogSection.knownBugs([
+            ChangeLogItem('Emojis are not rendered in comments (there is no Atlassian API for that)'),
+            ChangeLogItem('Newer request is dropped by UI if project filters are changed before request completes'),
+            ChangeLogItem('Comments: nested replies are not shown as nested'),
+          ]),
+        ],
       ),
-      // version 1.1.0
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: ScrollbarTheme(
-            data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16.0),
-                child: SelectableText.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: "What's new in 1.1.0?\n\n",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
 
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "✨ "),
-                          TextSpan(
-                            text: "Features:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-                      TextSpan(text: "\t ᛫ Renamed 'Overview' to 'Updates'\n"),
-                      TextSpan(text: "\t ᛫ 📫 Updates can now be marked as Read or Unread\n"),
-                      TextSpan(text: "\t    ᛫ ⚙️ Added setting \"Mark as read upon selection\"\n"),
-                      TextSpan(text: "\t ᛫ 💬 View issue comments in the comments tab (all formatting isnt handled)\n"),
-                      TextSpan(text: "\t ᛫ 🏃 View issue status in list and details\n"),
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "\t ᛫ 🧪 "),
-                          TextSpan(
-                            text: "[Experiment]",
-                            style: TextStyle(color: Colors.green),
-                          ),
-                          TextSpan(text: " Ticket details view\n"),
-                        ],
-                      ),
-
-                      // TextSpan(text: "\t ᛫ \n"),
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "\n🪲 "),
-                          TextSpan(
-                            text: "Bug fixes:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-                      TextSpan(text: "\t ᛫ Chosen app theme is now kept between sessions\n"),
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "\n🧼 "),
-                          TextSpan(
-                            text: "Chores:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-                      TextSpan(text: "\t ᛫ Bumped version number.\n"),
-
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "\n🐞"),
-                          TextSpan(
-                            text: "Known bugs:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-                      TextSpan(text: "\t ᛫ Emojis are not rendered in comments (there is no Atlassian API for that)\n"),
-                      TextSpan(text: "\t ᛫ Newer request is dropped by UI if project filters are changed before request completes\n"),
-                      TextSpan(text: "\t ᛫ Comments: nested replies are not shown as nested\n"),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+      ChangeLogCard(
+        '1.1.1',
+        sections: [
+          ChangeLogSection.features([
+            ChangeLogItem('🔑 [BREAKING] API key is encrypted when stored in file system.'),
+            ChangeLogItem('ℹ️ Your already saved API key (in plain text) will be encrypted and removed from settings file.'),
+          ]),
+          ChangeLogSection.bugFixes([
+            ChangeLogItem('File that keeps track of the read status was not created properly'),
+            ChangeLogItem('Changelog was not scrollable in "new update" notification dialog'),
+          ]),
+          ChangeLogSection.chores([
+            ChangeLogItem('Bumped version number.'),
+            ChangeLogItem('Added dependencies to flutter_secure_storage and cryptography packages.'),
+          ]),
+          ChangeLogSection.knownBugs([
+            ChangeLogItem('Emojis are not rendered in comments (there is no Atlassian API for that)'),
+            ChangeLogItem('Newer request is dropped by UI if project filters are changed before request completes'),
+            ChangeLogItem('Comments: nested replies are not shown as nested'),
+          ]),
+        ],
       ),
-      // version 1.1.1
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: ScrollbarTheme(
-            data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16.0),
-                child: SelectableText.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: "What's new in 1.1.1?\n\n",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "✨ "),
-                          TextSpan(
-                            text: "Features:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-                      TextSpan(text: "\t ᛫ 🔑 [BREAKING] API key is encrypted when stored in file system.\n"),
-                      TextSpan(text: "\t ᛫ ℹ️ Your already saved API key (in plain text) will be encrypted and removed from settings file.\n"),
-
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "\n🪲 "),
-                          TextSpan(
-                            text: "Bug fixes:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-                      TextSpan(text: "\t ᛫ File that keeps track of the read status was not created properly\n"),
-                      TextSpan(text: "\t ᛫ Changelog was not scrollable in \"new update\" notification dialog\n"),
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "\n🧼 "),
-                          TextSpan(
-                            text: "Chores:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-                      TextSpan(text: "\t ᛫ Bumped version number.\n"),
-                      TextSpan(text: "\t ᛫ Added dependencies to flutter_secure_storage and cryptography packages.\n"),
-
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "\n🐞"),
-                          TextSpan(
-                            text: "Known bugs:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-                      TextSpan(text: "\t ᛫ Emojis are not rendered in comments (there is no Atlassian API for that)\n"),
-                      TextSpan(text: "\t ᛫ Newer request is dropped by UI if project filters are changed before request completes\n"),
-                      TextSpan(text: "\t ᛫ Comments: nested replies are not shown as nested\n"),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-      // version 1.2.0
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: ScrollbarTheme(
-            data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16.0),
-                child: SelectableText.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: "What's new in 1.2.0?\n\n",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "✨ "),
-                          TextSpan(
-                            text: "Features:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-                      TextSpan(text: "\t ᛫ ⚙️ Settings: Added Compact listing mode for Updates view\n"),
-                      TextSpan(text: "\t ᛫ 📖 Ticket details view is now available with default fields! (custom fields tbd)\n"),
-                      TextSpan(text: "\t ᛫ 🌐 Added link to GitHub in settings\n"),
-                      TextSpan(text: "\t ᛫ 😣 Added logs and diagnostics options to help troubleshooting\n"),
-
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "\n🪲 "),
-                          TextSpan(
-                            text: "Bug fixes:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-                      // TextSpan(text: "\t ᛫ File that keeps track of the read status was not created properly\n"),
-                      // TextSpan(text: "\t ᛫ Changelog was not scrollable in \"new update\" notification dialog\n"),
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "\n🧼 "),
-                          TextSpan(
-                            text: "Chores:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-                      TextSpan(text: "\t ᛫ Bumped version number.\n"),
-                      TextSpan(text: "\t ᛫ Removed dependency to flutter_json.\n"),
-                      TextSpan(text: "\t ᛫ Refactored the ticket details => json view for more helpful debugging and inspection.\n"),
-
-                      TextSpan(
-                        children: [
-                          TextSpan(text: "\n🐞"),
-                          TextSpan(
-                            text: "Known bugs:\n",
-                            style: TextStyle(decoration: TextDecoration.underline),
-                          ),
-                        ],
-                      ),
-                      TextSpan(text: "\t ᛫ Emojis are not rendered in comments (there is no Atlassian API for that)\n"),
-                      TextSpan(text: "\t ᛫ Newer request is dropped by UI if project filters are changed before request completes\n"),
-                      TextSpan(text: "\t ᛫ Comments: nested replies are not shown as nested\n"),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+      ChangeLogCard(
+        '1.2.0',
+        sections: [
+          ChangeLogSection.features([
+            ChangeLogItem('⚙️ Settings: Added Compact listing mode for Updates view'),
+            ChangeLogItem('📖 Ticket details view is now available with default fields! (custom fields tbd)'),
+            ChangeLogItem('🌐 Added link to GitHub in settings'),
+            ChangeLogItem('😣 Added logs and diagnostics options to help troubleshooting'),
+          ]),
+          ChangeLogSection.chores([
+            ChangeLogItem('Bumped version number.'),
+            ChangeLogItem('Removed dependency to flutter_json.'),
+            ChangeLogItem('Added dependency to fading_edge_scrollview.'),
+            ChangeLogItem('Refactored the ticket details 🡢 json view for more helpful debugging and inspection'),
+          ]),
+          // ChangeLogSection.bugFixes([]),
+          ChangeLogSection.knownBugs([
+            ChangeLogItem('Emojis are not rendered in comments (there is no Atlassian API for that)'),
+            ChangeLogItem('Newer request is dropped by UI if project filters are changed before request completes'),
+            ChangeLogItem('Comments: nested replies are not shown as nested'),
+          ]),
+        ],
       ),
     ];
     var ctrl = PageController(initialPage: versionsData.length - 1);
@@ -798,6 +477,90 @@ class ChangeLogsDialog extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class ChangeLogCard extends StatelessWidget {
+  const ChangeLogCard(this.version, {super.key, required this.sections, this.intro, this.outro});
+
+  final String version;
+  final List<ChangeLogSection> sections;
+  final TextSpan? intro, outro;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: ScrollbarTheme(
+        data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: SelectableText.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: "What's new in $version?\n\n",
+
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  ?intro,
+                  for (var section in sections) ...[section.toTextSpan(), TextSpan(text: '\n')],
+                  ?outro,
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class ChangeLogSection {
+  ChangeLogSection(this.name, {required this.emote, required this.items});
+
+  factory ChangeLogSection.features(List<ChangeLogItem> items) => ChangeLogSection('Features:', emote: '✨', items: items);
+  factory ChangeLogSection.bugFixes(List<ChangeLogItem> items) => ChangeLogSection('Bug fixes', emote: '🪲', items: items);
+  factory ChangeLogSection.chores(List<ChangeLogItem> items) => ChangeLogSection('Chores', emote: '🧼', items: items);
+  factory ChangeLogSection.knownBugs(List<ChangeLogItem> items) => ChangeLogSection('Known bugs', emote: '🐛', items: items);
+
+  String emote, name;
+  List<ChangeLogItem> items;
+
+  TextSpan toTextSpan() {
+    return TextSpan(
+      children: [
+        TextSpan(text: '$emote '),
+        TextSpan(
+          text: '$name\n',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        for (var i in items) ...[i.toTextSpan(), TextSpan(text: '\n')],
+      ],
+    );
+  }
+}
+
+class ChangeLogItem {
+  ChangeLogItem(this.description, {this.subItems});
+
+  String description;
+  List<ChangeLogItem>? subItems;
+
+  TextSpan toTextSpan({int indent = 0}) {
+    String indentStr = '    ' * (indent);
+    String prefix = ' ᛫ ';
+    var mainItem = TextSpan(text: '$indentStr$prefix${description.replaceAll('\n', '\n$indentStr   ')}');
+    if (subItems == null || subItems!.isEmpty) {
+      return mainItem;
+    }
+    return TextSpan(
+      children: [
+        mainItem,
+        for (var i in subItems!) i.toTextSpan(indent: indent + 1),
+      ],
     );
   }
 }

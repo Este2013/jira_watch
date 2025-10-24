@@ -87,39 +87,37 @@ class AdvancedDataView extends StatelessWidget {
   final IssueData ticket;
 
   @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: Column(
-        children: [
-          TabBar.secondary(
-            tabs: [
-              Tab(text: 'Full json'),
-              Tab(text: 'Default fields'),
-              Tab(text: '🚧 Custom fields'),
-            ],
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: TabBarView(
-                children: [
-                  JsonTicketView(ticket: ticket),
-                  // JsonWidget(
-                  //   json: json.decode(JsonEncoder().convert(ticket)),
-                  //   initialExpandDepth: 2,
-                  //   nodeIndent: 32,
-                  // ),
-                  FieldsTable(ticket),
-                  UnderConstructionNotice(),
-                ],
-              ),
+  Widget build(BuildContext context) => DefaultTabController(
+    length: 3,
+    child: Column(
+      children: [
+        TabBar.secondary(
+          tabs: [
+            Tab(text: 'Full json'),
+            Tab(text: 'Default fields'),
+            Tab(text: '🚧 Custom fields'),
+          ],
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TabBarView(
+              children: [
+                JsonTicketView(ticket: ticket),
+                // JsonWidget(
+                //   json: json.decode(JsonEncoder().convert(ticket)),
+                //   initialExpandDepth: 2,
+                //   nodeIndent: 32,
+                // ),
+                FieldsTable(ticket),
+                UnderConstructionNotice(),
+              ],
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
 }
 
 class JsonTicketView extends StatefulWidget {
@@ -193,180 +191,183 @@ class _FieldsTableState extends State<FieldsTable> {
   bool onlyNonHandled = false;
 
   @override
-  Widget build(BuildContext context) {
-    List<MapEntry<dynamic, dynamic>> fields =
-        widget.ticket.fields!.entries
-            .where(
-              (e) => !(e.key as String).contains('customfield'),
-            )
-            .where(
-              // search
-              (e) => (e.key as String).toLowerCase().contains(searchController.text.toLowerCase()),
-            )
-            .where(
-              // non-handled filtering
-              (e) =>
-                  !onlyNonHandled ||
-                  ![
-                    'assignee',
-                    'assignee',
-                    'attachment',
-                    'comment',
-                    'components',
-                    'created',
-                    'description',
-                    'environment',
-                    'fixVersions',
-                    'issuelinks',
-                    'issuetype',
-                    'labels',
-                    'lastViewed',
-                    'priority',
-                    'project',
-                    'reporter',
-                    'resolutiondate',
-                    'status',
-                    'statusCategory',
-                    'statuscategorychangedate',
-                    'summary',
-                    'updated',
-                    'versions',
-                    'watches',
-                  ].contains(e.key as String),
-            )
-            .toList()
-          ..sort(
-            (a, b) => (a.key as String).compareTo(b.key),
-          );
+  Widget build(BuildContext context) => Column(
+    spacing: 8,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
 
-    return Column(
-      spacing: 8,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-
-      children: [
-        Row(
-          spacing: 8,
-          children: [
-            Expanded(
-              child: TextField(
-                autofocus: true,
-                controller: searchController,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(),
-                  icon: Icon(Icons.search),
-                ),
+    children: [
+      Row(
+        spacing: 8,
+        children: [
+          Expanded(
+            child: TextField(
+              autofocus: true,
+              controller: searchController,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(),
+                icon: Icon(Icons.search),
               ),
             ),
-            IconButton(
-              onPressed: () => setState(() {
-                onlyNonHandled = !onlyNonHandled;
-              }),
-              tooltip: 'Hide fields that are handled in Details view: ${onlyNonHandled ? 'ON' : 'OFF'}',
-              icon: Icon(Icons.filter_alt_off),
-              selectedIcon: Icon(Icons.filter_alt),
-              isSelected: onlyNonHandled,
-            ),
-          ],
-        ),
-        Expanded(
-          child: Row(
-            spacing: 8,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: ListView(
-                  children: [
-                    for (var field in fields)
-                      Builder(
-                        builder: (context) {
-                          String type = field.value.runtimeType.toString().replaceAll(RegExp('^_'), '').replaceAll(RegExp('<.*>'), '');
-                          var typeSpan = TextSpan(
-                            text: type,
-                            style: TextStyle(
-                              color: type == 'Null' ? Colors.red : Colors.green.shade600,
-                            ),
-                          );
-                          return ListTile(
-                            title: Text.rich(
-                              TextSpan(
-                                children: [
-                                  TextSpan(text: field.key),
+          ),
+          IconButton(
+            onPressed: () => setState(() {
+              onlyNonHandled = !onlyNonHandled;
+            }),
+            tooltip: 'Hide fields that are handled in Details view: ${onlyNonHandled ? 'ON' : 'OFF'}',
+            icon: Icon(Icons.filter_alt_off),
+            selectedIcon: Icon(Icons.filter_alt),
+            isSelected: onlyNonHandled,
+          ),
+        ],
+      ),
+      Expanded(
+        child: Row(
+          spacing: 8,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: AnimatedBuilder(
+                animation: searchController,
+                builder: (context, _) {
+                  List<MapEntry<dynamic, dynamic>> fields =
+                      widget.ticket.fields!.entries
+                          .where(
+                            (e) => !(e.key as String).contains('customfield'),
+                          )
+                          .where(
+                            // search
+                            (e) => (e.key as String).toLowerCase().contains(searchController.text.toLowerCase()),
+                          )
+                          .where(
+                            // non-handled filtering
+                            (e) =>
+                                !onlyNonHandled ||
+                                ![
+                                  'assignee',
+                                  'assignee',
+                                  'attachment',
+                                  'comment',
+                                  'components',
+                                  'created',
+                                  'creator',
+                                  'description',
+                                  'environment',
+                                  'fixVersions',
+                                  'issuelinks',
+                                  'issuetype',
+                                  'labels',
+                                  'lastViewed',
+                                  'priority',
+                                  'project',
+                                  'reporter',
+                                  'resolutiondate',
+                                  'status',
+                                  'statusCategory',
+                                  'statuscategorychangedate',
+                                  'summary',
+                                  'updated',
+                                  'versions',
+                                  'watches',
+                                ].contains(e.key as String),
+                          )
+                          .toList()
+                        ..sort(
+                          (a, b) => (a.key as String).compareTo(b.key),
+                        );
+                  return ListView(
+                    children: [
+                      for (var field in fields)
+                        Builder(
+                          builder: (context) {
+                            String type = field.value.runtimeType.toString().replaceAll(RegExp('^_'), '').replaceAll(RegExp('<.*>'), '');
+                            var typeSpan = TextSpan(
+                              text: type,
+                              style: TextStyle(
+                                color: type == 'Null' ? Colors.red : Colors.green.shade600,
+                              ),
+                            );
+                            return ListTile(
+                              title: Text.rich(
+                                TextSpan(
+                                  children: [
+                                    TextSpan(text: field.key),
 
-                                  TextSpan(
-                                    children: [
-                                      TextSpan(text: ' ('),
-                                      typeSpan,
-                                      TextSpan(text: ')'),
-                                    ],
+                                    TextSpan(
+                                      children: [
+                                        TextSpan(text: ' ('),
+                                        typeSpan,
+                                        TextSpan(text: ')'),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              subtitle: type == 'Map'
+                                  ? Text('{ ${(field.value as Map).length} }')
+                                  : type == 'List'
+                                  ? Text('[ ${(field.value as List).length} ]')
+                                  : Text(field.value.toString()),
+                              trailing: Wrap(
+                                children: [
+                                  IconButton(
+                                    onPressed: () => Clipboard.setData(ClipboardData(text: field.key)),
+                                    icon: Icon(Icons.key),
+                                    tooltip: 'Copy key',
+                                  ),
+                                  IconButton(
+                                    onPressed: () => Clipboard.setData(ClipboardData(text: JsonEncoder.withIndent('    ').convert(field.value))),
+                                    icon: Icon(Icons.data_object),
+                                    tooltip: 'Copy value',
                                   ),
                                 ],
                               ),
-                            ),
-                            subtitle: type == 'Map'
-                                ? Text('{ ${(field.value as Map).length} }')
-                                : type == 'List'
-                                ? Text('[ ${(field.value as List).length} ]')
-                                : Text(field.value.toString()),
-                            trailing: Wrap(
-                              children: [
-                                IconButton(
-                                  onPressed: () => Clipboard.setData(ClipboardData(text: field.key)),
-                                  icon: Icon(Icons.key),
-                                  tooltip: 'Copy key',
-                                ),
-                                IconButton(
-                                  onPressed: () => Clipboard.setData(ClipboardData(text: JsonEncoder.withIndent('    ').convert(field.value))),
-                                  icon: Icon(Icons.data_object),
-                                  tooltip: 'Copy value',
-                                ),
-                              ],
-                            ),
-                            onTap: () => setState(() => selectedKey = field.key),
-                            selected: selectedKey == field.key,
-                            selectedTileColor: Theme.of(context).colorScheme.secondaryContainer.withAlpha(200),
-                          );
-                        },
-                      ),
-                  ],
-                ),
+                              onTap: () => setState(() => selectedKey = field.key),
+                              selected: selectedKey == field.key,
+                              selectedTileColor: Theme.of(context).colorScheme.secondaryContainer.withAlpha(200),
+                            );
+                          },
+                        ),
+                    ],
+                  );
+                },
               ),
+            ),
 
-              AnimatedSize(
-                key: Key(selectedKey ?? 'none is selected'),
-                duration: Durations.medium1,
-                child: selectedKey == null
-                    ? SizedBox.shrink()
-                    : SizedBox(
-                        width: 500,
-                        child: Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              spacing: 16,
-                              children: [
-                                Text(
-                                  selectedKey!,
-                                  style: Theme.of(context).textTheme.titleMedium,
-                                ),
-                                Divider(),
-                                Expanded(
-                                  child: SingleChildScrollView(
-                                    child: JsonViewer(
-                                      key: Key('viewer:${selectedKey ?? 'none is selected'}'),
-                                      data: widget.ticket.fields![selectedKey],
-                                    ),
+            AnimatedSize(
+              key: Key(selectedKey ?? 'none is selected'),
+              duration: Durations.medium1,
+              child: selectedKey == null
+                  ? SizedBox.shrink()
+                  : SizedBox(
+                      width: 500,
+                      child: Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            spacing: 16,
+                            children: [
+                              Text(
+                                selectedKey!,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              Divider(),
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  child: JsonViewer(
+                                    key: Key('viewer:${selectedKey ?? 'none is selected'}'),
+                                    data: widget.ticket.fields![selectedKey],
                                   ),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-              ),
-            ],
-          ),
+                    ),
+            ),
+          ],
         ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
 }

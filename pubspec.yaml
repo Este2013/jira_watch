@@ -12,6 +12,7 @@ dependencies:
   cryptography: ^2.7.0
   csv: ^6.0.0
   diff_match_patch: ^0.4.1
+  fading_edge_scrollview: ^4.1.1
   flutter:
     sdk: flutter
   flutter_cache_manager: ^3.4.1

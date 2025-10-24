@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:charset/charset.dart';
+import 'package:fading_edge_scrollview/fading_edge_scrollview.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 
@@ -24,6 +25,9 @@ class TicketDetailsView extends StatelessWidget {
     if (ticket.fields == null) {
       return Text('No fields were found');
     }
+
+    bool labels = ticket.fields?['labels'] != null && ticket.fields!['labels'].isNotEmpty;
+    bool components = ticket.fields?['components'] != null && ticket.fields!['components'].isNotEmpty;
     return Padding(
       padding: const EdgeInsets.all(32.0),
       child: ListView(
@@ -44,37 +48,28 @@ class TicketDetailsView extends StatelessWidget {
               ],
             ),
           ),
-          if (ticket.fields?['labels'] != null && ticket.fields!['labels'].isNotEmpty)
-            Wrap(
-              runSpacing: 8,
-              spacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
+          if (labels || components)
+            Row(
               children: [
-                Text(
-                  'Labels:',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                for (var t in ticket.fields?['labels']) Chip(label: Text(t)),
+                if (labels)
+                  Expanded(
+                    child: ListingTypeField(
+                      'Labels',
+                      icon: Icon(Icons.label),
+                      itemList: ticket.fields?['labels'],
+                    ),
+                  ),
+                if (components)
+                  Expanded(
+                    child: ListingTypeField(
+                      'Components',
+                      icon: Icon(Icons.extension),
+                      itemList: ticket.fields?['components'],
+                      itemToString: (item) => (item as Map)['name']!,
+                    ),
+                  ),
               ],
             ),
-          if (ticket.fields?['components'] != null && ticket.fields!['components'].isNotEmpty)
-            Wrap(
-              runSpacing: 8,
-              spacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text(
-                  'Components:',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                for (var t in ticket.fields?['components']) Chip(label: Text(t['name'])),
-              ],
-            ),
-          if (ticket.fields!['description'] != null) DescriptionLikeField('Description', contentData: ticket.fields!['description']),
-          if (ticket.fields!['environment'] != null) DescriptionLikeField('Environment', contentData: ticket.fields!['environment']),
-          if (ticket.fields!['attachment'] != null && (ticket.fields!['attachment'] as List).isNotEmpty) AttachmentsField(attachmentsData: ticket.fields!['attachment']),
-          if (ticket.fields?['issuelinks'] != null && ticket.fields!['issuelinks'].isNotEmpty) IssueLinksField(issueLinksData: (ticket.fields!['issuelinks']! as List).cast()),
-
           Row(
             children: [
               Expanded(
@@ -85,78 +80,18 @@ class TicketDetailsView extends StatelessWidget {
               ),
             ],
           ),
+          if (ticket.fields!['description'] != null) DescriptionLikeField('Description', contentData: ticket.fields!['description']),
+          if (ticket.fields!['environment'] != null) DescriptionLikeField('Environment', contentData: ticket.fields!['environment']),
+          if (ticket.fields!['attachment'] != null && (ticket.fields!['attachment'] as List).isNotEmpty) AttachmentsField(attachmentsData: ticket.fields!['attachment']),
+          if (ticket.fields?['issuelinks'] != null && ticket.fields!['issuelinks'].isNotEmpty) IssueLinksField(issueLinksData: (ticket.fields!['issuelinks']! as List).cast()),
 
-          DateDisplay('Created', date: ticket.fields!['created']),
+          DateDisplay('Created${ticket.fields!['creator']?['displayName'] != null ? " by ${ticket.fields!['creator']['displayName']}" : ''}', date: ticket.fields!['created']),
           if (ticket.fields?['updated'] != null) DateDisplay('Updated', date: ticket.fields!['updated']),
           if (ticket.fields?['resolutiondate'] != null) DateDisplay('Resolution date', date: ticket.fields!['resolutiondate']),
           if (ticket.fields?['statuscategorychangedate'] != null) DateDisplay('Last status category change', date: ticket.fields!['statuscategorychangedate']),
           if (ticket.fields?['lastViewed'] != null) DateDisplay('Last viewed', date: ticket.fields!['lastViewed']),
           // Text(ticket.fields!['fixVersions'].toString()),
         ].expand((w) => [w, SizedBox(height: 8)]).toList(),
-      ),
-    );
-  }
-}
-
-class VersionsField extends StatelessWidget {
-  const VersionsField(
-    this.name, {
-    super.key,
-    required this.ticket,
-    required this.property,
-    this.icon,
-  });
-
-  final String name, property;
-  final IssueData ticket;
-  final Widget? icon;
-
-  @override
-  Widget build(BuildContext context) {
-    var versionList = ticket.fields![property] as List?;
-    return Card(
-      child: Container(
-        height: 50,
-        padding: EdgeInsetsGeometry.symmetric(vertical: 8, horizontal: 16),
-        child: Row(
-          spacing: 8,
-          children: [
-            ?icon,
-            Text(
-              '$name${(versionList?.length ?? 0) > 1 ? 's' : ''}:',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            Expanded(
-              child: (versionList == null || versionList.isEmpty)
-                  ? Text('None')
-                  : ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        for (var v
-                            in versionList..sort(
-                              (a, b) {
-                                if (a['released'] && b['released']) {
-                                  return DateTime.parse(b['releaseDate']).compareTo(DateTime.parse(a['releaseDate']));
-                                } else if (a['released']) {
-                                  return DateTime(9999).compareTo(DateTime.parse(a['releaseDate']));
-                                } else if (b['released']) {
-                                  return DateTime.parse(b['releaseDate']).compareTo(DateTime(9999));
-                                }
-                                return int.parse(b['id']).compareTo(int.parse(a['id']));
-                              },
-                            ))
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8.0),
-                            child: Tooltip(
-                              message: v['description'] ?? '',
-                              child: Chip(label: Text(v['name'])),
-                            ),
-                          ),
-                      ],
-                    ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -761,6 +696,109 @@ class IssueLinkTile extends StatelessWidget {
     ),
     onTap: () => launchUrl(Uri.parse('https://${SettingsModel().domainController.text}.atlassian.net/browse/${issueLinkData['key']}')),
   );
+}
+
+class ListingTypeField<T> extends StatelessWidget {
+  const ListingTypeField(
+    this.name, {
+    super.key,
+    required this.itemList,
+    this.itemToString,
+    this.itemToTooltip,
+    this.onTap,
+    this.icon,
+  });
+
+  final String name;
+  final List<T>? itemList;
+  final String Function(T item)? itemToString;
+  final String Function(T item)? itemToTooltip;
+  final void Function(T item)? onTap;
+  final Widget? icon;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Container(
+      height: 50,
+      padding: EdgeInsetsGeometry.symmetric(vertical: 8, horizontal: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        spacing: 8,
+        children: [
+          ?icon,
+
+          Expanded(
+            child: FadingEdgeScrollView.fromScrollView(
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                controller: ScrollController(),
+                children: [
+                  // NAME
+                  Center(child: Text(name, style: Theme.of(context).textTheme.titleSmall)),
+                  SizedBox(width: 8),
+                  // If none is listed
+                  if (itemList == null || itemList!.isEmpty)
+                    Center(child: Text('None'))
+                  else
+                    for (var item in itemList!)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: Tooltip(
+                          message: _itemToTooltip(item),
+                          child: Chip(label: Text(_itemToString(item))),
+                        ),
+                      ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  String _itemToString(T item) => itemToString?.call(item) ?? item.toString();
+  String _itemToTooltip(T item) => itemToTooltip?.call(item) ?? '';
+}
+
+class VersionsField extends StatelessWidget {
+  const VersionsField(
+    this.name, {
+    super.key,
+    required this.ticket,
+    required this.property,
+    this.icon,
+  });
+
+  final String name, property;
+  final IssueData ticket;
+  final Widget? icon;
+
+  @override
+  Widget build(BuildContext context) => ListingTypeField(
+    name,
+    icon: icon,
+    itemList: versionList(),
+    itemToString: (item) => item['name'],
+    itemToTooltip: (item) => item['description'],
+  );
+
+  List<dynamic>? versionList() {
+    var versionList = ticket.fields![property] as List?;
+    versionList?.sort(
+      (a, b) {
+        if (a['released'] && b['released']) {
+          return DateTime.parse(b['releaseDate']).compareTo(DateTime.parse(a['releaseDate']));
+        } else if (a['released']) {
+          return DateTime(9999).compareTo(DateTime.parse(a['releaseDate']));
+        } else if (b['released']) {
+          return DateTime.parse(b['releaseDate']).compareTo(DateTime(9999));
+        }
+        return int.parse(b['id']).compareTo(int.parse(a['id']));
+      },
+    );
+    return versionList;
+  }
 }
 
 class DateDisplay extends StatelessWidget {
