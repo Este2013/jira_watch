@@ -131,15 +131,18 @@ class DataModel with UiLoggy {
   );
 
   Future<Map<String, DateTime>> issueMarkedAsReadTime() async {
-    if (!await _issueMarkedAsReadTimeDataFile.exists()) {
-      await _issueMarkedAsReadTimeDataFile.create(recursive: true);
+    if (_issueMarkedAsReadTimeCache == null) {
+      if (!await _issueMarkedAsReadTimeDataFile.exists()) {
+        await _issueMarkedAsReadTimeDataFile.create(recursive: true);
+      }
+      _issueMarkedAsReadTimeCache ??= _issueMarkedAsReadTimeDataFile.readAsString().then(
+        (strData) {
+          var csv = const CsvToListConverter().convert(strData);
+          return {for (var line in csv) line.first: DateTime.parse(line.last)};
+        },
+      );
     }
-    _issueMarkedAsReadTimeCache ??= _issueMarkedAsReadTimeDataFile.readAsString().then(
-      (strData) {
-        var csv = const CsvToListConverter().convert(strData);
-        return {for (var line in csv) line.first: DateTime.parse(line.last)};
-      },
-    );
+
     return _issueMarkedAsReadTimeCache!;
   }
 

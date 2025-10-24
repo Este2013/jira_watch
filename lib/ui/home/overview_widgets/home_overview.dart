@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:calendar_date_picker2/calendar_date_picker2.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/data_model.dart';
@@ -34,7 +35,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
   String? nextPageToken;
 
   Set<String> activeProjectFilters = {};
-  String? timeFilter;
+  dynamic timeFilter;
 
   IssueData? selectedTicket;
 
@@ -52,7 +53,11 @@ class _UpdatesPageState extends State<UpdatesPage> {
     // Set any eventual filters from the previous session
     var filters = SettingsModel().filters.value;
     activeProjectFilters = ((filters['active_projects'] ?? []) as List).cast<String>().toSet();
+
     timeFilter = filters['time_filter'];
+    if (timeFilter is List) {
+      timeFilter = timeFilter.map((f) => DateTime.parse(f)).toList();
+    }
 
     // initial load
     _resetAndFetchFirstPage();
@@ -67,7 +72,11 @@ class _UpdatesPageState extends State<UpdatesPage> {
   void _saveFilters() {
     var filters = <String, dynamic>{};
     filters['active_projects'] = activeProjectFilters.toList();
-    filters['time_filter'] = timeFilter;
+    if (timeFilter is String?) {
+      filters['time_filter'] = timeFilter;
+    } else {
+      filters['time_filter'] = timeFilter.map((DateTime d) => d.toIso8601String()).toList();
+    }
 
     SettingsModel().filters.value = filters;
   }
@@ -127,48 +136,58 @@ class _UpdatesPageState extends State<UpdatesPage> {
   }
 
   DateTime? get afterDateTime {
-    switch (timeFilter) {
-      case null:
-        return null;
-      case 'today':
-        return DateTime(now.year, now.month, now.day);
-      case 'yesterday':
-        return DateTime(now.year, now.month, now.day).subtract(const Duration(days: 1));
-      case 'week':
-        {
-          int weekday = now.weekday; // Monday = 1, Sunday = 7
-          return DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1));
-        }
-      case 'last week':
-        {
-          int weekday = now.weekday; // Monday = 1, Sunday = 7
-          return DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1)).subtract(Duration(days: 7));
-        }
+    if (timeFilter is String?) {
+      switch (timeFilter) {
+        case null:
+          return null;
+        case 'today':
+          return DateTime(now.year, now.month, now.day);
+        case 'yesterday':
+          return DateTime(now.year, now.month, now.day).subtract(const Duration(days: 1));
+        case 'week':
+          {
+            int weekday = now.weekday; // Monday = 1, Sunday = 7
+            return DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1));
+          }
+        case 'last week':
+          {
+            int weekday = now.weekday; // Monday = 1, Sunday = 7
+            return DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1)).subtract(Duration(days: 7));
+          }
+      }
+    }
+    if (timeFilter is List) {
+      return timeFilter.first;
     }
     throw Exception();
     // return null;
   }
 
   DateTime? get beforeDateTime {
-    switch (timeFilter) {
-      case null:
-        return null;
-      case 'today':
-        return null;
-      case 'yesterday':
-        return DateTime(now.year, now.month, now.day);
-      case 'week':
-        {
-          int weekday = now.weekday; // Monday = 1, Sunday = 7
-          DateTime startOfWeek = DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1));
-          return DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day, 23, 59, 59, 999).add(const Duration(days: 6));
-        }
-      case 'last week':
-        {
-          int weekday = now.weekday; // Monday = 1, Sunday = 7
-          DateTime startOfWeek = DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1)).subtract(Duration(days: 7));
-          return DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day, 23, 59, 59, 999).add(const Duration(days: 6));
-        }
+    if (timeFilter is String?) {
+      switch (timeFilter) {
+        case null:
+          return null;
+        case 'today':
+          return null;
+        case 'yesterday':
+          return DateTime(now.year, now.month, now.day);
+        case 'week':
+          {
+            int weekday = now.weekday; // Monday = 1, Sunday = 7
+            DateTime startOfWeek = DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1));
+            return DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day, 23, 59, 59, 999).add(const Duration(days: 6));
+          }
+        case 'last week':
+          {
+            int weekday = now.weekday; // Monday = 1, Sunday = 7
+            DateTime startOfWeek = DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1)).subtract(Duration(days: 7));
+            return DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day, 23, 59, 59, 999).add(const Duration(days: 6));
+          }
+      }
+    }
+    if (timeFilter is List) {
+      return timeFilter.last;
     }
     throw Exception();
   }
@@ -224,28 +243,13 @@ class _UpdatesPageState extends State<UpdatesPage> {
                         ),
                       ),
                     ),
-                    // Time filtering
-                    Row(
-                      spacing: 8,
-                      children: [
-                        DropdownMenu<String?>(
-                          enableSearch: false,
-                          leadingIcon: Icon(Icons.calendar_today),
-                          initialSelection: timeFilter,
-                          dropdownMenuEntries: const [
-                            DropdownMenuEntry(value: null, label: 'All time'),
-                            DropdownMenuEntry(value: 'today', label: 'Today'),
-                            DropdownMenuEntry(value: 'yesterday', label: 'Yesterday'),
-                            DropdownMenuEntry(value: 'week', label: 'This week'),
-                            DropdownMenuEntry(value: 'last week', label: 'Last week'),
-                          ],
-                          onSelected: (value) {
-                            setState(() => timeFilter = value);
-                            _saveFilters();
-                            _resetAndFetchFirstPage();
-                          },
-                        ),
-                      ],
+                    TimeFilterDropdown(
+                      init: timeFilter,
+                      save: (data) {
+                        setState(() => timeFilter = data);
+                        _saveFilters();
+                        _resetAndFetchFirstPage();
+                      },
                     ),
                     IconButton(
                       onPressed: _resetAndFetchFirstPage,
@@ -397,6 +401,14 @@ class JiraTicketPreviewItem extends StatefulWidget {
 }
 
 class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
+  late Future<DateTime?> issueMarkedAsReadTime;
+
+  @override
+  void initState() {
+    issueMarkedAsReadTime = DataModel().issueMarkedAsReadTime().then((value) => value[widget.ticket.key]);
+    super.initState();
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = _ticketColors(context, widget.ticket);
@@ -419,7 +431,7 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
         bool shouldMarkAsReadOnOpen = SettingsModel().markAsReadOnOpen.value;
         String useCompactMode = SettingsModel().useCompactTicketDisplay.value;
         return FutureBuilder<DateTime?>(
-          future: DataModel().issueMarkedAsReadTime().then((value) => value[widget.ticket.key]),
+          future: issueMarkedAsReadTime,
           builder: (context, lastReadSnapshot) {
             DateTime? lastReadTime = lastReadSnapshot.data, updatedTime = DateTime.parse(updated);
             bool isRead = lastReadTime != null ? lastReadTime.isAfter(updatedTime) || lastReadTime.isAtSameMomentAs(updatedTime) : false;
@@ -756,5 +768,88 @@ class _EdgeOverscrollListenerState extends State<EdgeOverscrollListener> {
   Widget build(BuildContext context) => Listener(
     onPointerSignal: _onPointerSignal,
     child: widget.child,
+  );
+}
+
+class TimeFilterDropdown extends StatefulWidget {
+  const TimeFilterDropdown({super.key, required this.save, required this.init});
+
+  final Object? init;
+  final void Function(dynamic data) save;
+
+  @override
+  State<TimeFilterDropdown> createState() => _TimeFilterDropdownState();
+}
+
+class _TimeFilterDropdownState extends State<TimeFilterDropdown> {
+  // What the dropdown visually shows as the selected item.
+  // Values: null (All time), 'today', 'yesterday', 'week', 'last week', 'custom'
+  String? _dropdownSelection; // start on "All time"
+
+  // The actual filter you apply: either a preset string OR a JSON map.
+  // Examples:
+  //   'today' | 'yesterday' | 'week' | 'last week'
+  //   or {"start":"2025-10-01","end":null}
+  Object? _timeFilterData;
+
+  @override
+  void initState() {
+    super.initState();
+    _timeFilterData = widget.init;
+    _dropdownSelection = widget.init is String ? widget.init as String : 'custom';
+  }
+
+  void _saveFilters() {
+    widget.save(_timeFilterData);
+  }
+
+  @override
+  Widget build(BuildContext context) => DropdownMenu<String?>(
+    enableSearch: false,
+    leadingIcon: const Icon(Icons.calendar_today),
+    initialSelection: _dropdownSelection,
+    dropdownMenuEntries: const [
+      DropdownMenuEntry(value: null, label: 'All time'),
+      DropdownMenuEntry(value: 'today', label: 'Today'),
+      DropdownMenuEntry(value: 'yesterday', label: 'Yesterday'),
+      DropdownMenuEntry(value: 'week', label: 'This week'),
+      DropdownMenuEntry(value: 'last week', label: 'Last week'),
+      DropdownMenuEntry(value: 'custom', label: 'Custom range'),
+    ],
+    onSelected: (value) async {
+      if (value == 'custom') {
+        final values = await showCalendarDatePicker2Dialog(
+          context: context,
+          config: CalendarDatePicker2WithActionButtonsConfig(
+            calendarType: CalendarDatePicker2Type.range,
+            firstDate: DateTime(1800),
+          ),
+          dialogSize: const Size(325, 370),
+          borderRadius: BorderRadius.circular(15),
+          // value: _dialogCalendarPickerValue,
+        );
+        if (values == null || values.isEmpty) {
+          // user cancelled; keep previous selection as-is
+          return;
+        }
+        if (values.length == 1) {
+          values.add(DateTime.parse(values.first!.toIso8601String()));
+        }
+        values.last = values.last?.add(Duration(days: 1));
+        setState(() {
+          _timeFilterData = values;
+          _dropdownSelection = 'custom';
+        });
+        _saveFilters();
+        return;
+      }
+
+      // Presets (or All time)
+      setState(() {
+        _timeFilterData = value; // 'today' | 'yesterday' | ... | null
+        _dropdownSelection = value; // reflect in UI
+      });
+      _saveFilters();
+    },
   );
 }

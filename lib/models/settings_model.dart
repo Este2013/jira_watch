@@ -3,12 +3,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/utils/encryption_service.dart';
+import 'package:loggy/loggy.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart' as pkg;
 
-class SettingsModel {
+class SettingsModel with UiLoggy {
   static final SettingsModel _instance = SettingsModel._internal();
   Uri get settingsFolderUri => Uri.directory(join(Platform.environment['APPDATA']!, "com.este", "jira_watcher"));
   Directory get settingsFolder => Directory(join(Platform.environment['APPDATA']!, "com.este", "jira_watcher"));
@@ -68,8 +69,17 @@ class SettingsModel {
         starredProjects.addListener(() => prefs.setStringList('starred_projects', starredProjects.value ?? []));
 
         // FILTERS
-        filters = ValueNotifier(jsonDecode(prefs.getString('overview_filters') ?? '{}') as Map<String, dynamic>);
-        filters.addListener(() => prefs.setString('overview_filters', jsonEncode(filters.value)));
+        var filterInit = prefs.get('overview_filters');
+        if (filterInit == null) {
+          filters = ValueNotifier({});
+        } else if (filterInit is String) {
+          filters = ValueNotifier(jsonDecode(filterInit) as Map<String, dynamic>);
+        } else if (filterInit is Map<String, dynamic>) {
+          filters = ValueNotifier(filterInit.cast());
+        } else {
+          loggy.error('preferences\' overview_filters have a wrong type: ${filterInit.runtimeType}. Resetting default settings.');
+          filters = ValueNotifier({});
+        }
         return true;
       },
       onError: (_) => false,

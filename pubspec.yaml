@@ -7,6 +7,7 @@ environment:
   sdk: ^3.9.0-100.2.beta
 
 dependencies:
+  calendar_date_picker2: ^2.0.1
   charset: ^2.0.1
   chewie: ^1.13.0
   cryptography: ^2.7.0

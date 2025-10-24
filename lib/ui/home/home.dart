@@ -404,6 +404,7 @@ class ChangeLogsDialog extends StatelessWidget {
         sections: [
           ChangeLogSection.features([
             ChangeLogItem('⚙️ Settings: Added Compact listing mode for Updates view'),
+            ChangeLogItem('🕜 Custom time filtering is now available'),
             ChangeLogItem('📖 Ticket details view is now available with default fields! (custom fields tbd)'),
             ChangeLogItem('🌐 Added link to GitHub in settings'),
             ChangeLogItem('😣 Added logs and diagnostics options to help troubleshooting'),
@@ -411,7 +412,7 @@ class ChangeLogsDialog extends StatelessWidget {
           ChangeLogSection.chores([
             ChangeLogItem('Bumped version number.'),
             ChangeLogItem('Removed dependency to flutter_json.'),
-            ChangeLogItem('Added dependency to fading_edge_scrollview.'),
+            ChangeLogItem('Added dependency to fading_edge_scrollview and calendar_date_picker2.'),
             ChangeLogItem('Refactored the ticket details 🡢 json view for more helpful debugging and inspection'),
           ]),
           // ChangeLogSection.bugFixes([]),
