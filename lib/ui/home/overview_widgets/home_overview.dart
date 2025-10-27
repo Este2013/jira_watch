@@ -801,7 +801,7 @@ class _TimeFilterDropdownState extends State<TimeFilterDropdown> {
   void initState() {
     super.initState();
     _timeFilterData = widget.init;
-    _dropdownSelection = widget.init is String ? widget.init as String : 'custom';
+    _dropdownSelection = widget.init is String? ? widget.init as String? : 'custom';
   }
 
   void _saveFilters() {
