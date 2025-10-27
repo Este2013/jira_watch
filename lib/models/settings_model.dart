@@ -68,7 +68,7 @@ class SettingsModel with UiLoggy {
         starredProjects.value = prefs.getStringList('starred_projects') ?? [];
         starredProjects.addListener(() => prefs.setStringList('starred_projects', starredProjects.value ?? []));
 
-        // FILTERS
+        // OVERVIEW FILTERS
         var filterInit = prefs.get('overview_filters');
         if (filterInit == null) {
           filters = ValueNotifier({});
@@ -80,6 +80,7 @@ class SettingsModel with UiLoggy {
           loggy.error('preferences\' overview_filters have a wrong type: ${filterInit.runtimeType}. Resetting default settings.');
           filters = ValueNotifier({});
         }
+        filters.addListener(() => prefs.setString('overview_filters', jsonEncode(filters.value)));
         return true;
       },
       onError: (_) => false,

@@ -343,6 +343,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
   void dispose() {
     scrollController.removeListener(_onScrollNearBottom);
     scrollController.dispose();
+    _JiraTicketPreviewItemState.cache = {};
     super.dispose();
   }
 }
@@ -401,6 +402,8 @@ class JiraTicketPreviewItem extends StatefulWidget {
 }
 
 class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
+  // To stop the UI scrolling jank
+  static Map<String, DateTime?> cache = {};
   late Future<DateTime?> issueMarkedAsReadTime;
 
   @override
@@ -432,8 +435,10 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
         String useCompactMode = SettingsModel().useCompactTicketDisplay.value;
         return FutureBuilder<DateTime?>(
           future: issueMarkedAsReadTime,
+          initialData: _JiraTicketPreviewItemState.cache[widget.ticket.key ?? ''],
           builder: (context, lastReadSnapshot) {
             DateTime? lastReadTime = lastReadSnapshot.data, updatedTime = DateTime.parse(updated);
+            _JiraTicketPreviewItemState.cache[widget.ticket.key ?? ''] = lastReadTime;
             bool isRead = lastReadTime != null ? lastReadTime.isAfter(updatedTime) || lastReadTime.isAtSameMomentAs(updatedTime) : false;
             var optionsWhenSelected = Padding(
               padding: const EdgeInsets.only(top: 8.0, bottom: 2),
