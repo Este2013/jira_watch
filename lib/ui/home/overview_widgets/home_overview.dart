@@ -282,44 +282,49 @@ class _UpdatesPageState extends State<UpdatesPage> {
                         }
                         return false;
                       },
-                      child: ListView.builder(
-                        controller: scrollController,
-                        itemCount: allLoadedIssues.length + (isLoading || hasMore ? 1 : 0), // +1 for footer
-                        itemBuilder: (context, index) {
-                          if (index < allLoadedIssues.length) {
-                            final t = allLoadedIssues[index];
-                            return JiraTicketPreviewItem(
-                              key: Key(t.key ?? ''),
-                              ticket: t,
-                              updateView: selectTicket,
-                              isSelected: selectedTicket != null && selectedTicket?.key == t.key,
-                              changedSize: loadMoreIfNoScrollPossible,
-                            );
-                          }
+                      child: FutureBuilder(
+                        future: DataModel().issueMarkedAsReadTime(),
+                        builder: (_, _) {
+                          return ListView.builder(
+                            controller: scrollController,
+                            itemCount: allLoadedIssues.length + (isLoading || hasMore ? 1 : 0), // +1 for footer
+                            itemBuilder: (context, index) {
+                              if (index < allLoadedIssues.length) {
+                                final t = allLoadedIssues[index];
+                                return JiraTicketPreviewItem(
+                                  key: Key(t.key ?? ''),
+                                  ticket: t,
+                                  updateView: selectTicket,
+                                  isSelected: selectedTicket != null && selectedTicket?.key == t.key,
+                                  changedSize: loadMoreIfNoScrollPossible,
+                                );
+                              }
 
-                          // Footer row: show a loader while fetching; when finished and !hasMore, show a subtle end cap.
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 16.0),
-                            child: Center(
-                              child: isLoading
-                                  ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2))
-                                  : Column(
-                                      spacing: 8,
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        const Text('No project is selected'),
-                                        FilledButton(
-                                          onPressed: () {
-                                            showDialog(
-                                              context: context,
-                                              builder: (context) => SettingsDialog(initialPage: SettingsDialogPage.projects),
-                                            );
-                                          },
-                                          child: const Text('Choose my projects'),
+                              // Footer row: show a loader while fetching; when finished and !hasMore, show a subtle end cap.
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                                child: Center(
+                                  child: isLoading
+                                      ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                                      : Column(
+                                          spacing: 8,
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            const Text('No project is selected'),
+                                            FilledButton(
+                                              onPressed: () {
+                                                showDialog(
+                                                  context: context,
+                                                  builder: (context) => SettingsDialog(initialPage: SettingsDialogPage.projects),
+                                                );
+                                              },
+                                              child: const Text('Choose my projects'),
+                                            ),
+                                          ],
                                         ),
-                                      ],
-                                    ),
-                            ),
+                                ),
+                              );
+                            },
                           );
                         },
                       ),
@@ -418,6 +423,14 @@ class JiraTicketPreviewItem extends StatefulWidget {
 }
 
 class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
+  late DateTime? lastReadTime;
+
+  @override
+  void initState() {
+    lastReadTime = DataModel().syncIssueMarkedAsReadTimeCache?[widget.ticket.key];
+    super.initState();
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = _ticketColors(context, widget.ticket);
@@ -439,176 +452,171 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
       builder: (context, _) {
         bool shouldMarkAsReadOnOpen = SettingsModel().markAsReadOnOpen.value;
         String useCompactMode = SettingsModel().useCompactTicketDisplay.value;
-        return FutureBuilder<DateTime?>(
-          future: DataModel().issueMarkedAsReadTime().then((value) => value[widget.ticket.key]),
-          initialData: DataModel().syncIssueMarkedAsReadTimeCache?[widget.ticket.key ?? ''],
-          builder: (context, lastReadSnapshot) {
-            DateTime? lastReadTime = lastReadSnapshot.data, updatedTime = DateTime.parse(updated);
-            bool isRead = lastReadTime != null ? lastReadTime.isAfter(updatedTime) || lastReadTime.isAtSameMomentAs(updatedTime) : false;
-            var optionsWhenSelected = Padding(
-              padding: const EdgeInsets.only(top: 8.0, bottom: 2),
-              child: ClipRRect(
-                borderRadius: BorderRadiusGeometry.circular(4),
-                child: BottomNavigationBar(
-                  key: ValueKey(isRead),
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  items: [
-                    BottomNavigationBarItem(icon: Icon(Icons.mark_as_unread), label: isRead ? 'Mark as unread' : 'Mark as read'),
-                    BottomNavigationBarItem(icon: Icon(Icons.open_in_browser), label: 'View on website'),
-                  ],
-                  onTap: (value) {
-                    if (value == 0) {
-                      // Mark as unread
-                      if (widget.ticket.key == null) return;
+        DateTime? updatedTime = DateTime.parse(updated);
+        bool isRead = lastReadTime != null ? lastReadTime!.isAfter(updatedTime) || lastReadTime!.isAtSameMomentAs(updatedTime) : false;
+        var optionsWhenSelected = Padding(
+          padding: const EdgeInsets.only(top: 8.0, bottom: 2),
+          child: ClipRRect(
+            borderRadius: BorderRadiusGeometry.circular(4),
+            child: BottomNavigationBar(
+              key: ValueKey(isRead),
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              items: [
+                BottomNavigationBarItem(icon: Icon(Icons.mark_as_unread), label: isRead ? 'Mark as unread' : 'Mark as read'),
+                BottomNavigationBarItem(icon: Icon(Icons.open_in_browser), label: 'View on website'),
+              ],
+              onTap: (value) {
+                if (value == 0) {
+                  // Mark as unread
+                  if (widget.ticket.key == null) return;
+                  var updatedTime = DateTime.parse(updated);
 
-                      setState(() {
-                        var updatedTime = DateTime.parse(updated);
-
-                        DataModel().markAsRead(widget.ticket.key!, updatedTime, isRead: !isRead);
-                      });
-                    } else if (value == 1) {
-                      // View on website
-                      String? getTicketUrl(dynamic ticketKey) {
-                        final domain = APIDao().domain;
-                        if (domain != null && ticketKey != null) {
-                          return 'https://$domain/browse/$ticketKey';
-                        }
-                        return null;
-                      }
-
-                      var ticketUrl = getTicketUrl(widget.ticket.key);
-                      if (ticketUrl != null) {
-                        launchUrl(Uri.parse(ticketUrl));
-                      } else {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: Text('Something went wrong'),
-                            content: Text('The given ticketUrl is null?\nFor ticket key: ${widget.ticket.key}, domain ${APIDao().domain}'),
-                          ),
-                        );
-                      }
+                  DataModel().markAsRead(widget.ticket.key!, updatedTime, isRead: !isRead);
+                  setState(() {
+                    lastReadTime = !isRead ? updatedTime : null;
+                  });
+                } else if (value == 1) {
+                  // View on website
+                  String? getTicketUrl(dynamic ticketKey) {
+                    final domain = APIDao().domain;
+                    if (domain != null && ticketKey != null) {
+                      return 'https://$domain/browse/$ticketKey';
                     }
-                  },
+                    return null;
+                  }
+
+                  var ticketUrl = getTicketUrl(widget.ticket.key);
+                  if (ticketUrl != null) {
+                    launchUrl(Uri.parse(ticketUrl));
+                  } else {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text('Something went wrong'),
+                        content: Text('The given ticketUrl is null?\nFor ticket key: ${widget.ticket.key}, domain ${APIDao().domain}'),
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+          ),
+        );
+        var showAsCompact = (useCompactMode == 'Always' || (useCompactMode == 'When issue was read' && !widget.isSelected && isRead));
+
+        return Card(
+          clipBehavior: Clip.hardEdge,
+          color: colors['bg']?.withAlpha(Theme.brightnessOf(context) == Brightness.light ? 255 : 50),
+          shape: isRead
+              ? null
+              : RoundedRectangleBorder(
+                  side: BorderSide(color: colors['border']!, width: 2),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ),
-            );
-            var showAsCompact = (useCompactMode == 'Always' || (useCompactMode == 'When issue was read' && !widget.isSelected && isRead));
-
-            return Card(
-              clipBehavior: Clip.hardEdge,
-              color: colors['bg']?.withAlpha(Theme.brightnessOf(context) == Brightness.light ? 255 : 50),
-              shape: isRead
-                  ? null
-                  : RoundedRectangleBorder(
-                      side: BorderSide(color: colors['border']!, width: 2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-              margin: EdgeInsets.all(4),
-              child: AnimatedSize(
-                duration: Durations.medium1,
-                onEnd: widget.changedSize,
-                child: InkWell(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          margin: EdgeInsets.all(4),
+          child: AnimatedSize(
+            duration: Durations.medium1,
+            onEnd: widget.changedSize,
+            child: InkWell(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          children: [
-                            IssueLinkWithParentsRow(widget.ticket, compact: showAsCompact),
-                            if (!showAsCompact)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
-                                child: TicketStatusIndicator(issue: widget.ticket),
-                              ),
-                            if (showAsCompact)
-                              Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.only(left: 8.0),
-                                  child: Text(
-                                    summary,
-                                    style: Theme.of(context).textTheme.titleMedium,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              )
-                            else
-                              Spacer(),
-
-                            if (!showAsCompact) TimeAgoDisplay(timeStr: updated),
-                            if (!showAsCompact)
-                              Text(
-                                ', by ',
-                                style: TextStyle(fontSize: 12, color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300]),
-                              ),
-                            SizedBox.square(
-                              dimension: 24,
-                              child: Builder(
-                                builder: (context) {
-                                  var updatorData = lastUpdateData == null ? fields['creator'] : lastUpdateData['author'];
-                                  return ClipRRect(
-                                    borderRadius: BorderRadiusGeometry.circular(10000),
-                                    child: Tooltip(
-                                      message: showAsCompact
-                                          ? '${updatorData['displayName']}\n${(lastUpdateData == null && !lastEditWasAComment)
-                                                ? 'Created this issue'
-                                                : (!lastEditWasAComment)
-                                                ? 'Changed ${((lastUpdateData['items'] as List).firstOrNull?['field'])}'
-                                                : 'Commented'}'
-                                          : updatorData['displayName'],
-                                      child: JiraAvatar(key: Key(widget.ticket['id']), url: updatorData['avatarUrls']['32x32']),
-                                    ),
-                                  );
-                                },
+                        IssueLinkWithParentsRow(widget.ticket, compact: showAsCompact),
+                        if (!showAsCompact)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: TicketStatusIndicator(issue: widget.ticket),
+                          ),
+                        if (showAsCompact)
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 8.0),
+                              child: Text(
+                                summary,
+                                style: Theme.of(context).textTheme.titleMedium,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                          ],
-                        ),
+                          )
+                        else
+                          Spacer(),
+
+                        if (!showAsCompact) TimeAgoDisplay(timeStr: updated),
                         if (!showAsCompact)
-                          Row(
-                            spacing: 16,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  summary,
-                                  style: Theme.of(context).textTheme.titleMedium,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              Text(
-                                (lastUpdateData == null && !lastEditWasAComment)
-                                    ? 'Created this issue'
-                                    : (!lastEditWasAComment)
-                                    ? 'Changed ${((lastUpdateData['items'] as List).firstOrNull?['field'])}'
-                                    : 'Commented',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300],
-                                ),
-                              ),
-                            ],
+                          Text(
+                            ', by ',
+                            style: TextStyle(fontSize: 12, color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300]),
                           ),
-                        if (widget.isSelected) optionsWhenSelected,
+                        SizedBox.square(
+                          dimension: 24,
+                          child: Builder(
+                            builder: (context) {
+                              var updatorData = lastUpdateData == null ? fields['creator'] : lastUpdateData['author'];
+                              return ClipRRect(
+                                borderRadius: BorderRadiusGeometry.circular(10000),
+                                child: Tooltip(
+                                  message: showAsCompact
+                                      ? '${updatorData['displayName']}\n${(lastUpdateData == null && !lastEditWasAComment)
+                                            ? 'Created this issue'
+                                            : (!lastEditWasAComment)
+                                            ? 'Changed ${((lastUpdateData['items'] as List).firstOrNull?['field'])}'
+                                            : 'Commented'}'
+                                      : updatorData['displayName'],
+                                  child: JiraAvatar(key: Key(widget.ticket['id']), url: updatorData['avatarUrls']['32x32']),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                  onTap: () {
-                    if (shouldMarkAsReadOnOpen && widget.ticket.key != null) {
-                      setState(() {
-                        var updatedTime = DateTime.parse(updated);
-                        DataModel().markAsRead(widget.ticket.key!, updatedTime);
-                      });
-                    }
-                    widget.updateView?.call(widget.ticket);
-                  },
+                    if (!showAsCompact)
+                      Row(
+                        spacing: 16,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              summary,
+                              style: Theme.of(context).textTheme.titleMedium,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            (lastUpdateData == null && !lastEditWasAComment)
+                                ? 'Created this issue'
+                                : (!lastEditWasAComment)
+                                ? 'Changed ${((lastUpdateData['items'] as List).firstOrNull?['field'])}'
+                                : 'Commented',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300],
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (widget.isSelected) optionsWhenSelected,
+                  ],
                 ),
               ),
-            );
-          },
+              onTap: () async {
+                if (shouldMarkAsReadOnOpen && widget.ticket.key != null) {
+                  var updatedTime = DateTime.parse(updated);
+                  DataModel().markAsRead(widget.ticket.key!, updatedTime);
+                  setState(() {
+                    lastReadTime = updatedTime;
+                  });
+                }
+                widget.updateView?.call(widget.ticket);
+              },
+            ),
+          ),
         );
       },
     );

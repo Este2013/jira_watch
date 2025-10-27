@@ -120,7 +120,6 @@ class DataModel with UiLoggy {
   ///  - issue key (eg. "EVH-1234")
   ///  - last issue update time that was marked as read.
   /// If an issue update is more recent than a cache value stored here, then its unread.
-  Future<Map<String, DateTime>>? _issueMarkedAsReadTimeCache;
   Map<String, DateTime>? syncIssueMarkedAsReadTimeCache;
   final File _issueMarkedAsReadTimeDataFile = File(
     path
@@ -131,48 +130,47 @@ class DataModel with UiLoggy {
         .replaceFirst(RegExp(r'^\\?/?'), ''),
   );
 
-  Future<Map<String, DateTime>> issueMarkedAsReadTime() async {
-    if (_issueMarkedAsReadTimeCache == null) {
+  Future initIssueMarkedAsReadCache() async {
+    if (syncIssueMarkedAsReadTimeCache == null) {
+      loggy.info('initializing syncIssueMarkedAsReadTimeCache');
       if (!await _issueMarkedAsReadTimeDataFile.exists()) {
-        await _issueMarkedAsReadTimeDataFile.create(recursive: true);
+        loggy.warning('_issueMarkedAsReadTimeDataFile does not exist. creating it at: ${_issueMarkedAsReadTimeDataFile.path}');
+        try {
+          await _issueMarkedAsReadTimeDataFile.create(recursive: true);
+        } on Exception catch (e) {
+          loggy.error('_issueMarkedAsReadTimeDataFile could not be created!\n${e.toString()}');
+        }
       }
-      _issueMarkedAsReadTimeCache ??= _issueMarkedAsReadTimeDataFile.readAsString().then(
+      syncIssueMarkedAsReadTimeCache ??= await _issueMarkedAsReadTimeDataFile.readAsString().then(
         (strData) {
           var csv = const CsvToListConverter().convert(strData);
           return {for (var line in csv) line.first: DateTime.parse(line.last)};
         },
       );
     }
-    _issueMarkedAsReadTimeCache?.then((v) => syncIssueMarkedAsReadTimeCache = v);
-    return _issueMarkedAsReadTimeCache!;
+  }
+
+  Future<Map<String, DateTime>> issueMarkedAsReadTime() async {
+    await initIssueMarkedAsReadCache();
+    return syncIssueMarkedAsReadTimeCache!;
   }
 
   Future<void> markAsRead(String issueKey, DateTime time, {bool isRead = true}) async {
     loggy.debug('Marking $issueKey as ${isRead ? '' : 'un'}read');
-    if (!await _issueMarkedAsReadTimeDataFile.exists()) {
-      loggy.warning('_issueMarkedAsReadTimeDataFile does not exist. creating it at: ${_issueMarkedAsReadTimeDataFile.path}');
-      try {
-        await _issueMarkedAsReadTimeDataFile.create(recursive: true);
-      } on Exception catch (e) {
-        loggy.error('_issueMarkedAsReadTimeDataFile could not be created!\n${e.toString()}');
-      }
-    }
-    var data = await _issueMarkedAsReadTimeCache ?? {};
+    await initIssueMarkedAsReadCache();
     if (isRead) {
       if (syncIssueMarkedAsReadTimeCache != null) {
         syncIssueMarkedAsReadTimeCache![issueKey] = time;
       }
-      data[issueKey] = time;
     } else {
       if (syncIssueMarkedAsReadTimeCache != null) {
         syncIssueMarkedAsReadTimeCache!.remove(issueKey);
       }
-      data.remove(issueKey);
     }
+
     String csv = const ListToCsvConverter().convert([
-      for (var e in data.entries) [e.key, e.value.toIso8601String()],
+      for (var e in syncIssueMarkedAsReadTimeCache!.entries) [e.key, e.value.toIso8601String()],
     ]);
-    _issueMarkedAsReadTimeCache = Future.value(data);
     try {
       await _issueMarkedAsReadTimeDataFile.writeAsString(csv);
     } on Exception catch (e) {
