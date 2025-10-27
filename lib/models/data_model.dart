@@ -121,6 +121,7 @@ class DataModel with UiLoggy {
   ///  - last issue update time that was marked as read.
   /// If an issue update is more recent than a cache value stored here, then its unread.
   Future<Map<String, DateTime>>? _issueMarkedAsReadTimeCache;
+  Map<String, DateTime>? syncIssueMarkedAsReadTimeCache;
   final File _issueMarkedAsReadTimeDataFile = File(
     path
         .join(
@@ -142,7 +143,7 @@ class DataModel with UiLoggy {
         },
       );
     }
-
+    _issueMarkedAsReadTimeCache?.then((v) => syncIssueMarkedAsReadTimeCache = v);
     return _issueMarkedAsReadTimeCache!;
   }
 
@@ -158,8 +159,14 @@ class DataModel with UiLoggy {
     }
     var data = await _issueMarkedAsReadTimeCache ?? {};
     if (isRead) {
+      if (syncIssueMarkedAsReadTimeCache != null) {
+        syncIssueMarkedAsReadTimeCache![issueKey] = time;
+      }
       data[issueKey] = time;
     } else {
+      if (syncIssueMarkedAsReadTimeCache != null) {
+        syncIssueMarkedAsReadTimeCache!.remove(issueKey);
+      }
       data.remove(issueKey);
     }
     String csv = const ListToCsvConverter().convert([

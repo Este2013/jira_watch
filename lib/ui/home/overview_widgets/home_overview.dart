@@ -195,9 +195,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
 
   @override
   Widget build(BuildContext context) {
-    SchedulerBinding.instance.addPostFrameCallback((timeStamp) {
-      loadMoreIfNoScrollPossible;
-    });
+    SchedulerBinding.instance.addPostFrameCallback((timeStamp) => loadMoreIfNoScrollPossible());
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Row(
@@ -291,6 +289,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
                           if (index < allLoadedIssues.length) {
                             final t = allLoadedIssues[index];
                             return JiraTicketPreviewItem(
+                              key: Key(t.key ?? ''),
                               ticket: t,
                               updateView: selectTicket,
                               isSelected: selectedTicket != null && selectedTicket?.key == t.key,
@@ -442,7 +441,7 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
         String useCompactMode = SettingsModel().useCompactTicketDisplay.value;
         return FutureBuilder<DateTime?>(
           future: DataModel().issueMarkedAsReadTime().then((value) => value[widget.ticket.key]),
-          // initialData: _JiraTicketPreviewItemState.cache[widget.ticket.key ?? ''],
+          initialData: DataModel().syncIssueMarkedAsReadTimeCache?[widget.ticket.key ?? ''],
           builder: (context, lastReadSnapshot) {
             DateTime? lastReadTime = lastReadSnapshot.data, updatedTime = DateTime.parse(updated);
             bool isRead = lastReadTime != null ? lastReadTime.isAfter(updatedTime) || lastReadTime.isAtSameMomentAs(updatedTime) : false;
