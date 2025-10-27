@@ -343,7 +343,6 @@ class _UpdatesPageState extends State<UpdatesPage> {
   void dispose() {
     scrollController.removeListener(_onScrollNearBottom);
     scrollController.dispose();
-    _JiraTicketPreviewItemState.cache = {};
     super.dispose();
   }
 }
@@ -402,16 +401,6 @@ class JiraTicketPreviewItem extends StatefulWidget {
 }
 
 class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
-  // To stop the UI scrolling jank
-  static Map<String, DateTime?> cache = {};
-  late Future<DateTime?> issueMarkedAsReadTime;
-
-  @override
-  void initState() {
-    issueMarkedAsReadTime = DataModel().issueMarkedAsReadTime().then((value) => value[widget.ticket.key]);
-    super.initState();
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = _ticketColors(context, widget.ticket);
@@ -434,11 +423,10 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
         bool shouldMarkAsReadOnOpen = SettingsModel().markAsReadOnOpen.value;
         String useCompactMode = SettingsModel().useCompactTicketDisplay.value;
         return FutureBuilder<DateTime?>(
-          future: issueMarkedAsReadTime,
-          initialData: _JiraTicketPreviewItemState.cache[widget.ticket.key ?? ''],
+          future: DataModel().issueMarkedAsReadTime().then((value) => value[widget.ticket.key]),
+          // initialData: _JiraTicketPreviewItemState.cache[widget.ticket.key ?? ''],
           builder: (context, lastReadSnapshot) {
             DateTime? lastReadTime = lastReadSnapshot.data, updatedTime = DateTime.parse(updated);
-            _JiraTicketPreviewItemState.cache[widget.ticket.key ?? ''] = lastReadTime;
             bool isRead = lastReadTime != null ? lastReadTime.isAfter(updatedTime) || lastReadTime.isAtSameMomentAs(updatedTime) : false;
             var optionsWhenSelected = Padding(
               padding: const EdgeInsets.only(top: 8.0, bottom: 2),
@@ -456,8 +444,11 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
                     if (value == 0) {
                       // Mark as unread
                       if (widget.ticket.key == null) return;
+
                       setState(() {
-                        DataModel().markAsRead(widget.ticket.key!, DateTime.parse(updated), isRead: !isRead);
+                        var updatedTime = DateTime.parse(updated);
+
+                        DataModel().markAsRead(widget.ticket.key!, updatedTime, isRead: !isRead);
                       });
                     } else if (value == 1) {
                       // View on website
@@ -590,6 +581,7 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
                   onTap: () {
                     if (shouldMarkAsReadOnOpen && widget.ticket.key != null) {
                       setState(() {
+                        var updatedTime = DateTime.parse(updated);
                         DataModel().markAsRead(widget.ticket.key!, updatedTime);
                       });
                     }

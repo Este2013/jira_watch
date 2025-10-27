@@ -172,6 +172,7 @@ class _IssueLinkWithParentsRowState extends State<IssueLinkWithParentsRow> {
         if (parentKey != null && !widget.compact) ...[
           IssueBadge(
             parentKey,
+            key: Key(parentKey),
             iconUrl: parentIconUrl,
             url: _ticketUrl(parentKey),
             badgeSize: badgeSize,
@@ -185,6 +186,7 @@ class _IssueLinkWithParentsRowState extends State<IssueLinkWithParentsRow> {
         // Your existing ticket key + copy-on-hover
         IssueBadge(
           issueKey,
+          key: Key(issueKey),
           iconUrl: fields?['issuetype']?['iconUrl'],
           url: _ticketUrl(issueKey),
           badgeSize: badgeSize,
