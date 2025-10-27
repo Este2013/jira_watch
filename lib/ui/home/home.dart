@@ -1,9 +1,7 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:jira_watcher/main.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/home_overview.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/settings.dart';

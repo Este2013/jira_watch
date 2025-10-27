@@ -7,6 +7,7 @@ import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/ui/home/time_utils.dart';
 import 'package:jira_watcher/ui/utils/jira_doc_renderer.dart';
+import 'package:jira_watcher/ui/utils/json_viewer.dart';
 
 /// Model for a Comment entry
 class CommentEntry {
@@ -287,7 +288,6 @@ class CommentDebugDialog extends StatelessWidget {
                     ),
                     Column(
                       children: [
-                        // TODO true body debugger
                         Text('Body', style: Theme.of(context).textTheme.titleMedium),
                         SizedBox(height: 8),
                         for (var e in (comment.body as Map).entries.where((e) => !['content'].contains(e.key)))
@@ -324,7 +324,7 @@ class CommentDebugDialog extends StatelessWidget {
                           ],
                         ),
 
-                        SelectableText(JsonEncoder.withIndent('  ').convert(comment.body)),
+                        JsonViewer(data: comment.body),
                       ],
                     ),
                   ].map((w) => SingleChildScrollView(child: w)).toList(),

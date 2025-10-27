@@ -301,10 +301,7 @@ class _JsonNodeState extends State<_JsonNode> {
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(left: BorderSide(color: Theme.of(context).dividerColor)),
-      ),
+    return Padding(
       padding: widget.style.nodePadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -315,7 +312,10 @@ class _JsonNodeState extends State<_JsonNode> {
             child: header,
           ),
           if (_expanded)
-            Padding(
+            Container(
+              decoration: BoxDecoration(
+                border: Border(left: BorderSide(color: Theme.of(context).dividerColor)),
+              ),
               padding: EdgeInsets.only(left: widget.style.indent),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -370,7 +370,10 @@ class _JsonNodeState extends State<_JsonNode> {
             child: header,
           ),
           if (_expanded)
-            Padding(
+            Container(
+              decoration: BoxDecoration(
+                border: Border(left: BorderSide(color: Theme.of(context).dividerColor)),
+              ),
               padding: EdgeInsets.only(left: widget.style.indent),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -433,15 +436,14 @@ class _ExpandableHeader extends StatelessWidget {
     return InkWell(
       onTap: onToggle,
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        spacing: 8,
         children: [
+          child,
           AnimatedRotation(
             duration: const Duration(milliseconds: 150),
             turns: expanded ? 0.25 : 0.0,
             child: const Icon(Icons.chevron_right, size: 18),
           ),
-          const SizedBox(width: 2),
-          Flexible(child: child),
         ],
       ),
     );
