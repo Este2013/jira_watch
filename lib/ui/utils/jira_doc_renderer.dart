@@ -357,7 +357,7 @@ class AdfRenderer extends StatelessWidget {
   Widget? _buildMention(BuildContext context, Map<String, dynamic> node) {
     var t = Theme.of(context).colorScheme;
     String userIdMentionned = node['attrs']['id'];
-    var isMe = APIModel().myself().then(
+    Future<bool> isMe = APIModel().myself().then(
       (value) => jsonDecode(value.body)['accountId'] == userIdMentionned,
     );
 

@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/ui/utils/expandable_panel.dart';
@@ -111,14 +112,20 @@ class PersonField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Builder(
-      builder: (context) {
-        var hasPerson = ticket.fields?[field] != null;
+    Future<bool> isMe = APIModel().myself().then(
+      (value) => jsonDecode(value.body)['accountId'] == ticket.fields?[field]?['accountId'],
+    );
+
+    var hasPerson = ticket.fields?[field] != null;
+    return FutureBuilder(
+      future: isMe,
+      builder: (context, asyncSnapshot) {
         return LabeledPopupTextField(
           controller: TextEditingController(text: hasPerson ? (ticket.fields?[field]['displayName']) : 'Unnassigned'),
           label: name,
           readOnly: true,
           showPopupOnFocus: true,
+          borderColor: (asyncSnapshot.data ?? false) ? null : Theme.of(context).colorScheme.outlineVariant,
           prefixIcon: Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 4, left: 8),
             child: hasPerson ? ClipOval(child: JiraAvatar(url: ticket.fields?[field]['avatarUrls']['16x16'])) : Icon(Icons.account_circle_outlined),
