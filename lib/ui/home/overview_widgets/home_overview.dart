@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:calendar_date_picker2/calendar_date_picker2.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/ui/home/overview_widgets/updates_view_single_ticket/single_ticket_view.dart';
@@ -98,12 +99,12 @@ class _UpdatesPageState extends State<UpdatesPage> {
     startFetchingNewPage();
   }
 
-  void startFetchingNewPage() {
-    if (isLoading || !hasMore) return;
+  Future<void> startFetchingNewPage() {
+    if (isLoading || !hasMore) return Future.value();
 
     setState(() => isLoading = true);
 
-    futurePage =
+    return futurePage =
         DataModel().fetchLastUpdatedIssuesByPage(
             pageSize: pageSize,
             pageIndex: pageShown,
@@ -193,157 +194,173 @@ class _UpdatesPageState extends State<UpdatesPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.all(16.0),
-    child: Row(
-      children: [
-        Expanded(
-          child: Column(
-            children: [
-              // filters
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Row(
-                  spacing: 8,
-                  children: [
-                    // per project filtering
-                    Expanded(
-                      child: Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Row(
-                            spacing: 8,
-                            children:
-                                (SettingsModel().starredProjects.value
-                                          ?.map<Widget>(
-                                            (p) => ProjectFilteringButton(
-                                              projectCode: p,
-                                              activeFilters: activeProjectFilters,
-                                              toggleFilter: (code) => setState(() {
-                                                activeProjectFilters.toggle(code); // (note: use the param "code", not "p")
-                                                _resetAndFetchFirstPage();
-                                                _saveFilters();
-                                              }),
-                                            ),
-                                          )
-                                          .toList() ??
-                                      <Widget>[])
-                                  ..add(
-                                    IconButton(
-                                      onPressed: () {
-                                        showDialog(
-                                          context: context,
-                                          builder: (context) => SettingsDialog(initialPage: SettingsDialogPage.projects),
-                                        );
-                                      },
-                                      icon: Icon(Icons.add),
-                                    ),
-                                  ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    TimeFilterDropdown(
-                      init: timeFilter,
-                      save: (data) {
-                        setState(() => timeFilter = data);
-                        _saveFilters();
-                        _resetAndFetchFirstPage();
-                      },
-                    ),
-                    IconButton(
-                      onPressed: _resetAndFetchFirstPage,
-                      icon: Icon(Icons.refresh),
-                      tooltip: 'Refresh',
-                    ),
-                  ],
-                ),
-              ),
-              // list
-              Expanded(
-                child: EdgeOverscrollListener(
-                  childScrollCtrl: scrollController,
-                  onOverscrollAtBottom: () {
-                    if (!isLoading && hasMore) {
-                      // If user overscrolls past the bottom, kick off next page too
-                      startFetchingNewPage();
-                    }
-                  },
-                  onOverscrollAtTop: null,
-                  child: NotificationListener<OverscrollNotification>(
-                    // keep your overscroll prints if you like
-                    onNotification: (overscroll) {
-                      if (overscroll.overscroll > 0 && !isLoading && hasMore) {
-                        // If user overscrolls past the bottom, kick off next page too
-                        startFetchingNewPage();
-                      }
-                      return false;
-                    },
-                    child: ListView.builder(
-                      controller: scrollController,
-                      itemCount: allLoadedIssues.length + (isLoading || hasMore ? 1 : 0), // +1 for footer
-                      itemBuilder: (context, index) {
-                        if (index < allLoadedIssues.length) {
-                          final t = allLoadedIssues[index];
-                          return JiraTicketPreviewItem(
-                            ticket: t,
-                            updateView: updateView,
-                            isSelected: selectedTicket != null && selectedTicket?.key == t.key,
-                          );
-                        }
-
-                        // Footer row: show a loader while fetching; when finished and !hasMore, show a subtle end cap.
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16.0),
-                          child: Center(
-                            child: isLoading
-                                ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2))
-                                : Column(
-                                    spacing: 8,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Text('No project is selected'),
-                                      FilledButton(
+  Widget build(BuildContext context) {
+    SchedulerBinding.instance.addPostFrameCallback((timeStamp) {
+      loadMoreIfNoScrollPossible;
+    });
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              children: [
+                // filters
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Row(
+                    spacing: 8,
+                    children: [
+                      // per project filtering
+                      Expanded(
+                        child: Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Row(
+                              spacing: 8,
+                              children:
+                                  (SettingsModel().starredProjects.value
+                                            ?.map<Widget>(
+                                              (p) => ProjectFilteringButton(
+                                                projectCode: p,
+                                                activeFilters: activeProjectFilters,
+                                                toggleFilter: (code) => setState(() {
+                                                  activeProjectFilters.toggle(code); // (note: use the param "code", not "p")
+                                                  _resetAndFetchFirstPage();
+                                                  _saveFilters();
+                                                }),
+                                              ),
+                                            )
+                                            .toList() ??
+                                        <Widget>[])
+                                    ..add(
+                                      IconButton(
                                         onPressed: () {
                                           showDialog(
                                             context: context,
                                             builder: (context) => SettingsDialog(initialPage: SettingsDialogPage.projects),
                                           );
                                         },
-                                        child: const Text('Choose my projects'),
+                                        icon: Icon(Icons.add),
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                            ),
                           ),
-                        );
+                        ),
+                      ),
+                      TimeFilterDropdown(
+                        init: timeFilter,
+                        save: (data) {
+                          setState(() => timeFilter = data);
+                          _saveFilters();
+                          _resetAndFetchFirstPage();
+                        },
+                      ),
+                      IconButton(
+                        onPressed: _resetAndFetchFirstPage,
+                        icon: Icon(Icons.refresh),
+                        tooltip: 'Refresh',
+                      ),
+                    ],
+                  ),
+                ),
+                // list
+                Expanded(
+                  child: EdgeOverscrollListener(
+                    childScrollCtrl: scrollController,
+                    onOverscrollAtBottom: () {
+                      if (!isLoading && hasMore) {
+                        // If user overscrolls past the bottom, kick off next page too
+                        startFetchingNewPage();
+                      }
+                    },
+                    onOverscrollAtTop: null,
+                    child: NotificationListener<OverscrollNotification>(
+                      // keep your overscroll prints if you like
+                      onNotification: (overscroll) {
+                        if (overscroll.overscroll > 0 && !isLoading && hasMore) {
+                          // If user overscrolls past the bottom, kick off next page too
+                          startFetchingNewPage();
+                        }
+                        return false;
                       },
+                      child: ListView.builder(
+                        controller: scrollController,
+                        itemCount: allLoadedIssues.length + (isLoading || hasMore ? 1 : 0), // +1 for footer
+                        itemBuilder: (context, index) {
+                          if (index < allLoadedIssues.length) {
+                            final t = allLoadedIssues[index];
+                            return JiraTicketPreviewItem(
+                              ticket: t,
+                              updateView: selectTicket,
+                              isSelected: selectedTicket != null && selectedTicket?.key == t.key,
+                              changedSize: loadMoreIfNoScrollPossible,
+                            );
+                          }
+
+                          // Footer row: show a loader while fetching; when finished and !hasMore, show a subtle end cap.
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16.0),
+                            child: Center(
+                              child: isLoading
+                                  ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                                  : Column(
+                                      spacing: 8,
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        const Text('No project is selected'),
+                                        FilledButton(
+                                          onPressed: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) => SettingsDialog(initialPage: SettingsDialogPage.projects),
+                                            );
+                                          },
+                                          child: const Text('Choose my projects'),
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        VerticalDivider(),
-        Expanded(
-          child: selectedTicket == null
-              ? Placeholder()
-              : SingleTicketView(
-                  selectedTicket!,
-                  key: Key(selectedTicket!.data['key']),
-                ),
-        ),
-      ],
-    ),
-  );
+          VerticalDivider(),
+          Expanded(
+            child: selectedTicket == null
+                ? Placeholder()
+                : SingleTicketView(
+                    selectedTicket!,
+                    key: Key(selectedTicket!.data['key']),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
 
-  void updateView(IssueData tkt) => setState(() => selectedTicket = tkt);
+  void selectTicket(IssueData tkt) => setState(() => selectedTicket = tkt);
 
   @override
   void dispose() {
     scrollController.removeListener(_onScrollNearBottom);
     scrollController.dispose();
     super.dispose();
+  }
+
+  void loadMoreIfNoScrollPossible() {
+    if (scrollController.position.maxScrollExtent == 0.0) {
+      startFetchingNewPage().whenComplete(
+        () => SchedulerBinding.instance.addPostFrameCallback((timeStamp) {
+          loadMoreIfNoScrollPossible;
+        }),
+      );
+    }
   }
 }
 
@@ -392,9 +409,10 @@ class ProjectFilteringButton extends StatelessWidget {
 class JiraTicketPreviewItem extends StatefulWidget {
   final IssueData ticket;
   final Function(IssueData ticket)? updateView;
+  final Function()? changedSize;
   final bool isSelected;
 
-  const JiraTicketPreviewItem({super.key, required this.ticket, this.updateView, required this.isSelected});
+  const JiraTicketPreviewItem({super.key, required this.ticket, this.updateView, required this.changedSize, required this.isSelected});
 
   @override
   State<JiraTicketPreviewItem> createState() => _JiraTicketPreviewItemState();
@@ -491,6 +509,7 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
               margin: EdgeInsets.all(4),
               child: AnimatedSize(
                 duration: Durations.medium1,
+                onEnd: widget.changedSize,
                 child: InkWell(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
