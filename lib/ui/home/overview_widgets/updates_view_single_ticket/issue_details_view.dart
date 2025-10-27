@@ -158,6 +158,7 @@ class PriorityField extends StatelessWidget {
       label: 'Priority',
       readOnly: true,
       showPopupOnFocus: true,
+      borderColor: Theme.of(context).colorScheme.outlineVariant,
       prefixIcon: Padding(
         padding: const EdgeInsets.only(top: 8, bottom: 8, left: 8),
         child: hasField ? ClipOval(child: JiraAvatar(url: ticket.fields?[field]['iconUrl'])) : Icon(Icons.block),

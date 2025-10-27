@@ -6,6 +6,9 @@ import 'package:html/parser.dart' as html_parser;
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:mime/mime.dart';
+import 'dart:convert';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:xml/xml.dart' as xml;
 
 final CacheManager jiraAvatarCacheManager = CacheManager(
   Config(
@@ -126,23 +129,24 @@ class _JiraAvatarState extends State<JiraAvatar> {
       }
       throw Exception('No <img> found in HTML');
     } else if (mimeType.contains('svg')) {
-      return SvgPicture.memory(
-        bytes,
-        width: widget.size,
-        height: widget.size,
-        placeholderBuilder: (_) => SizedBox(
-          width: widget.size / 2,
-          height: widget.size / 2,
-          child: const Center(
-            child: FractionallySizedBox(
-              widthFactor: .8,
-              heightFactor: .8,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          ),
-        ),
-        fit: widget.boxFit,
-      );
+      return svgFromBytes(bytes, size: widget.size);
+      // return SvgPicture.memory(
+      //   bytes,
+      //   width: widget.size,
+      //   height: widget.size,
+      //   placeholderBuilder: (_) => SizedBox(
+      //     width: widget.size / 2,
+      //     height: widget.size / 2,
+      //     child: const Center(
+      //       child: FractionallySizedBox(
+      //         widthFactor: .8,
+      //         heightFactor: .8,
+      //         child: CircularProgressIndicator(strokeWidth: 2),
+      //       ),
+      //     ),
+      //   ),
+      //   fit: widget.boxFit,
+      // );
     } else if (mimeType.startsWith('image/')) {
       return Image.memory(
         bytes,
@@ -186,4 +190,100 @@ class _JiraAvatarState extends State<JiraAvatar> {
       },
     );
   }
+}
+
+/// Very small CSS-inliner for `.class{prop:value; ...}` rules in <style>.
+String inlineSvgCss(String svg) {
+  final doc = xml.XmlDocument.parse(svg);
+
+  // 1) Grab all <style> text
+  final styleText = doc.findAllElements('style').map((e) => e.innerText).join('\n');
+
+  // 2) Parse rules like `.st0{fill:#FFAB00;stroke:none}`
+  final classRule = RegExp(r'\.([a-zA-Z0-9_-]+)\s*\{([^}]*)\}');
+  final declRule = RegExp(r'([a-zA-Z-]+)\s*:\s*([^;]+);?');
+
+  final Map<String, Map<String, String>> css = {};
+
+  for (final m in classRule.allMatches(styleText)) {
+    final className = m.group(1)!;
+    final body = m.group(2)!;
+    final map = <String, String>{};
+    for (final d in declRule.allMatches(body)) {
+      map[d.group(1)!.trim()] = d.group(2)!.trim();
+    }
+    css[className] = map;
+  }
+
+  // 3) Apply class rules onto elements as attributes (or inline style)
+  void applyTo(xml.XmlElement el) {
+    final classAttr = el.getAttribute('class');
+    if (classAttr != null && classAttr.trim().isNotEmpty) {
+      final classes = classAttr.split(RegExp(r'\s+'));
+      final Map<String, String> merged = {};
+      for (final c in classes) {
+        final rules = css[c];
+        if (rules != null) merged.addAll(rules);
+      }
+
+      // Apply supported properties as SVG attributes. `flutter_svg` understands
+      // these as presentation attributes.
+      for (final entry in merged.entries) {
+        final k = entry.key;
+        final v = entry.value;
+        // Map CSS -> SVG presentation attrs you care about:
+        const passthrough = {'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'opacity', 'fill-opacity', 'stroke-opacity'};
+        if (passthrough.contains(k)) {
+          el.setAttribute(k, v);
+        } else {
+          // Fallback: stuff it into inline style, which flutter_svg also parses.
+          final existing = el.getAttribute('style');
+          final newStyle = (existing == null || existing.isEmpty) ? '$k:$v' : '$existing;$k:$v';
+          el.setAttribute('style', newStyle);
+        }
+      }
+
+      // Optional: remove the class attribute so there’s no confusion later.
+      el.removeAttribute('class');
+    }
+
+    // Recurse
+    for (final child in el.children.whereType<xml.XmlElement>()) {
+      applyTo(child);
+    }
+  }
+
+  for (final root in doc.findAllElements('*')) {
+    applyTo(root);
+  }
+
+  // 4) Remove <style> and any <script> (not needed and best avoided)
+  doc.findAllElements('style').toList().forEach((e) => e.parent?.children.remove(e));
+  doc.findAllElements('script').toList().forEach((e) => e.parent?.children.remove(e));
+
+  return doc.toXmlString();
+}
+
+// Usage
+Widget svgFromBytes(Uint8List bytes, {required double size, BoxFit fit = BoxFit.contain}) {
+  final svgStr = utf8.decode(bytes);
+  final inlined = inlineSvgCss(svgStr);
+
+  return SvgPicture.string(
+    inlined,
+    width: size,
+    height: size,
+    fit: fit,
+    placeholderBuilder: (_) => SizedBox(
+      width: size / 2,
+      height: size / 2,
+      child: const Center(
+        child: FractionallySizedBox(
+          widthFactor: .8,
+          heightFactor: .8,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
+    ),
+  );
 }
