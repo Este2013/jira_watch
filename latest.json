@@ -1,7 +1,7 @@
 {
     "1.2.0": {
         "changelog": "✨ Features:\n ᛫ ⚙️ Settings: Added Compact listing mode for Updates view\n ᛫ 🕜 Custom time filtering is now available\n ᛫ 📖 Ticket details view is now available with default fields! (custom fields tbd)\n ᛫ 🌐 Added link to GitHub in settings\n ᛫ 😣 Added logs and diagnostics options to help troubleshooting\n\n🧼 Chores\n ᛫ Bumped version number.\n ᛫ Removed dependency to flutter_json.\n ᛫ Added dependency to fading_edge_scrollview and calendar_date_picker2.\n ᛫ Refactored the ticket details 🡢 json view for more helpful debugging and inspection\n\n🐛 Known bugs\n ᛫ Emojis are not rendered in comments (there is no Atlassian API for that)\n ᛫ Newer request is dropped by UI if project filters are changed before request completes\n ᛫ Comments: nested replies are not shown as nested",
-        "x64": "v1.1.1/Binaries (x64).zip"
+        "x64": "v1.2.0/Binaries (x64).zip"
     },
     "1.1.1": {
         "changelog": "✨Features:\n\t ᛫ 🔑 [BREAKING] API key is encrypted when stored in file system.\n\tℹ️ Your already saved API key (in plain text) will be encrypted and removed from settings file\n\n🪲 Bug fixes:\n\t ᛫ File that keeps track of the read status was not created properly\n ᛫ Changelog was not scrollable in \"new update\" notification dialog\n\n🧼 Chores:\n\t ᛫ Bumped version number.\n\t ᛫ Added dependencies to flutter_secure_storage and cryptography packages.\n\n🐞Known bugs:\n\t ᛫ Emojis are not rendered in comments (there is no Atlassian API for that)\n\t ᛫ Newer request is dropped by UI if project filters are changed before request completes\n\t ᛫ Comments: nested replies are not shown as nested\n",
