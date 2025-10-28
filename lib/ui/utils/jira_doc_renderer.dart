@@ -10,6 +10,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../home/overview_widgets/issue_ui_elements.dart';
 
+Color selectionColor = const Color(0x336694e8);
+
 /// A lightweight renderer for Atlassian Document Format (Jira doc) JSON.
 ///
 /// Supported nodes (initial set):
@@ -60,6 +62,56 @@ class AdfRenderer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return SelectionArea(
+      child: _AdfRenderer(
+        adf: adf,
+        bulletGap: bulletGap,
+        codeStyle: codeStyle,
+        linkHandler: linkHandler,
+        listIndent: listIndent,
+        mediaBuilder: mediaBuilder,
+        paragraphSpacing: paragraphSpacing,
+        textStyle: textStyle,
+      ),
+    );
+  }
+}
+
+class _AdfRenderer extends StatelessWidget {
+  const _AdfRenderer({
+    super.key,
+    required this.adf,
+    this.mediaBuilder,
+    this.linkHandler,
+    this.textStyle,
+    this.codeStyle,
+    this.paragraphSpacing = 8.0,
+    this.listIndent = 16.0,
+    this.bulletGap = 8.0,
+  });
+
+  /// Parsed ADF JSON map (root document object).
+  final Map<String, dynamic> adf;
+
+  /// Builds a widget for a `media` node using its attrs.
+  ///
+  /// attrs example (file):
+  /// {"type":"file","id":"[uuid]","alt":"image.png","width":532,"height":477}
+  final Widget Function(BuildContext context, Map<String, dynamic> attrs)? mediaBuilder;
+
+  /// Called when a link is tapped. If null, uses default launcher (if available)
+  /// otherwise does nothing.
+  final void Function(String url)? linkHandler;
+
+  final TextStyle? textStyle;
+  final TextStyle? codeStyle;
+
+  final double paragraphSpacing;
+  final double listIndent;
+  final double bulletGap;
+
+  @override
+  Widget build(BuildContext context) {
     final rootContent = _asList(adf['content']);
     final children = <Widget>[];
 
@@ -69,8 +121,8 @@ class AdfRenderer extends StatelessWidget {
     }
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: _withParagraphSpacing(children, paragraphSpacing),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
     );
   }
 
@@ -92,7 +144,13 @@ class AdfRenderer extends StatelessWidget {
       case 'text':
         // `text` nodes are handled inside paragraph RichText. If we get here
         // directly (edge cases), just render a Text.
-        return Text(_textOf(node), style: _defaultCodeStyle(context).merge(transferStyle));
+        return RichText(
+          text: TextSpan(text: _textOf(node), style: _defaultCodeStyle(context).merge(transferStyle)),
+          selectionRegistrar: SelectionContainer.maybeOf(context),
+          selectionColor: selectionColor,
+        );
+      case 'heading':
+        return _buildHeading(context, node);
       case 'mention':
         return _buildMention(context, node);
       case 'bulletList':
@@ -133,39 +191,69 @@ class AdfRenderer extends StatelessWidget {
 
   String _textOf(Map<String, dynamic> node) => (node['text'] ?? '') as String;
 
-  Widget _buildParagraph(BuildContext context, Map<String, dynamic> node) {
-    final spans = _buildInlineSpans(context, _asList(node['content']));
+  Widget _buildHeading(BuildContext context, Map<String, dynamic> node) {
+    final headingLevel = node['attrs']['level'] ?? 1;
+
+    TextStyle style;
+    switch (headingLevel) {
+      case 6:
+      case 5:
+      case 4:
+        style = Theme.of(context).textTheme.titleSmall!;
+        break;
+      case 3:
+        style = Theme.of(context).textTheme.bodyLarge!;
+        break;
+      case 2:
+        style = Theme.of(context).textTheme.titleMedium!;
+        break;
+      case 1:
+      default:
+        style = Theme.of(context).textTheme.titleLarge!;
+        break;
+    }
+    return _buildParagraph(
+      context,
+      node,
+      style: style,
+    );
+  }
+
+  Widget _buildParagraph(BuildContext context, Map<String, dynamic> node, {TextStyle? style}) {
+    final spans = _buildInlineSpans(context, _asList(node['content']), style: style);
     if (spans.isEmpty) {
       return const SizedBox(height: 0); // empty paragraph -> minimal gap
     }
     return RichText(
-      text: TextSpan(style: _defaultTextStyle(context), children: spans),
+      text: TextSpan(style: style ?? _defaultTextStyle(context), children: spans),
+      selectionRegistrar: SelectionContainer.maybeOf(context),
+      selectionColor: selectionColor,
       textAlign: TextAlign.start,
     );
   }
 
-  List<InlineSpan> _buildInlineSpans(BuildContext context, List<Map<String, dynamic>> content) {
+  List<InlineSpan> _buildInlineSpans(BuildContext context, List<Map<String, dynamic>> content, {TextStyle? style}) {
     final spans = <InlineSpan>[];
     for (final node in content) {
       if (node['type'] == 'text') {
         final text = _textOf(node);
         final marks = _asList(node['marks']);
-        TextStyle style = _defaultTextStyle(context);
+        style ??= _defaultTextStyle(context);
         GestureRecognizer? recognizer;
 
         for (final mark in marks) {
           switch (mark['type']) {
             case 'strong':
-              style = style.merge(const TextStyle(fontWeight: FontWeight.w600));
+              style = style!.merge(const TextStyle(fontWeight: FontWeight.w600));
               break;
             case 'em':
-              style = style.merge(const TextStyle(fontStyle: FontStyle.italic));
+              style = style!.merge(const TextStyle(fontStyle: FontStyle.italic));
               break;
             case 'underline':
-              style = style.merge(const TextStyle(decoration: TextDecoration.underline));
+              style = style!.merge(const TextStyle(decoration: TextDecoration.underline));
               break;
             case 'strike':
-              style = style.merge(const TextStyle(decoration: TextDecoration.lineThrough));
+              style = style!.merge(const TextStyle(decoration: TextDecoration.lineThrough));
               break;
             case 'code':
               style = _defaultCodeStyle(context).merge(
@@ -180,7 +268,7 @@ class AdfRenderer extends StatelessWidget {
               break;
             case 'link':
               final href = (mark['attrs']?['href'] ?? '') as String;
-              style = style.merge(
+              style = style!.merge(
                 TextStyle(
                   color: Theme.of(context).colorScheme.primary,
                   decoration: TextDecoration.underline,
@@ -250,7 +338,7 @@ class AdfRenderer extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(width: indentLevel * listIndent),
-        const Text('•'),
+        RichText(text: BulletListBulletSpan(indent: 1)),
         SizedBox(width: bulletGap),
         Expanded(child: bulletLine),
       ],
@@ -343,7 +431,11 @@ class AdfRenderer extends StatelessWidget {
         border: Border.all(color: Theme.of(context).dividerColor),
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
       ),
-      child: Text(alt, style: _defaultTextStyle(context)),
+      child: RichText(
+        text: TextSpan(text: alt, style: _defaultTextStyle(context)),
+        selectionRegistrar: SelectionContainer.maybeOf(context),
+        selectionColor: selectionColor,
+      ),
     );
   }
 
@@ -368,7 +460,14 @@ class AdfRenderer extends StatelessWidget {
         return Chip(
           backgroundColor: isMentionOfMe ? t.primary : null,
 
-          label: Text(node['attrs']['text'], style: isMentionOfMe ? TextStyle(color: t.onPrimary) : null),
+          label: RichText(
+            text: TextSpan(
+              text: node['attrs']['text'],
+              style: isMentionOfMe ? TextStyle(color: t.onPrimary) : null,
+            ),
+            selectionRegistrar: SelectionContainer.maybeOf(context),
+            selectionColor: selectionColor,
+          ),
         );
       },
     );
@@ -431,8 +530,10 @@ class AdfRenderer extends StatelessWidget {
                 label: Wrap(
                   spacing: 8,
                   children: [
-                    Text(
-                      '$issueKey: ${issue.fields?['summary']}',
+                    RichText(
+                      text: TextSpan(text: '$issueKey: ${issue.fields?['summary']}'),
+                      selectionRegistrar: SelectionContainer.maybeOf(context),
+                      selectionColor: selectionColor,
                       overflow: TextOverflow.ellipsis,
                     ),
                     TicketStatusIndicator(issue: issue),
@@ -464,12 +565,31 @@ class AdfRenderer extends StatelessWidget {
     }
 
     return Chip(
-      label: Text(node['attrs']['url']),
+      label: RichText(
+        text: TextSpan(text: node['attrs']['url']),
+        selectionRegistrar: SelectionContainer.maybeOf(context),
+        selectionColor: selectionColor,
+      ),
     );
   }
 
   Future startUrl(String url) {
     // TODO make this open an issue view in a dialog
     return launchUrl(Uri.parse(url));
+  }
+}
+
+class BulletListBulletSpan extends WidgetSpan {
+  BulletListBulletSpan({this.indent = 1}) : super(child: Text('•'));
+
+  final int indent;
+
+  @override
+  void computeToPlainText(
+    StringBuffer buffer, {
+    bool includeSemanticsLabels = true,
+    bool includePlaceholders = true,
+  }) {
+    buffer.write('\n${"\t" * indent} ');
   }
 }

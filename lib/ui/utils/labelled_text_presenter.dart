@@ -105,7 +105,7 @@ class _LabeledPopupTextFieldState extends State<LabeledPopupTextField> {
     if (widget.showPopupOnFocus && _focusNode.hasFocus) {
       _showPopup();
     } else if (!mounted || !_focusNode.hasFocus) {
-      _dismissPopup();
+      // _dismissPopup();
     }
   }
 

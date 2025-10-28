@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:charset/charset.dart';
 import 'package:fading_edge_scrollview/fading_edge_scrollview.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import 'package:flutter/material.dart';
@@ -14,6 +16,7 @@ import 'package:jira_watcher/ui/utils/expandable_panel.dart';
 import 'package:jira_watcher/ui/utils/jira_doc_renderer.dart';
 import 'package:jira_watcher/ui/utils/labelled_text_presenter.dart';
 import 'package:jira_watcher/ui/utils/network_video_player.dart';
+import 'package:loggy/loggy.dart';
 import 'package:path/path.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -130,11 +133,82 @@ class PersonField extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4, bottom: 4, left: 8),
             child: hasPerson ? ClipOval(child: JiraAvatar(url: ticket.fields?[field]['avatarUrls']['16x16'])) : Icon(Icons.account_circle_outlined),
           ),
-          // TODO
-          // popupBuilder: (context, dismiss, controller) => Padding(
-          //   padding: const EdgeInsets.all(8.0),
-          //   child: Text('dataaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
-          // ),
+          popupBuilder: (context, dismiss, controller) => Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: SizedBox(
+              width: 400,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 8,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      spacing: 8,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadiusGeometry.circular(4),
+                          child: JiraAvatar(url: ticket.fields?[field]['avatarUrls']['48x48']),
+                        ),
+                        Text(ticket.fields?[field]['displayName'], style: Theme.of(context).textTheme.titleLarge),
+                      ],
+                    ),
+                    Divider(),
+                    if (ticket.fields?[field]?['emailAddress'] != null)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        spacing: 8,
+                        children: [
+                          Icon(Icons.email),
+                          Text(ticket.fields?[field]['emailAddress']),
+                          IconButton(
+                            onPressed: () => Clipboard.setData(ClipboardData(text: ticket.fields?[field]['emailAddress'])),
+                            icon: Icon(Icons.copy),
+                            visualDensity: VisualDensity.compact,
+                            iconSize: 16,
+                          ),
+                        ],
+                      ),
+                    if (ticket.fields?[field]?['timeZone'] != null)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        spacing: 8,
+                        children: [
+                          Icon(Icons.schedule),
+                          Text(ticket.fields?[field]['timeZone']),
+                        ],
+                      ),
+
+                    if (ticket.fields?[field]?['active'] != null)
+                      Text(
+                        '${ticket.fields?[field]?['active'] ? "🟢" : "🔴"} This account is ${ticket.fields?[field]?['active'] ? '' : 'in'}active',
+                        style: TextStyle(color: Theme.of(context).hintColor),
+                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      spacing: 8,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'ID #${ticket.fields?[field]['accountId']}',
+                            style: TextStyle(color: Theme.of(context).hintColor),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Clipboard.setData(ClipboardData(text: ticket.fields?[field]['accountId'])),
+                          icon: Icon(Icons.copy),
+                          visualDensity: VisualDensity.compact,
+                          iconSize: 16,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         );
       },
     );
@@ -163,16 +237,41 @@ class PriorityField extends StatelessWidget {
         padding: const EdgeInsets.only(top: 8, bottom: 8, left: 8),
         child: hasField ? ClipOval(child: JiraAvatar(url: ticket.fields?[field]['iconUrl'])) : Icon(Icons.block),
       ),
-      // TODO
-      // popupBuilder: (context, dismiss, controller) => Padding(
-      //   padding: const EdgeInsets.all(8.0),
-      //   child: Text('dataaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
-      // ),
+      popupBuilder: (context, dismiss, controller) => Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: SizedBox(
+          width: 400,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              // mainAxisAlignment: MainAxisAlignment.spaceAround,
+              spacing: 8,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  spacing: 8,
+                  children: [
+                    JiraAvatar(url: ticket.fields?[field]['iconUrl']),
+                    Text(ticket.fields?[field]['name'], style: Theme.of(context).textTheme.titleLarge),
+                  ],
+                ),
+                Divider(),
+                if (ticket.fields?[field]?['description'] != null) Text(ticket.fields?[field]['description']),
+                Text(
+                  'ID #${ticket.fields?[field]['id']}',
+                  style: TextStyle(color: Theme.of(context).hintColor),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
 
-class WatchedByField extends StatelessWidget {
+class WatchedByField extends StatefulWidget {
   const WatchedByField({
     super.key,
     required this.ticket,
@@ -181,12 +280,19 @@ class WatchedByField extends StatelessWidget {
   final IssueData ticket;
 
   @override
+  State<WatchedByField> createState() => _WatchedByFieldState();
+}
+
+class _WatchedByFieldState extends State<WatchedByField> with UiLoggy {
+  Future<http.Response>? cache;
+
+  @override
   Widget build(BuildContext context) {
     String field = 'watches';
-    var hasField = ticket.fields?[field] != null;
-    bool isCurrentlyWatching = ticket.fields?[field]['isWatching'] ?? false;
+    var hasField = widget.ticket.fields?[field] != null;
+    bool isCurrentlyWatching = widget.ticket.fields?[field]['isWatching'] ?? false;
     return LabeledPopupTextField(
-      controller: TextEditingController(text: hasField ? (ticket.fields?[field]['name']) : 'None'),
+      controller: TextEditingController(text: hasField ? (widget.ticket.fields?[field]['name']) : 'None'),
       label: '',
       readOnly: true,
       showPopupOnFocus: true,
@@ -195,11 +301,71 @@ class WatchedByField extends StatelessWidget {
         padding: const EdgeInsets.only(top: 8, bottom: 8, left: 10),
         child: hasField ? ClipOval(child: Icon(isCurrentlyWatching ? Icons.visibility : Icons.visibility_off)) : Icon(Icons.block),
       ),
-      // TODO
-      // popupBuilder: (context, dismiss, controller) => Padding(
-      //   padding: const EdgeInsets.all(8.0),
-      //   child: Text('dataaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
-      // ),
+
+      popupBuilder: (context, dismiss, controller) {
+        int watchCount = widget.ticket.fields?[field]['watchCount'];
+
+        if (watchCount == 0) {
+          return Text('No one is wathing this issue.');
+        }
+
+        Future<http.Response>? resp;
+        if (cache == null) {
+          String url = widget.ticket.fields?[field]['self'];
+          resp = APIDao().directRequest(Uri.parse(url));
+          SchedulerBinding.instance.addPostFrameCallback(
+            (timeStamp) => setState(() {
+              cache = resp;
+            }),
+          );
+        } else {
+          resp = cache!;
+        }
+        return FutureBuilder(
+          future: resp,
+          builder: (context, asyncSnapshot) {
+            if (asyncSnapshot.hasData) {
+              String problem = '${asyncSnapshot.data!.statusCode}: ${asyncSnapshot.data!.reasonPhrase}';
+              loggy.warning(problem);
+              if (asyncSnapshot.data!.statusCode != 200) {
+                return Text(problem);
+              }
+              var data = jsonDecode(asyncSnapshot.data!.body);
+
+              return Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: SizedBox(
+                  width: 400,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 8,
+                      children: [
+                        Text('Watching this issue:', style: Theme.of(context).textTheme.titleMedium),
+
+                        for (var person in data['watchers'])
+                          ListTile(
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: JiraAvatar(url: person['avatarUrls']['48x48']),
+                            ),
+                            title: Text(person['displayName']),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+            return Padding(
+              padding: const EdgeInsets.all(8.0),
+
+              child: Text('a'),
+            );
+          },
+        );
+      },
     );
   }
 }

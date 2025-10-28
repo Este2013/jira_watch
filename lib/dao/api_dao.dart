@@ -96,17 +96,16 @@ class APIDao with UiLoggy {
   }
 
   /// General authenticated request helper
-  Future<http.Response> request(
-    String path, {
+  Future<http.Response> directRequest(
+    Uri uri, {
     String method = 'GET',
     Map<String, String>? headers,
     dynamic body,
     Map<String, dynamic>? queryParameters,
   }) async {
     if (!isReady) throw Exception('API credentials not set');
-    final uri = Uri.https(domain!, path, queryParameters);
 
-    debugPrint(uri.toString());
+    loggy.debug("Making an api request at $uri");
 
     final allHeaders = {
       'Authorization': authHeader,
@@ -126,10 +125,23 @@ class APIDao with UiLoggy {
     }
   }
 
+  /// General authenticated request helper
+  /// endpoint start with rest/api/...
+  Future<http.Response> requestAtEndpoint(
+    String endpoint, {
+    String method = 'GET',
+    Map<String, String>? headers,
+    dynamic body,
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final uri = Uri.https(domain!, endpoint, queryParameters);
+    return directRequest(uri, body: body, headers: headers, method: method, queryParameters: queryParameters);
+  }
+
   /// Convenience for GET requests, returns decoded JSON
   Future<dynamic> getJson(String path, {Map<String, dynamic>? queryParameters}) async {
     debugPrint(queryParameters?['jql']);
-    final response = await request(path, queryParameters: queryParameters);
+    final response = await requestAtEndpoint(path, queryParameters: queryParameters);
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     }

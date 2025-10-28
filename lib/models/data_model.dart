@@ -230,7 +230,7 @@ class APIModel {
   // ISSUES /////////////////////////////////////////////////////////////////////
 
   Future<Response> getIssue(String issueKey) {
-    return dao.request('/rest/api/3/issue/$issueKey');
+    return dao.requestAtEndpoint('/rest/api/3/issue/$issueKey');
   }
 
   Future<(Iterable<IssueData>, bool, String?)> fetchLastUpdatedIssues({

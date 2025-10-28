@@ -83,7 +83,7 @@ class _SplashScreenState extends State<SplashScreen> with UiLoggy {
     } else {
       // test credentials validity
       loggy.debug('Testing credentials via /rest/api/3/myself');
-      var response = await APIDao().request('/rest/api/3/myself');
+      var response = await APIDao().requestAtEndpoint('/rest/api/3/myself');
       loggy.debug('Response status: ${response.statusCode}');
       if (response.statusCode == 401) {
         loggy.error('Invalid credentials (401), navigating to /apikey');
