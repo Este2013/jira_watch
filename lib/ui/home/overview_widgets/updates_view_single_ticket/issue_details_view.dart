@@ -747,7 +747,12 @@ class DateDisplay extends StatelessWidget {
   const DateDisplay(this.title, {super.key, required this.date});
   final String title, date;
   @override
-  Widget build(BuildContext context) => Text('$title: ${formatDateString(date)}');
+  Widget build(BuildContext context) => Text(
+    '$title: ${formatDateString(date)}',
+    style: TextStyle(
+      color: Theme.of(context).hintColor,
+    ),
+  );
 
   String formatDateString(String input) {
     try {

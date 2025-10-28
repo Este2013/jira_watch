@@ -397,6 +397,7 @@ class ChangeLogsDialog extends StatelessWidget {
           ]),
         ],
       ),
+
       ChangeLogCard(
         '1.2.0',
         sections: [
@@ -414,6 +415,26 @@ class ChangeLogsDialog extends StatelessWidget {
             ChangeLogItem('Refactored the ticket details 🡢 json view for more helpful debugging and inspection'),
           ]),
           // ChangeLogSection.bugFixes([]),
+          ChangeLogSection.knownBugs([
+            ChangeLogItem('Emojis are not rendered in comments (there is no Atlassian API for that)'),
+            ChangeLogItem('Newer request is dropped by UI if project filters are changed before request completes'),
+            ChangeLogItem('Comments: nested replies are not shown as nested'),
+          ]),
+        ],
+      ),
+      ChangeLogCard(
+        '1.3.0',
+        sections: [
+          ChangeLogSection.features([
+            ChangeLogItem('☀️ Assigned to and Reporter field are now lit when you are the person in it'),
+          ]),
+          ChangeLogSection.bugFixes([
+            ChangeLogItem('😎 SVGs from jira would not get in-line style (eg. colors would be lost)'),
+          ]),
+          ChangeLogSection.chores([
+            ChangeLogItem('Bumped version number.'),
+            ChangeLogItem('Added dependency to xml.'),
+          ]),
           ChangeLogSection.knownBugs([
             ChangeLogItem('Emojis are not rendered in comments (there is no Atlassian API for that)'),
             ChangeLogItem('Newer request is dropped by UI if project filters are changed before request completes'),
