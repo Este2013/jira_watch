@@ -120,9 +120,17 @@ class _AdfRenderer extends StatelessWidget {
       if (w != null) children.add(w);
     }
 
-    return Column(
-      children: _withParagraphSpacing(children, paragraphSpacing),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return RichText(
+      selectionRegistrar: SelectionContainer.maybeOf(context),
+      selectionColor: selectionColor,
+      text: TextSpan(
+        children: _withParagraphSpacing(children, paragraphSpacing)
+            .map((e) => WidgetSpan(child: e))
+            .expand(
+              (e) => [e, TextSpan(text: '\n')],
+            )
+            .toList(),
+      ),
     );
   }
 
@@ -139,39 +147,47 @@ class _AdfRenderer extends StatelessWidget {
     if (node == null) return null;
     final type = node['type'] as String?;
     switch (type) {
+      case 'bulletList':
+        return _buildBulletList(context, node, indentLevel);
+      case 'codeBlock':
+        return _buildCodeBlock(context, node);
+      case 'heading':
+        return _buildHeading(context, node);
+      case 'inlineCard':
+        return _buildInlineCard(context, node);
+      case 'listItem':
+        return _buildListItem(context, node, indentLevel);
+      case 'media':
+        return _buildMedia(context, node);
+      case 'mediaSingle':
+        return _buildMediaSingle(context, node, indentLevel);
+      case 'mention':
+        return _buildMention(context, node);
+      case 'panel':
+        return _buildPanel(context, node);
       case 'paragraph':
         return _buildParagraph(context, node);
       case 'text':
-        // `text` nodes are handled inside paragraph RichText. If we get here
-        // directly (edge cases), just render a Text.
-        return RichText(
-          text: TextSpan(text: _textOf(node), style: _defaultCodeStyle(context).merge(transferStyle)),
-          selectionRegistrar: SelectionContainer.maybeOf(context),
+        return Text(
+          _textOf(node),
+          style: _defaultCodeStyle(context).merge(transferStyle),
           selectionColor: selectionColor,
         );
-      case 'heading':
-        return _buildHeading(context, node);
-      case 'mention':
-        return _buildMention(context, node);
-      case 'bulletList':
-        return _buildBulletList(context, node, indentLevel);
-      case 'listItem':
-        return _buildListItem(context, node, indentLevel);
-      case 'mediaSingle':
-        return _buildMediaSingle(context, node, indentLevel);
-      case 'media':
-        return _buildMedia(context, node);
-      case 'codeBlock':
-        return _buildCodeBlock(context, node);
-      case 'inlineCard':
-        return _buildInlineCard(context, node);
       default:
         // Unknown node: render its children (best-effort) to avoid data loss.
         final children = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
         if (children.isEmpty) return const SizedBox.shrink();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: children,
+        return RichText(
+          selectionRegistrar: SelectionContainer.maybeOf(context),
+          selectionColor: selectionColor,
+          text: TextSpan(
+            children: children
+                .map((e) => WidgetSpan(child: e))
+                .expand(
+                  (e) => [e, TextSpan(text: '\n')],
+                )
+                .toList(),
+          ),
         );
     }
   }
@@ -190,6 +206,35 @@ class _AdfRenderer extends StatelessWidget {
   }
 
   String _textOf(Map<String, dynamic> node) => (node['text'] ?? '') as String;
+
+  // Widget _buildEmoji(BuildContext context, Map<String, dynamic> node){
+  // TODO emotes are not supported in jira API. feature will not happen for atlassian-custom emotes.
+  // }
+
+  Widget _buildBulletList(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    final items = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: items,
+    );
+  }
+
+  Widget? _buildCodeBlock(BuildContext context, Map<String, dynamic> node) {
+    var t = Theme.of(context).colorScheme;
+
+    return Card(
+      color: t.surfaceContainerHighest,
+      child: Padding(
+        padding: EdgeInsetsGeometry.all(16),
+        child: Column(
+          children: [
+            for (var c in node['content'] as List) _buildNode(context, c, 0, transferStyle: TextStyle(fontFamily: 'RobotoMono')),
+          ].where((element) => element != null).toList().cast(),
+        ),
+      ),
+    );
+  }
 
   Widget _buildHeading(BuildContext context, Map<String, dynamic> node) {
     final headingLevel = node['attrs']['level'] ?? 1;
@@ -216,276 +261,6 @@ class _AdfRenderer extends StatelessWidget {
       context,
       node,
       style: style,
-    );
-  }
-
-  Widget _buildParagraph(BuildContext context, Map<String, dynamic> node, {TextStyle? style}) {
-    final spans = _buildInlineSpans(context, _asList(node['content']), style: style);
-    if (spans.isEmpty) {
-      return const SizedBox(height: 0); // empty paragraph -> minimal gap
-    }
-    return RichText(
-      text: TextSpan(style: style ?? _defaultTextStyle(context), children: spans),
-      selectionRegistrar: SelectionContainer.maybeOf(context),
-      selectionColor: selectionColor,
-      textAlign: TextAlign.start,
-    );
-  }
-
-  List<InlineSpan> _buildInlineSpans(BuildContext context, List<Map<String, dynamic>> content, {TextStyle? style}) {
-    final spans = <InlineSpan>[];
-    for (final node in content) {
-      if (node['type'] == 'text') {
-        final text = _textOf(node);
-        final marks = _asList(node['marks']);
-        style ??= _defaultTextStyle(context);
-        GestureRecognizer? recognizer;
-
-        for (final mark in marks) {
-          switch (mark['type']) {
-            case 'strong':
-              style = style!.merge(const TextStyle(fontWeight: FontWeight.w600));
-              break;
-            case 'em':
-              style = style!.merge(const TextStyle(fontStyle: FontStyle.italic));
-              break;
-            case 'underline':
-              style = style!.merge(const TextStyle(decoration: TextDecoration.underline));
-              break;
-            case 'strike':
-              style = style!.merge(const TextStyle(decoration: TextDecoration.lineThrough));
-              break;
-            case 'code':
-              style = _defaultCodeStyle(context).merge(
-                TextStyle(
-                  fontFamily: 'RobotoMono',
-                  background: Paint()
-                    ..color = Theme.of(context).colorScheme.surfaceContainerHighest
-                    ..style = PaintingStyle.fill,
-                  letterSpacing: 0.25,
-                ),
-              );
-              break;
-            case 'link':
-              final href = (mark['attrs']?['href'] ?? '') as String;
-              style = style!.merge(
-                TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
-                  decoration: TextDecoration.underline,
-                ),
-              );
-              recognizer = TapGestureRecognizer()
-                ..onTap = () {
-                  if (href.isEmpty) return;
-                  if (linkHandler != null) {
-                    linkHandler!(href);
-                  }
-                };
-              break;
-          }
-        }
-
-        spans.add(TextSpan(text: text, style: style, recognizer: recognizer));
-      } else if (node['type'] == 'hardBreak') {
-        spans.add(const TextSpan(text: '\n'));
-      } else if (node['type'] == 'emoji') {
-        // Basic emoji support: render as text using shortName or text attr.
-        final emojiText = (node['attrs']?['text'] ?? node['attrs']?['shortName'] ?? '') as String;
-        spans.add(TextSpan(text: emojiText, style: _defaultTextStyle(context)));
-      } else {
-        var nodeRender = _buildNode(context, node, 0);
-        if (nodeRender != null) {
-          spans.add(WidgetSpan(child: nodeRender, alignment: PlaceholderAlignment.middle));
-        }
-      }
-    }
-    return spans;
-  }
-
-  // Widget _buildEmoji(BuildContext context, Map<String, dynamic> node){
-  // TODO emotes are not supported in jira API. feature will not happen for atlassian-custom emotes.
-  // }
-
-  Widget _buildBulletList(BuildContext context, Map<String, dynamic> node, int indentLevel) {
-    final items = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: items,
-    );
-  }
-
-  Widget _buildListItem(BuildContext context, Map<String, dynamic> node, int indentLevel) {
-    // A listItem can contain one or more paragraphs and nested lists.
-    final children = _asList(node['content']);
-
-    // First paragraph (if present) becomes the bullet line; remaining nodes render below indented.
-    final List<Map<String, dynamic>> paragraphs = [];
-    final List<Map<String, dynamic>> nested = [];
-
-    for (final c in children) {
-      final type = c['type'];
-      if (type == 'paragraph') {
-        paragraphs.add(c);
-      } else {
-        nested.add(c);
-      }
-    }
-
-    final bulletLine = paragraphs.isNotEmpty ? _buildParagraph(context, paragraphs.first) : const SizedBox.shrink();
-
-    final bulletRow = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(width: indentLevel * listIndent),
-        RichText(text: BulletListBulletSpan(indent: 1)),
-        SizedBox(width: bulletGap),
-        Expanded(child: bulletLine),
-      ],
-    );
-
-    final below = <Widget>[];
-
-    // Render any additional paragraphs for this list item.
-    for (var i = 1; i < paragraphs.length; i++) {
-      below.add(
-        Padding(
-          padding: EdgeInsets.only(left: (indentLevel + 1) * listIndent + bulletGap + 8),
-          child: _buildParagraph(context, paragraphs[i]),
-        ),
-      );
-    }
-
-    // Render nested lists under this item.
-    for (final n in nested) {
-      final w = _buildNode(context, n, indentLevel + 1);
-      if (w != null) {
-        below.add(
-          Padding(
-            padding: EdgeInsets.only(left: (indentLevel + 1) * listIndent + bulletGap + 8),
-            child: w,
-          ),
-        );
-      }
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        bulletRow,
-        if (below.isNotEmpty) ..._withParagraphSpacing(below, paragraphSpacing / 2),
-      ],
-    );
-  }
-
-  Widget _buildMediaSingle(BuildContext context, Map<String, dynamic> node, int indentLevel) {
-    final attrs = (node['attrs'] ?? const <String, dynamic>{}) as Map<String, dynamic>;
-    final layout = (attrs['layout'] ?? 'center') as String; // 'align-start' | 'align-end' | 'center'
-    final width = (attrs['width'] is num) ? (attrs['width'] as num).toDouble() : null;
-
-    final mediaNode = _asList(node['content']).firstWhere(
-      (e) => e['type'] == 'media',
-      orElse: () => const <String, dynamic>{},
-    );
-
-    final media = _buildMedia(context, Map<String, dynamic>.from(mediaNode));
-
-    Alignment alignment = Alignment.centerLeft;
-    if (layout == 'align-end') alignment = Alignment.centerRight;
-    if (layout == 'center') alignment = Alignment.center;
-
-    final child = ConstrainedBox(
-      constraints: BoxConstraints(
-        // If explicit pixel width is provided, honor it up to screen size.
-        maxWidth: width ?? double.infinity,
-      ),
-      child: media,
-    );
-
-    return Align(
-      alignment: alignment,
-      child: Padding(
-        padding: EdgeInsets.only(left: indentLevel * listIndent),
-        child: child,
-      ),
-    );
-  }
-
-  Widget _buildMedia(BuildContext context, Map<String, dynamic> node) {
-    final attrs = (node['attrs'] ?? const <String, dynamic>{}) as Map<String, dynamic>;
-    if (mediaBuilder != null) {
-      return mediaBuilder!(context, attrs);
-    }
-
-    // Fallback generic box if no mediaBuilder provided
-    final alt = (attrs['alt'] ?? 'media').toString();
-    final w = (attrs['width'] is num) ? (attrs['width'] as num).toDouble() : 240.0;
-    final h = (attrs['height'] is num) ? (attrs['height'] as num).toDouble() : 160.0;
-
-    return Container(
-      width: w,
-      height: h,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Theme.of(context).dividerColor),
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      ),
-      child: RichText(
-        text: TextSpan(text: alt, style: _defaultTextStyle(context)),
-        selectionRegistrar: SelectionContainer.maybeOf(context),
-        selectionColor: selectionColor,
-      ),
-    );
-  }
-
-  static List<Map<String, dynamic>> _asList(dynamic v) {
-    if (v is List) {
-      return v.whereType<Map<String, dynamic>>().toList();
-    }
-    return const [];
-  }
-
-  Widget? _buildMention(BuildContext context, Map<String, dynamic> node) {
-    var t = Theme.of(context).colorScheme;
-    String userIdMentionned = node['attrs']['id'];
-    Future<bool> isMe = APIModel().myself().then(
-      (value) => jsonDecode(value.body)['accountId'] == userIdMentionned,
-    );
-
-    return FutureBuilder(
-      future: isMe,
-      builder: (context, asyncSnapshot) {
-        bool isMentionOfMe = asyncSnapshot.hasData && asyncSnapshot.data!;
-        return Chip(
-          backgroundColor: isMentionOfMe ? t.primary : null,
-
-          label: RichText(
-            text: TextSpan(
-              text: node['attrs']['text'],
-              style: isMentionOfMe ? TextStyle(color: t.onPrimary) : null,
-            ),
-            selectionRegistrar: SelectionContainer.maybeOf(context),
-            selectionColor: selectionColor,
-          ),
-        );
-      },
-    );
-  }
-
-  Widget? _buildCodeBlock(BuildContext context, Map<String, dynamic> node) {
-    var t = Theme.of(context).colorScheme;
-
-    return Card(
-      color: t.surfaceContainerHighest,
-      child: Padding(
-        padding: EdgeInsetsGeometry.all(16),
-        child: Column(
-          children: [
-            for (var c in node['content'] as List) _buildNode(context, c, 0, transferStyle: TextStyle(fontFamily: 'RobotoMono')),
-          ].where((element) => element != null).toList().cast(),
-        ),
-      ),
     );
   }
 
@@ -573,9 +348,302 @@ class _AdfRenderer extends StatelessWidget {
     );
   }
 
+  List<InlineSpan> _buildInlineSpans(BuildContext context, List<Map<String, dynamic>> content, {TextStyle? style}) {
+    final spans = <InlineSpan>[];
+    for (final node in content) {
+      if (node['type'] == 'text') {
+        final text = _textOf(node);
+        final marks = _asList(node['marks']);
+        style ??= _defaultTextStyle(context);
+        GestureRecognizer? recognizer;
+
+        for (final mark in marks) {
+          switch (mark['type']) {
+            case 'strong':
+              style = style!.merge(const TextStyle(fontWeight: FontWeight.w600));
+              break;
+            case 'em':
+              style = style!.merge(const TextStyle(fontStyle: FontStyle.italic));
+              break;
+            case 'underline':
+              style = style!.merge(const TextStyle(decoration: TextDecoration.underline));
+              break;
+            case 'strike':
+              style = style!.merge(const TextStyle(decoration: TextDecoration.lineThrough));
+              break;
+            case 'code':
+              style = _defaultCodeStyle(context).merge(
+                TextStyle(
+                  fontFamily: 'RobotoMono',
+                  background: Paint()
+                    ..color = Theme.of(context).colorScheme.surfaceContainerHighest
+                    ..style = PaintingStyle.fill,
+                  letterSpacing: 0.25,
+                ),
+              );
+              break;
+            case 'link':
+              final href = (mark['attrs']?['href'] ?? '') as String;
+              style = style!.merge(
+                TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                ),
+              );
+              recognizer = TapGestureRecognizer()
+                ..onTap = () {
+                  if (href.isEmpty) return;
+                  if (linkHandler != null) {
+                    linkHandler!(href);
+                  }
+                };
+              break;
+          }
+        }
+
+        spans.add(TextSpan(text: text, style: style, recognizer: recognizer));
+      } else if (node['type'] == 'hardBreak') {
+        spans.add(const TextSpan(text: '\n'));
+      } else if (node['type'] == 'emoji') {
+        // Basic emoji support: render as text using shortName or text attr.
+        final emojiText = (node['attrs']?['text'] ?? node['attrs']?['shortName'] ?? '') as String;
+        spans.add(TextSpan(text: emojiText, style: _defaultTextStyle(context)));
+      } else {
+        var nodeRender = _buildNode(context, node, 0);
+        if (nodeRender != null) {
+          spans.add(WidgetSpan(child: nodeRender, alignment: PlaceholderAlignment.middle));
+        }
+      }
+    }
+    return spans;
+  }
+
+  Widget _buildListItem(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    // A listItem can contain one or more paragraphs and nested lists.
+    final children = _asList(node['content']);
+
+    // First paragraph (if present) becomes the bullet line; remaining nodes render below indented.
+    final List<Map<String, dynamic>> paragraphs = [];
+    final List<Map<String, dynamic>> nested = [];
+
+    for (final c in children) {
+      final type = c['type'];
+      if (type == 'paragraph') {
+        paragraphs.add(c);
+      } else {
+        nested.add(c);
+      }
+    }
+
+    final bulletLine = paragraphs.isNotEmpty ? _buildParagraph(context, paragraphs.first) : const SizedBox.shrink();
+
+    final bulletRow = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(width: indentLevel * listIndent),
+        RichText(text: BulletListBulletSpan(indent: 1)),
+        SizedBox(width: bulletGap),
+        Expanded(child: bulletLine),
+      ],
+    );
+
+    final below = <Widget>[];
+
+    // Render any additional paragraphs for this list item.
+    for (var i = 1; i < paragraphs.length; i++) {
+      below.add(
+        Padding(
+          padding: EdgeInsets.only(left: (indentLevel + 1) * listIndent + bulletGap + 8),
+          child: _buildParagraph(context, paragraphs[i]),
+        ),
+      );
+    }
+
+    // Render nested lists under this item.
+    for (final n in nested) {
+      final w = _buildNode(context, n, indentLevel + 1);
+      if (w != null) {
+        below.add(
+          Padding(
+            padding: EdgeInsets.only(left: (indentLevel + 1) * listIndent + bulletGap + 8),
+            child: w,
+          ),
+        );
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        bulletRow,
+        if (below.isNotEmpty) ..._withParagraphSpacing(below, paragraphSpacing / 2),
+      ],
+    );
+  }
+
+  Widget _buildMedia(BuildContext context, Map<String, dynamic> node) {
+    final attrs = (node['attrs'] ?? const <String, dynamic>{}) as Map<String, dynamic>;
+    if (mediaBuilder != null) {
+      return mediaBuilder!(context, attrs);
+    }
+
+    // Fallback generic box if no mediaBuilder provided
+    final alt = (attrs['alt'] ?? 'media').toString();
+    final w = (attrs['width'] is num) ? (attrs['width'] as num).toDouble() : 240.0;
+    final h = (attrs['height'] is num) ? (attrs['height'] as num).toDouble() : 160.0;
+
+    return Container(
+      width: w,
+      height: h,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Theme.of(context).dividerColor),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      ),
+      child: RichText(
+        text: TextSpan(text: alt, style: _defaultTextStyle(context)),
+        selectionRegistrar: SelectionContainer.maybeOf(context),
+        selectionColor: selectionColor,
+      ),
+    );
+  }
+
+  Widget _buildMediaSingle(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    final attrs = (node['attrs'] ?? const <String, dynamic>{}) as Map<String, dynamic>;
+    final layout = (attrs['layout'] ?? 'center') as String; // 'align-start' | 'align-end' | 'center'
+    final width = (attrs['width'] is num) ? (attrs['width'] as num).toDouble() : null;
+
+    final mediaNode = _asList(node['content']).firstWhere(
+      (e) => e['type'] == 'media',
+      orElse: () => const <String, dynamic>{},
+    );
+
+    final media = _buildMedia(context, Map<String, dynamic>.from(mediaNode));
+
+    Alignment alignment = Alignment.centerLeft;
+    if (layout == 'align-end') alignment = Alignment.centerRight;
+    if (layout == 'center') alignment = Alignment.center;
+
+    final child = ConstrainedBox(
+      constraints: BoxConstraints(
+        // If explicit pixel width is provided, honor it up to screen size.
+        maxWidth: width ?? double.infinity,
+      ),
+      child: media,
+    );
+
+    return Align(
+      alignment: alignment,
+      child: Padding(
+        padding: EdgeInsets.only(left: indentLevel * listIndent),
+        child: child,
+      ),
+    );
+  }
+
+  Widget? _buildMention(BuildContext context, Map<String, dynamic> node) {
+    var t = Theme.of(context).colorScheme;
+    String userIdMentionned = node['attrs']['id'];
+    Future<bool> isMe = APIModel().myself().then(
+      (value) => jsonDecode(value.body)['accountId'] == userIdMentionned,
+    );
+
+    return FutureBuilder(
+      future: isMe,
+      builder: (context, asyncSnapshot) {
+        bool isMentionOfMe = asyncSnapshot.hasData && asyncSnapshot.data!;
+        return Chip(
+          backgroundColor: isMentionOfMe ? t.primary : null,
+
+          label: RichText(
+            text: TextSpan(
+              text: node['attrs']['text'],
+              style: isMentionOfMe ? TextStyle(color: t.onPrimary) : null,
+            ),
+            selectionRegistrar: SelectionContainer.maybeOf(context),
+            selectionColor: selectionColor,
+          ),
+        );
+      },
+    );
+  }
+
+  /// The panel node is a  top-level block node, representing a container that highlights content.
+  Widget _buildPanel(BuildContext context, Map<String, dynamic> node) {
+    // "info", "note", "warning", "success", "error"
+    bool isLightMode = Theme.brightnessOf(context) == Brightness.light;
+    String type = node['attrs']?['panelType'] ?? 'info';
+    Color back, front;
+    Icon icon;
+    switch (type) {
+      case 'note':
+        back = isLightMode ? Color(0xFFf8eefe) : Color(0xFF35243f);
+        icon = Icon(Icons.note, color: Colors.purpleAccent);
+        break;
+      case 'warning':
+        back = isLightMode ? Color(0xFFfef7c8) : Color(0xFF332e1b);
+        icon = Icon(Icons.warning_rounded, color: Colors.amber);
+        break;
+      case 'success':
+        back = isLightMode ? Color(0xFFdcfff1) : Color(0xFF1c3329);
+        icon = Icon(Icons.check_circle, color: Colors.green);
+        break;
+      case 'error':
+        back = isLightMode ? Color(0xFFffeceb) : Color(0xFF42221f);
+        icon = Icon(Icons.error, color: Colors.red);
+        break;
+      case 'info':
+      default:
+        back = isLightMode ? Color(0xFFe9f2fe) : Color(0xFF1c2b42);
+        icon = Icon(Icons.info, color: Colors.lightBlue);
+        break;
+    }
+    return Card(
+      color: back,
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Row(
+          spacing: 8,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            icon,
+            RichText(
+              text: TextSpan(
+                children: _buildInlineSpans(context, (node['content'] as List).cast()),
+              ),
+              selectionRegistrar: SelectionContainer.maybeOf(context),
+              selectionColor: selectionColor,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildParagraph(BuildContext context, Map<String, dynamic> node, {TextStyle? style}) {
+    final spans = _buildInlineSpans(context, _asList(node['content']), style: style);
+    if (spans.isEmpty) {
+      return const SizedBox(height: 0); // empty paragraph -> minimal gap
+    }
+    return RichText(
+      text: TextSpan(style: style ?? _defaultTextStyle(context), children: spans),
+      selectionRegistrar: SelectionContainer.maybeOf(context),
+      selectionColor: selectionColor,
+      textAlign: TextAlign.start,
+    );
+  }
+
   Future startUrl(String url) {
     // TODO make this open an issue view in a dialog
     return launchUrl(Uri.parse(url));
+  }
+
+  static List<Map<String, dynamic>> _asList(dynamic v) {
+    if (v is List) {
+      return v.whereType<Map<String, dynamic>>().toList();
+    }
+    return const [];
   }
 }
 
