@@ -133,82 +133,84 @@ class PersonField extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4, bottom: 4, left: 8),
             child: hasPerson ? ClipOval(child: JiraAvatar(url: ticket.fields?[field]['avatarUrls']['16x16'])) : Icon(Icons.account_circle_outlined),
           ),
-          popupBuilder: (context, dismiss, controller) => Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: SizedBox(
-              width: 400,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: 8,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      spacing: 8,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadiusGeometry.circular(4),
-                          child: JiraAvatar(url: ticket.fields?[field]['avatarUrls']['48x48']),
-                        ),
-                        Text(ticket.fields?[field]['displayName'], style: Theme.of(context).textTheme.titleLarge),
-                      ],
-                    ),
-                    Divider(),
-                    if (ticket.fields?[field]?['emailAddress'] != null)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+          popupBuilder: hasPerson
+              ? (context, dismiss, controller) => Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: SizedBox(
+                    width: 400,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         spacing: 8,
                         children: [
-                          Icon(Icons.email),
-                          Text(ticket.fields?[field]['emailAddress']),
-                          IconButton(
-                            onPressed: () => Clipboard.setData(ClipboardData(text: ticket.fields?[field]['emailAddress'])),
-                            icon: Icon(Icons.copy),
-                            visualDensity: VisualDensity.compact,
-                            iconSize: 16,
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            spacing: 8,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadiusGeometry.circular(4),
+                                child: JiraAvatar(url: ticket.fields?[field]['avatarUrls']['48x48']),
+                              ),
+                              Text(ticket.fields?[field]['displayName'], style: Theme.of(context).textTheme.titleLarge),
+                            ],
                           ),
-                        ],
-                      ),
-                    if (ticket.fields?[field]?['timeZone'] != null)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        spacing: 8,
-                        children: [
-                          Icon(Icons.schedule),
-                          Text(ticket.fields?[field]['timeZone']),
-                        ],
-                      ),
+                          Divider(),
+                          if (ticket.fields?[field]?['emailAddress'] != null)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              spacing: 8,
+                              children: [
+                                Icon(Icons.email),
+                                Text(ticket.fields?[field]['emailAddress']),
+                                IconButton(
+                                  onPressed: () => Clipboard.setData(ClipboardData(text: ticket.fields?[field]['emailAddress'])),
+                                  icon: Icon(Icons.copy),
+                                  visualDensity: VisualDensity.compact,
+                                  iconSize: 16,
+                                ),
+                              ],
+                            ),
+                          if (ticket.fields?[field]?['timeZone'] != null)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              spacing: 8,
+                              children: [
+                                Icon(Icons.schedule),
+                                Text(ticket.fields?[field]['timeZone']),
+                              ],
+                            ),
 
-                    if (ticket.fields?[field]?['active'] != null)
-                      Text(
-                        '${ticket.fields?[field]?['active'] ? "🟢" : "🔴"} This account is ${ticket.fields?[field]?['active'] ? '' : 'in'}active',
-                        style: TextStyle(color: Theme.of(context).hintColor),
-                      ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      spacing: 8,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            'ID #${ticket.fields?[field]['accountId']}',
-                            style: TextStyle(color: Theme.of(context).hintColor),
-                            overflow: TextOverflow.ellipsis,
+                          if (ticket.fields?[field]?['active'] != null)
+                            Text(
+                              '${ticket.fields?[field]?['active'] ? "🟢" : "🔴"} This account is ${ticket.fields?[field]?['active'] ? '' : 'in'}active',
+                              style: TextStyle(color: Theme.of(context).hintColor),
+                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            spacing: 8,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  'ID #${ticket.fields?[field]['accountId']}',
+                                  style: TextStyle(color: Theme.of(context).hintColor),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () => Clipboard.setData(ClipboardData(text: ticket.fields?[field]['accountId'])),
+                                icon: Icon(Icons.copy),
+                                visualDensity: VisualDensity.compact,
+                                iconSize: 16,
+                              ),
+                            ],
                           ),
-                        ),
-                        IconButton(
-                          onPressed: () => Clipboard.setData(ClipboardData(text: ticket.fields?[field]['accountId'])),
-                          icon: Icon(Icons.copy),
-                          visualDensity: VisualDensity.compact,
-                          iconSize: 16,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+                  ),
+                )
+              : null,
         );
       },
     );
@@ -325,9 +327,9 @@ class _WatchedByFieldState extends State<WatchedByField> with UiLoggy {
           future: resp,
           builder: (context, asyncSnapshot) {
             if (asyncSnapshot.hasData) {
-              String problem = '${asyncSnapshot.data!.statusCode}: ${asyncSnapshot.data!.reasonPhrase}';
-              loggy.warning(problem);
               if (asyncSnapshot.data!.statusCode != 200) {
+                String problem = '${asyncSnapshot.data!.statusCode}: ${asyncSnapshot.data!.reasonPhrase}';
+                loggy.warning(problem);
                 return Text(problem);
               }
               var data = jsonDecode(asyncSnapshot.data!.body);

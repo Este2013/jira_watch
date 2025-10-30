@@ -1,11 +1,15 @@
 import 'dart:convert';
+import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
+import 'package:jira_watcher/ui/utils/spanning_table.dart';
+import 'package:loggy/loggy.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../home/overview_widgets/issue_ui_elements.dart';
@@ -77,7 +81,7 @@ class AdfRenderer extends StatelessWidget {
   }
 }
 
-class _AdfRenderer extends StatelessWidget {
+class _AdfRenderer extends StatelessWidget with UiLoggy {
   const _AdfRenderer({
     super.key,
     required this.adf,
@@ -138,7 +142,7 @@ class _AdfRenderer extends StatelessWidget {
     final spaced = <Widget>[];
     for (var i = 0; i < children.length; i++) {
       spaced.add(children[i]);
-      if (i != children.length - 1) spaced.add(SizedBox(height: spacing));
+      if (i < children.length - 1) spaced.add(SizedBox(height: spacing));
     }
     return spaced;
   }
@@ -151,6 +155,8 @@ class _AdfRenderer extends StatelessWidget {
         return _buildBulletList(context, node, indentLevel);
       case 'codeBlock':
         return _buildCodeBlock(context, node);
+      case 'emoji':
+        return _buildEmoji(context, node);
       case 'heading':
         return _buildHeading(context, node);
       case 'inlineCard':
@@ -167,6 +173,8 @@ class _AdfRenderer extends StatelessWidget {
         return _buildPanel(context, node);
       case 'paragraph':
         return _buildParagraph(context, node);
+      case 'table':
+        return _buildTable(context, node);
       case 'text':
         return Text(
           _textOf(node),
@@ -207,10 +215,6 @@ class _AdfRenderer extends StatelessWidget {
 
   String _textOf(Map<String, dynamic> node) => (node['text'] ?? '') as String;
 
-  // Widget _buildEmoji(BuildContext context, Map<String, dynamic> node){
-  // TODO emotes are not supported in jira API. feature will not happen for atlassian-custom emotes.
-  // }
-
   Widget _buildBulletList(BuildContext context, Map<String, dynamic> node, int indentLevel) {
     final items = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
 
@@ -234,6 +238,33 @@ class _AdfRenderer extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// emoji is an inline node.
+  /// There are three kinds of emoji:
+  ///  - Standard — Unicode emoji
+  ///  - Atlassian — Non-standard emoji introduced by Atlassian
+  ///  - Site — Non-standard customer defined emoji
+  Widget _buildEmoji(BuildContext context, Map<String, dynamic> node) {
+    // TODO emotes are not supported in jira API. feature will not happen for atlassian-custom emotes.
+    String id = node['attrs']['id'], text = node['attrs']['text'], shortName = node['attrs']['shortName'];
+    Widget? byId = {
+      'atlassian-check_mark': Icon(Icons.check_circle, color: Colors.green),
+      'atlassian-cross_mark': Transform.rotate(
+        angle: pi / 4,
+        child: Icon(Icons.add_circle, color: Colors.red),
+      ),
+    }[id];
+    if (byId != null) return Tooltip(message: shortName, child: byId);
+    Widget? byName = {
+      ':windows:': Icon(Icons.window),
+      ':macos:': Icon(Icons.apple),
+    }[shortName.toLowerCase()];
+    if (byName != null) return Tooltip(message: shortName, child: byName);
+    if (id.startsWith('atlassian-')) {
+      loggy.warning('Do not know how to render the atlassian emoji: ID: $id, text: $text');
+    }
+    return Text(text);
   }
 
   Widget _buildHeading(BuildContext context, Map<String, dynamic> node) {
@@ -406,8 +437,7 @@ class _AdfRenderer extends StatelessWidget {
         spans.add(const TextSpan(text: '\n'));
       } else if (node['type'] == 'emoji') {
         // Basic emoji support: render as text using shortName or text attr.
-        final emojiText = (node['attrs']?['text'] ?? node['attrs']?['shortName'] ?? '') as String;
-        spans.add(TextSpan(text: emojiText, style: _defaultTextStyle(context)));
+        spans.add(WidgetSpan(child: _buildEmoji(context, node)));
       } else {
         var nodeRender = _buildNode(context, node, 0);
         if (nodeRender != null) {
@@ -556,13 +586,9 @@ class _AdfRenderer extends StatelessWidget {
         return Chip(
           backgroundColor: isMentionOfMe ? t.primary : null,
 
-          label: RichText(
-            text: TextSpan(
-              text: node['attrs']['text'],
-              style: isMentionOfMe ? TextStyle(color: t.onPrimary) : null,
-            ),
-            selectionRegistrar: SelectionContainer.maybeOf(context),
-            selectionColor: selectionColor,
+          label: Text(
+            node['attrs']['text'],
+            style: isMentionOfMe ? TextStyle(color: t.onPrimary) : null,
           ),
         );
       },
@@ -632,6 +658,135 @@ class _AdfRenderer extends StatelessWidget {
       selectionColor: selectionColor,
       textAlign: TextAlign.start,
     );
+  }
+
+  /// Top-level block node, providing a container for the nodes that define a table.
+  Widget _buildTable(BuildContext context, Map<String, dynamic> node) {
+    List content = node['content'];
+    Map attrs = node['attrs'];
+    // - "center" : align the table to the center of page, its width can be larger than the line length
+    // = "align-start" : align the table left of the line length, its width cannot be larger than the line length
+    String layout = attrs['layout'];
+    String displayMode = attrs['displayMode'] ?? 'default'; // 'default', 'fixed'
+    // Recommendations from Jira
+    // Minimum width
+    //  - 1 column table = 48px
+    //  - 2 column table = 96px
+    //  - 3 column table = 144px
+    //  - > 3 column table = 144px
+    // Maximum width: 1800
+    // int width = attrs['width'];
+    bool isNumberColumnEnabled = attrs['isNumberColumnEnabled'] ?? false;
+
+    List<SpanTableCell> cells = [];
+    List<List<bool>> occupationMatrix = [];
+    print('######################################');
+    for (var (rowID, row) in content.indexed) {
+      if (isNumberColumnEnabled) {
+        occupationMatrix.add([true]);
+        occupationMatrix.last.addAll(List.filled((occupationMatrix.firstOrNull?.length ?? 1) - 1, false, growable: true));
+        cells.add(
+          SpanTableCell(
+            row: rowID,
+            col: 0,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: (Theme.of(context).textTheme.bodyMedium?.fontSize ?? 12) * 1.2),
+              child: Center(child: Text(rowID.toString())),
+            ),
+          ),
+        );
+      } else {
+        occupationMatrix.add(List.filled(occupationMatrix.firstOrNull?.length ?? 0, false, growable: true));
+      }
+      int colID = 0;
+      print(occupationMatrix);
+      for (var cell in row['content']) {
+        // find next available coordinates
+        if (occupationMatrix[rowID].isEmpty) {
+          occupationMatrix[rowID].add(false);
+        }
+        while (occupationMatrix[rowID][colID]) {
+          colID++;
+          if (occupationMatrix[rowID].length <= colID) occupationMatrix[rowID].add(false);
+        }
+
+        int colSpan = (cell['attrs']?['colspan'] as int?) ?? 1;
+        int rowSpan = (cell['attrs']?['rowspan'] as int?) ?? 1;
+        // take note of the spots occupied by this cell
+        for (int r = 0; r < rowSpan; r++) {
+          if (occupationMatrix.length <= r + rowID) {
+            occupationMatrix.add(List.filled(occupationMatrix.first.length, false, growable: true));
+            if (isNumberColumnEnabled) occupationMatrix.last.first = true;
+          }
+          for (int c = 0; c < colSpan; c++) {
+            if (occupationMatrix[r + rowID].length <= c + colID) {
+              occupationMatrix[r + rowID].add(true);
+            } else {
+              occupationMatrix[r + rowID][c + colID] = true;
+            }
+          }
+        }
+        if (cell['type'] == 'tableHeader') {
+          cells.add(
+            SpanTableCell(
+              row: rowID,
+              rowSpan: rowSpan,
+              col: colID,
+              colSpan: colSpan,
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+              ),
+              child: _buildNode(context, cell, 0) ?? SizedBox.shrink(),
+            ),
+          );
+        } else if (cell['type'] == 'tableCell') {
+          cells.add(
+            SpanTableCell(
+              row: rowID,
+              rowSpan: rowSpan,
+              col: colID,
+              colSpan: colSpan,
+              child: _buildNode(context, cell, 0) ?? SizedBox.shrink(),
+            ),
+          );
+        } else {
+          loggy.error('Unknown table cell type: ${cell['type']}');
+        }
+      }
+      // if this row is longer than the rest, pad the rest
+      if (occupationMatrix.last.length > occupationMatrix.first.length) {
+        loggy.warning('This row is longer than the others!');
+        for (var row in occupationMatrix) {
+          if (row.length < occupationMatrix.last.length) row.addAll([for (int i = 0; i < (occupationMatrix.last.length - row.length); i++) false]);
+        }
+      }
+    }
+    var dividerColor = Theme.of(context).dividerColor;
+    var table = SpanTable.fromCells(
+      cells,
+      defaultColumnWidth: const FlexColumnWidth(1),
+      columnWidths: {if (isNumberColumnEnabled) 0: IntrinsicColumnWidth()},
+      border: SpanTableBorder(
+        inner: BorderSide(color: dividerColor),
+        outer: BorderSide(color: dividerColor),
+      ),
+      cellPadding: const EdgeInsets.all(8),
+    );
+    if (kDebugMode) {
+      return Column(
+        children: [
+          FilledButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => SpanTableTestPage()),
+            ),
+            style: FilledButton.styleFrom(backgroundColor: Colors.amber.shade900),
+            child: Text('DEBUG TABLES'),
+          ),
+          table,
+        ],
+      );
+    }
+    return table;
   }
 
   Future startUrl(String url) {
