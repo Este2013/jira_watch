@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:jira_watcher/ui/utils/json_viewer.dart';
+import 'package:jira_watcher/utils/color_utils.dart';
 
 /// Public API -----------------------------------------------------------------
 
@@ -44,6 +46,132 @@ class SpanTable extends MultiChildRenderObjectWidget {
       defaultColumnWidth: defaultColumnWidth,
       textDirection: textDirection,
     );
+  }
+  factory SpanTable.fromJiraNode(
+    Map node, {
+    Key? key,
+    required BuildContext context,
+    TextDirection? textDirection,
+    SpanTableBorder? border,
+    EdgeInsets cellPadding = EdgeInsets.zero,
+    Widget? Function(Map node)? headerCellBuilder,
+    required Widget? Function(Map node) cellContentBuilder,
+  }) {
+    List content = node['content'];
+    Map attrs = node['attrs'];
+    // - "center" : align the table to the center of page, its width can be larger than the line length
+    // = "align-start" : align the table left of the line length, its width cannot be larger than the line length
+    String layout = attrs['layout'];
+    String displayMode = attrs['displayMode'] ?? 'default'; // 'default', 'fixed'
+    // Recommendations from Jira
+    // Minimum width
+    //  - 1 column table = 48px
+    //  - 2 column table = 96px
+    //  - 3 column table = 144px
+    //  - > 3 column table = 144px
+    // Maximum width: 1800
+    // int width = attrs['width'];
+    bool isNumberColumnEnabled = attrs['isNumberColumnEnabled'] ?? false;
+
+    List<SpanTableCell> cells = [];
+    List<List<bool>> occupationMatrix = [];
+
+    for (var (rowID, row) in content.indexed) {
+      if (isNumberColumnEnabled) {
+        occupationMatrix.add([true]);
+        occupationMatrix.last.addAll(List.filled((occupationMatrix.firstOrNull?.length ?? 1) - 1, false, growable: true));
+        cells.add(
+          SpanTableCell(
+            row: rowID,
+            col: 0,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: (Theme.of(context).textTheme.bodyMedium?.fontSize ?? 12) * 1.2),
+              child: Center(child: Text(rowID.toString())),
+            ),
+          ),
+        );
+      } else {
+        occupationMatrix.add(List.filled(occupationMatrix.firstOrNull?.length ?? 0, false, growable: true));
+      }
+
+      int colID = 0;
+      for (var cell in row['content']) {
+        // find next available coordinates
+
+        if (occupationMatrix[rowID].isEmpty) {
+          occupationMatrix[rowID].add(false);
+        }
+        while (occupationMatrix[rowID][colID]) {
+          colID++;
+          if (occupationMatrix[rowID].length <= colID) occupationMatrix[rowID].add(false);
+        }
+
+        Color? customBgColor = cell['attrs']?['background'] == null ? null : HexColor.fromHex(cell['attrs']?['background']);
+        if (customBgColor != null && Theme.of(context).brightness == Brightness.dark) {
+          customBgColor = customBgColor.toDarkMode();
+        }
+        int colSpan = (cell['attrs']?['colspan'] as int?) ?? 1;
+        int rowSpan = (cell['attrs']?['rowspan'] as int?) ?? 1;
+        // take note of the spots occupied by this cell
+        for (int r = 0; r < rowSpan; r++) {
+          if (occupationMatrix.length <= r + rowID) {
+            occupationMatrix.add(List.filled(occupationMatrix.first.length, false, growable: true));
+            if (isNumberColumnEnabled) occupationMatrix.last.first = true;
+          }
+          for (int c = 0; c < colSpan; c++) {
+            if (occupationMatrix[r + rowID].length <= c + colID) {
+              occupationMatrix[r + rowID].add(true);
+            } else {
+              occupationMatrix[r + rowID][c + colID] = true;
+            }
+          }
+        }
+        if (cell['type'] == 'tableHeader') {
+          cells.add(
+            SpanTableCell(
+              row: rowID,
+              rowSpan: rowSpan,
+              col: colID,
+              colSpan: colSpan,
+              decoration: BoxDecoration(color: customBgColor ?? Theme.of(context).cardColor),
+              child: (headerCellBuilder ?? cellContentBuilder).call(cell) ?? SizedBox.shrink(),
+            ),
+          );
+        } else if (cell['type'] == 'tableCell') {
+          cells.add(
+            SpanTableCell(
+              row: rowID,
+              rowSpan: rowSpan,
+              col: colID,
+              colSpan: colSpan,
+              decoration: BoxDecoration(color: customBgColor),
+              child: (cellContentBuilder).call(cell) ?? SizedBox.shrink(),
+            ),
+          );
+        } else {
+          throw Exception('Unknown table cell type: ${cell['type']}');
+        }
+      }
+      // if this row is longer than the rest, pad the rest
+      if (occupationMatrix.last.length > occupationMatrix.first.length) {
+        for (var row in occupationMatrix) {
+          if (row.length < occupationMatrix.last.length) row.addAll([for (int i = 0; i < (occupationMatrix.last.length - row.length); i++) false]);
+        }
+      }
+    }
+    var dividerColor = Theme.of(context).dividerColor;
+    var table = SpanTable.fromCells(
+      cells,
+      defaultColumnWidth: const FlexColumnWidth(1),
+      columnWidths: {if (isNumberColumnEnabled) 0: IntrinsicColumnWidth()},
+      border: SpanTableBorder(
+        inner: BorderSide(color: dividerColor),
+        outer: BorderSide(color: dividerColor),
+      ),
+      cellPadding: const EdgeInsets.all(8),
+    );
+
+    return table;
   }
 
   final int columns;
@@ -291,7 +419,7 @@ class RenderSpanTable extends RenderBox with ContainerRenderObjectMixin<RenderBo
 
     _colWidths = List<double>.filled(_columnsCount, 0.0);
 
-    // 1) Collect cells for intrinsic sizing
+    // Collect cells for intrinsic sizing
     final perColSingles = List<List<_SpanMeasure>>.generate(_columnsCount, (_) => <_SpanMeasure>[]);
     final spanMeasures = <_SpanMeasure>[];
 
@@ -410,15 +538,6 @@ class RenderSpanTable extends RenderBox with ContainerRenderObjectMixin<RenderBo
     _layoutSinglesForRowHeights();
     _layoutMultiRowToExpandRows();
 
-    // _rowOffsets = List<double>.filled(rowsCount + 1, 0.0);
-    // for (int r = 0; r < rowsCount; r++) {
-    //   _rowOffsets[r + 1] = _rowOffsets[r] + _rowHeights[r];
-    // }
-
-    // // 3) Final positioning
-    // _positionChildren();
-
-    // size = constraints.constrain(Size(_colOffsets.last, _rowOffsets.last));
     _rowOffsets = List<double>.filled(rowsCount + 1, 0.0);
     for (int r = 0; r < rowsCount; r++) {
       _rowOffsets[r + 1] = _rowOffsets[r] + _rowHeights[r];
@@ -437,27 +556,8 @@ class RenderSpanTable extends RenderBox with ContainerRenderObjectMixin<RenderBo
       }
     }
 
-    // 3) Final positioning
+    // Final positioning
     _positionChildren();
-
-    if (kDebugMode) {
-      // One-time verbose log per layout
-      int idx = 0;
-      RenderBox? child = firstChild;
-      while (child != null) {
-        final d = childParentData(child);
-        final pad = (d.padding ?? _cellPadding);
-        final innerW = (_colOffsets[d.col + d.colSpan] - _colOffsets[d.col]) - pad.horizontal;
-        final innerH = (_rowOffsets[d.row + d.rowSpan] - _rowOffsets[d.row]) - pad.vertical;
-        debugPrint(
-          'cell#$idx r=${d.row} c=${d.col} spanR=${d.rowSpan} spanC=${d.colSpan} '
-          'child=${child.size} inner=(${innerW.toStringAsFixed(1)} x ${innerH.toStringAsFixed(1)}) '
-          'rowH=${_rowHeights[d.row].toStringAsFixed(1)} padV=${pad.vertical}',
-        );
-        child = d.nextSibling;
-        idx++;
-      }
-    }
 
     size = finalSize;
   }
@@ -695,10 +795,12 @@ class RenderSpanTable extends RenderBox with ContainerRenderObjectMixin<RenderBo
 }
 
 //// TEST
-///
 
 class SpanTableTestPage extends StatefulWidget {
-  const SpanTableTestPage({super.key});
+  const SpanTableTestPage({super.key, this.providedJiraTableNode, this.providedJiraCellContentBuilder}) : assert(!(providedJiraTableNode != null && providedJiraCellContentBuilder == null));
+
+  final Map? providedJiraTableNode;
+  final Widget? Function(Map cell)? providedJiraCellContentBuilder;
 
   @override
   State<SpanTableTestPage> createState() => _SpanTableTestPageState();
@@ -740,7 +842,7 @@ class _SpanTableTestPageState extends State<SpanTableTestPage> {
     return map;
   }
 
-  List<SpanTableCell> _buildCells() {
+  List<SpanTableCell> _buildDefaultCells() {
     return [
       // Header spanning all columns
       SpanTableCell(
@@ -851,7 +953,7 @@ class _SpanTableTestPageState extends State<SpanTableTestPage> {
                     columnWidths: columnWidths,
                     border: border,
                     cellPadding: const EdgeInsets.all(8),
-                    cells: _buildCells(),
+                    cells: _buildDefaultCells(),
                   ),
                 ),
               ),
@@ -861,83 +963,118 @@ class _SpanTableTestPageState extends State<SpanTableTestPage> {
       ),
     );
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('SpanTable Playground')),
-      body: Column(
-        children: [
-          // Controls
-          Material(
-            elevation: 1,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 16,
-                runSpacing: 8,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Container width'),
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        width: 220,
-                        child: Slider(
-                          min: 260,
-                          max: 1000,
-                          divisions: 37,
-                          label: _containerWidth.toStringAsFixed(0),
-                          value: _containerWidth,
-                          onChanged: (v) => setState(() => _containerWidth = v),
-                        ),
+    return DefaultTabController(
+      length: widget.providedJiraTableNode == null ? 1 : 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('SpanTable Playground'),
+          bottom: TabBar(
+            tabs: [
+              if (widget.providedJiraTableNode != null) Tab(child: Text('Provided')),
+              Tab(child: Text('Exemple')),
+            ],
+          ),
+        ),
+
+        body: TabBarView(
+          children: [
+            if (widget.providedJiraTableNode != null)
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: JsonViewer(data: widget.providedJiraTableNode, initialExpandDepth: 5),
                       ),
-                      Text('${_containerWidth.toStringAsFixed(0)} px'),
-                    ],
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('RTL'),
-                      Switch(value: _rtl, onChanged: (v) => setState(() => _rtl = v)),
-                    ],
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Borders'),
-                      Switch(value: _showBorder, onChanged: (v) => setState(() => _showBorder = v)),
-                    ],
-                  ),
-                ],
+                    ),
+                    VerticalDivider(),
+                    Expanded(
+                      child: Center(
+                        child: SpanTable.fromJiraNode(widget.providedJiraTableNode!, context: context, cellContentBuilder: widget.providedJiraCellContentBuilder!),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+            Column(
+              children: [
+                // Controls
+                Material(
+                  elevation: 1,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 16,
+                      runSpacing: 8,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('Container width'),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 220,
+                              child: Slider(
+                                min: 260,
+                                max: 1000,
+                                divisions: 37,
+                                label: _containerWidth.toStringAsFixed(0),
+                                value: _containerWidth,
+                                onChanged: (v) => setState(() => _containerWidth = v),
+                              ),
+                            ),
+                            Text('${_containerWidth.toStringAsFixed(0)} px'),
+                          ],
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('RTL'),
+                            Switch(value: _rtl, onChanged: (v) => setState(() => _rtl = v)),
+                          ],
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('Borders'),
+                            Switch(value: _showBorder, onChanged: (v) => setState(() => _showBorder = v)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Column width pickers
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    children: List.generate(_columns, (i) {
+                      return _ColPicker(
+                        index: i,
+                        value: _specs[i],
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setState(() => _specs[i] = v);
+                        },
+                      );
+                    }),
+                  ),
+                ),
+
+                const Divider(height: 1),
+                const SizedBox(height: 8),
+
+                // Table view
+                Expanded(child: table),
+              ],
             ),
-          ),
-
-          // Column width pickers
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              children: List.generate(_columns, (i) {
-                return _ColPicker(
-                  index: i,
-                  value: _specs[i],
-                  onChanged: (v) {
-                    if (v == null) return;
-                    setState(() => _specs[i] = v);
-                  },
-                );
-              }),
-            ),
-          ),
-
-          const Divider(height: 1),
-          const SizedBox(height: 8),
-
-          // Table view
-          Expanded(child: table),
-        ],
+          ],
+        ),
       ),
     );
   }

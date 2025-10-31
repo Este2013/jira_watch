@@ -668,115 +668,26 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     String layout = attrs['layout'];
     String displayMode = attrs['displayMode'] ?? 'default'; // 'default', 'fixed'
     // Recommendations from Jira
-    // Minimum width
-    //  - 1 column table = 48px
-    //  - 2 column table = 96px
-    //  - 3 column table = 144px
-    //  - > 3 column table = 144px
-    // Maximum width: 1800
-    // int width = attrs['width'];
+
     bool isNumberColumnEnabled = attrs['isNumberColumnEnabled'] ?? false;
 
-    List<SpanTableCell> cells = [];
-    List<List<bool>> occupationMatrix = [];
-    print('######################################');
-    for (var (rowID, row) in content.indexed) {
-      if (isNumberColumnEnabled) {
-        occupationMatrix.add([true]);
-        occupationMatrix.last.addAll(List.filled((occupationMatrix.firstOrNull?.length ?? 1) - 1, false, growable: true));
-        cells.add(
-          SpanTableCell(
-            row: rowID,
-            col: 0,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minWidth: (Theme.of(context).textTheme.bodyMedium?.fontSize ?? 12) * 1.2),
-              child: Center(child: Text(rowID.toString())),
-            ),
-          ),
-        );
-      } else {
-        occupationMatrix.add(List.filled(occupationMatrix.firstOrNull?.length ?? 0, false, growable: true));
-      }
-      int colID = 0;
-      print(occupationMatrix);
-      for (var cell in row['content']) {
-        // find next available coordinates
-        if (occupationMatrix[rowID].isEmpty) {
-          occupationMatrix[rowID].add(false);
-        }
-        while (occupationMatrix[rowID][colID]) {
-          colID++;
-          if (occupationMatrix[rowID].length <= colID) occupationMatrix[rowID].add(false);
-        }
-
-        int colSpan = (cell['attrs']?['colspan'] as int?) ?? 1;
-        int rowSpan = (cell['attrs']?['rowspan'] as int?) ?? 1;
-        // take note of the spots occupied by this cell
-        for (int r = 0; r < rowSpan; r++) {
-          if (occupationMatrix.length <= r + rowID) {
-            occupationMatrix.add(List.filled(occupationMatrix.first.length, false, growable: true));
-            if (isNumberColumnEnabled) occupationMatrix.last.first = true;
-          }
-          for (int c = 0; c < colSpan; c++) {
-            if (occupationMatrix[r + rowID].length <= c + colID) {
-              occupationMatrix[r + rowID].add(true);
-            } else {
-              occupationMatrix[r + rowID][c + colID] = true;
-            }
-          }
-        }
-        if (cell['type'] == 'tableHeader') {
-          cells.add(
-            SpanTableCell(
-              row: rowID,
-              rowSpan: rowSpan,
-              col: colID,
-              colSpan: colSpan,
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-              ),
-              child: _buildNode(context, cell, 0) ?? SizedBox.shrink(),
-            ),
-          );
-        } else if (cell['type'] == 'tableCell') {
-          cells.add(
-            SpanTableCell(
-              row: rowID,
-              rowSpan: rowSpan,
-              col: colID,
-              colSpan: colSpan,
-              child: _buildNode(context, cell, 0) ?? SizedBox.shrink(),
-            ),
-          );
-        } else {
-          loggy.error('Unknown table cell type: ${cell['type']}');
-        }
-      }
-      // if this row is longer than the rest, pad the rest
-      if (occupationMatrix.last.length > occupationMatrix.first.length) {
-        loggy.warning('This row is longer than the others!');
-        for (var row in occupationMatrix) {
-          if (row.length < occupationMatrix.last.length) row.addAll([for (int i = 0; i < (occupationMatrix.last.length - row.length); i++) false]);
-        }
-      }
-    }
-    var dividerColor = Theme.of(context).dividerColor;
-    var table = SpanTable.fromCells(
-      cells,
-      defaultColumnWidth: const FlexColumnWidth(1),
-      columnWidths: {if (isNumberColumnEnabled) 0: IntrinsicColumnWidth()},
-      border: SpanTableBorder(
-        inner: BorderSide(color: dividerColor),
-        outer: BorderSide(color: dividerColor),
-      ),
-      cellPadding: const EdgeInsets.all(8),
+    var table = SpanTable.fromJiraNode(
+      node,
+      context: context,
+      cellContentBuilder: (cell) => _buildNode(context, cell.cast(), 0),
     );
+
     if (kDebugMode) {
       return Column(
         children: [
           FilledButton(
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => SpanTableTestPage()),
+              MaterialPageRoute(
+                builder: (context) => SpanTableTestPage(
+                  providedJiraTableNode: node,
+                  providedJiraCellContentBuilder: (cell) => _buildNode(context, cell.cast(), 0),
+                ),
+              ),
             ),
             style: FilledButton.styleFrom(backgroundColor: Colors.amber.shade900),
             child: Text('DEBUG TABLES'),
