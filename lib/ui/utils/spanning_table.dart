@@ -691,73 +691,91 @@ class RenderSpanTable extends RenderBox with ContainerRenderObjectMixin<RenderBo
     // Children
     defaultPaint(context, offset);
 
-    if (kDebugMode) {
-      final canvas = context.canvas;
-      final pCell = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1;
-      final pChild = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1;
-
-      RenderBox? child = firstChild;
-      while (child != null) {
-        final d = childParentData(child);
-
-        // Cell rect = full cell box
-        pCell.color = const Color(0xFF00AAFF); // cyan
-        canvas.drawRect(d.rect.shift(offset), pCell);
-
-        // Child rect
-        pChild.color = const Color(0xFFFF4081); // pink
-        final childRect = Rect.fromLTWH(
-          d.offset.dx + offset.dx,
-          d.offset.dy + offset.dy,
-          child.size.width,
-          child.size.height,
-        );
-        canvas.drawRect(childRect, pChild);
-
-        child = d.nextSibling;
-      }
-    }
-
-    // Grid
+    // Grid (fixed to respect row/col spans)
     final b = _border;
     if (b != null) {
       final canvas = context.canvas;
-      // Use the actual laid-out size so the outer border matches the widget’s box.
-      final rect = Rect.fromLTWH(offset.dx, offset.dy, size.width, size.height);
-      // final rect = Rect.fromLTWH(offset.dx, offset.dy, _colOffsets.last, _rowOffsets.last);
 
+      // Keep outer border matching the laid-out widget size.
+      final rect = Rect.fromLTWH(offset.dx, offset.dy, size.width, size.height);
+
+      // Outer
       if (b.outer.style != BorderStyle.none && b.outer.width > 0) {
-        final p = Paint()
+        final pOuter = Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = b.outer.width
           ..color = b.outer.color;
-        canvas.drawRect(rect.deflate(b.outer.width / 2), p);
+        canvas.drawRect(rect.deflate(b.outer.width / 2), pOuter);
       }
 
+      // Inner (draw only where not covered by spans)
       if (b.inner.style != BorderStyle.none && b.inner.width > 0) {
-        final p2 = Paint()
+        final pInner = Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = b.inner.width
           ..color = b.inner.color;
 
-        if (b.drawInnerVertical) {
-          for (int i = 1; i < _colOffsets.length - 1; i++) {
-            final x = offset.dx + _colOffsets[i];
-            canvas.drawLine(Offset(x, rect.top), Offset(x, rect.bottom), p2);
+        // Vertical inner lines (between columns)
+        if (b.showInnerVertical && _colOffsets.length >= 2) {
+          for (int edgeCol = 1; edgeCol < _colOffsets.length - 1; edgeCol++) {
+            final x = offset.dx + _colOffsets[edgeCol];
+            for (int r = 0; r < rowsCount; r++) {
+              if (_shouldDrawVerticalSegment(edgeCol, r)) {
+                final y1 = offset.dy + _rowOffsets[r];
+                final y2 = offset.dy + _rowOffsets[r + 1];
+                canvas.drawLine(Offset(x, y1), Offset(x, y2), pInner);
+              }
+            }
           }
         }
-        if (b.drawInnerHorizontal) {
-          for (int r = 1; r < _rowOffsets.length - 1; r++) {
-            final y = offset.dy + _rowOffsets[r];
-            canvas.drawLine(Offset(rect.left, y), Offset(rect.right, y), p2);
+
+        // Horizontal inner lines (between rows)
+        if (b.showInnerHorizontal && _rowOffsets.length >= 2) {
+          for (int edgeRow = 1; edgeRow < _rowOffsets.length - 1; edgeRow++) {
+            final y = offset.dy + _rowOffsets[edgeRow];
+            for (int c = 0; c < _colOffsets.length - 1; c++) {
+              if (_shouldDrawHorizontalSegment(edgeRow, c)) {
+                final x1 = offset.dx + _colOffsets[c];
+                final x2 = offset.dx + _colOffsets[c + 1];
+                canvas.drawLine(Offset(x1, y), Offset(x2, y), pInner);
+              }
+            }
           }
         }
       }
     }
+  }
+
+  // Returns true if there is NO cell spanning across the vertical boundary
+  // at column edge `edgeCol` for the row band `rowBand`.
+  bool _shouldDrawVerticalSegment(int edgeCol, int rowBand) {
+    RenderBox? child = firstChild;
+    while (child != null) {
+      final d = childParentData(child);
+      final spansAcrossThisEdge = d.col < edgeCol && (d.col + d.colSpan) > edgeCol;
+      final coversThisRowBand = d.row <= rowBand && (d.row + d.rowSpan) > rowBand;
+      if (spansAcrossThisEdge && coversThisRowBand) {
+        return false; // merged cell crosses this vertical edge here
+      }
+      child = childParentData(child).nextSibling;
+    }
+    return true;
+  }
+
+  // Returns true if there is NO cell spanning across the horizontal boundary
+  // at row edge `edgeRow` for the column band `colBand`.
+  bool _shouldDrawHorizontalSegment(int edgeRow, int colBand) {
+    RenderBox? child = firstChild;
+    while (child != null) {
+      final d = childParentData(child);
+      final spansAcrossThisEdge = d.row < edgeRow && (d.row + d.rowSpan) > edgeRow;
+      final coversThisColBand = d.col <= colBand && (d.col + d.colSpan) > colBand;
+      if (spansAcrossThisEdge && coversThisColBand) {
+        return false; // merged cell crosses this horizontal edge here
+      }
+      child = childParentData(child).nextSibling;
+    }
+    return true;
   }
 
   @override
