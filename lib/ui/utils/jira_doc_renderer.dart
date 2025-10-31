@@ -187,12 +187,14 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
           selectionRegistrar: SelectionContainer.maybeOf(context),
           selectionColor: selectionColor,
           text: TextSpan(
-            children: children
-                .map((e) => WidgetSpan(child: e))
-                .expand(
-                  (e) => [e, TextSpan(text: '\n')],
-                )
-                .toList(),
+            children:
+                children
+                    .map((e) => WidgetSpan(child: e))
+                    .expand(
+                      (e) => [e, TextSpan(text: '\n')],
+                    )
+                    .toList()
+                  ..removeLast(),
           ),
         );
     }
@@ -652,7 +654,10 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       return const SizedBox(height: 0); // empty paragraph -> minimal gap
     }
     return RichText(
-      text: TextSpan(style: style ?? _defaultTextStyle(context), children: spans),
+      text: TextSpan(
+        style: style ?? _defaultTextStyle(context),
+        children: spans,
+      ),
       selectionRegistrar: SelectionContainer.maybeOf(context),
       selectionColor: selectionColor,
       textAlign: TextAlign.start,
