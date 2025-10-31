@@ -165,10 +165,6 @@ class CommentListEntry extends StatelessWidget {
                   // }
                   // return const SizedBox.shrink();
                 },
-                linkHandler: (url) {
-                  // Optional: handle link taps (e.g., with url_launcher)
-                  // launchUrlString(url);
-                },
               ),
 
             if (kDebugMode)

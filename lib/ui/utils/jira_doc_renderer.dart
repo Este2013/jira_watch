@@ -65,20 +65,18 @@ class AdfRenderer extends StatelessWidget {
   final double bulletGap;
 
   @override
-  Widget build(BuildContext context) {
-    return SelectionArea(
-      child: _AdfRenderer(
-        adf: adf,
-        bulletGap: bulletGap,
-        codeStyle: codeStyle,
-        linkHandler: linkHandler,
-        listIndent: listIndent,
-        mediaBuilder: mediaBuilder,
-        paragraphSpacing: paragraphSpacing,
-        textStyle: textStyle,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => SelectionArea(
+    child: _AdfRenderer(
+      adf: adf,
+      bulletGap: bulletGap,
+      codeStyle: codeStyle,
+      linkHandler: linkHandler,
+      listIndent: listIndent,
+      mediaBuilder: mediaBuilder,
+      paragraphSpacing: paragraphSpacing,
+      textStyle: textStyle,
+    ),
+  );
 }
 
 class _AdfRenderer extends StatelessWidget with UiLoggy {
@@ -427,6 +425,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                   if (linkHandler != null) {
                     linkHandler!(href);
                   }
+                  defaultLinkHandler(href);
                 };
               break;
           }
@@ -800,6 +799,8 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     }
     return const [];
   }
+
+  void defaultLinkHandler(String url) => launchUrl(Uri.parse(url));
 }
 
 class BulletListBulletSpan extends WidgetSpan {
