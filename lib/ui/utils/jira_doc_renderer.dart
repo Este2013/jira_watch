@@ -81,7 +81,6 @@ class AdfRenderer extends StatelessWidget {
 
 class _AdfRenderer extends StatelessWidget with UiLoggy {
   const _AdfRenderer({
-    super.key,
     required this.adf,
     this.mediaBuilder,
     this.linkHandler,
@@ -601,7 +600,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     // "info", "note", "warning", "success", "error"
     bool isLightMode = Theme.brightnessOf(context) == Brightness.light;
     String type = node['attrs']?['panelType'] ?? 'info';
-    Color back, front;
+    Color back;
     Icon icon;
     switch (type) {
       case 'note':
@@ -666,16 +665,6 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
 
   /// Top-level block node, providing a container for the nodes that define a table.
   Widget _buildTable(BuildContext context, Map<String, dynamic> node) {
-    List content = node['content'];
-    Map attrs = node['attrs'];
-    // - "center" : align the table to the center of page, its width can be larger than the line length
-    // = "align-start" : align the table left of the line length, its width cannot be larger than the line length
-    String layout = attrs['layout'];
-    String displayMode = attrs['displayMode'] ?? 'default'; // 'default', 'fixed'
-    // Recommendations from Jira
-
-    bool isNumberColumnEnabled = attrs['isNumberColumnEnabled'] ?? false;
-
     var table = SpanTable.fromJiraNode(
       node,
       context: context,

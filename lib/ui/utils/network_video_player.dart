@@ -52,7 +52,9 @@ class _ChewieNetworkVideoState extends State<ChewieNetworkVideo> {
           );
           if (mounted) setState(() {});
         })
-        .catchError((_) => setState(() {}));
+        .catchError((_) {
+          setState(() {});
+        });
   }
 
   @override

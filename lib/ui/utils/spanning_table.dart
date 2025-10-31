@@ -61,8 +61,7 @@ class SpanTable extends MultiChildRenderObjectWidget {
     Map attrs = node['attrs'];
     // - "center" : align the table to the center of page, its width can be larger than the line length
     // = "align-start" : align the table left of the line length, its width cannot be larger than the line length
-    String layout = attrs['layout'];
-    String displayMode = attrs['displayMode'] ?? 'default'; // 'default', 'fixed'
+
     // Recommendations from Jira
     // Minimum width
     //  - 1 column table = 48px

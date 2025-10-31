@@ -603,7 +603,7 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
           return Center(child: CircularProgressIndicator());
         },
       );
-    } // TODO are there non-plain text types
+    } // TODO are there non-plain text types?
     else if (filetype.startsWith('video')) {
       content = NetworkVideoPlayer(url: contentURL);
     }
