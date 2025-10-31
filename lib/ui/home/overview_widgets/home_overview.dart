@@ -63,11 +63,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
     // initial load
     _resetAndFetchFirstPage();
 
-    SettingsModel().starredProjects.addListener(
-      () => setState(() {
-        _resetAndFetchFirstPage();
-      }),
-    );
+    SettingsModel().starredProjects.addListener(_setStateResetAndFetchFirstPage);
   }
 
   void _saveFilters() {
@@ -89,6 +85,9 @@ class _UpdatesPageState extends State<UpdatesPage> {
     }
   }
 
+  void _setStateResetAndFetchFirstPage() => setState(() {
+    _resetAndFetchFirstPage();
+  });
   void _resetAndFetchFirstPage() {
     pageShown = 0;
     hasMore = true;
@@ -354,6 +353,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
   void dispose() {
     scrollController.removeListener(_onScrollNearBottom);
     scrollController.dispose();
+    SettingsModel().starredProjects.removeListener(_setStateResetAndFetchFirstPage);
     super.dispose();
   }
 

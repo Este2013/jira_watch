@@ -435,6 +435,7 @@ class ChangeLogsDialog extends StatelessWidget {
             ChangeLogItem('😎 SVGs from jira would not get in-line style (eg. colors would be lost)'),
             ChangeLogItem('🔗 Links from the details view would not open in browser'),
             ChangeLogItem('🥸 Mentions in light mode were unreadable'),
+            ChangeLogItem('🛑 App no longer commits seppuku when switching pages then editing projects (setstate after dispose)'),
           ]),
           ChangeLogSection.chores([
             ChangeLogItem('Bumped version number.'),
