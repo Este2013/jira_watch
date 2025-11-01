@@ -430,6 +430,7 @@ class ChangeLogsDialog extends StatelessWidget {
             ChangeLogItem('🔣 Tables are now rendered'),
             ChangeLogItem('🎴 Panels are now rendered'),
             ChangeLogItem('🖱️ Whole description and comments can now be selected and copied'),
+            // TODO feature embeded media in ADF renderer
           ]),
           ChangeLogSection.bugFixes([
             ChangeLogItem('😎 SVGs from jira would not get in-line style (eg. colors would be lost)'),

@@ -72,7 +72,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
     if (timeFilter is String?) {
       filters['time_filter'] = timeFilter;
     } else {
-      filters['time_filter'] = timeFilter.map((DateTime d) => d.toIso8601String()).toList();
+      filters['time_filter'] = (timeFilter as List).cast<DateTime>().map<String>((d) => d.toIso8601String()).toList();
     }
 
     SettingsModel().filters.value = filters;

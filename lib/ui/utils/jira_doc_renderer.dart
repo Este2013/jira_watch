@@ -125,12 +125,14 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       selectionRegistrar: SelectionContainer.maybeOf(context),
       selectionColor: selectionColor,
       text: TextSpan(
-        children: _withParagraphSpacing(children, paragraphSpacing)
-            .map((e) => WidgetSpan(child: e))
-            .expand(
-              (e) => [e, TextSpan(text: '\n')],
-            )
-            .toList(),
+        children:
+            _withParagraphSpacing(children, paragraphSpacing)
+                .map((e) => WidgetSpan(child: e))
+                .expand(
+                  (e) => [e, TextSpan(text: '\n')],
+                )
+                .toList()
+              ..removeLast(),
       ),
     );
   }
@@ -174,7 +176,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         return _buildTable(context, node);
       case 'text':
         return Text(
-          _textOf(node),
+          _textOf(node).trim(),
           style: _defaultCodeStyle(context).merge(transferStyle),
           selectionColor: selectionColor,
         );
@@ -212,7 +214,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     return base;
   }
 
-  String _textOf(Map<String, dynamic> node) => (node['text'] ?? '') as String;
+  String _textOf(Map<String, dynamic> node) => ((node['text'] ?? '') as String).trim();
 
   Widget _buildBulletList(BuildContext context, Map<String, dynamic> node, int indentLevel) {
     final items = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
@@ -382,7 +384,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     final spans = <InlineSpan>[];
     for (final node in content) {
       if (node['type'] == 'text') {
-        final text = _textOf(node);
+        final text = _textOf(node).trim();
         final marks = _asList(node['marks']);
         style ??= _defaultTextStyle(context);
         GestureRecognizer? recognizer;

@@ -383,7 +383,10 @@ class DescriptionLikeField extends StatelessWidget {
   final dynamic contentData;
 
   @override
-  Widget build(BuildContext context) => ExpandablePanel(name, content: AdfRenderer(adf: contentData));
+  Widget build(BuildContext context) => ExpandablePanel(
+    name,
+    content: AdfRenderer(adf: contentData),
+  );
 }
 
 class AttachmentsField extends StatelessWidget {
