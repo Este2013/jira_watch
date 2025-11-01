@@ -160,36 +160,34 @@ class _JiraAvatarState extends State<JiraAvatar> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<Widget>(
-      future: _avatarFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return SizedBox.square(
-            dimension: widget.size,
+  Widget build(BuildContext context) => FutureBuilder<Widget>(
+    future: _avatarFuture,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) {
+        return SizedBox.square(
+          dimension: widget.size,
+          child: FractionallySizedBox(
+            widthFactor: .8,
+            heightFactor: .8,
             child: const Center(
-              child: FractionallySizedBox(
-                widthFactor: .8,
-                heightFactor: .8,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
-          );
-        }
-        if (snapshot.hasError) {
-          return IconButton(
-            icon: const Icon(Icons.error),
-            color: Colors.red,
-            tooltip: '${snapshot.error}\n${widget.url}',
-            onPressed: () => Clipboard.setData(
-              ClipboardData(text: widget.url),
-            ),
-          );
-        }
-        return snapshot.data!;
-      },
-    );
-  }
+          ),
+        );
+      }
+      if (snapshot.hasError) {
+        return IconButton(
+          icon: const Icon(Icons.error),
+          color: Colors.red,
+          tooltip: '${snapshot.error}\n${widget.url}',
+          onPressed: () => Clipboard.setData(
+            ClipboardData(text: widget.url),
+          ),
+        );
+      }
+      return snapshot.data!;
+    },
+  );
 }
 
 /// Very small CSS-inliner for `.class{prop:value; ...}` rules in <style>.
