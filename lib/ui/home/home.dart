@@ -438,6 +438,7 @@ class ChangeLogsDialog extends StatelessWidget {
             ChangeLogItem('🥸 Mentions in light mode were unreadable'),
             ChangeLogItem('🛑 App no longer commits seppuku when switching pages then editing projects (setstate after dispose)'),
             ChangeLogItem('🧑‍🚀 Corrected spacing after AdfRenderer widgets'),
+            ChangeLogItem('🛞 Attachements loading animation was stretched horizontally'),
           ]),
           ChangeLogSection.chores([
             ChangeLogItem('Bumped version number.'),
