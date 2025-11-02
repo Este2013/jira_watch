@@ -85,8 +85,8 @@ class TicketDetailsView extends StatelessWidget {
               ),
             ],
           ),
-          if (ticket.fields!['description'] != null) DescriptionLikeField('Description', contentData: ticket.fields!['description']),
-          if (ticket.fields!['environment'] != null) DescriptionLikeField('Environment', contentData: ticket.fields!['environment']),
+          if (ticket.fields!['description'] != null) DescriptionLikeField('Description', contentData: ticket.fields!['description'], attachments: (ticket.fields!['attachment'] as List)),
+          if (ticket.fields!['environment'] != null) DescriptionLikeField('Environment', contentData: ticket.fields!['environment'], attachments: (ticket.fields!['attachment'] as List)),
           if (ticket.fields!['attachment'] != null && (ticket.fields!['attachment'] as List).isNotEmpty) AttachmentsField(attachmentsData: ticket.fields!['attachment']),
           if (ticket.fields?['issuelinks'] != null && ticket.fields!['issuelinks'].isNotEmpty) IssueLinksField(issueLinksData: (ticket.fields!['issuelinks']! as List).cast()),
 
@@ -377,15 +377,20 @@ class DescriptionLikeField extends StatelessWidget {
     this.name, {
     super.key,
     required this.contentData,
+    this.attachments,
   });
 
   final String name;
   final dynamic contentData;
+  final List? attachments;
 
   @override
   Widget build(BuildContext context) => ExpandablePanel(
     name,
-    content: AdfRenderer(adf: contentData),
+    content: AdfRenderer(
+      adf: contentData,
+      mediaBuilder: (context, node) => AdfRenderer.defaultMediaBuilder(node, context, attachments ?? []),
+    ),
   );
 }
 

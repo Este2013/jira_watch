@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:io';
+import 'package:http/http.dart' as http;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -10,6 +12,7 @@ import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/ui/utils/spanning_table.dart';
 import 'package:loggy/loggy.dart';
+import 'package:path/path.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../home/overview_widgets/issue_ui_elements.dart';
@@ -77,6 +80,30 @@ class AdfRenderer extends StatelessWidget {
       textStyle: textStyle,
     ),
   );
+
+  static Widget defaultMediaBuilder(Map node, BuildContext context, List attachments) {
+    if (node['type'] == 'file') {
+      // match ID with attachment
+      String id = node['id'];
+
+      return FutureBuilder(
+        future: Future.microtask(
+          () async {
+            var map = await mediaIdToContentUrl(attachments);
+            print(map);
+            return map[id];
+          },
+        ),
+        builder: (context, snapshot) {
+          return snapshot.hasData ? JiraAvatar(url: snapshot.data!) : CircularProgressIndicator();
+        },
+      );
+
+      // return JiraAvatar(url: attachment['content']);
+    } else {
+      throw Exception('Media node of type: ${node['type']} is not handled');
+    }
+  }
 }
 
 class _AdfRenderer extends StatelessWidget with UiLoggy {
@@ -525,8 +552,8 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     final h = (attrs['height'] is num) ? (attrs['height'] as num).toDouble() : 160.0;
 
     return Container(
-      width: w,
-      height: h,
+      constraints: BoxConstraints(maxWidth: w, maxHeight: h),
+
       alignment: Alignment.center,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
@@ -543,6 +570,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
 
   Widget _buildMediaSingle(BuildContext context, Map<String, dynamic> node, int indentLevel) {
     final attrs = (node['attrs'] ?? const <String, dynamic>{}) as Map<String, dynamic>;
+    // "wrap-left", "center", "wrap-right", "wide", "full-width", "align-start", "align-end"
     final layout = (attrs['layout'] ?? 'center') as String; // 'align-start' | 'align-end' | 'center'
     final width = (attrs['width'] is num) ? (attrs['width'] as num).toDouble() : null;
 
@@ -723,4 +751,72 @@ class BulletListBulletSpan extends WidgetSpan {
   }) {
     buffer.write('\n${"\t" * indent} ');
   }
+}
+
+/// Given a list of Jira attachment objects (from the REST API),
+/// resolves their Media Service IDs by following the redirect
+/// from the attachment.content URL.
+///
+/// Returns a map of `mediaId` → `contentUrl`.
+///
+/// Requires:
+/// - [attachments] : List of attachment JSON objects
+/// - [jiraToken]   : Jira Cloud API OAuth or PAT token
+///
+/// Example:
+/// final mapping = await mapMediaIdsToAttachments(attachments, jiraToken);
+/// print(mapping); // { "43b3bd1f-0d90-4798-8bff-bf84ba84ca00": "https://elgato.atlassian.net/rest/api/3/attachment/content/70981" }
+/// Returns a map of mediaId (UUID) -> attachment content URL.
+/// [attachments] is the list from Jira's REST API under "fields.attachments".
+/// [jiraToken] is your OAuth2/PAT bearer token.
+/// Works on Dart VM / Flutter mobile/desktop. Not suitable for Flutter Web.
+Future<Map<String, String>> mediaIdToContentUrl(
+  List<dynamic> attachments,
+) async {
+  final result = <String, String>{};
+  final client = HttpClient()..autoUncompress = false;
+
+  try {
+    for (final a in attachments) {
+      final contentUrl = (a['content'] as String?)?.trim();
+      if (contentUrl == null || contentUrl.isEmpty) continue;
+
+      final uri = Uri.parse(contentUrl);
+      final req = await client.getUrl(uri);
+
+      // Auth + do NOT follow the redirect
+      req.followRedirects = false;
+      req.headers.set(HttpHeaders.authorizationHeader, APIDao().authHeader);
+      // (optional) be explicit about what we want
+      req.headers.set(HttpHeaders.acceptHeader, '*/*');
+
+      final res = await req.close();
+
+      // We expect 303 with a Location header to api.media.atlassian.com
+      final loc = res.headers.value(HttpHeaders.locationHeader);
+
+      if (loc == null || loc.isEmpty) {
+        // Some proxies/CDNs may reply 302/307/308 as well; still check location.
+        // If missing, skip gracefully.
+        await res.drain();
+        continue;
+      }
+
+      // Extract UUID from .../file/<uuid>/binary
+      final match = RegExp(
+        r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
+      ).firstMatch(loc);
+
+      if (match != null) {
+        final mediaId = match.group(0)!;
+        result[mediaId] = contentUrl;
+      }
+
+      await res.drain();
+    }
+  } finally {
+    client.close(force: true);
+  }
+
+  return result;
 }
