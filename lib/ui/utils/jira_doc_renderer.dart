@@ -82,6 +82,7 @@ class AdfRenderer extends StatelessWidget {
   );
 
   static Widget defaultMediaBuilder(Map node, BuildContext context, List attachments) {
+    print(node);
     if (node['type'] == 'file') {
       // match ID with attachment
       String id = node['id'];
@@ -95,7 +96,11 @@ class AdfRenderer extends StatelessWidget {
           },
         ),
         builder: (context, snapshot) {
-          return snapshot.hasData ? JiraAvatar(url: snapshot.data!) : CircularProgressIndicator();
+          return snapshot.hasData
+              ? JiraAvatar(
+                  url: snapshot.data!,
+                )
+              : CircularProgressIndicator();
         },
       );
 
@@ -542,15 +547,20 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
 
   Widget _buildMedia(BuildContext context, Map<String, dynamic> node) {
     final attrs = (node['attrs'] ?? const <String, dynamic>{}) as Map<String, dynamic>;
-    if (mediaBuilder != null) {
-      return mediaBuilder!(context, attrs);
-    }
-
-    // Fallback generic box if no mediaBuilder provided
     final alt = (attrs['alt'] ?? 'media').toString();
     final w = (attrs['width'] is num) ? (attrs['width'] as num).toDouble() : 240.0;
     final h = (attrs['height'] is num) ? (attrs['height'] as num).toDouble() : 160.0;
 
+    if (mediaBuilder != null) {
+      return Container(
+        color: Colors.amber,
+        width: w,
+        height: h,
+        child: mediaBuilder!(context, attrs),
+      );
+    }
+
+    // Fallback generic box if no mediaBuilder provided
     return Container(
       constraints: BoxConstraints(maxWidth: w, maxHeight: h),
 
