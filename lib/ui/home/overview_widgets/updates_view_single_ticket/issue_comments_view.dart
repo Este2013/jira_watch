@@ -79,7 +79,7 @@ class CommentsPage extends StatelessWidget {
               itemCount: _entries.length,
               itemBuilder: (context, index) {
                 final comment = _entries[index];
-                return CommentListEntry(comment: comment);
+                return CommentListEntry(ticket: ticket, comment: comment);
               },
             ),
     );
@@ -89,9 +89,10 @@ class CommentsPage extends StatelessWidget {
 class CommentListEntry extends StatelessWidget {
   const CommentListEntry({
     super.key,
+    required this.ticket,
     required this.comment,
   });
-
+  final IssueData ticket;
   final CommentEntry comment;
 
   @override
@@ -149,22 +150,7 @@ class CommentListEntry extends StatelessWidget {
             if (comment.body['type'] == 'doc')
               AdfRenderer(
                 adf: comment.body,
-                mediaBuilder: (context, attrs) {
-                  // Map Jira media attrs to a widget (image/placeholder/etc.)
-                  return Text(
-                    '[medias are not handled yet]',
-                    style: TextStyle(color: Colors.red),
-                  );
-                  // if (attrs['type'] == 'file') {
-                  //   final id = attrs['id']; // e.g., Jira file UUID
-                  //   final url = yourFileUrlFromJira(id); // <-- your logic/auth
-                  //   return Image.network(url, fit: BoxFit.contain);
-                  // }
-                  // if (attrs['type'] == 'external') {
-                  //   return Image.network(attrs['url'], fit: BoxFit.contain);
-                  // }
-                  // return const SizedBox.shrink();
-                },
+                mediaBuilder: (context, node, size) => AdfRenderer.defaultMediaBuilder(node, context, (ticket.fields!['attachment'] as List) ?? [], size),
               ),
 
             if (kDebugMode)

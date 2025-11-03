@@ -10,6 +10,8 @@ import 'dart:convert';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:xml/xml.dart' as xml;
 
+import 'network_video_player.dart';
+
 final CacheManager jiraAvatarCacheManager = CacheManager(
   Config(
     'jiraAvatarCache',
@@ -173,6 +175,101 @@ class _JiraAvatarState extends State<JiraAvatar> {
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
           ),
+        );
+      }
+      if (snapshot.hasError) {
+        return IconButton(
+          icon: const Icon(Icons.error),
+          color: Colors.red,
+          tooltip: '${snapshot.error}\n${widget.url}',
+          onPressed: () => Clipboard.setData(
+            ClipboardData(text: widget.url),
+          ),
+        );
+      }
+      return snapshot.data!;
+    },
+  );
+}
+
+class JiraImage extends StatefulWidget {
+  final String url;
+  final double? width;
+
+  final BoxFit boxFit;
+
+  const JiraImage({
+    super.key,
+    required this.url,
+    this.width,
+    this.boxFit = BoxFit.contain,
+  });
+
+  @override
+  State<JiraImage> createState() => _JiraImageState();
+}
+
+class _JiraImageState extends State<JiraImage> {
+  // 1️⃣ Create a custom cache manager instance
+
+  late Future<Widget> _imgFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _imgFuture = _loadImg(widget.url);
+  }
+
+  Future<Widget> _loadImg(String url) async {
+    // 2️⃣ Fetch via cacheManager; it returns a File from disk or network
+    final file = await jiraAvatarCacheManager.getSingleFile(
+      url,
+      headers: {
+        'Authorization': APIDao().authHeader,
+        'Accept': '*/*',
+      },
+    );
+
+    final bytes = await file.readAsBytes();
+
+    // 3️⃣ Detect mime—either from extension or from magic‐bytes
+    final mimeType = lookupMimeType(file.path, headerBytes: bytes) ?? '';
+    if (mimeType.contains('text/html')) {
+      // still scrape HTML if Jira wrapped the <img> in a page
+      final document = html_parser.parse(String.fromCharCodes(bytes));
+      final img = document.querySelector('img');
+      final src = img?.attributes['src'];
+      if (src != null && src.isNotEmpty) {
+        return _loadImg(src);
+      }
+      throw Exception('No <img> found in HTML');
+    } else if (mimeType.contains('svg')) {
+      return svgFromBytes(bytes, size: widget.width ?? double.maxFinite);
+    } else if (mimeType.startsWith('video/')) {
+      return SizedBox(
+        child: SizedBox(
+          width: widget.width ?? double.maxFinite,
+          child: NetworkVideoPlayer(url: url),
+        ),
+      );
+    } else if (mimeType.startsWith('image/')) {
+      return Image.memory(
+        bytes,
+        width: widget.width ?? double.maxFinite,
+        fit: widget.boxFit,
+      );
+    } else {
+      throw Exception('Unsupported content type: $mimeType');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<Widget>(
+    future: _imgFuture,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) {
+        return const Center(
+          child: SizedBox(child: CircularProgressIndicator(strokeWidth: 2)),
         );
       }
       if (snapshot.hasError) {

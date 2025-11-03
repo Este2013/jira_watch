@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
 import 'dart:io';
-import 'package:http/http.dart' as http;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -12,7 +11,6 @@ import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/ui/utils/spanning_table.dart';
 import 'package:loggy/loggy.dart';
-import 'package:path/path.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../home/overview_widgets/issue_ui_elements.dart';
@@ -54,7 +52,7 @@ class AdfRenderer extends StatelessWidget {
   ///
   /// attrs example (file):
   /// {"type":"file","id":"[uuid]","alt":"image.png","width":532,"height":477}
-  final Widget Function(BuildContext context, Map<String, dynamic> attrs)? mediaBuilder;
+  final Widget Function(BuildContext context, Map<String, dynamic> attrs, num size)? mediaBuilder;
 
   /// Called when a link is tapped. If null, uses default launcher (if available)
   /// otherwise does nothing.
@@ -81,7 +79,7 @@ class AdfRenderer extends StatelessWidget {
     ),
   );
 
-  static Widget defaultMediaBuilder(Map node, BuildContext context, List attachments) {
+  static Widget defaultMediaBuilder(Map node, BuildContext context, List attachments, num size) {
     print(node);
     if (node['type'] == 'file') {
       // match ID with attachment
@@ -97,10 +95,12 @@ class AdfRenderer extends StatelessWidget {
         ),
         builder: (context, snapshot) {
           return snapshot.hasData
-              ? JiraAvatar(
+              ? JiraImage(
                   url: snapshot.data!,
+                  boxFit: BoxFit.fitWidth,
+                  width: size.toDouble(),
                 )
-              : CircularProgressIndicator();
+              : Center(child: CircularProgressIndicator());
         },
       );
 
@@ -130,7 +130,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
   ///
   /// attrs example (file):
   /// {"type":"file","id":"[uuid]","alt":"image.png","width":532,"height":477}
-  final Widget Function(BuildContext context, Map<String, dynamic> attrs)? mediaBuilder;
+  final Widget Function(BuildContext context, Map<String, dynamic> attrs, num size)? mediaBuilder;
 
   /// Called when a link is tapped. If null, uses default launcher (if available)
   /// otherwise does nothing.
@@ -195,7 +195,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       case 'listItem':
         return _buildListItem(context, node, indentLevel);
       case 'media':
-        return _buildMedia(context, node);
+        return _buildMedia(context, node, 200);
       case 'mediaSingle':
         return _buildMediaSingle(context, node, indentLevel);
       case 'mention':
@@ -545,19 +545,14 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     );
   }
 
-  Widget _buildMedia(BuildContext context, Map<String, dynamic> node) {
+  Widget _buildMedia(BuildContext context, Map<String, dynamic> node, num size) {
     final attrs = (node['attrs'] ?? const <String, dynamic>{}) as Map<String, dynamic>;
     final alt = (attrs['alt'] ?? 'media').toString();
     final w = (attrs['width'] is num) ? (attrs['width'] as num).toDouble() : 240.0;
     final h = (attrs['height'] is num) ? (attrs['height'] as num).toDouble() : 160.0;
-
+    print((w, h));
     if (mediaBuilder != null) {
-      return Container(
-        color: Colors.amber,
-        width: w,
-        height: h,
-        child: mediaBuilder!(context, attrs),
-      );
+      return SizedBox(height: h * size / w, child: mediaBuilder!(context, attrs, size));
     }
 
     // Fallback generic box if no mediaBuilder provided
@@ -584,31 +579,26 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     final layout = (attrs['layout'] ?? 'center') as String; // 'align-start' | 'align-end' | 'center'
     final width = (attrs['width'] is num) ? (attrs['width'] as num).toDouble() : null;
 
+    // print('w:$width');
+
     final mediaNode = _asList(node['content']).firstWhere(
       (e) => e['type'] == 'media',
       orElse: () => const <String, dynamic>{},
     );
 
-    final media = _buildMedia(context, Map<String, dynamic>.from(mediaNode));
+    final media = SizedBox(width: width ?? 500, child: _buildMedia(context, Map<String, dynamic>.from(mediaNode), width ?? 500));
 
     Alignment alignment = Alignment.centerLeft;
     if (layout == 'align-end') alignment = Alignment.centerRight;
     if (layout == 'center') alignment = Alignment.center;
 
-    final child = ConstrainedBox(
-      constraints: BoxConstraints(
-        // If explicit pixel width is provided, honor it up to screen size.
-        maxWidth: width ?? double.infinity,
-      ),
-      child: media,
-    );
+    final child = media;
 
-    return Align(
+    return Container(
       alignment: alignment,
-      child: Padding(
-        padding: EdgeInsets.only(left: indentLevel * listIndent),
-        child: child,
-      ),
+      padding: EdgeInsets.only(left: indentLevel * listIndent),
+      // color: Colors.amber,
+      child: child,
     );
   }
 
