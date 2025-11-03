@@ -557,16 +557,20 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
                           dimension: 24,
                           child: Builder(
                             builder: (context) {
-                              var updatorData = lastUpdateData == null ? fields['creator'] : lastUpdateData['author'];
+                              var updatorData = lastEditWasAComment
+                                  ? widget.ticket.fields!['comment']['comments'].last['author']
+                                  : lastUpdateData == null
+                                  ? fields['creator']
+                                  : lastUpdateData['author'];
                               return ClipRRect(
                                 borderRadius: BorderRadiusGeometry.circular(10000),
                                 child: Tooltip(
                                   message: showAsCompact
                                       ? '${updatorData['displayName']}\n${(lastUpdateData == null && !lastEditWasAComment)
                                             ? 'Created this issue'
-                                            : (!lastEditWasAComment)
-                                            ? 'Changed ${((lastUpdateData['items'] as List).firstOrNull?['field'])}'
-                                            : 'Commented'}'
+                                            : (lastEditWasAComment)
+                                            ? 'Commented'
+                                            : 'Changed ${((lastUpdateData['items'] as List).firstOrNull?['field'])}'}'
                                       : updatorData['displayName'],
                                   child: JiraAvatar(key: Key(widget.ticket['id']), url: updatorData['avatarUrls']['32x32']),
                                 ),
