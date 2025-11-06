@@ -2,7 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:jira_watcher/ui/home/overview_widgets/home_overview.dart';
+import 'package:jira_watcher/ui/to_do_widgets/to_do_page.dart';
+import 'package:jira_watcher/ui/updates_widgets/home_overview.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/settings.dart';
 import 'package:loggy/loggy.dart';
@@ -24,7 +25,7 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
         return 0;
       case 'Issues':
         return 1;
-      case 'Settings':
+      case 'To do':
         return 2;
       default:
         return 0;
@@ -41,6 +42,10 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
         loggy.info('User selected Issues tab (#$index)');
         setState(() => _currentPage = 'Issues');
         break;
+      case 2:
+        loggy.info('User selected Issues tab (#$index)');
+        setState(() => _currentPage = 'To do');
+        break;
     }
   }
 
@@ -48,6 +53,8 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
     switch (_currentPage) {
       case 'Issues':
         return UnderConstructionNotice();
+      case 'To do':
+        return TodoPage();
       default:
         return UpdatesPage();
     }
@@ -84,6 +91,8 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
     switch (currentPage) {
       case 'Updates':
         return 'View the latest changes made in projects you work on.';
+      case 'To do':
+        return 'Locally keep track of your own tasks.';
       case 'Issues':
       default:
         return 'No subtitle for this page, call the dev.';
@@ -145,10 +154,10 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
               icon: Icon(Icons.bug_report),
               label: Text('Issues'),
             ),
-            // NavigationRailDestination(
-            //   icon: Icon(Icons.settings),
-            //   label: Text('Settings'),
-            // ),
+            NavigationRailDestination(
+              icon: Icon(Icons.assignment),
+              label: Text('To do'),
+            ),
           ],
           trailing: Padding(
             padding: const EdgeInsets.only(bottom: 8.0),
@@ -182,7 +191,14 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
 
               actions: [],
             ),
-            body: _buildPageContent(),
+            body: IndexedStack(
+              index: _selectedIndex,
+              children: const [
+                UpdatesPage(),
+                UnderConstructionNotice(),
+                TodoPage(),
+              ],
+            ),
           ),
         ),
       ],

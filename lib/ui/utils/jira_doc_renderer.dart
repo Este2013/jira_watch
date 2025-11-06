@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'dart:io';
+import 'package:http/http.dart' as http;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -13,7 +14,7 @@ import 'package:jira_watcher/ui/utils/spanning_table.dart';
 import 'package:loggy/loggy.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../home/overview_widgets/issue_ui_elements.dart';
+import '../updates_widgets/issue_ui_elements.dart';
 
 Color selectionColor = const Color(0x336694e8);
 
@@ -100,7 +101,7 @@ class AdfRenderer extends StatelessWidget {
                   boxFit: BoxFit.fitWidth,
                   width: size.toDouble(),
                 )
-              : Center(child: CircularProgressIndicator());
+              : CircularProgressIndicator();
         },
       );
 

@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
-import 'package:jira_watcher/ui/home/home.dart';
-import 'package:jira_watcher/ui/home/overview_widgets/issue_ui_elements.dart';
-import 'package:jira_watcher/ui/home/overview_widgets/updates_view_single_ticket/issue_history_view.dart';
+import 'package:jira_watcher/ui/home.dart';
+import 'package:jira_watcher/ui/updates_widgets/issue_ui_elements.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/issue_history_view.dart';
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
 import 'package:material_symbols_icons/symbols.dart';
 

@@ -1,15 +1,17 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:calendar_date_picker2/calendar_date_picker2.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/ui/to_do_widgets/to_do_page.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
-import 'package:jira_watcher/ui/home/overview_widgets/updates_view_single_ticket/single_ticket_view.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/single_ticket_view.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/settings_model.dart';
-import 'package:jira_watcher/ui/home/time_utils.dart';
+import 'package:jira_watcher/ui/utils/time_utils.dart';
 import 'package:jira_watcher/ui/settings.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -460,15 +462,21 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
             borderRadius: BorderRadiusGeometry.circular(4),
             child: BottomNavigationBar(
               key: ValueKey(isRead),
+              type: BottomNavigationBarType.fixed,
               backgroundColor: Colors.transparent,
               elevation: 0,
               items: [
                 BottomNavigationBarItem(icon: Icon(Icons.mark_as_unread), label: isRead ? 'Mark as unread' : 'Mark as read'),
+                BottomNavigationBarItem(
+                  icon: Transform.rotate(angle: pi / 4, child: Icon(Icons.push_pin)),
+                  label: 'Keep for later',
+                ),
+                BottomNavigationBarItem(icon: Icon(Icons.assignment_add), label: 'Add to tasks'),
                 BottomNavigationBarItem(icon: Icon(Icons.open_in_browser), label: 'View on website'),
               ],
               onTap: (value) {
+                // Mark as (un)read
                 if (value == 0) {
-                  // Mark as unread
                   if (widget.ticket.key == null) return;
                   var updatedTime = DateTime.parse(updated);
 
@@ -476,8 +484,32 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
                   setState(() {
                     lastReadTime = !isRead ? updatedTime : null;
                   });
-                } else if (value == 1) {
-                  // View on website
+                }
+                // Keep for later
+                else if (value == 1) {
+                  DataModel()
+                      .createNewTask(
+                        title: '${widget.ticket.key} — ${widget.ticket.fields?['summary']}',
+                        ticketKeys: [widget.ticket.key!],
+                      )
+                      .whenComplete(
+                        // ignore: use_build_context_synchronously
+                        () => ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Saved in your "To do" queue as "${widget.ticket.key}"'),
+                          ),
+                        ),
+                      );
+                }
+                // Add to tasks
+                else if (value == 2) {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AddIssueToDoDialog(widget.ticket),
+                  );
+                }
+                // View on website
+                else if (value == 3) {
                   String? getTicketUrl(dynamic ticketKey) {
                     final domain = APIDao().domain;
                     if (domain != null && ticketKey != null) {

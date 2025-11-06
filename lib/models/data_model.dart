@@ -1,8 +1,13 @@
+import 'dart:convert';
+import 'dart:math';
+
 import 'package:csv/csv.dart';
 import 'package:http/http.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/settings_model.dart';
+import 'package:jira_watcher/ui/to_do_widgets/to_do_page.dart';
 import 'package:loggy/loggy.dart';
+import 'package:observable_datasets/observable_list.dart';
 import 'package:path/path.dart' as path;
 import 'dart:io';
 
@@ -116,6 +121,7 @@ class DataModel with UiLoggy {
   }
 
   // LOCAL DATA /////////////////////////////////////////////////////////////////////
+
   /// Contains for each entry:
   ///  - issue key (eg. "EVH-1234")
   ///  - last issue update time that was marked as read.
@@ -176,6 +182,90 @@ class DataModel with UiLoggy {
     } on Exception catch (e) {
       loggy.error('_issueMarkedAsReadTimeDataFile could not be written to!\n${e.toString()}');
     }
+  }
+
+  // - To do section /////////////////////////////////////////////////////////////////////
+  final File _toDoDataFile = File(
+    path
+        .join(
+          SettingsModel().settingsFolder.path,
+          'to_do.json',
+        )
+        .replaceFirst(RegExp(r'^\\?/?'), ''),
+  );
+
+  ObservableList<ToDoTask>? _toDoTasksCache;
+  Future<ObservableList<ToDoTask>> get toDoTasksCache async {
+    if (_toDoTasksCache != null) return _toDoTasksCache!;
+
+    loggy.info('_toDoTasksCache has not been init. yet');
+    if (!await _toDoDataFile.exists()) {
+      loggy.warning('_toDoDataFile does not exist. Initializing cache to []');
+      _toDoTasksCache = ObservableList();
+    } else {
+      List data = jsonDecode(await _toDoDataFile.readAsString());
+      _toDoTasksCache = ObservableList.from(data.map((e) => ToDoTask.fromJson(e)));
+    }
+    return _toDoTasksCache!;
+  }
+
+  /// Gives a new task with the correct unique ID and creation date.
+  Future<ToDoTask> createNewTask({
+    String? title,
+    String? notes,
+    List<String>? ticketKeys,
+  }) async {
+    loggy.info('Creating a new task');
+    var cache = await toDoTasksCache;
+    var task = ToDoTask(
+      id: cache.list.fold(0, (v, t) => v = max(v, t.id)) + 1,
+      title: title,
+      notes: notes,
+      tickets: ticketKeys ?? [],
+      dateAdded: DateTime.now(),
+    );
+    _toDoTasksCache?.add(task);
+    await saveToDoTasksCache();
+    loggy.info('Created task id ${task.id}');
+    return task;
+  }
+
+  Future<void> editTask(ToDoTask edited) async {
+    loggy.info('Editing task ${edited.id}');
+    final cache = await toDoTasksCache;
+    final idx = cache.list.indexWhere((t) => t.id == edited.id);
+    if (idx >= 0) {
+      cache.list[idx] = edited;
+    } else {
+      loggy.warning('Task ${edited.id} not found. Adding it instead.');
+      cache.add(edited);
+    }
+    await saveToDoTasksCache();
+  }
+
+  Future<void> editTasks(Iterable<ToDoTask> editedList) async {
+    loggy.info('Editing ${editedList.length} task(s)');
+    final cache = await toDoTasksCache;
+    for (var edited in editedList) {
+      final idx = cache.list.indexWhere((t) => t.id == edited.id);
+      if (idx >= 0) {
+        cache.list[idx] = edited;
+      } else {
+        loggy.warning('Task ${edited.id} not found. Adding it instead.');
+        cache.add(edited);
+      }
+    }
+    await saveToDoTasksCache();
+  }
+
+  Future saveToDoTasksCache() async {
+    loggy.warning('Saving the tasks cache');
+    var cache = _toDoTasksCache;
+    if (!await _toDoDataFile.exists()) {
+      loggy.warning('_toDoDataFile does not exist. Creating the file at:\n${_toDoDataFile.path}');
+      await _toDoDataFile.create(recursive: true);
+    }
+    return _toDoDataFile.writeAsString(JsonEncoder.withIndent(' ' * 4).convert(cache!.list));
   }
 }
 

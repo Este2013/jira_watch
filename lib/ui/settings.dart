@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:jira_watcher/dao/updates_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
-import 'package:jira_watcher/ui/home/home.dart';
+import 'package:jira_watcher/ui/home.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:loggy/loggy.dart';
