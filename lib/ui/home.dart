@@ -442,20 +442,31 @@ class ChangeLogsDialog extends StatelessWidget {
         '1.3.0',
         sections: [
           ChangeLogSection.features([
+            ChangeLogItem('📝 New TO DO system allows to easily set issues aside for later :D'),
+            ChangeLogItem(
+              '🅰️ Text renderer improvements:',
+              subItems: [
+                ChangeLogItem('Tables, panels, images and videos are now rendered'),
+                ChangeLogItem('Whole description and comments can now be selected and copied'),
+              ],
+            ),
+            ChangeLogItem('🧭 Main navigation pages now persist through navigation rail selections'),
+
             ChangeLogItem('☀️ Assigned to and Reporter field are now lit when you are the person in it'),
-            ChangeLogItem('🔣 Tables are now rendered'),
-            ChangeLogItem('🎴 Panels are now rendered'),
-            ChangeLogItem('🖼️ Images and videos are now rendered'),
-            ChangeLogItem('🖱️ Whole description and comments can now be selected and copied'),
           ]),
           ChangeLogSection.bugFixes([
             ChangeLogItem('😎 SVGs from jira would not get in-line style (eg. colors would be lost)'),
-            ChangeLogItem('🔗 Links from the details view would not open in browser'),
-            ChangeLogItem('🥸 Mentions in light mode were unreadable'),
-            ChangeLogItem('🛑 App no longer commits seppuku when switching pages then editing projects (setstate after dispose)'),
-            ChangeLogItem('🧑‍🚀 Corrected spacing after AdfRenderer widgets'),
+            ChangeLogItem(
+              '🅰️ Text renderer fixes:',
+              subItems: [
+                ChangeLogItem('🔗 Links from the details view would not open in browser'),
+                ChangeLogItem('🥸 Mentions were unreadable in light mode'),
+                ChangeLogItem('🧑‍🚀 Corrected spacing after AdfRenderer widgets'),
+              ],
+            ),
             ChangeLogItem('🛞 Attachements loading animation was stretched horizontally'),
             ChangeLogItem('🙍 Incorrect person was shown as updater when the update was a comment'),
+            ChangeLogItem('🛑 App no longer commits seppuku when switching pages then editing projects (setstate after dispose)'),
           ]),
           ChangeLogSection.chores([
             ChangeLogItem('Bumped version number.'),
@@ -605,7 +616,10 @@ class ChangeLogItem {
     return TextSpan(
       children: [
         mainItem,
-        for (var i in subItems!) i.toTextSpan(indent: indent + 1),
+        for (var i in subItems!) ...[
+          TextSpan(text: '\n'),
+          i.toTextSpan(indent: indent + 1),
+        ],
       ],
     );
   }
