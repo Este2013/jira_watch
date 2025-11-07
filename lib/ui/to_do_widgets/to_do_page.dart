@@ -20,6 +20,7 @@ class _TodoPageState extends State<TodoPage> {
   ToDoTask? selected;
 
   bool filterOutCompletedTasks = true;
+  int? showCategory;
 
   @override
   Widget build(BuildContext context) => FutureBuilder(
@@ -28,32 +29,121 @@ class _TodoPageState extends State<TodoPage> {
       if (!asyncSnapshot.hasData) {
         return Center(child: CircularProgressIndicator());
       }
-      List<ToDoTask> taskList = asyncSnapshot.data!.list
-        ..sort(
-          (a, b) => a.dateAdded.compareTo(b.dateAdded),
-        );
-      if (selected == null) {
-        ServicesBinding.instance.addPostFrameCallback(
-          (timeStamp) => setState(() {
-            selected = taskList.first;
-          }),
-        );
-      }
+
       return Padding(
         padding: const EdgeInsets.only(left: 8.0),
         child: AnimatedBuilder(
           animation: asyncSnapshot.data!,
           builder: (context, _) {
+            List<ToDoTask> taskList =
+                asyncSnapshot.data!.list
+                    .where(
+                      (t) => !filterOutCompletedTasks || !t.isComplete,
+                    )
+                    .where(
+                      (t) => showCategory == null || t.category == showCategory,
+                    )
+                    .toList()
+                  ..sort(
+                    (a, b) {
+                      if (a.isComplete && !b.isComplete) {
+                        return 1; // completed tasks should appear below others
+                      } else if (a.category == -8 && b.category != -8) {
+                        return -1; // critical tasks should be shown above all else
+                      }
+                      return b.dateAdded.compareTo(a.dateAdded);
+                    },
+                  );
+            if (selected == null || !taskList.any((t) => selected!.id == t.id)) {
+              if (taskList.isNotEmpty) {
+                ServicesBinding.instance.addPostFrameCallback(
+                  (timeStamp) {
+                    setState(() {
+                      selected = taskList.first;
+                    });
+                  },
+                );
+              }
+            }
+            if (taskList.isEmpty) {
+              ServicesBinding.instance.addPostFrameCallback(
+                (timeStamp) {
+                  setState(() {
+                    selected = null;
+                  });
+                },
+              );
+            }
             return Row(
               children: [
                 SizedBox(
                   width: 500,
                   child: Column(
                     children: [
+                      // List settings
                       Padding(
                         padding: const EdgeInsets.all(8.0),
                         child: Row(
+                          spacing: 8,
                           children: [
+                            TextButton.icon(
+                              onPressed: () {
+                                DataModel().createNewTask().then(
+                                  (newTask) => setState(() {
+                                    selected = newTask;
+                                  }),
+                                );
+                              },
+                              label: Text('New task'),
+                              icon: Icon(Icons.add),
+                            ),
+                            Spacer(),
+                            PopupMenuButton<String>(
+                              icon: Badge(
+                                label: Text('1'),
+                                isLabelVisible: showCategory != null,
+                                child: Icon(Icons.filter_alt),
+                              ),
+                              tooltip: 'Filter by category',
+                              itemBuilder: (context) => <PopupMenuEntry<String>>[
+                                PopupMenuItem<String>(
+                                  value: '',
+                                  child: Row(
+                                    spacing: 16,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.hide_source),
+                                      Text('All categories'),
+                                    ],
+                                  ),
+                                ),
+                                for (var c in DefaultTaskCategory.values.where(
+                                  (cat) => taskList.any(
+                                    (e) => e.category == cat.id,
+                                  ),
+                                ))
+                                  PopupMenuItem<String>(
+                                    value: c.id.toString(),
+
+                                    child: Row(
+                                      spacing: 16,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(c.icon, color: c.color),
+                                        Text(c.displayName),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+
+                              onSelected: (value) => setState(() {
+                                if (value.isEmpty) {
+                                  showCategory = null;
+                                } else {
+                                  showCategory = int.parse(value);
+                                }
+                              }),
+                            ),
                             IconButton(
                               tooltip: 'Show${filterOutCompletedTasks ? '' : 'ing'} completed tasks',
                               onPressed: () => setState(() {
@@ -67,46 +157,94 @@ class _TodoPageState extends State<TodoPage> {
                         ),
                       ),
                       Divider(),
+                      // Task list
                       Expanded(
-                        child: ListView.builder(
-                          itemCount: taskList.length,
-                          itemBuilder: (context, index) {
-                            var task = taskList[index];
-                            var categoryData = task.categoryData;
-                            return ListTile(
-                              title: Text(task.title ?? 'no title'),
-                              subtitle: SingleChildScrollView(
-                                child: Text(task.tickets.isEmpty ? 'No linked tickets' : task.tickets.join(', ')),
-                              ),
-                              leading: IconButton(
-                                icon: Icon(categoryData.$2, fill: 1),
-                                color: categoryData.$3,
-                                tooltip: categoryData.$1,
-                                onPressed: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (context) {
-                                      return EditToDoTaskCategoryDialog();
-                                    },
-                                  ).then(
-                                    (catId) {
-                                      if (catId == null) {
-                                        return;
-                                      }
-                                      setState(() {
-                                        task.category = catId;
-                                        DataModel().editTask(task);
-                                      });
-                                    },
-                                  );
-                                },
-                              ),
-                              selected: task.id == selected?.id,
-                              onTap: () => setState(() {
-                                selected = task;
-                              }),
-                            );
-                          },
+                        child: Center(
+                          child: taskList.isEmpty
+                              ? Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  spacing: 16,
+                                  children: [
+                                    filterOutCompletedTasks ? Text('🫡 You have no open tasks') : Text('😁 All clear!'),
+                                    Row(
+                                      spacing: 8,
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        if (showCategory != null)
+                                          TextButton(
+                                            onPressed: () => setState(() {
+                                              showCategory = null;
+                                            }),
+                                            child: Text('Clear filters'),
+                                          ),
+                                        FilledButton.icon(
+                                          onPressed: () {
+                                            DataModel().createNewTask().then(
+                                              (newTask) => setState(() {
+                                                selected = newTask;
+                                              }),
+                                            );
+                                          },
+                                          label: Text('New task'),
+                                          icon: Icon(Icons.add),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                )
+                              : ListView.builder(
+                                  itemCount: taskList.length,
+                                  itemBuilder: (context, index) {
+                                    var task = taskList[index];
+                                    var categoryData = task.categoryData;
+                                    return ListTile(
+                                      title: Text(
+                                        task.title ?? 'no title',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: task.isComplete ? TextStyle(decoration: TextDecoration.lineThrough) : null,
+                                      ),
+                                      subtitle: SingleChildScrollView(
+                                        child: Text(task.tickets.isEmpty ? 'No linked tickets' : task.tickets.join(', ')),
+                                      ),
+                                      leading: task.isComplete
+                                          ? IconButton(
+                                              onPressed: () {
+                                                DataModel().editTask(task..isComplete = false);
+                                              },
+                                              icon: Icon(Icons.verified),
+                                              tooltip: 'Reopen this task',
+                                            )
+                                          : IconButton(
+                                              icon: Icon(categoryData.$2, fill: 1),
+                                              color: categoryData.$3,
+                                              tooltip: categoryData.$1,
+                                              onPressed: () {
+                                                showDialog(
+                                                  context: context,
+                                                  builder: (context) {
+                                                    return EditToDoTaskCategoryDialog();
+                                                  },
+                                                ).then(
+                                                  (catId) {
+                                                    if (catId == null) {
+                                                      return;
+                                                    }
+                                                    setState(() {
+                                                      task.category = catId;
+                                                      DataModel().editTask(task);
+                                                    });
+                                                  },
+                                                );
+                                              },
+                                            ),
+                                      selected: task.id == selected?.id,
+                                      onTap: () => setState(() {
+                                        selected = task;
+                                      }),
+                                    );
+                                  },
+                                ),
                         ),
                       ),
                     ],
@@ -122,7 +260,7 @@ class _TodoPageState extends State<TodoPage> {
                               selected!,
                               key: ValueKey(selected!.id),
                             )
-                          : Text('👀 something should have been selected here... Ask the dev, likely a bug.'),
+                          : Text('🡠 Select a task in the list to your left to start working on it'),
                     ),
                   ),
                 ),
@@ -148,13 +286,13 @@ class SingleTaskView extends StatefulWidget {
 }
 
 class _SingleTaskViewState extends State<SingleTaskView> {
-  // TODO COMPLETE THIS
   late TextEditingController titleController, notesController;
   late List<String> linkedIssues;
   late bool isComplete;
   late int category;
 
   Timer? _autosaveTimer;
+  bool issueWasDeleted = false;
 
   @override
   void initState() {
@@ -173,15 +311,19 @@ class _SingleTaskViewState extends State<SingleTaskView> {
   @override
   void dispose() {
     _autosaveTimer?.cancel();
-    save();
     titleController.dispose();
     notesController.dispose();
+    if (!issueWasDeleted) {
+      save();
+    }
     super.dispose();
   }
 
   void _scheduleAutosave() {
     _autosaveTimer?.cancel();
-    _autosaveTimer = Timer(const Duration(seconds: 1), save);
+    _autosaveTimer = Timer(const Duration(seconds: 1), () {
+      save();
+    });
   }
 
   void save() {
@@ -212,6 +354,34 @@ class _SingleTaskViewState extends State<SingleTaskView> {
         },
         label: AnimatedSize(duration: Durations.medium1, child: Text(isComplete ? 'Reopen' : 'Mark as complete')),
       ),
+      TextButton.icon(
+        onPressed: () => showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Delete this task?'),
+            content: Text('It\'ll be gone forever! And that\'s a long time ☹️'),
+            actions: [
+              TextButton(onPressed: Navigator.of(context).pop, child: Text('No! Go back!')),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error, foregroundColor: Theme.of(context).colorScheme.onError),
+                onPressed: () {
+                  _autosaveTimer?.cancel();
+                  DataModel().deleteTask(widget.task);
+                  setState(() {
+                    issueWasDeleted = true;
+                  });
+                  Navigator.of(context).pop();
+                },
+                icon: Icon(Icons.delete_forever),
+                label: Text('DELETE IT.'),
+              ),
+            ],
+          ),
+        ),
+        style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+        icon: Icon(Icons.delete_forever),
+        label: Text('Delete'),
+      ),
     ],
     body: Center(
       child: ConstrainedBox(
@@ -227,10 +397,6 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                         Expanded(
                           child: TextField(
                             controller: titleController,
-                            onEditingComplete: () => save(),
-                            onSubmitted: (_) => save(),
-                            onTapOutside: (_) => save(),
-                            onTapUpOutside: (_) => save(),
                             decoration: InputDecoration(
                               border: OutlineInputBorder(),
                               label: Text('Title'),
@@ -268,10 +434,6 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                     ),
                     TextField(
                       controller: notesController,
-                      onEditingComplete: () => save(),
-                      onSubmitted: (_) => save(),
-                      onTapOutside: (_) => save(),
-                      onTapUpOutside: (_) => save(),
                       decoration: InputDecoration(
                         border: OutlineInputBorder(),
                         label: Text('Notes'),
@@ -443,11 +605,12 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
                     future: DataModel().toDoTasksCache,
                     builder: (context, asyncSnapshot) {
                       if (asyncSnapshot.hasData) {
-                        asyncSnapshot.data!.sort(
-                          (a, b) => a.dateAdded.compareTo(b.dateAdded),
-                        );
+                        var list = asyncSnapshot.data!.list.where((t) => !t.isComplete).toList()
+                          ..sort(
+                            (a, b) => a.dateAdded.compareTo(b.dateAdded),
+                          );
                         return ListView.builder(
-                          itemCount: asyncSnapshot.data!.length,
+                          itemCount: list.length,
                           itemBuilder: (context, index) {
                             var taskItem = asyncSnapshot.data![index];
                             var categoryData = taskItem.categoryData;

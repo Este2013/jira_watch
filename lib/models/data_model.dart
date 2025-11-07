@@ -43,30 +43,6 @@ class DataModel with UiLoggy {
   /// https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-projects/#api-rest-api-3-project-get
   ///
   /// Each project is a map as follows:
-  /// ```json{
-  ///  "avatarUrls": {
-  ///    "16x16": "https://your-domain.atlassian.net/secure/projectavatar?size=xsmall&pid=10000",
-  ///    "24x24": "https://your-domain.atlassian.net/secure/projectavatar?size=small&pid=10000",
-  ///    "32x32": "https://your-domain.atlassian.net/secure/projectavatar?size=medium&pid=10000",
-  ///    "48x48": "https://your-domain.atlassian.net/secure/projectavatar?size=large&pid=10000"
-  ///  },
-  ///  "id": "10000",
-  ///  "insight": {
-  ///    "lastIssueUpdateTime": 1619069825000,
-  ///    "totalIssueCount": 100
-  ///  },
-  ///  "key": "EX",
-  ///  "name": "Example",
-  ///  "projectCategory": {
-  ///    "description": "First Project Category",
-  ///    "id": "10000",
-  ///    "name": "FIRST",
-  ///    "self": "https://your-domain.atlassian.net/rest/api/3/projectCategory/10000"
-  ///  },
-  ///  "self": "https://your-domain.atlassian.net/rest/api/3/project/EX",
-  ///  "simplified": false,
-  ///  "style": "CLASSIC"
-  /// ```
   Future<List> fetchProjects({bool refresh = false}) async {
     if (_projectsDataCache != null && !refresh) {
       return _projectsDataCache!;
@@ -185,6 +161,7 @@ class DataModel with UiLoggy {
   }
 
   // - To do section /////////////////////////////////////////////////////////////////////
+
   final File _toDoDataFile = File(
     path
         .join(
@@ -203,7 +180,7 @@ class DataModel with UiLoggy {
       loggy.warning('_toDoDataFile does not exist. Initializing cache to []');
       _toDoTasksCache = ObservableList();
     } else {
-      List data = jsonDecode(await _toDoDataFile.readAsString());
+      List data = jsonDecode(await _toDoDataFile.readAsString())?['taskList'] ?? [];
       _toDoTasksCache = ObservableList.from(data.map((e) => ToDoTask.fromJson(e)));
     }
     return _toDoTasksCache!;
@@ -258,6 +235,19 @@ class DataModel with UiLoggy {
     await saveToDoTasksCache();
   }
 
+  void deleteTask(ToDoTask deleted) async {
+    loggy.info('Deleting task ${deleted.id}');
+
+    final cache = await toDoTasksCache;
+    final idx = cache.list.indexWhere((t) => t.id == deleted.id);
+    if (idx >= 0) {
+      cache.removeAt(idx);
+    } else {
+      loggy.warning('Task ${deleted.id} was not found.');
+    }
+    await saveToDoTasksCache();
+  }
+
   Future saveToDoTasksCache() async {
     loggy.warning('Saving the tasks cache');
     var cache = _toDoTasksCache;
@@ -265,7 +255,7 @@ class DataModel with UiLoggy {
       loggy.warning('_toDoDataFile does not exist. Creating the file at:\n${_toDoDataFile.path}');
       await _toDoDataFile.create(recursive: true);
     }
-    return _toDoDataFile.writeAsString(JsonEncoder.withIndent(' ' * 4).convert(cache!.list));
+    return _toDoDataFile.writeAsString(JsonEncoder.withIndent(' ' * 4).convert({'taskList': cache!.list}));
   }
 }
 
