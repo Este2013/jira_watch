@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/issue_details_view.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -118,62 +121,122 @@ class SingleTaskView extends StatefulWidget {
 class _SingleTaskViewState extends State<SingleTaskView> {
   // TODO COMPLETE THIS
   late TextEditingController titleController, notesController;
+  late List<String> linkedIssues;
+  late int category;
 
   @override
   void initState() {
     titleController = TextEditingController(text: widget.task.title);
     notesController = TextEditingController(text: widget.task.notes);
+    linkedIssues = widget.task.tickets;
+    category = widget.task.category;
     super.initState();
   }
 
   @override
-  Widget build(BuildContext context) => Column(
-    mainAxisAlignment: MainAxisAlignment.start,
-    mainAxisSize: MainAxisSize.min,
-    spacing: 16,
-    children: [
-      SizedBox.shrink(),
-      Row(
-        spacing: 8,
-        children: [
-          Expanded(
-            child: TextField(
-              controller: titleController,
-              decoration: InputDecoration(
-                border: OutlineInputBorder(),
-                label: Text('Title'),
-              ),
-            ),
-          ),
-          Builder(
-            builder: (context) {
-              if (widget.task.category < 0) {
-                // default icons
-                DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == widget.task.category, orElse: () => DefaultTaskCategory.forLater);
-                return IconButton(
-                  tooltip: cat.displayName,
-                  icon: Icon(cat.icon, color: cat.color, fill: 1),
-                  onPressed: () =>
-                      showDialog<int>(
-                        context: context,
-                        builder: (context) => EditToDoTaskCategoryDialog(),
-                      ).then(
-                        (value) {
-                          if (value == null) return;
-                          setState(() {
-                            widget.task.category = value;
-                          });
+  Widget build(BuildContext context) => Center(
+    child: ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: 800),
+      child: ListView(
+        shrinkWrap: true,
+        children:
+            [
+                  SizedBox.shrink(),
+                  Row(
+                    spacing: 8,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: titleController,
+                          decoration: InputDecoration(
+                            border: OutlineInputBorder(),
+                            label: Text('Title'),
+                          ),
+                        ),
+                      ),
+                      Builder(
+                        builder: (context) {
+                          if (category < 0) {
+                            // default icons
+                            DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == widget.task.category, orElse: () => DefaultTaskCategory.forLater);
+                            return IconButton(
+                              tooltip: cat.displayName,
+                              icon: Icon(cat.icon, color: cat.color, fill: 1),
+                              onPressed: () =>
+                                  showDialog<int>(
+                                    context: context,
+                                    builder: (context) => EditToDoTaskCategoryDialog(),
+                                  ).then(
+                                    (value) {
+                                      if (value == null) return;
+                                      setState(() {
+                                        category = value;
+                                      });
+                                      DataModel().editTask(widget.task..category = category);
+                                    },
+                                  ),
+                            );
+                          }
+                          // TODO custom categories
+                          throw UnimplementedError();
                         },
                       ),
-                );
-              }
-              // TODO custom categories
-              throw UnimplementedError();
-            },
-          ),
-        ],
+                    ],
+                  ),
+                  TextField(
+                    controller: notesController,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(),
+                      label: Text('Notes'),
+                    ),
+                    minLines: 10,
+                    maxLines: null,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Text('Linked tickets', style: Theme.of(context).textTheme.titleMedium),
+                  ),
+                  Column(
+                    children: [
+                      for (var tkt in linkedIssues)
+                        FutureBuilder(
+                          future: APIModel().getIssue(tkt),
+                          builder: (context, asyncSnapshot) {
+                            if (asyncSnapshot.hasData) {
+                              return IssueLinkTile(jsonDecode(asyncSnapshot.data!.body));
+                            }
+                            if (asyncSnapshot.hasError) {
+                              return ListTile(
+                                tileColor: Colors.red.withAlpha(100),
+                                leading: Icon(Icons.error),
+
+                                title: Text(tkt),
+                                subtitle: Text(asyncSnapshot.error.toString()),
+                                trailing: IconButton(
+                                  onPressed: () => Clipboard.setData(ClipboardData(text: asyncSnapshot.error.toString())),
+                                  icon: Icon(Icons.copy),
+                                ),
+                              );
+                            }
+                            return ListTile(
+                              leading: CircularProgressIndicator(),
+                              title: Text(tkt),
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+                ]
+                .expand(
+                  (w) => [
+                    Padding(padding: const EdgeInsets.only(right: 16.0), child: w),
+                    SizedBox(height: 16),
+                  ],
+                )
+                .toList()
+              ..removeLast(),
       ),
-    ],
+    ),
   );
 }
 

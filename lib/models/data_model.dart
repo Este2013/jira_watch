@@ -235,7 +235,7 @@ class DataModel with UiLoggy {
     final cache = await toDoTasksCache;
     final idx = cache.list.indexWhere((t) => t.id == edited.id);
     if (idx >= 0) {
-      cache.list[idx] = edited;
+      cache.update(() => cache.list[idx] = edited);
     } else {
       loggy.warning('Task ${edited.id} not found. Adding it instead.');
       cache.add(edited);
@@ -249,7 +249,7 @@ class DataModel with UiLoggy {
     for (var edited in editedList) {
       final idx = cache.list.indexWhere((t) => t.id == edited.id);
       if (idx >= 0) {
-        cache.list[idx] = edited;
+        cache.update(() => cache.list[idx] = edited);
       } else {
         loggy.warning('Task ${edited.id} not found. Adding it instead.');
         cache.add(edited);
