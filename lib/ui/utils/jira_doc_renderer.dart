@@ -165,7 +165,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                   (e) => [e, TextSpan(text: '\n')],
                 )
                 .toList()
-              ..removeLast(),
+              ..safelyRemoveLast(),
       ),
     );
   }
@@ -820,4 +820,11 @@ Future<Map<String, String>> mediaIdToContentUrl(
   }
 
   return result;
+}
+
+extension on List {
+  void safelyRemoveLast() {
+    if (isEmpty) return;
+    removeLast();
+  }
 }

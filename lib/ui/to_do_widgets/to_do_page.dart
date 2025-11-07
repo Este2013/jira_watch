@@ -1,16 +1,180 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-class TodoPage extends StatelessWidget {
+class TodoPage extends StatefulWidget {
   const TodoPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Text('data');
+  State<TodoPage> createState() => _TodoPageState();
+}
+
+class _TodoPageState extends State<TodoPage> {
+  ToDoTask? selected;
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder(
+    future: DataModel().toDoTasksCache,
+    builder: (context, asyncSnapshot) {
+      if (!asyncSnapshot.hasData) {
+        return Center(child: CircularProgressIndicator());
+      }
+      List<ToDoTask> taskList = asyncSnapshot.data!.list
+        ..sort(
+          (a, b) => a.dateAdded.compareTo(b.dateAdded),
+        );
+      if (selected == null) {
+        ServicesBinding.instance.addPostFrameCallback(
+          (timeStamp) => setState(() {
+            selected = taskList.first;
+          }),
+        );
+      }
+      return AnimatedBuilder(
+        animation: asyncSnapshot.data!,
+        builder: (context, _) {
+          return Row(
+            children: [
+              SizedBox(
+                width: 500,
+                child: ListView.builder(
+                  itemCount: taskList.length,
+                  itemBuilder: (context, index) {
+                    var task = taskList[index];
+                    var categoryData = task.categoryData;
+                    return ListTile(
+                      title: Text(task.title ?? 'no title'),
+                      subtitle: SingleChildScrollView(
+                        child: Text(task.tickets.isEmpty ? 'No linked tickets' : task.tickets.join(', ')),
+                      ),
+                      leading: IconButton(
+                        icon: Icon(categoryData.$2, fill: 1),
+                        color: categoryData.$3,
+                        tooltip: categoryData.$1,
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) {
+                              return EditToDoTaskCategoryDialog();
+                            },
+                          ).then(
+                            (catId) {
+                              if (catId == null) {
+                                return;
+                              }
+                              setState(() {
+                                task.category = catId;
+                                DataModel().editTask(task);
+                              });
+                            },
+                          );
+                        },
+                      ),
+                      selected: task.id == selected?.id,
+                      onTap: () => setState(() {
+                        selected = task;
+                      }),
+                    );
+                  },
+                ),
+              ),
+              VerticalDivider(),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Center(
+                    child: selected != null
+                        ? SingleTaskView(
+                            selected!,
+                            key: ValueKey(selected!.id),
+                          )
+                        : Text('👀 something should have been selected here... Ask the dev, likely a bug.'),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
+
+class SingleTaskView extends StatefulWidget {
+  const SingleTaskView(
+    this.task, {
+    super.key,
+  });
+
+  final ToDoTask task;
+
+  @override
+  State<SingleTaskView> createState() => _SingleTaskViewState();
+}
+
+class _SingleTaskViewState extends State<SingleTaskView> {
+  // TODO COMPLETE THIS
+  late TextEditingController titleController, notesController;
+
+  @override
+  void initState() {
+    titleController = TextEditingController(text: widget.task.title);
+    notesController = TextEditingController(text: widget.task.notes);
+    super.initState();
   }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisAlignment: MainAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    spacing: 16,
+    children: [
+      SizedBox.shrink(),
+      Row(
+        spacing: 8,
+        children: [
+          Expanded(
+            child: TextField(
+              controller: titleController,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(),
+                label: Text('Title'),
+              ),
+            ),
+          ),
+          Builder(
+            builder: (context) {
+              if (widget.task.category < 0) {
+                // default icons
+                DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == widget.task.category, orElse: () => DefaultTaskCategory.forLater);
+                return IconButton(
+                  tooltip: cat.displayName,
+                  icon: Icon(cat.icon, color: cat.color, fill: 1),
+                  onPressed: () =>
+                      showDialog<int>(
+                        context: context,
+                        builder: (context) => EditToDoTaskCategoryDialog(),
+                      ).then(
+                        (value) {
+                          if (value == null) return;
+                          setState(() {
+                            widget.task.category = value;
+                          });
+                        },
+                      ),
+                );
+              }
+              // TODO custom categories
+              throw UnimplementedError();
+            },
+          ),
+        ],
+      ),
+    ],
+  );
 }
 
 class AddIssueToDoDialog extends StatefulWidget {
@@ -94,37 +258,7 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
                                   onPressed: () =>
                                       showDialog<int>(
                                         context: context,
-                                        builder: (context) => AlertDialog(
-                                          title: Text('Choose a task category'),
-                                          content: SizedBox(
-                                            width: 300,
-                                            height: 300,
-                                            child: GridView.count(
-                                              crossAxisCount: 3,
-                                              children: [
-                                                for (var cat in DefaultTaskCategory.values)
-                                                  GridTile(
-                                                    footer: Text(
-                                                      cat.displayName,
-                                                      style: Theme.of(context).textTheme.bodySmall,
-                                                      textAlign: TextAlign.center,
-                                                      overflow: TextOverflow.ellipsis,
-                                                    ),
-                                                    child: InkWell(
-                                                      onTap: () => Navigator.of(context).pop(cat.id),
-                                                      child: Icon(
-                                                        cat.icon,
-                                                        color: cat.color,
-                                                        size: 48,
-                                                        fill: 1,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                // TODO custom categories
-                                              ],
-                                            ),
-                                          ),
-                                        ),
+                                        builder: (context) => EditToDoTaskCategoryDialog(),
                                       ).then(
                                         (value) {
                                           if (value == null) return;
@@ -258,6 +392,45 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
       }
     }
   }
+}
+
+class EditToDoTaskCategoryDialog extends StatelessWidget {
+  const EditToDoTaskCategoryDialog({
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text('Choose a task category'),
+    content: SizedBox(
+      width: 300,
+      height: 300,
+      child: GridView.count(
+        crossAxisCount: 3,
+        children: [
+          for (var cat in DefaultTaskCategory.values)
+            GridTile(
+              footer: Text(
+                cat.displayName,
+                style: Theme.of(context).textTheme.bodySmall,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+              child: InkWell(
+                onTap: () => Navigator.of(context).pop(cat.id),
+                child: Icon(
+                  cat.icon,
+                  color: cat.color,
+                  size: 48,
+                  fill: 1,
+                ),
+              ),
+            ),
+          // TODO custom categories
+        ],
+      ),
+    ),
+  );
 }
 
 class ToDoTask {
