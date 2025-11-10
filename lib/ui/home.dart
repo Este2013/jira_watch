@@ -479,6 +479,27 @@ class ChangeLogsDialog extends StatelessWidget {
           ]),
         ],
       ),
+      ChangeLogCard(
+        '1.4.0',
+        sections: [
+          ChangeLogSection.features([
+            ChangeLogItem(''),
+          ]),
+          ChangeLogSection.bugFixes([
+            ChangeLogItem('App would reload in a never-ending loop if no project was selected'),
+            ChangeLogItem(''),
+          ]),
+          ChangeLogSection.chores([
+            ChangeLogItem('Bumped version number.'),
+            ChangeLogItem(''),
+          ]),
+          ChangeLogSection.knownBugs([
+            ChangeLogItem('Emojis are not rendered in comments (there is no Atlassian API for that)'),
+            ChangeLogItem('Newer request is dropped by UI if project filters are changed before request completes'),
+            ChangeLogItem('Comments: nested replies are not shown as nested'),
+          ]),
+        ],
+      ),
     ];
     var ctrl = PageController(initialPage: versionsData.length - 1);
     return AlertDialog(

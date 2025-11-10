@@ -17,9 +17,6 @@ A Jira client that shows the most recent updates done in projects you work on.
 
 ## PRIO
 
-### CRITICAL
- - bug: DAO reinitializes non stop without a project registered
-
 ### EASY, IMPORTANT
  - refresh (per few minutes)
  - improve Login page in settings dialog
