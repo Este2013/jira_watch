@@ -487,7 +487,7 @@ class ChangeLogsDialog extends StatelessWidget {
           ]),
           ChangeLogSection.bugFixes([
             ChangeLogItem('App would reload in a never-ending loop if no project was selected'),
-            ChangeLogItem(''),
+            ChangeLogItem('Todo filters menu would not show categories that were filtered out'),
           ]),
           ChangeLogSection.chores([
             ChangeLogItem('Bumped version number.'),

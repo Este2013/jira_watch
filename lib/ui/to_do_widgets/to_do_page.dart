@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
@@ -35,11 +36,11 @@ class _TodoPageState extends State<TodoPage> {
         child: AnimatedBuilder(
           animation: asyncSnapshot.data!,
           builder: (context, _) {
+            Iterable<ToDoTask> nonFilteredTaskList = asyncSnapshot.data!.list.where(
+              (t) => !filterOutCompletedTasks || !t.isComplete,
+            );
             List<ToDoTask> taskList =
-                asyncSnapshot.data!.list
-                    .where(
-                      (t) => !filterOutCompletedTasks || !t.isComplete,
-                    )
+                nonFilteredTaskList
                     .where(
                       (t) => showCategory == null || t.category == showCategory,
                     )
@@ -118,7 +119,7 @@ class _TodoPageState extends State<TodoPage> {
                                   ),
                                 ),
                                 for (var c in DefaultTaskCategory.values.where(
-                                  (cat) => taskList.any(
+                                  (cat) => nonFilteredTaskList.any(
                                     (e) => e.category == cat.id,
                                   ),
                                 ))
@@ -129,7 +130,7 @@ class _TodoPageState extends State<TodoPage> {
                                       spacing: 16,
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Icon(c.icon, color: c.color),
+                                        Icon(c.icon, color: c.color, fill: 1),
                                         Text(c.displayName),
                                       ],
                                     ),
@@ -207,37 +208,67 @@ class _TodoPageState extends State<TodoPage> {
                                       subtitle: SingleChildScrollView(
                                         child: Text(task.tickets.isEmpty ? 'No linked tickets' : task.tickets.join(', ')),
                                       ),
-                                      leading: task.isComplete
-                                          ? IconButton(
-                                              onPressed: () {
-                                                DataModel().editTask(task..isComplete = false);
-                                              },
-                                              icon: Icon(Icons.verified),
-                                              tooltip: 'Reopen this task',
-                                            )
-                                          : IconButton(
-                                              icon: Icon(categoryData.$2, fill: 1),
-                                              color: categoryData.$3,
-                                              tooltip: categoryData.$1,
-                                              onPressed: () {
-                                                showDialog(
-                                                  context: context,
-                                                  builder: (context) {
-                                                    return EditToDoTaskCategoryDialog();
-                                                  },
-                                                ).then(
-                                                  (catId) {
-                                                    if (catId == null) {
-                                                      return;
-                                                    }
-                                                    setState(() {
-                                                      task.category = catId;
-                                                      DataModel().editTask(task);
-                                                    });
-                                                  },
-                                                );
+                                      leading: IconButton(
+                                        icon: Icon(categoryData.$2, fill: 1),
+                                        color: categoryData.$3,
+                                        tooltip: categoryData.$1,
+                                        onPressed: () {
+                                          showDialog(
+                                            context: context,
+                                            builder: (context) {
+                                              return EditToDoTaskCategoryDialog();
+                                            },
+                                          ).then(
+                                            (catId) {
+                                              if (catId == null) {
+                                                return;
+                                              }
+                                              setState(() {
+                                                task.category = catId;
+                                                DataModel().editTask(task);
+                                              });
+                                            },
+                                          );
+                                        },
+                                      ),
+                                      trailing: PopupMenuButton(
+                                        icon: Icon(Icons.more_vert),
+                                        itemBuilder: (_) {
+                                          return [
+                                            PopupMenuItem(
+                                              child: Row(
+                                                spacing: 8,
+                                                children: [
+                                                  Icon(task.isComplete ? Symbols.verified_off : Symbols.verified, fill: 1),
+                                                  Text(task.isComplete ? 'Reopen this issue' : 'Mark as complete'),
+                                                ],
+                                              ),
+                                              onTap: () => DataModel().editTask(
+                                                task..isComplete = !task.isComplete,
+                                              ),
+                                            ),
+                                            PopupMenuItem(
+                                              child: Row(
+                                                spacing: 8,
+                                                children: [
+                                                  Icon(
+                                                    Symbols.delete_forever,
+                                                    fill: 1,
+                                                    color: Theme.of(context).colorScheme.error,
+                                                  ),
+                                                  Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                                                ],
+                                              ),
+                                              onTap: () {
+                                                setState(() {
+                                                  selected = null;
+                                                });
+                                                DataModel().deleteTask(task);
                                               },
                                             ),
+                                          ];
+                                        },
+                                      ),
                                       selected: task.id == selected?.id,
                                       onTap: () => setState(() {
                                         selected = task;

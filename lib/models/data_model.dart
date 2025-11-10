@@ -171,6 +171,7 @@ class DataModel with UiLoggy {
         .replaceFirst(RegExp(r'^\\?/?'), ''),
   );
 
+  final List<int> _deletedTodoIds = [];
   ObservableList<ToDoTask>? _toDoTasksCache;
   Future<ObservableList<ToDoTask>> get toDoTasksCache async {
     if (_toDoTasksCache != null) return _toDoTasksCache!;
@@ -194,13 +195,15 @@ class DataModel with UiLoggy {
   }) async {
     loggy.info('Creating a new task');
     var cache = await toDoTasksCache;
+    int validId = cache.list.fold(0, (v, t) => v = max(v, t.id)) + 1;
     var task = ToDoTask(
-      id: cache.list.fold(0, (v, t) => v = max(v, t.id)) + 1,
+      id: validId,
       title: title,
       notes: notes,
       tickets: ticketKeys ?? [],
       dateAdded: DateTime.now(),
     );
+    _deletedTodoIds.remove(validId);
     _toDoTasksCache?.add(task);
     await saveToDoTasksCache();
     loggy.info('Created task id ${task.id}');
@@ -211,6 +214,11 @@ class DataModel with UiLoggy {
     loggy.info('Editing task ${edited.id}');
     final cache = await toDoTasksCache;
     final idx = cache.list.indexWhere((t) => t.id == edited.id);
+
+    if (_deletedTodoIds.contains(edited.id)) {
+      loggy.warning('Because task #${edited.id} was already deleted, editing is aborted.');
+      return;
+    }
     if (idx >= 0) {
       cache.update(() => cache.list[idx] = edited);
     } else {
@@ -223,7 +231,12 @@ class DataModel with UiLoggy {
   Future<void> editTasks(Iterable<ToDoTask> editedList) async {
     loggy.info('Editing ${editedList.length} task(s)');
     final cache = await toDoTasksCache;
+
     for (var edited in editedList) {
+      if (_deletedTodoIds.contains(edited.id)) {
+        loggy.warning('Because task #${edited.id} was already deleted, editing is aborted.');
+        continue;
+      }
       final idx = cache.list.indexWhere((t) => t.id == edited.id);
       if (idx >= 0) {
         cache.update(() => cache.list[idx] = edited);
@@ -241,7 +254,8 @@ class DataModel with UiLoggy {
     final cache = await toDoTasksCache;
     final idx = cache.list.indexWhere((t) => t.id == deleted.id);
     if (idx >= 0) {
-      cache.removeAt(idx);
+      var task = cache.removeAt(idx);
+      _deletedTodoIds.add(task.id);
     } else {
       loggy.warning('Task ${deleted.id} was not found.');
     }
