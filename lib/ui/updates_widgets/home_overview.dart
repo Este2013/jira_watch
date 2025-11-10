@@ -196,6 +196,28 @@ class _UpdatesPageState extends State<UpdatesPage> {
 
   @override
   Widget build(BuildContext context) {
+    var noProjectDisplay = Center(
+      child: Column(
+        spacing: 8,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text('No project is selected'),
+          FilledButton(
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => SettingsDialog(initialPage: SettingsDialogPage.projects),
+              );
+            },
+            child: const Text('Choose my projects'),
+          ),
+        ],
+      ),
+    );
+    if (SettingsModel().starredProjects.value?.isEmpty ?? true) {
+      return noProjectDisplay;
+    }
+
     SchedulerBinding.instance.addPostFrameCallback((timeStamp) => loadMoreIfNoScrollPossible());
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -306,23 +328,12 @@ class _UpdatesPageState extends State<UpdatesPage> {
                                 padding: const EdgeInsets.symmetric(vertical: 16.0),
                                 child: Center(
                                   child: isLoading
-                                      ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2))
-                                      : Column(
-                                          spacing: 8,
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            const Text('No project is selected'),
-                                            FilledButton(
-                                              onPressed: () {
-                                                showDialog(
-                                                  context: context,
-                                                  builder: (context) => SettingsDialog(initialPage: SettingsDialogPage.projects),
-                                                );
-                                              },
-                                              child: const Text('Choose my projects'),
-                                            ),
-                                          ],
-                                        ),
+                                      ? const SizedBox(
+                                          height: 24,
+                                          width: 24,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : noProjectDisplay,
                                 ),
                               );
                             },
@@ -475,7 +486,7 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
                 BottomNavigationBarItem(icon: Icon(Icons.open_in_browser), label: 'View on website'),
               ],
               onTap: (value) {
-                // Mark as (un)read
+                // Mark as (un)reads
                 if (value == 0) {
                   if (widget.ticket.key == null) return;
                   var updatedTime = DateTime.parse(updated);
