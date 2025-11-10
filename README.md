@@ -20,6 +20,7 @@ A Jira client that shows the most recent updates done in projects you work on.
 ### EASY, IMPORTANT
  - refresh (per few minutes)
  - improve Login page in settings dialog
+ - clicking image in desc should bring it up
 
 ### TOUGH, IMPORTANT
  - Filters:

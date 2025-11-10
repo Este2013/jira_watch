@@ -70,7 +70,6 @@ class SingleTicketView extends StatelessWidget {
             CommentsPage(ticket: ticket),
             TicketDetailsView(ticket: ticket),
             AdvancedDataView(ticket: ticket),
-            // TODO IssueEditFieldsWidget(issueData: ticket),
           ],
         ),
       ),
