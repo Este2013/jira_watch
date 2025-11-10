@@ -1,6 +1,6 @@
 # jira_watch
 
-A new Flutter project.
+A Jira client that shows the most recent updates done in projects you work on.
 
 # TODO
  - View ticket (not edit) add custom fields
@@ -17,16 +17,11 @@ A new Flutter project.
 
 ## PRIO
 
-### CRITICAL
-
 ### EASY, IMPORTANT
  - refresh (per few minutes)
  - improve Login page in settings dialog
 
 ### TOUGH, IMPORTANT
- - mark update as read
- - flag tkts for meetings
- - ticket status
  - Filters:
    - ticket type filter ( bugs, features req, stories, epics etc. )
    - Assignee filter
