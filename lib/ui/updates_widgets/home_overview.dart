@@ -284,39 +284,13 @@ class _UpdatesPageState extends State<UpdatesPage> {
                         children: [
                           // per project filtering
                           Expanded(
-                            child: Card(
-                              child: Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: Row(
-                                  spacing: 8,
-                                  children:
-                                      (SettingsModel().starredProjects.value
-                                                ?.map<Widget>(
-                                                  (p) => ProjectFilteringButton(
-                                                    projectCode: p,
-                                                    activeFilters: activeProjectFilters,
-                                                    toggleFilter: (code) => setState(() {
-                                                      activeProjectFilters.toggle(code); // (note: use the param "code", not "p")
-                                                      _resetAndFetchFirstPage();
-                                                      _saveFilters();
-                                                    }),
-                                                  ),
-                                                )
-                                                .toList() ??
-                                            <Widget>[])
-                                        ..add(
-                                          IconButton(
-                                            onPressed: () {
-                                              showDialog(
-                                                context: context,
-                                                builder: (context) => SettingsDialog(initialPage: SettingsDialogPage.projects),
-                                              );
-                                            },
-                                            icon: Icon(Icons.add),
-                                          ),
-                                        ),
-                                ),
-                              ),
+                            child: ProjectFilteringRow(
+                              activeProjectFilters: activeProjectFilters,
+                              toggleProjectCode: (code) => setState(() {
+                                activeProjectFilters.toggle(code);
+                                _resetAndFetchFirstPage();
+                                _saveFilters();
+                              }),
                             ),
                           ),
                           TimeFilterDropdown(
@@ -439,6 +413,44 @@ class _UpdatesPageState extends State<UpdatesPage> {
   }
 }
 
+class ProjectFilteringRow extends StatelessWidget {
+  const ProjectFilteringRow({super.key, required this.activeProjectFilters, required this.toggleProjectCode});
+  final void Function(String projectCode) toggleProjectCode;
+  final Set<String> activeProjectFilters;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Row(
+        spacing: 8,
+        children:
+            (SettingsModel().starredProjects.value
+                      ?.map<Widget>(
+                        (p) => ProjectFilteringButton(
+                          projectCode: p,
+                          activeFilters: activeProjectFilters,
+                          toggleFilter: toggleProjectCode,
+                        ),
+                      )
+                      .toList() ??
+                  <Widget>[])
+              ..add(
+                IconButton(
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => SettingsDialog(initialPage: SettingsDialogPage.projects),
+                    );
+                  },
+                  icon: Icon(Icons.add),
+                ),
+              ),
+      ),
+    ),
+  );
+}
+
 class ProjectFilteringButton extends StatelessWidget {
   const ProjectFilteringButton({
     super.key,
@@ -452,33 +464,31 @@ class ProjectFilteringButton extends StatelessWidget {
   final void Function(String code) toggleFilter;
 
   @override
-  Widget build(BuildContext context) => ClipOval(
-    child: Material(
-      child: InkWell(
-        onTap: () => toggleFilter(projectCode),
-        child: Tooltip(
-          message: projectCode,
-          child: Builder(
-            builder: (context) {
-              Widget base = ClipOval(child: JiraProjectAvatar(projectCode: projectCode));
-              if (activeFilters.contains(projectCode)) {
-                base = Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.green, width: 2),
-                  ),
-                  padding: EdgeInsets.all(2),
-                  child: base,
-                );
-              }
+  Widget build(BuildContext context) {
+    Widget base = ClipOval(
+      child: JiraProjectAvatar(key: Key('Avatar of $projectCode'), projectCode: projectCode),
+    );
 
-              return base;
-            },
-          ),
+    if (activeFilters.contains(projectCode)) {
+      base = Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.green, width: 2),
+        ),
+        padding: EdgeInsets.all(2),
+        child: base,
+      );
+    }
+
+    return ClipOval(
+      child: Material(
+        child: InkWell(
+          onTap: () => toggleFilter(projectCode),
+          child: Tooltip(message: projectCode, child: base),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class JiraTicketPreviewItem extends StatefulWidget {

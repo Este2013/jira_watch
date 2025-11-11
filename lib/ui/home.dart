@@ -49,17 +49,6 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
     }
   }
 
-  Widget _buildPageContent() {
-    switch (_currentPage) {
-      case 'Issues':
-        return UnderConstructionNotice();
-      case 'To do':
-        return TodoPage();
-      default:
-        return UpdatesPage();
-    }
-  }
-
   @override
   void initState() {
     var lastVersion = SettingsModel().lastAppVersion;
@@ -484,6 +473,7 @@ class ChangeLogsDialog extends StatelessWidget {
         sections: [
           ChangeLogSection.features([
             ChangeLogItem(''),
+            ChangeLogItem('💬 When the window is too small, the issue details section gets shown in a new modal'),
           ]),
           ChangeLogSection.bugFixes([
             ChangeLogItem('App would reload in a never-ending loop if no project was selected'),
