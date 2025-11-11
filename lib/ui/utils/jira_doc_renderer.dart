@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
 import 'dart:io';
-import 'package:http/http.dart' as http;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -81,7 +80,6 @@ class AdfRenderer extends StatelessWidget {
   );
 
   static Widget defaultMediaBuilder(Map node, BuildContext context, List attachments, num size) {
-    print(node);
     if (node['type'] == 'file') {
       // match ID with attachment
       String id = node['id'];
@@ -90,7 +88,6 @@ class AdfRenderer extends StatelessWidget {
         future: Future.microtask(
           () async {
             var map = await mediaIdToContentUrl(attachments);
-            print(map);
             return map[id];
           },
         ),
@@ -551,7 +548,6 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     final alt = (attrs['alt'] ?? 'media').toString();
     final w = (attrs['width'] is num) ? (attrs['width'] as num).toDouble() : 240.0;
     final h = (attrs['height'] is num) ? (attrs['height'] as num).toDouble() : 160.0;
-    print((w, h));
     if (mediaBuilder != null) {
       return SizedBox(height: h * size / w, child: mediaBuilder!(context, attrs, size));
     }

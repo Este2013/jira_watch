@@ -145,7 +145,7 @@ class CommentListEntry extends StatelessWidget {
             if (comment.body['type'] == 'doc')
               AdfRenderer(
                 adf: comment.body,
-                mediaBuilder: (context, node, size) => AdfRenderer.defaultMediaBuilder(node, context, (ticket.fields!['attachment'] as List) ?? [], size),
+                mediaBuilder: (context, node, size) => AdfRenderer.defaultMediaBuilder(node, context, (ticket.fields!['attachment'] as List), size),
               ),
 
             if (kDebugMode)

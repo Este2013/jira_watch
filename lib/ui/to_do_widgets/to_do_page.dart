@@ -847,7 +847,7 @@ class ToDoTask {
         cat.color,
       );
     }
-    throw UnimplementedError(); //TODO
+    throw UnimplementedError(); //TODO custom categories
   }
 }
 

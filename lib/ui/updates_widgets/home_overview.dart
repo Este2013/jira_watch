@@ -262,7 +262,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
           // the dialog is shown but we have enough space to show it separately
           SchedulerBinding.instance.addPostFrameCallback((timeStamp) => Navigator.of(context).pop());
         }
-        if (minSizeForLargeView < constraints.maxWidth) {
+        if (minSizeForLargeView < constraints.maxWidth && !isAllowedToShowIssueDialog) {
           SchedulerBinding.instance.addPostFrameCallback(
             (_) => setState(() {
               isAllowedToShowIssueDialog = true;
