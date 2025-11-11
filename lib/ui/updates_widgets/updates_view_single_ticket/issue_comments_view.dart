@@ -67,22 +67,17 @@ class CommentsPage extends StatelessWidget {
       );
     }
 
-    return Scaffold(
-      key: Key(ticket['key']),
-      appBar: AppBar(
-        title: const Text('Comments'),
-      ),
-      body: _entries.isEmpty
-          ? const Center(child: Text('There are no comments'))
-          : ListView.builder(
-              padding: const EdgeInsets.all(8),
-              itemCount: _entries.length,
-              itemBuilder: (context, index) {
-                final comment = _entries[index];
-                return CommentListEntry(ticket: ticket, comment: comment);
-              },
-            ),
-    );
+    return _entries.isEmpty
+        ? const Center(child: Text('There are no comments'))
+        : ListView.builder(
+            key: Key(ticket['key']),
+            padding: const EdgeInsets.all(8),
+            itemCount: _entries.length,
+            itemBuilder: (context, index) {
+              final comment = _entries[index];
+              return CommentListEntry(ticket: ticket, comment: comment);
+            },
+          );
   }
 }
 

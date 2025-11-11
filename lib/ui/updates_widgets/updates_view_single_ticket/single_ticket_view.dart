@@ -14,9 +14,10 @@ import 'issue_comments_view.dart';
 import 'issue_details_view.dart';
 
 class SingleTicketView extends StatelessWidget {
-  const SingleTicketView(this.ticket, {super.key});
+  const SingleTicketView(this.ticket, {super.key, this.isPartOfDialog = false});
 
   final IssueData ticket;
+  final bool isPartOfDialog;
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +44,9 @@ class SingleTicketView extends StatelessWidget {
       length: tabs.length,
 
       child: Scaffold(
+        backgroundColor: isPartOfDialog ? Colors.transparent : null,
         appBar: AppBar(
+          backgroundColor: isPartOfDialog ? Colors.transparent : null,
           toolbarHeight: kToolbarHeight + 10,
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

@@ -34,6 +34,7 @@ class TicketDetailsView extends StatelessWidget {
     bool labels = ticket.fields?['labels'] != null && ticket.fields!['labels'].isNotEmpty;
     bool components = ticket.fields?['components'] != null && ticket.fields!['components'].isNotEmpty;
     return Padding(
+      key: Key(ticket['key']),
       padding: const EdgeInsets.all(32.0),
       child: ListView(
         children: [

@@ -45,7 +45,9 @@ class _UpdatesPageState extends State<UpdatesPage> {
   final ScrollController scrollController = ScrollController(keepScrollOffset: true);
 
   final List<IssueData> allLoadedIssues = [];
-  bool isAllowedToShowDialog = true;
+
+  bool isAllowedToShowIssueDialog = true;
+  bool isIssueDialogShown = false;
 
   @override
   void initState() {
@@ -220,10 +222,11 @@ class _UpdatesPageState extends State<UpdatesPage> {
     }
 
     SchedulerBinding.instance.addPostFrameCallback((timeStamp) => loadMoreIfNoScrollPossible());
+
     return LayoutBuilder(
       builder: (context, constraints) {
         double minSizeForLargeView = 1200;
-        if (isAllowedToShowDialog && selectedTicket != null && minSizeForLargeView >= constraints.maxWidth && (ModalRoute.of(context)?.isCurrent ?? true)) {
+        if (isAllowedToShowIssueDialog && !isIssueDialogShown && selectedTicket != null && minSizeForLargeView >= constraints.maxWidth && (ModalRoute.of(context)?.isCurrent ?? true)) {
           // there is a selection AND
           // size is too small for side-by-side AND
           // there is no open dialog
@@ -234,27 +237,35 @@ class _UpdatesPageState extends State<UpdatesPage> {
               showDialog(
                 context: context,
                 builder: (_) => AlertDialog(
-                  contentPadding: EdgeInsets.zero,
                   clipBehavior: Clip.hardEdge,
                   content: SizedBox(
                     width: minSizeForLargeView - 50,
                     child: SingleTicketView(
                       selectedTicket!,
+                      isPartOfDialog: true,
                       key: Key(selectedTicket!.data['key']),
                     ),
                   ),
                 ),
+              ).whenComplete(
+                () => setState(() {
+                  isIssueDialogShown = false;
+                }),
               );
               setState(() {
-                isAllowedToShowDialog = false;
+                isIssueDialogShown = true;
+                isAllowedToShowIssueDialog = false;
               });
             },
           );
+        } else if (isIssueDialogShown && minSizeForLargeView < constraints.maxWidth) {
+          // the dialog is shown but we have enough space to show it separately
+          SchedulerBinding.instance.addPostFrameCallback((timeStamp) => Navigator.of(context).pop());
         }
         if (minSizeForLargeView < constraints.maxWidth) {
           SchedulerBinding.instance.addPostFrameCallback(
             (_) => setState(() {
-              isAllowedToShowDialog = true;
+              isAllowedToShowIssueDialog = true;
             }),
           );
         }
@@ -402,7 +413,12 @@ class _UpdatesPageState extends State<UpdatesPage> {
     );
   }
 
-  void selectTicket(IssueData tkt) => setState(() => selectedTicket = tkt);
+  void selectTicket(IssueData tkt) {
+    setState(() {
+      selectedTicket = tkt;
+      isAllowedToShowIssueDialog = true;
+    });
+  }
 
   @override
   void dispose() {
