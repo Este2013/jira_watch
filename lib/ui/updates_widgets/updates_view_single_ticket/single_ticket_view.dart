@@ -3,17 +3,19 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/home.dart';
 import 'package:jira_watcher/ui/updates_widgets/issue_ui_elements.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/issue_history_view.dart';
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
+import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // ignore: unused_import
 import 'issue_comments_view.dart';
 import 'issue_details_view.dart';
 
-class SingleTicketView extends StatelessWidget {
+class SingleTicketView extends StatelessWidget with UiLoggy {
   const SingleTicketView(this.ticket, {super.key, this.isPartOfDialog = false});
 
   final IssueData ticket;
@@ -39,45 +41,85 @@ class SingleTicketView extends StatelessWidget {
         icon: Icon(Symbols.data_object),
       ),
     ];
+    Future<IssueData>? fullTicketData;
+    if ([ticket.changelog, ticket.fields, ticket.commentsData].any((e) => e == null)) {
+      loggy.info('Provided data for ${ticket.key} is incomplete; fetching a full version online');
+      if (ticket.key == null) return ErrorWidget("Can't work if the issue's key is null!!!");
+      fullTicketData = DataModel().api.getIssue(ticket.key!, expand: ['changelog']).then(
+        (value) {
+          print(JsonEncoder.withIndent('    ').convert(jsonDecode(value.body)));
+          return IssueData.fromJson({'data': jsonDecode(value.body)});
+        },
+      );
+    } else {
+      fullTicketData = Future.value(ticket);
+    }
 
-    return DefaultTabController(
-      length: tabs.length,
+    return FutureBuilder(
+      future: fullTicketData,
+      builder: (context, asyncSnapshot) {
+        if (asyncSnapshot.hasData) {
+          var ticket = asyncSnapshot.data!;
+          return DefaultTabController(
+            length: tabs.length,
 
-      child: Scaffold(
-        backgroundColor: isPartOfDialog ? Colors.transparent : null,
-        appBar: AppBar(
-          backgroundColor: isPartOfDialog ? Colors.transparent : null,
-          toolbarHeight: kToolbarHeight + 10,
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DefaultTextStyle(
-                style: Theme.of(context).textTheme.bodyMedium ?? TextStyle(),
-                child: Row(
+            child: Scaffold(
+              backgroundColor: isPartOfDialog ? Colors.transparent : null,
+              appBar: AppBar(
+                backgroundColor: isPartOfDialog ? Colors.transparent : null,
+                toolbarHeight: kToolbarHeight + 10,
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    IssueLinkWithParentsRow(ticket),
+                    DefaultTextStyle(
+                      style: Theme.of(context).textTheme.bodyMedium ?? TextStyle(),
+                      child: Row(
+                        children: [
+                          IssueLinkWithParentsRow(ticket),
 
-                    TicketStatusIndicator(issue: ticket),
+                          TicketStatusIndicator(issue: ticket),
+                        ],
+                      ),
+                    ),
+                    Text(ticket['fields']['summary'] ?? 'null'),
                   ],
                 ),
+                bottom: TabBar(tabs: tabs),
               ),
-              Text(ticket['fields']['summary'] ?? 'null'),
-            ],
-          ),
-          bottom: TabBar(tabs: tabs),
-        ),
-        body: TabBarView(
-          physics: NeverScrollableScrollPhysics(),
-          children: [
-            HistoryPage(ticket: ticket),
-            CommentsPage(ticket: ticket),
-            TicketDetailsView(ticket: ticket),
-            AdvancedDataView(ticket: ticket),
-          ],
-        ),
-      ),
+              body: TabBarView(
+                physics: NeverScrollableScrollPhysics(),
+                children: [
+                  HistoryPage(ticket: ticket),
+                  CommentsPage(ticket: ticket),
+                  TicketDetailsView(ticket: ticket),
+                  AdvancedDataView(ticket: ticket),
+                ],
+              ),
+            ),
+          );
+        }
+        return Center(child: CircularProgressIndicator());
+      },
     );
   }
+}
+
+class SingleTicketDialog extends StatelessWidget {
+  const SingleTicketDialog(this.ticket, {super.key});
+
+  final IssueData ticket;
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    clipBehavior: Clip.hardEdge,
+    content: SizedBox(
+      width: 1200 - 50,
+      child: SingleTicketView(
+        ticket,
+        isPartOfDialog: true,
+        key: Key(ticket.data['key']),
+      ),
+    ),
+  );
 }
 
 class AdvancedDataView extends StatelessWidget {

@@ -21,6 +21,7 @@ import 'package:path/path.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../issue_ui_elements.dart';
+import 'single_ticket_view.dart';
 
 class TicketDetailsView extends StatelessWidget {
   const TicketDetailsView({super.key, required this.ticket});
@@ -757,6 +758,7 @@ class IssueLinkSection extends StatelessWidget {
 
 class IssueLinkTile extends StatelessWidget {
   const IssueLinkTile(this.issueLinkData, {super.key});
+
   final Map issueLinkData;
 
   @override
@@ -813,7 +815,17 @@ class IssueLinkTile extends StatelessWidget {
           ),
       ],
     ),
-    onTap: () => launchUrl(Uri.parse('https://${SettingsModel().domainController.text}.atlassian.net/browse/${issueLinkData['key']}')),
+    trailing: IconButton(
+      onPressed: () => launchUrl(Uri.parse('https://${SettingsModel().domainController.text}.atlassian.net/browse/${issueLinkData['key']}')),
+      icon: Icon(Icons.open_in_new),
+      tooltip: 'Open in browser',
+    ),
+    onTap: () => showDialog(
+      context: context,
+      builder: (_) => SingleTicketDialog(
+        IssueData.fromJson({'data': issueLinkData}),
+      ),
+    ),
   );
 }
 

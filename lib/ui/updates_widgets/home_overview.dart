@@ -236,16 +236,9 @@ class _UpdatesPageState extends State<UpdatesPage> {
             (_) {
               showDialog(
                 context: context,
-                builder: (_) => AlertDialog(
-                  clipBehavior: Clip.hardEdge,
-                  content: SizedBox(
-                    width: minSizeForLargeView - 50,
-                    child: SingleTicketView(
-                      selectedTicket!,
-                      isPartOfDialog: true,
-                      key: Key(selectedTicket!.data['key']),
-                    ),
-                  ),
+                builder: (_) => SingleTicketDialog(
+                  selectedTicket!,
+                  key: Key(selectedTicket!.data['key']),
                 ),
               ).whenComplete(
                 () => setState(() {

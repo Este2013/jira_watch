@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/issue_details_view.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/single_ticket_view.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -479,7 +480,7 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                       children: [
                         for (var tkt in linkedIssues)
                           FutureBuilder(
-                            future: APIModel().getIssue(tkt),
+                            future: APIModel().getIssue(tkt, expand: ['changelog']),
                             builder: (context, asyncSnapshot) {
                               if (asyncSnapshot.hasData) {
                                 return IssueLinkTile(jsonDecode(asyncSnapshot.data!.body));

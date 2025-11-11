@@ -323,8 +323,13 @@ class APIModel {
 
   // ISSUES /////////////////////////////////////////////////////////////////////
 
-  Future<Response> getIssue(String issueKey) {
-    return dao.requestAtEndpoint('/rest/api/3/issue/$issueKey');
+  Future<Response> getIssue(String issueKey, {List<String> expand = const []}) {
+    return dao.requestAtEndpoint(
+      '/rest/api/3/issue/$issueKey',
+      queryParameters: {
+        if (expand.isNotEmpty) 'expand': expand.join(','),
+      },
+    );
   }
 
   Future<(Iterable<IssueData>, bool, String?)> fetchLastUpdatedIssues({

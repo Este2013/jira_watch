@@ -153,21 +153,21 @@ class APIDao with UiLoggy {
 
 class IssueData {
   dynamic data;
-  DateTime lastCacheUpdate;
+  DateTime? lastCacheUpdate;
 
   /// A distinct way to know which method added this to the cache / null if read from cache or irrelevant.
   String? providerToCache;
 
-  IssueData(this.data, {required this.lastCacheUpdate});
+  IssueData(this.data, {this.lastCacheUpdate});
   factory IssueData.fromJson(Map data) => IssueData(
     data['data'],
-    lastCacheUpdate: DateTime.parse(data['last_updated']),
+    lastCacheUpdate: data['last_updated'] == null ? null : DateTime.parse(data['last_updated']),
     // providerToCache left null
   );
 
   Map toJson() => {
     'data': data,
-    'last_updated': lastCacheUpdate.toIso8601String(),
+    'last_updated': lastCacheUpdate?.toIso8601String(),
     'provider_to_cache': providerToCache,
   };
 
