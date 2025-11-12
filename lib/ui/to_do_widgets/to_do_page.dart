@@ -687,6 +687,7 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
                   title: title,
                   notes: notes.isEmpty ? null : notes,
                   ticketKeys: [widget.ticket.key!],
+                  categoryID: categoryID,
                 )
                 .whenComplete(Navigator.of(context).pop);
             return;

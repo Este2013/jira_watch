@@ -192,6 +192,7 @@ class DataModel with UiLoggy {
     String? title,
     String? notes,
     List<String>? ticketKeys,
+    int categoryID = -1,
   }) async {
     loggy.info('Creating a new task');
     var cache = await toDoTasksCache;
@@ -201,6 +202,7 @@ class DataModel with UiLoggy {
       title: title,
       notes: notes,
       tickets: ticketKeys ?? [],
+      category: categoryID,
       dateAdded: DateTime.now(),
     );
     _deletedTodoIds.remove(validId);

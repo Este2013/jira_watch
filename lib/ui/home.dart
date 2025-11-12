@@ -477,8 +477,9 @@ class ChangeLogsDialog extends StatelessWidget {
             ChangeLogItem('🔗 Jira link tiles now open in an in-app dialog'),
           ]),
           ChangeLogSection.bugFixes([
-            ChangeLogItem('App would reload in a never-ending loop if no project was selected'),
+            ChangeLogItem('Updates section would reload in a never-ending loop if no project was selected'),
             ChangeLogItem('Todo filters menu would not show categories that were filtered out'),
+            ChangeLogItem('Task category not taken into account using "Add to tasks" button'),
             ChangeLogItem('Link cards were unreadable in light mode'),
           ]),
           ChangeLogSection.chores([

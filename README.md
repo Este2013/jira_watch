@@ -14,9 +14,8 @@ A Jira client that shows the most recent updates done in projects you work on.
  - vertical view: under a width threshold, selected ticket should appear in a dialog instead of next to the list.
 
 
-  - fix: [TODO]  category not taken into account using "Add to tasks" button
+  - fix: [TODO]  make a full single controller for editing notes
   - fix: [TODO]  (description panels overflow => STUDIO-773 for ex) 
-  - fix: [TODO]  jira link cards need the same fix as the mentions 
 
 ## PRIO
 
