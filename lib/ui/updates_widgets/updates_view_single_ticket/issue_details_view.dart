@@ -14,6 +14,7 @@ import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/ui/utils/expandable_panel.dart';
 import 'package:jira_watcher/ui/utils/jira_doc_renderer.dart';
+import 'package:jira_watcher/ui/utils/json_viewer.dart';
 import 'package:jira_watcher/ui/utils/labelled_text_presenter.dart';
 import 'package:jira_watcher/ui/utils/network_video_player.dart';
 import 'package:loggy/loggy.dart';
@@ -807,11 +808,12 @@ class IssueLinkTile extends StatelessWidget {
             onPressed: () => showDialog(
               context: context,
               builder: (context) => AlertDialog(
-                content: SingleChildScrollView(child: SelectableText(JsonEncoder.withIndent('    ').convert(issueLinkData))),
+                content: SingleChildScrollView(child: JsonViewer(data: issueLinkData)),
               ),
             ),
+            tooltip: 'Debug: inspect json',
             icon: Icon(Icons.code),
-            color: Colors.amber,
+            color: Colors.amber.shade900,
           ),
       ],
     ),

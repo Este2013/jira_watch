@@ -474,6 +474,7 @@ class ChangeLogsDialog extends StatelessWidget {
           ChangeLogSection.features([
             ChangeLogItem(''),
             ChangeLogItem('💬 When the window is too small, the issue details section gets shown in a new modal'),
+            ChangeLogItem('🔗 Jira link tiles now open in an in-app dialog'),
           ]),
           ChangeLogSection.bugFixes([
             ChangeLogItem('App would reload in a never-ending loop if no project was selected'),
