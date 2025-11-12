@@ -367,10 +367,8 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                 label: Wrap(
                   spacing: 8,
                   children: [
-                    RichText(
-                      text: TextSpan(text: '$issueKey: ${issue.fields?['summary']}'),
-                      selectionRegistrar: SelectionContainer.maybeOf(context),
-                      selectionColor: selectionColor,
+                    Text(
+                      '$issueKey: ${issue.fields?['summary']}',
                       overflow: TextOverflow.ellipsis,
                     ),
                     TicketStatusIndicator(issue: issue),
@@ -384,10 +382,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
             return Tooltip(
               message: 'Jira servers said nope while looking up $url as a Jira inlineCard:\n\nResponse status: ${asyncSnapshot.data?.statusCode}\n${asyncSnapshot.data?.reasonPhrase}',
               child: ActionChip(
-                label: Text(
-                  'Error',
-                  style: TextStyle(color: t.onErrorContainer),
-                ),
+                label: Text('Error', style: TextStyle(color: t.onErrorContainer)),
                 backgroundColor: t.errorContainer,
                 onPressed: () => launchUrl(Uri.parse(url)),
               ),
@@ -402,11 +397,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     }
 
     return Chip(
-      label: RichText(
-        text: TextSpan(text: node['attrs']['url']),
-        selectionRegistrar: SelectionContainer.maybeOf(context),
-        selectionColor: selectionColor,
-      ),
+      label: Text(node['attrs']['url']),
     );
   }
 
