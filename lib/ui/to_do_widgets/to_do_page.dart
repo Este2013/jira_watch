@@ -1,14 +1,31 @@
 import 'dart:convert';
-import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/issue_details_view.dart';
-import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/single_ticket_view.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:observable_datasets/observable_list.dart';
+
+class TodoPagePreLoadView extends StatelessWidget {
+  const TodoPagePreLoadView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder(
+      future: ToDoTasksModel().isReady,
+      builder: (context, asyncSnapshot) {
+        if (!asyncSnapshot.hasData) {
+          return Center(child: CircularProgressIndicator());
+        }
+
+        return TodoPage();
+      },
+    );
+  }
+}
 
 class TodoPage extends StatefulWidget {
   const TodoPage({super.key});
@@ -18,507 +35,496 @@ class TodoPage extends StatefulWidget {
 }
 
 class _TodoPageState extends State<TodoPage> {
-  ToDoTask? selected;
+  int? selectedTaskID;
 
   bool filterOutCompletedTasks = true;
   int? showCategory;
 
-  @override
-  Widget build(BuildContext context) => FutureBuilder(
-    future: DataModel().toDoTasksCache,
-    builder: (context, asyncSnapshot) {
-      if (!asyncSnapshot.hasData) {
-        return Center(child: CircularProgressIndicator());
-      }
-
-      return Padding(
-        padding: const EdgeInsets.only(left: 8.0),
-        child: AnimatedBuilder(
-          animation: asyncSnapshot.data!,
-          builder: (context, _) {
-            Iterable<ToDoTask> nonFilteredTaskList = asyncSnapshot.data!.list.where(
-              (t) => !filterOutCompletedTasks || !t.isComplete,
-            );
-            List<ToDoTask> taskList =
-                nonFilteredTaskList
-                    .where(
-                      (t) => showCategory == null || t.category == showCategory,
-                    )
-                    .toList()
-                  ..sort(
-                    (a, b) {
-                      if (a.isComplete && !b.isComplete) {
-                        return 1; // completed tasks should appear below others
-                      } else if (a.category == -8 && b.category != -8) {
-                        return -1; // critical tasks should be shown above all else
-                      }
-                      return b.dateAdded.compareTo(a.dateAdded);
-                    },
-                  );
-            if (selected == null || !taskList.any((t) => selected!.id == t.id)) {
-              if (taskList.isNotEmpty) {
-                ServicesBinding.instance.addPostFrameCallback(
-                  (timeStamp) {
-                    setState(() {
-                      selected = taskList.first;
-                    });
-                  },
-                );
-              }
-            }
-            if (taskList.isEmpty) {
-              ServicesBinding.instance.addPostFrameCallback(
-                (timeStamp) {
-                  setState(() {
-                    selected = null;
-                  });
-                },
-              );
-            }
-            return Row(
-              children: [
-                SizedBox(
-                  width: 500,
-                  child: Column(
-                    children: [
-                      // List settings
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Row(
-                          spacing: 8,
-                          children: [
-                            TextButton.icon(
-                              onPressed: () {
-                                DataModel().createNewTask().then(
-                                  (newTask) => setState(() {
-                                    selected = newTask;
-                                  }),
-                                );
-                              },
-                              label: Text('New task'),
-                              icon: Icon(Icons.add),
-                            ),
-                            Spacer(),
-                            PopupMenuButton<String>(
-                              icon: Badge(
-                                label: Text('1'),
-                                isLabelVisible: showCategory != null,
-                                child: Icon(Icons.filter_alt),
-                              ),
-                              tooltip: 'Filter by category',
-                              itemBuilder: (context) => <PopupMenuEntry<String>>[
-                                PopupMenuItem<String>(
-                                  value: '',
-                                  child: Row(
-                                    spacing: 16,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.hide_source),
-                                      Text('All categories'),
-                                    ],
-                                  ),
-                                ),
-                                for (var c in DefaultTaskCategory.values.where(
-                                  (cat) => nonFilteredTaskList.any(
-                                    (e) => e.category == cat.id,
-                                  ),
-                                ))
-                                  PopupMenuItem<String>(
-                                    value: c.id.toString(),
-
-                                    child: Row(
-                                      spacing: 16,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(c.icon, color: c.color, fill: 1),
-                                        Text(c.displayName),
-                                      ],
-                                    ),
-                                  ),
-                              ],
-
-                              onSelected: (value) => setState(() {
-                                if (value.isEmpty) {
-                                  showCategory = null;
-                                } else {
-                                  showCategory = int.parse(value);
-                                }
-                              }),
-                            ),
-                            IconButton(
-                              tooltip: 'Show${filterOutCompletedTasks ? '' : 'ing'} completed tasks',
-                              onPressed: () => setState(() {
-                                filterOutCompletedTasks = !filterOutCompletedTasks;
-                              }),
-                              isSelected: !filterOutCompletedTasks,
-                              selectedIcon: Icon(Icons.verified, fill: 1),
-                              icon: Icon(Symbols.verified_off, fill: 1),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Divider(),
-                      // Task list
-                      Expanded(
-                        child: Center(
-                          child: taskList.isEmpty
-                              ? Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  spacing: 16,
-                                  children: [
-                                    filterOutCompletedTasks ? Text('🫡 You have no open tasks') : Text('😁 All clear!'),
-                                    Row(
-                                      spacing: 8,
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        if (showCategory != null)
-                                          TextButton(
-                                            onPressed: () => setState(() {
-                                              showCategory = null;
-                                            }),
-                                            child: Text('Clear filters'),
-                                          ),
-                                        FilledButton.icon(
-                                          onPressed: () {
-                                            DataModel().createNewTask().then(
-                                              (newTask) => setState(() {
-                                                selected = newTask;
-                                              }),
-                                            );
-                                          },
-                                          label: Text('New task'),
-                                          icon: Icon(Icons.add),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                )
-                              : ListView.builder(
-                                  itemCount: taskList.length,
-                                  itemBuilder: (context, index) {
-                                    var task = taskList[index];
-                                    var categoryData = task.categoryData;
-                                    return ListTile(
-                                      title: Text(
-                                        task.title ?? 'no title',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: task.isComplete ? TextStyle(decoration: TextDecoration.lineThrough) : null,
-                                      ),
-                                      subtitle: SingleChildScrollView(
-                                        child: Text(task.tickets.isEmpty ? 'No linked tickets' : task.tickets.join(', ')),
-                                      ),
-                                      leading: IconButton(
-                                        icon: Icon(categoryData.$2, fill: 1),
-                                        color: categoryData.$3,
-                                        tooltip: categoryData.$1,
-                                        onPressed: () {
-                                          showDialog(
-                                            context: context,
-                                            builder: (context) {
-                                              return EditToDoTaskCategoryDialog();
-                                            },
-                                          ).then(
-                                            (catId) {
-                                              if (catId == null) {
-                                                return;
-                                              }
-                                              setState(() {
-                                                task.category = catId;
-                                                DataModel().editTask(task);
-                                              });
-                                            },
-                                          );
-                                        },
-                                      ),
-                                      trailing: PopupMenuButton(
-                                        icon: Icon(Icons.more_vert),
-                                        itemBuilder: (_) {
-                                          return [
-                                            PopupMenuItem(
-                                              child: Row(
-                                                spacing: 8,
-                                                children: [
-                                                  Icon(task.isComplete ? Symbols.verified_off : Symbols.verified, fill: 1),
-                                                  Text(task.isComplete ? 'Reopen this issue' : 'Mark as complete'),
-                                                ],
-                                              ),
-                                              onTap: () => DataModel().editTask(
-                                                task..isComplete = !task.isComplete,
-                                              ),
-                                            ),
-                                            PopupMenuItem(
-                                              child: Row(
-                                                spacing: 8,
-                                                children: [
-                                                  Icon(
-                                                    Symbols.delete_forever,
-                                                    fill: 1,
-                                                    color: Theme.of(context).colorScheme.error,
-                                                  ),
-                                                  Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                                                ],
-                                              ),
-                                              onTap: () {
-                                                setState(() {
-                                                  selected = null;
-                                                });
-                                                DataModel().deleteTask(task);
-                                              },
-                                            ),
-                                          ];
-                                        },
-                                      ),
-                                      selected: task.id == selected?.id,
-                                      onTap: () => setState(() {
-                                        selected = task;
-                                      }),
-                                    );
-                                  },
-                                ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                VerticalDivider(),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Center(
-                      child: selected != null
-                          ? SingleTaskView(
-                              selected!,
-                              key: ValueKey(selected!.id),
-                            )
-                          : Text('🡠 Select a task in the list to your left to start working on it'),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      );
-    },
-  );
-}
-
-class SingleTaskView extends StatefulWidget {
-  const SingleTaskView(
-    this.task, {
-    super.key,
-  });
-
-  final ToDoTask task;
-
-  @override
-  State<SingleTaskView> createState() => _SingleTaskViewState();
-}
-
-class _SingleTaskViewState extends State<SingleTaskView> {
-  late TextEditingController titleController, notesController;
-  late List<String> linkedIssues;
-  late bool isComplete;
-  late int category;
-
-  Timer? _autosaveTimer;
-  bool issueWasDeleted = false;
+  late Iterable<ToDoTask> nonFilteredTaskList;
+  List<ToDoTaskEditingController>? taskControllersList;
 
   @override
   void initState() {
-    titleController = TextEditingController(text: widget.task.title);
-    notesController = TextEditingController(text: widget.task.notes);
-    linkedIssues = widget.task.tickets;
-    category = widget.task.category;
-    isComplete = widget.task.isComplete;
-
-    // Reset the 1s countdown on every text change
-    titleController.addListener(_scheduleAutosave); // <-- NEW
-    notesController.addListener(_scheduleAutosave); // <-- NEW
     super.initState();
+
+    // TODO nonFilteredTaskList and taskControllersList need to be updated correctly without recreating all controllers when prepareControllers procs
+    ToDoTasksModel().toDoTasksCache!.addListener(updateControllers);
+    prepareControllers();
   }
 
   @override
   void dispose() {
-    _autosaveTimer?.cancel();
-    titleController.dispose();
-    notesController.dispose();
-    if (!issueWasDeleted) {
-      save();
-    }
+    ToDoTasksModel().toDoTasksCache!.removeListener(updateControllers);
     super.dispose();
   }
 
-  void _scheduleAutosave() {
-    _autosaveTimer?.cancel();
-    _autosaveTimer = Timer(const Duration(seconds: 1), () {
-      save();
+  void updateControllers() {
+    setState(() {
+      prepareControllers();
     });
   }
 
-  void save() {
-    String notes = notesController.text.trim();
-    DataModel().editTask(
-      widget.task
-        ..category = category
-        ..tickets = linkedIssues
-        ..title = titleController.text.trim()
-        ..notes = notes.isEmpty ? null : notes
-        ..isComplete = isComplete,
+  void prepareControllers() {
+    nonFilteredTaskList = ToDoTasksModel().toDoTasksCache!.list;
+
+    if (taskControllersList == null) {
+      taskControllersList = nonFilteredTaskList.map<ToDoTaskEditingController>((e) => ToDoTaskEditingController.fromToDoTask(e)).toList();
+    } else {
+      // IMPORTANT! This part only gets called in a setState.
+      Map<int, ToDoTaskEditingController> mapOfControllers = {for (var e in taskControllersList!) e.id: e};
+      final Set<int> sourceIds = <int>{};
+      for (final src in nonFilteredTaskList) {
+        sourceIds.add(src.id);
+
+        final existing = mapOfControllers[src.id];
+        if (existing != null) {
+          // id in both → update existing controller
+          existing.modify(src);
+        } else {
+          // new id → create and add new controller
+          final newListeningItem = ToDoTaskEditingController.fromToDoTask(src);
+          taskControllersList!.add(newListeningItem);
+        }
+        mapOfControllers.remove(src.id);
+      }
+      // what is left in mapOfControllers is what was not in nonFilteredTaskList, but still is in taskControllersList.
+      // We need to delete those controllers and change the selection accordingly.
+      taskControllersList!.removeWhere((e) => mapOfControllers.keys.contains(e.id));
+      if (mapOfControllers[selectedTaskID] != null) {
+        // the currently selected task was deleted.
+        selectedTaskID = taskControllersList!.firstOrNull?.id;
+      }
+    }
+
+    taskControllersList!.sort(
+      (a, b) {
+        if (a.isComplete.value && !b.isComplete.value) {
+          return 1; // completed tasks should appear below others
+        } else if (a.category.value == -8 && b.category.value != -8) {
+          return -1; // critical tasks should be shown above all else
+        }
+        return b.dateAdded.compareTo(a.dateAdded);
+      },
     );
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    persistentFooterAlignment: AlignmentDirectional.center,
-    persistentFooterButtons: [
-      MorphingFilledTonalButton(
-        icon: Icon(isComplete ? Symbols.verified_off : Symbols.verified, fill: 1),
-        showAsFilled: !isComplete,
-        duration: Durations.short2,
-        onPressed: () {
-          setState(() {
-            isComplete = !isComplete;
-          });
-          save();
-        },
-        label: AnimatedSize(duration: Durations.medium1, child: Text(isComplete ? 'Reopen' : 'Mark as complete')),
-      ),
-      TextButton.icon(
-        onPressed: () => showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('Delete this task?'),
-            content: Text('It\'ll be gone forever! And that\'s a long time ☹️'),
-            actions: [
-              TextButton(onPressed: Navigator.of(context).pop, child: Text('No! Go back!')),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error, foregroundColor: Theme.of(context).colorScheme.onError),
-                onPressed: () {
-                  _autosaveTimer?.cancel();
-                  DataModel().deleteTask(widget.task);
-                  setState(() {
-                    issueWasDeleted = true;
-                  });
-                  Navigator.of(context).pop();
-                },
-                icon: Icon(Icons.delete_forever),
-                label: Text('DELETE IT.'),
+  Widget build(BuildContext context) {
+    bool isAnyTaskSelected = selectedTaskID != null && taskControllersList!.any((t) => selectedTaskID == t.id);
+    return Padding(
+      padding: const EdgeInsets.only(left: 8.0),
+      child: Builder(
+        builder: (context) {
+          if (taskControllersList!.isEmpty) {
+            ServicesBinding.instance.addPostFrameCallback(
+              (timeStamp) {
+                setState(() {
+                  selectedTaskID = null;
+                });
+              },
+            );
+          }
+          return Row(
+            children: [
+              SizedBox(
+                width: 500,
+                child: Column(
+                  children: [
+                    // List settings
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Row(
+                        spacing: 8,
+                        children: [
+                          TextButton.icon(
+                            onPressed: createNewTask,
+                            label: Text('New task'),
+                            icon: Icon(Icons.add),
+                          ),
+                          Spacer(),
+                          PopupMenuButton<String>(
+                            icon: Badge(
+                              label: Text('1'),
+                              isLabelVisible: showCategory != null,
+                              child: Icon(Icons.filter_alt),
+                            ),
+                            tooltip: 'Filter by category',
+                            itemBuilder: (context) => <PopupMenuEntry<String>>[
+                              PopupMenuItem<String>(
+                                value: '',
+                                child: Row(
+                                  spacing: 16,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.hide_source),
+                                    Text('All categories'),
+                                  ],
+                                ),
+                              ),
+                              for (var c in DefaultTaskCategory.values.where(
+                                (cat) => nonFilteredTaskList.any(
+                                  (e) => e.category == cat.id,
+                                ),
+                              ))
+                                PopupMenuItem<String>(
+                                  value: c.id.toString(),
+
+                                  child: Row(
+                                    spacing: 16,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(c.icon, color: c.color, fill: 1),
+                                      Text(c.displayName),
+                                    ],
+                                  ),
+                                ),
+                            ],
+
+                            onSelected: (value) => setState(() {
+                              if (value.isEmpty) {
+                                showCategory = null;
+                              } else {
+                                showCategory = int.parse(value);
+                              }
+                            }),
+                          ),
+                          IconButton(
+                            tooltip: 'Show${filterOutCompletedTasks ? '' : 'ing'} completed tasks',
+                            onPressed: () => setState(() {
+                              filterOutCompletedTasks = !filterOutCompletedTasks;
+                            }),
+                            isSelected: !filterOutCompletedTasks,
+                            selectedIcon: Icon(Icons.verified, fill: 1),
+                            icon: Icon(Symbols.verified_off, fill: 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Divider(),
+                    // Task list
+                    Expanded(
+                      child: Center(
+                        child: taskControllersList!.isEmpty
+                            ? Column(
+                                mainAxisSize: MainAxisSize.min,
+                                spacing: 16,
+                                children: [
+                                  filterOutCompletedTasks ? Text('🫡 You have no open tasks') : Text('😁 All clear!'),
+                                  Row(
+                                    spacing: 8,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      if (showCategory != null)
+                                        TextButton(
+                                          onPressed: () => setState(() {
+                                            showCategory = null;
+                                          }),
+                                          child: Text('Clear filters'),
+                                        ),
+                                      FilledButton.icon(
+                                        onPressed: createNewTask,
+                                        label: Text('New task'),
+                                        icon: Icon(Icons.add),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              )
+                            : Builder(
+                                key: Key('list filters: {cat:$showCategory, filtercompleted:$filterOutCompletedTasks}'),
+                                builder: (context) {
+                                  var list = taskControllersList!
+                                      .where(
+                                        (t) => !filterOutCompletedTasks || !t.isComplete.value,
+                                      )
+                                      .where(
+                                        (t) => showCategory == null || t.category.value == showCategory,
+                                      )
+                                      .toList();
+                                  return ListView.builder(
+                                    itemCount: list.length,
+                                    itemBuilder: (context, index) {
+                                      var taskController = list[index];
+                                      return AnimatedBuilder(
+                                        animation: taskController,
+                                        builder: (context, child) {
+                                          var categoryData = ToDoTask.categoryDataFrom(taskController.category.value);
+                                          return ListTile(
+                                            key: Key('ListTile of task #${taskController.id}'),
+                                            title: Text(
+                                              taskController.title.text.isEmpty ? 'no title' : taskController.title.text,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: taskController.isComplete.value ? TextStyle(decoration: TextDecoration.lineThrough) : null,
+                                            ),
+                                            subtitle: SingleChildScrollView(
+                                              child: Text(taskController.linkedIssues.isEmpty ? 'No linked tickets' : taskController.linkedIssues.list.join(', ')),
+                                            ),
+                                            leading: IconButton(
+                                              icon: Icon(categoryData.$2, fill: 1),
+                                              color: categoryData.$3,
+                                              tooltip: categoryData.$1,
+                                              onPressed: () {
+                                                showDialog(
+                                                  context: context,
+                                                  builder: (context) {
+                                                    return EditToDoTaskCategoryDialog();
+                                                  },
+                                                ).then(
+                                                  (catId) {
+                                                    if (catId == null) {
+                                                      return;
+                                                    }
+                                                    setState(() {
+                                                      taskController.category = catId;
+                                                      ToDoTasksModel().editTask(taskController.toToDoTask());
+                                                    });
+                                                  },
+                                                );
+                                              },
+                                            ),
+                                            trailing: PopupMenuButton(
+                                              icon: Icon(Icons.more_vert),
+                                              itemBuilder: (_) => [
+                                                PopupMenuItem(
+                                                  child: Row(
+                                                    spacing: 8,
+                                                    children: [
+                                                      Icon(taskController.isComplete.value ? Symbols.verified_off : Symbols.verified, fill: 1),
+                                                      Text(taskController.isComplete.value ? 'Reopen this issue' : 'Mark as complete'),
+                                                    ],
+                                                  ),
+                                                  onTap: () => taskController.isComplete.value = !taskController.isComplete.value,
+                                                ),
+                                                PopupMenuItem(
+                                                  child: Row(
+                                                    spacing: 8,
+                                                    children: [
+                                                      Icon(
+                                                        Symbols.delete_forever,
+                                                        fill: 1,
+                                                        color: Theme.of(context).colorScheme.error,
+                                                      ),
+                                                      Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                                                    ],
+                                                  ),
+                                                  onTap: () => ToDoTasksModel().deleteTask(taskController.toToDoTask()),
+                                                ),
+                                              ],
+                                            ),
+                                            selected: taskController.id == selectedTaskID,
+                                            onTap: () => setState(() {
+                                              selectedTaskID = taskController.id;
+                                            }),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              VerticalDivider(),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Center(
+                    child: isAnyTaskSelected
+                        ? SingleTaskView(
+                            taskControllersList!.firstWhere((t) => t.id == selectedTaskID),
+                            key: ValueKey(selectedTaskID),
+                          )
+                        : Text('🡠 Select a task in the list to your left to start working on it'),
+                  ),
+                ),
               ),
             ],
-          ),
-        ),
-        style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-        icon: Icon(Icons.delete_forever),
-        label: Text('Delete'),
+          );
+        },
       ),
-    ],
-    body: Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 800),
-        child: ListView(
-          shrinkWrap: true,
-          children:
-              [
-                    SizedBox.shrink(),
-                    Row(
-                      spacing: 8,
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: titleController,
-                            decoration: InputDecoration(
-                              border: OutlineInputBorder(),
-                              label: Text('Title'),
+    );
+  }
+
+  void createNewTask() => ToDoTasksModel().createNewTask().then(
+    (newTask) => setState(() {
+      prepareControllers();
+      selectedTaskID = newTask.id;
+    }),
+  );
+}
+
+class SingleTaskView extends StatelessWidget {
+  const SingleTaskView(
+    this.taskController, {
+    super.key,
+  });
+
+  final ToDoTaskEditingController taskController;
+
+  void save() => ToDoTasksModel().editTask(taskController.toToDoTask());
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      persistentFooterAlignment: AlignmentDirectional.center,
+      persistentFooterButtons: [
+        AnimatedBuilder(
+          animation: taskController.isComplete,
+          builder: (context, child) {
+            bool isComplete = taskController.isComplete.value;
+            return MorphingFilledTonalButton(
+              icon: Icon(isComplete ? Symbols.verified_off : Symbols.verified, fill: 1),
+              showAsFilled: !isComplete,
+              duration: Durations.short2,
+              onPressed: () {
+                taskController.isComplete.value = !isComplete;
+                save();
+              },
+              label: AnimatedSize(duration: Durations.medium1, child: Text(isComplete ? 'Reopen' : 'Mark as complete')),
+            );
+          },
+        ),
+        TextButton.icon(
+          onPressed: () => showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: Text('Delete this task?'),
+              content: Text('It\'ll be gone forever! And that\'s a long time ☹️'),
+              actions: [
+                TextButton(onPressed: Navigator.of(context).pop, child: Text('No! Go back!')),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error, foregroundColor: Theme.of(context).colorScheme.onError),
+                  onPressed: () {
+                    ToDoTasksModel().deleteTaskById(taskController.id);
+
+                    Navigator.of(context).pop();
+                  },
+                  icon: Icon(Icons.delete_forever),
+                  label: Text('DELETE IT.'),
+                ),
+              ],
+            ),
+          ),
+          style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+          icon: Icon(Icons.delete_forever),
+          label: Text('Delete'),
+        ),
+      ],
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 800),
+          child: ListView(
+            shrinkWrap: true,
+            children:
+                [
+                      SizedBox.shrink(),
+                      Row(
+                        spacing: 8,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: taskController.title,
+                              onChanged: (value) => save(),
+                              decoration: InputDecoration(
+                                border: OutlineInputBorder(),
+                                label: Text('Title'),
+                              ),
                             ),
                           ),
-                        ),
-                        Builder(
-                          builder: (context) {
-                            if (category < 0) {
-                              // default icons
-                              DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == widget.task.category, orElse: () => DefaultTaskCategory.forLater);
-                              return IconButton(
-                                tooltip: cat.displayName,
-                                icon: Icon(cat.icon, color: cat.color, fill: 1),
-                                onPressed: () =>
-                                    showDialog<int>(
-                                      context: context,
-                                      builder: (context) => EditToDoTaskCategoryDialog(),
-                                    ).then(
-                                      (value) {
-                                        if (value == null) return;
-                                        setState(() {
-                                          category = value;
-                                        });
-                                        DataModel().editTask(widget.task..category = category);
-                                      },
-                                    ),
-                              );
-                            }
-                            // TODO custom categories
-                            throw UnimplementedError();
-                          },
-                        ),
-                      ],
-                    ),
-                    TextField(
-                      controller: notesController,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(),
-                        label: Text('Notes'),
-                      ),
-                      minLines: 10,
-                      maxLines: null,
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16),
-                      child: Text('Linked tickets', style: Theme.of(context).textTheme.titleMedium),
-                    ),
-                    Column(
-                      children: [
-                        for (var tkt in linkedIssues)
-                          FutureBuilder(
-                            future: APIModel().getIssue(tkt, expand: ['changelog']),
-                            builder: (context, asyncSnapshot) {
-                              if (asyncSnapshot.hasData) {
-                                return IssueLinkTile(jsonDecode(asyncSnapshot.data!.body));
-                              }
-                              if (asyncSnapshot.hasError) {
-                                return ListTile(
-                                  tileColor: Colors.red.withAlpha(100),
-                                  leading: Icon(Icons.error),
-
-                                  title: Text(tkt),
-                                  subtitle: Text(asyncSnapshot.error.toString()),
-                                  trailing: IconButton(
-                                    onPressed: () => Clipboard.setData(ClipboardData(text: asyncSnapshot.error.toString())),
-                                    icon: Icon(Icons.copy),
-                                  ),
+                          AnimatedBuilder(
+                            animation: taskController.category,
+                            builder: (context, _) {
+                              int category = taskController.category.value;
+                              if (category < 0) {
+                                // default icons
+                                DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == taskController.category.value, orElse: () => DefaultTaskCategory.forLater);
+                                return IconButton(
+                                  tooltip: cat.displayName,
+                                  icon: Icon(cat.icon, color: cat.color, fill: 1),
+                                  onPressed: () =>
+                                      showDialog<int>(
+                                        context: context,
+                                        builder: (context) => EditToDoTaskCategoryDialog(),
+                                      ).then(
+                                        (value) {
+                                          if (value == null) return;
+                                          taskController.category.value = value;
+                                          ToDoTasksModel().editTask(taskController.toToDoTask());
+                                        },
+                                      ),
                                 );
                               }
-                              return ListTile(
-                                leading: CircularProgressIndicator(),
-                                title: Text(tkt),
-                              );
+                              // TODO custom categories
+                              throw UnimplementedError();
                             },
                           ),
+                        ],
+                      ),
+                      TextField(
+                        controller: taskController.notes,
+                        onChanged: (value) => save(),
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(),
+                          label: Text('Notes'),
+                        ),
+                        minLines: 10,
+                        maxLines: null,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Text('Linked tickets', style: Theme.of(context).textTheme.titleMedium),
+                      ),
+                      AnimatedBuilder(
+                        animation: taskController.linkedIssues,
+                        builder: (context, child) => Column(
+                          children: [
+                            for (var tkt in taskController.linkedIssues.list)
+                              FutureBuilder(
+                                future: APIModel().getIssue(tkt, expand: ['changelog']),
+                                builder: (context, asyncSnapshot) {
+                                  if (asyncSnapshot.hasData) {
+                                    return IssueLinkTile(jsonDecode(asyncSnapshot.data!.body));
+                                  }
+                                  if (asyncSnapshot.hasError) {
+                                    return ListTile(
+                                      tileColor: Colors.red.withAlpha(100),
+                                      leading: Icon(Icons.error),
+
+                                      title: Text(tkt),
+                                      subtitle: Text(asyncSnapshot.error.toString()),
+                                      trailing: IconButton(
+                                        onPressed: () => Clipboard.setData(ClipboardData(text: asyncSnapshot.error.toString())),
+                                        icon: Icon(Icons.copy),
+                                      ),
+                                    );
+                                  }
+                                  return ListTile(
+                                    leading: CircularProgressIndicator(),
+                                    title: Text(tkt),
+                                  );
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                    ]
+                    .expand(
+                      (w) => [
+                        Padding(padding: const EdgeInsets.only(right: 16.0), child: w),
+                        SizedBox(height: 16),
                       ],
-                    ),
-                  ]
-                  .expand(
-                    (w) => [
-                      Padding(padding: const EdgeInsets.only(right: 16.0), child: w),
-                      SizedBox(height: 16),
-                    ],
-                  )
-                  .toList()
-                ..removeLast(),
+                    )
+                    .toList()
+                  ..removeLast(),
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class AddIssueToDoDialog extends StatefulWidget {
@@ -633,17 +639,17 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
                   ),
                   // Existing tasks
                   FutureBuilder(
-                    future: DataModel().toDoTasksCache,
+                    future: ToDoTasksModel().isReady,
                     builder: (context, asyncSnapshot) {
                       if (asyncSnapshot.hasData) {
-                        var list = asyncSnapshot.data!.list.where((t) => !t.isComplete).toList()
+                        var list = ToDoTasksModel().toDoTasksCache!.list.where((t) => !t.isComplete).toList()
                           ..sort(
                             (a, b) => a.dateAdded.compareTo(b.dateAdded),
                           );
                         return ListView.builder(
                           itemCount: list.length,
                           itemBuilder: (context, index) {
-                            var taskItem = asyncSnapshot.data![index];
+                            var taskItem = ToDoTasksModel().toDoTasksCache![index];
                             var categoryData = taskItem.categoryData;
                             return ListTile(
                               leading: Tooltip(
@@ -682,7 +688,7 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
               title = '${widget.ticket.key} — ${widget.ticket.fields?['summary']}';
             }
             String notes = notesController.text.trim();
-            DataModel()
+            ToDoTasksModel()
                 .createNewTask(
                   title: title,
                   notes: notes.isEmpty ? null : notes,
@@ -692,20 +698,21 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
                 .whenComplete(Navigator.of(context).pop);
             return;
           } else if (tabCtrl.index == 1) {
-            DataModel().toDoTasksCache.then((value) {
-              var list = value.list;
+            ToDoTasksModel().isReady.then((value) {
+              var list = ToDoTasksModel().toDoTasksCache!.list;
               List<int> editedIds = [...addLinkTo, ...removeLinkFrom];
               Iterable<ToDoTask> edits = list.where((t) => editedIds.contains(t.id));
               for (var t in edits) {
                 if (isItemSelected(t)) {
-                  t.tickets.add(widget.ticket.key!);
-                  t.tickets = t.tickets.toSet().toList();
+                  t.linkedIssues.add(widget.ticket.key!);
+                  t.linkedIssues = t.linkedIssues.toSet().toList();
                 } else {
-                  t.tickets.remove(widget.ticket.key!);
+                  t.linkedIssues.remove(widget.ticket.key!);
                 }
               }
               // ignore: use_build_context_synchronously
-              DataModel().editTasks(edits).whenComplete(Navigator.of(context).pop);
+              ToDoTasksModel().editTasks(edits);
+              Navigator.of(context).pop();
             });
             return;
           }
@@ -718,13 +725,13 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
   );
 
   bool isItemSelected(ToDoTask task) {
-    bool ogTaskHasTicket = task.tickets.contains(widget.ticket.key);
+    bool ogTaskHasTicket = task.linkedIssues.contains(widget.ticket.key);
     return (ogTaskHasTicket || addLinkTo.contains(task.id)) && !removeLinkFrom.contains(task.id);
   }
 
   void toggleSelection(ToDoTask task) {
     String? tktKey = widget.ticket.key;
-    if (task.tickets.contains(tktKey)) {
+    if (task.linkedIssues.contains(tktKey)) {
       if (removeLinkFrom.contains(task.id)) {
         removeLinkFrom.remove(task.id);
       } else {
@@ -738,142 +745,6 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
       }
     }
   }
-}
-
-class EditToDoTaskCategoryDialog extends StatelessWidget {
-  const EditToDoTaskCategoryDialog({
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text('Choose a task category'),
-    content: SizedBox(
-      width: 300,
-      height: 300,
-      child: GridView.count(
-        crossAxisCount: 3,
-        children: [
-          for (var cat in DefaultTaskCategory.values)
-            GridTile(
-              footer: Text(
-                cat.displayName,
-                style: Theme.of(context).textTheme.bodySmall,
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-              ),
-              child: InkWell(
-                onTap: () => Navigator.of(context).pop(cat.id),
-                child: Icon(
-                  cat.icon,
-                  color: cat.color,
-                  size: 48,
-                  fill: 1,
-                ),
-              ),
-            ),
-          // TODO custom categories
-        ],
-      ),
-    ),
-  );
-}
-
-class ToDoTask {
-  int id;
-  late final DateTime dateAdded;
-  DateTime? toDoBefore;
-
-  /// List of relevant tickets
-  List<String> tickets;
-  String? title, notes;
-
-  bool isComplete;
-
-  /// Default categories will have negative indexes, custom ones go from 0 up
-  /// If this list is empty, the category "For later" is used.
-  int category;
-
-  ToDoTask({
-    required this.id,
-    this.title,
-    this.notes,
-    required this.tickets,
-    this.toDoBefore,
-    required this.dateAdded,
-    this.isComplete = false,
-    this.category = -1,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'title': title,
-    'notes': notes,
-    'tickets': tickets,
-    'toDoBefore': toDoBefore?.toIso8601String(),
-    'creationDate': dateAdded.toIso8601String(),
-    'isComplete': isComplete,
-    'category': category,
-  };
-  factory ToDoTask.fromJson(Map<String, dynamic> json) {
-    final creationDateValue = json['creationDate'] ?? json['added'];
-    final added = creationDateValue != null ? DateTime.parse(creationDateValue.toString()) : DateTime.now();
-
-    final toDoBeforeValue = json['toDoBefore'];
-    final toDoBefore = toDoBeforeValue != null ? DateTime.parse(toDoBeforeValue.toString()) : null;
-
-    final ticketsRaw = json['tickets'];
-    final tickets = ticketsRaw is List ? ticketsRaw.map((e) => e.toString()).toList() : <String>[];
-
-    return ToDoTask(
-      id: json['id'],
-      title: json['title']?.toString(),
-      notes: json['notes']?.toString(),
-      tickets: tickets,
-      toDoBefore: toDoBefore,
-      dateAdded: added,
-      isComplete: json['isComplete'] ?? false,
-      category: json['category'] ?? -1,
-    );
-  }
-
-  (String, IconData, Color?) get categoryData => categoryDataFrom(category);
-
-  static (String, IconData, Color?) categoryDataFrom(int categoryID) {
-    if (categoryID < 0) {
-      // default icons
-      DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == categoryID, orElse: () => DefaultTaskCategory.forLater);
-      return (
-        cat.displayName,
-        cat.icon,
-        cat.color,
-      );
-    }
-    throw UnimplementedError(); //TODO custom categories
-  }
-}
-
-enum DefaultTaskCategory {
-  forLater(-1, 'For later', Icons.push_pin),
-  forNextMeeting(-2, 'For next meeting', Symbols.groups),
-  toDocument(-3, 'To document', Icons.edit_document),
-  toRetest(-4, 'To test', Symbols.experiment),
-  toReview(-5, 'To review', Symbols.mystery),
-  waitingForInput(-6, 'Waiting for input', Symbols.pending),
-  missingScoping(-7, 'Missing scoping', Symbols.filter_center_focus),
-  critical(-8, 'Critical', Symbols.dangerous, color: Colors.red);
-
-  final int id;
-  final String displayName;
-  final IconData icon;
-  final Color? color;
-
-  const DefaultTaskCategory(
-    this.id,
-    this.displayName,
-    this.icon, {
-    this.color,
-  });
 }
 
 class MorphingFilledTonalButton extends StatelessWidget {
@@ -953,4 +824,203 @@ class MorphingFilledTonalButton extends StatelessWidget {
       },
     );
   }
+}
+
+class EditToDoTaskCategoryDialog extends StatelessWidget {
+  const EditToDoTaskCategoryDialog({
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text('Choose a task category'),
+    content: SizedBox(
+      width: 300,
+      height: 300,
+      child: GridView.count(
+        crossAxisCount: 3,
+        children: [
+          for (var cat in DefaultTaskCategory.values)
+            GridTile(
+              footer: Text(
+                cat.displayName,
+                style: Theme.of(context).textTheme.bodySmall,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+              child: InkWell(
+                onTap: () => Navigator.of(context).pop(cat.id),
+                child: Icon(
+                  cat.icon,
+                  color: cat.color,
+                  size: 48,
+                  fill: 1,
+                ),
+              ),
+            ),
+          // TODO custom categories
+        ],
+      ),
+    ),
+  );
+}
+
+// // DATA SECTION
+
+class ToDoTaskEditingController extends ChangeNotifier {
+  final int id;
+  late final DateTime dateAdded;
+  late final TextEditingController title, notes;
+  late final ValueNotifier<int> category;
+  late final ValueNotifier<bool> isComplete;
+  late final ValueNotifier<DateTime?> toDoBefore;
+  late final ObservableList<String> linkedIssues;
+
+  ToDoTaskEditingController({
+    required this.id,
+    required this.title,
+    required this.notes,
+    required this.linkedIssues,
+    required this.toDoBefore,
+    required this.dateAdded,
+    required this.isComplete,
+    required this.category,
+  }) {
+    title.addListener(notifyListeners);
+    notes.addListener(notifyListeners);
+    category.addListener(notifyListeners);
+    isComplete.addListener(notifyListeners);
+    toDoBefore.addListener(notifyListeners);
+    linkedIssues.addListener(notifyListeners);
+  }
+
+  factory ToDoTaskEditingController.fromToDoTask(ToDoTask task) {
+    return ToDoTaskEditingController(
+      id: task.id,
+      dateAdded: task.dateAdded,
+      title: TextEditingController(text: task.title),
+      notes: TextEditingController(text: task.notes),
+      linkedIssues: ObservableList.from(task.linkedIssues),
+      toDoBefore: ValueNotifier(task.toDoBefore),
+      isComplete: ValueNotifier(task.isComplete),
+      category: ValueNotifier(task.category),
+    );
+  }
+  ToDoTask toToDoTask() => ToDoTask(
+    id: id,
+    dateAdded: dateAdded,
+    title: title.text.trim().isEmpty ? null : title.text.trim(),
+    notes: notes.text.trim().isEmpty ? null : notes.text.trim(),
+    linkedIssues: linkedIssues.list,
+    toDoBefore: toDoBefore.value,
+    isComplete: isComplete.value,
+    category: category.value,
+  );
+
+  void modify(ToDoTask newTaskData) {
+    title.text = newTaskData.title ?? '';
+    notes.text = newTaskData.notes ?? '';
+    category.value = newTaskData.category;
+    isComplete.value = newTaskData.isComplete;
+    toDoBefore.value = newTaskData.toDoBefore;
+    linkedIssues.reset();
+    linkedIssues.addAll(newTaskData.linkedIssues);
+  }
+}
+
+class ToDoTask {
+  int id;
+  late final DateTime dateAdded;
+  DateTime? toDoBefore;
+
+  /// List of relevant tickets
+  List<String> linkedIssues;
+  String? title, notes;
+
+  bool isComplete;
+
+  /// Default categories will have negative indexes, custom ones go from 0 up
+  /// If this list is empty, the category "For later" is used.
+  int category;
+
+  ToDoTask({
+    required this.id,
+    this.title,
+    this.notes,
+    required this.linkedIssues,
+    this.toDoBefore,
+    required this.dateAdded,
+    this.isComplete = false,
+    this.category = -1,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'notes': notes,
+    'tickets': linkedIssues,
+    'toDoBefore': toDoBefore?.toIso8601String(),
+    'creationDate': dateAdded.toIso8601String(),
+    'isComplete': isComplete,
+    'category': category,
+  };
+  factory ToDoTask.fromJson(Map<String, dynamic> json) {
+    final creationDateValue = json['creationDate'] ?? json['added'];
+    final added = creationDateValue != null ? DateTime.parse(creationDateValue.toString()) : DateTime.now();
+
+    final toDoBeforeValue = json['toDoBefore'];
+    final toDoBefore = toDoBeforeValue != null ? DateTime.parse(toDoBeforeValue.toString()) : null;
+
+    final ticketsRaw = json['tickets'];
+    final tickets = ticketsRaw is List ? ticketsRaw.map((e) => e.toString()).toList() : <String>[];
+
+    return ToDoTask(
+      id: json['id'],
+      title: json['title']?.toString(),
+      notes: json['notes']?.toString(),
+      linkedIssues: tickets,
+      toDoBefore: toDoBefore,
+      dateAdded: added,
+      isComplete: json['isComplete'] ?? false,
+      category: json['category'] ?? -1,
+    );
+  }
+
+  (String, IconData, Color?) get categoryData => categoryDataFrom(category);
+
+  static (String, IconData, Color?) categoryDataFrom(int categoryID) {
+    if (categoryID < 0) {
+      // default icons
+      DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == categoryID, orElse: () => DefaultTaskCategory.forLater);
+      return (
+        cat.displayName,
+        cat.icon,
+        cat.color,
+      );
+    }
+    throw UnimplementedError(); //TODO custom categories
+  }
+}
+
+enum DefaultTaskCategory {
+  forLater(-1, 'For later', Icons.push_pin),
+  forNextMeeting(-2, 'For next meeting', Symbols.groups),
+  toDocument(-3, 'To document', Icons.edit_document),
+  toRetest(-4, 'To test', Symbols.experiment),
+  toReview(-5, 'To review', Symbols.mystery),
+  waitingForInput(-6, 'Waiting for input', Symbols.pending),
+  missingScoping(-7, 'Missing scoping', Symbols.filter_center_focus),
+  critical(-8, 'Critical', Symbols.dangerous, color: Colors.red);
+
+  final int id;
+  final String displayName;
+  final IconData icon;
+  final Color? color;
+
+  const DefaultTaskCategory(
+    this.id,
+    this.displayName,
+    this.icon, {
+    this.color,
+  });
 }

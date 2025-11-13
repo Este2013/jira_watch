@@ -47,7 +47,6 @@ class SingleTicketView extends StatelessWidget with UiLoggy {
       if (ticket.key == null) return ErrorWidget("Can't work if the issue's key is null!!!");
       fullTicketData = DataModel().api.getIssue(ticket.key!, expand: ['changelog']).then(
         (value) {
-          print(JsonEncoder.withIndent('    ').convert(jsonDecode(value.body)));
           return IssueData.fromJson({'data': jsonDecode(value.body)});
         },
       );

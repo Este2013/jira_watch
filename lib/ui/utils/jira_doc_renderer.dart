@@ -652,12 +652,14 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             icon,
-            RichText(
-              text: TextSpan(
-                children: _buildInlineSpans(context, (node['content'] as List).cast()),
+            Flexible(
+              child: RichText(
+                text: TextSpan(
+                  children: _buildInlineSpans(context, (node['content'] as List).cast()),
+                ),
+                selectionRegistrar: SelectionContainer.maybeOf(context),
+                selectionColor: selectionColor,
               ),
-              selectionRegistrar: SelectionContainer.maybeOf(context),
-              selectionColor: selectionColor,
             ),
           ],
         ),

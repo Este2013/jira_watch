@@ -185,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
               children: const [
                 UpdatesPage(),
                 UnderConstructionNotice(),
-                TodoPage(),
+                TodoPagePreLoadView(),
               ],
             ),
           ),
@@ -472,15 +472,25 @@ class ChangeLogsDialog extends StatelessWidget {
         '1.4.0',
         sections: [
           ChangeLogSection.features([
-            ChangeLogItem(''),
             ChangeLogItem('💬 When the window is too small, the issue details section gets shown in a new modal'),
             ChangeLogItem('🔗 Jira link tiles now open in an in-app dialog'),
           ]),
           ChangeLogSection.bugFixes([
             ChangeLogItem('Updates section would reload in a never-ending loop if no project was selected'),
-            ChangeLogItem('Todo filters menu would not show categories that were filtered out'),
-            ChangeLogItem('Task category not taken into account using "Add to tasks" button'),
-            ChangeLogItem('Link cards were unreadable in light mode'),
+            ChangeLogItem(
+              '"To do" section fixes:',
+              subItems: [
+                ChangeLogItem('Filters menu now show filtered-out categories as options'),
+                ChangeLogItem('Category is now saved when using "Add to tasks" button'),
+              ],
+            ),
+            ChangeLogItem(
+              'Text renderer fixes:',
+              subItems: [
+                ChangeLogItem('Link cards were unreadable in light mode'),
+                ChangeLogItem('Description panels would overflow if text was longer than could fit on one line'),
+              ],
+            ),
           ]),
           ChangeLogSection.chores([
             ChangeLogItem('Bumped version number.'),

@@ -15,7 +15,6 @@ A Jira client that shows the most recent updates done in projects you work on.
 
 
   - fix: [TODO]  make a full single controller for editing notes
-  - fix: [TODO]  (description panels overflow => STUDIO-773 for ex) 
 
 ## PRIO
 

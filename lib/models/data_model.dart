@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -161,118 +162,6 @@ class DataModel with UiLoggy {
   }
 
   // - To do section /////////////////////////////////////////////////////////////////////
-
-  final File _toDoDataFile = File(
-    path
-        .join(
-          SettingsModel().settingsFolder.path,
-          'to_do.json',
-        )
-        .replaceFirst(RegExp(r'^\\?/?'), ''),
-  );
-
-  final List<int> _deletedTodoIds = [];
-  ObservableList<ToDoTask>? _toDoTasksCache;
-  Future<ObservableList<ToDoTask>> get toDoTasksCache async {
-    if (_toDoTasksCache != null) return _toDoTasksCache!;
-
-    loggy.info('_toDoTasksCache has not been init. yet');
-    if (!await _toDoDataFile.exists()) {
-      loggy.warning('_toDoDataFile does not exist. Initializing cache to []');
-      _toDoTasksCache = ObservableList();
-    } else {
-      List data = jsonDecode(await _toDoDataFile.readAsString())?['taskList'] ?? [];
-      _toDoTasksCache = ObservableList.from(data.map((e) => ToDoTask.fromJson(e)));
-    }
-    return _toDoTasksCache!;
-  }
-
-  /// Gives a new task with the correct unique ID and creation date.
-  Future<ToDoTask> createNewTask({
-    String? title,
-    String? notes,
-    List<String>? ticketKeys,
-    int categoryID = -1,
-  }) async {
-    loggy.info('Creating a new task');
-    var cache = await toDoTasksCache;
-    int validId = cache.list.fold(0, (v, t) => v = max(v, t.id)) + 1;
-    var task = ToDoTask(
-      id: validId,
-      title: title,
-      notes: notes,
-      tickets: ticketKeys ?? [],
-      category: categoryID,
-      dateAdded: DateTime.now(),
-    );
-    _deletedTodoIds.remove(validId);
-    _toDoTasksCache?.add(task);
-    await saveToDoTasksCache();
-    loggy.info('Created task id ${task.id}');
-    return task;
-  }
-
-  Future<void> editTask(ToDoTask edited) async {
-    loggy.info('Editing task ${edited.id}');
-    final cache = await toDoTasksCache;
-    final idx = cache.list.indexWhere((t) => t.id == edited.id);
-
-    if (_deletedTodoIds.contains(edited.id)) {
-      loggy.warning('Because task #${edited.id} was already deleted, editing is aborted.');
-      return;
-    }
-    if (idx >= 0) {
-      cache.update(() => cache.list[idx] = edited);
-    } else {
-      loggy.warning('Task ${edited.id} not found. Adding it instead.');
-      cache.add(edited);
-    }
-    await saveToDoTasksCache();
-  }
-
-  Future<void> editTasks(Iterable<ToDoTask> editedList) async {
-    loggy.info('Editing ${editedList.length} task(s)');
-    final cache = await toDoTasksCache;
-
-    for (var edited in editedList) {
-      if (_deletedTodoIds.contains(edited.id)) {
-        loggy.warning('Because task #${edited.id} was already deleted, editing is aborted.');
-        continue;
-      }
-      final idx = cache.list.indexWhere((t) => t.id == edited.id);
-      if (idx >= 0) {
-        cache.update(() => cache.list[idx] = edited);
-      } else {
-        loggy.warning('Task ${edited.id} not found. Adding it instead.');
-        cache.add(edited);
-      }
-    }
-    await saveToDoTasksCache();
-  }
-
-  void deleteTask(ToDoTask deleted) async {
-    loggy.info('Deleting task ${deleted.id}');
-
-    final cache = await toDoTasksCache;
-    final idx = cache.list.indexWhere((t) => t.id == deleted.id);
-    if (idx >= 0) {
-      var task = cache.removeAt(idx);
-      _deletedTodoIds.add(task.id);
-    } else {
-      loggy.warning('Task ${deleted.id} was not found.');
-    }
-    await saveToDoTasksCache();
-  }
-
-  Future saveToDoTasksCache() async {
-    loggy.warning('Saving the tasks cache');
-    var cache = _toDoTasksCache;
-    if (!await _toDoDataFile.exists()) {
-      loggy.warning('_toDoDataFile does not exist. Creating the file at:\n${_toDoDataFile.path}');
-      await _toDoDataFile.create(recursive: true);
-    }
-    return _toDoDataFile.writeAsString(JsonEncoder.withIndent(' ' * 4).convert({'taskList': cache!.list}));
-  }
 }
 
 /// Specialized in fetching data from the interwebs
@@ -376,6 +265,175 @@ class APIModel {
             return (issues, data['isLast'] as bool, data['nextPageToken'] as String?);
           },
         );
+  }
+}
+
+class ToDoTasksModel with UiLoggy {
+  static final ToDoTasksModel _instance = ToDoTasksModel._internal();
+
+  factory ToDoTasksModel() => _instance;
+  ToDoTasksModel._internal() {
+    isReady = _getReady();
+    _saveTimer = Timer.periodic(
+      Duration(seconds: 1),
+      (timer) {
+        if (_saveRequested) {
+          _saveIsAllowed = true;
+          saveToDoTasksCache();
+        }
+        _saveRequested = false;
+      },
+    );
+  }
+
+  bool _saveIsAllowed = true, _saveRequested = false;
+  // ignore: unused_field
+  Timer? _saveTimer;
+
+  final File _toDoDataFile = File(
+    path
+        .join(
+          SettingsModel().settingsFolder.path,
+          'to_do.json',
+        )
+        .replaceFirst(RegExp(r'^\\?/?'), ''),
+  );
+
+  final List<int> _deletedTodoIds = [];
+  late final ObservableList<ToDoTask>? toDoTasksCache;
+
+  late Future<bool> isReady;
+  Future<bool> _getReady() async {
+    loggy.info('Getting cache ready');
+    if (!await _toDoDataFile.exists()) {
+      loggy.warning('_toDoDataFile does not exist. Initializing cache to []');
+      toDoTasksCache = ObservableList();
+    } else {
+      var raw = await _toDoDataFile.readAsString();
+
+      List data = raw.trim().isEmpty ? [] : jsonDecode(raw)?['taskList'] ?? [];
+      toDoTasksCache = ObservableList.from(data.map((e) => ToDoTask.fromJson(e)));
+    }
+    return true;
+  }
+
+  /// Gives a new task with the correct unique ID and creation date.
+  Future<ToDoTask> createNewTask({
+    String? title,
+    String? notes,
+    List<String>? ticketKeys,
+    int categoryID = -1,
+  }) async {
+    loggy.info('Creating a new task');
+    var cacheIsReady = await isReady;
+    if (!cacheIsReady) {
+      loggy.error('Cache is not ready???');
+      throw Exception('Cache is not ready???');
+    }
+    int validId = toDoTasksCache!.list.fold(0, (v, t) => v = max(v, t.id)) + 1;
+    var task = ToDoTask(
+      id: validId,
+      title: title,
+      notes: notes,
+      linkedIssues: ticketKeys ?? [],
+      category: categoryID,
+      dateAdded: DateTime.now(),
+    );
+    _deletedTodoIds.remove(validId);
+    toDoTasksCache?.add(task);
+    await saveToDoTasksCache();
+    loggy.info('Created task id ${task.id}');
+    return task;
+  }
+
+  Future<void> editTask(ToDoTask edited) async {
+    loggy.info('Editing task ${edited.id}');
+    loggy.debug('Edited data: ${JsonEncoder.withIndent('    ').convert(edited.toJson())}');
+    final cacheIsReady = await isReady;
+    if (!cacheIsReady) {
+      loggy.error('Cache is not ready???');
+      throw Exception('Cache is not ready???');
+    }
+
+    final idx = toDoTasksCache!.list.indexWhere((t) => t.id == edited.id);
+
+    if (_deletedTodoIds.contains(edited.id)) {
+      loggy.warning('Because task #${edited.id} was already deleted, editing is aborted.');
+      return;
+    }
+    if (idx >= 0) {
+      toDoTasksCache![idx] = edited;
+      loggy.debug('After edit: ${JsonEncoder.withIndent('    ').convert(toDoTasksCache!.list[idx].toJson())}');
+    } else {
+      loggy.warning('Task ${edited.id} not found. Adding it instead.');
+      toDoTasksCache!.add(edited);
+    }
+    await saveToDoTasksCache();
+  }
+
+  void editTasks(Iterable<ToDoTask> editedList) async {
+    loggy.info('Editing ${editedList.length} task(s)');
+    final cacheIsReady = await isReady;
+    if (!cacheIsReady) {
+      loggy.error('Cache is not ready???');
+      throw Exception('Cache is not ready???');
+    }
+    for (var edited in editedList) {
+      if (_deletedTodoIds.contains(edited.id)) {
+        loggy.warning('Because task #${edited.id} was already deleted, editing is aborted.');
+        continue;
+      }
+      final idx = toDoTasksCache!.list.indexWhere((t) => t.id == edited.id);
+      if (idx >= 0) {
+        toDoTasksCache![idx] = edited;
+      } else {
+        loggy.warning('Task ${edited.id} not found. Adding it instead.');
+        toDoTasksCache!.add(edited);
+      }
+    }
+    saveToDoTasksCache();
+  }
+
+  void deleteTask(ToDoTask deleted) => deleteTaskById(deleted.id);
+
+  void deleteTaskById(int id) async {
+    loggy.info('Deleting task with id: $id');
+
+    final cacheIsReady = await isReady;
+    if (!cacheIsReady) {
+      loggy.error('Cache is not ready???');
+      throw Exception('Cache is not ready???');
+    }
+    final idx = toDoTasksCache!.list.indexWhere((t) => t.id == id);
+    if (idx >= 0) {
+      var task = toDoTasksCache!.removeAt(idx);
+      _deletedTodoIds.add(task.id);
+    } else {
+      loggy.warning('Task $id was not found.');
+    }
+    await saveToDoTasksCache();
+  }
+
+  Future saveToDoTasksCache() async {
+    loggy.info('Saving the tasks cache');
+
+    if (!_saveIsAllowed) {
+      loggy.warning('The save timer is on cooldown; saving request');
+      _saveRequested = true;
+      return;
+    }
+    _saveIsAllowed = false;
+    final cacheIsReady = await isReady;
+    if (!cacheIsReady) {
+      loggy.error('Cache is not ready???');
+      throw Exception('Cache is not ready???');
+    }
+
+    if (!await _toDoDataFile.exists()) {
+      loggy.warning('_toDoDataFile does not exist. Creating the file at:\n${_toDoDataFile.path}');
+      await _toDoDataFile.create(recursive: true);
+    }
+    return _toDoDataFile.writeAsString(JsonEncoder.withIndent(' ' * 4).convert({'taskList': toDoTasksCache!.list}));
   }
 }
 
