@@ -276,7 +276,7 @@ class _TodoPageState extends State<TodoPage> {
                                                       return;
                                                     }
                                                     setState(() {
-                                                      taskController.category = catId;
+                                                      taskController.category.value = catId;
                                                       ToDoTasksModel().editTask(taskController.toToDoTask());
                                                     });
                                                   },
@@ -1010,7 +1010,8 @@ enum DefaultTaskCategory {
   toReview(-5, 'To review', Symbols.mystery),
   waitingForInput(-6, 'Waiting for input', Symbols.pending),
   missingScoping(-7, 'Missing scoping', Symbols.filter_center_focus),
-  critical(-8, 'Critical', Symbols.dangerous, color: Colors.red);
+  critical(-8, 'Critical', Symbols.dangerous, color: Colors.red)
+  ;
 
   final int id;
   final String displayName;

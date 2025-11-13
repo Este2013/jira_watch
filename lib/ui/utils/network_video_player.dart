@@ -85,25 +85,23 @@ class DesktopVideoPlayer extends StatefulWidget {
 }
 
 class _DesktopVideoPlayerState extends State<DesktopVideoPlayer> {
-  late final Player player;
-  late final controller = VideoController(player);
+  static Player? player;
+  late final VideoController controller;
 
   @override
   void initState() {
-    MediaKit.ensureInitialized();
-    player = Player();
-    player.open(Media(widget.url, httpHeaders: {'Authorization': APIDao().authHeader}));
     super.initState();
+    player ??= Player();
+    controller = VideoController(player!);
+    player!.open(Media(widget.url, httpHeaders: {'Authorization': APIDao().authHeader}));
   }
 
   @override
   void dispose() {
-    player.dispose();
+    // player.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Video(controller: controller);
-  }
+  Widget build(BuildContext context) => Video(controller: controller);
 }

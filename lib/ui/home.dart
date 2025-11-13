@@ -440,7 +440,6 @@ class ChangeLogsDialog extends StatelessWidget {
               ],
             ),
             ChangeLogItem('🧭 Main navigation pages now persist through navigation rail selections'),
-
             ChangeLogItem('☀️ Assigned to and Reporter field are now lit when you are the person in it'),
           ]),
           ChangeLogSection.bugFixes([
@@ -477,11 +476,13 @@ class ChangeLogsDialog extends StatelessWidget {
           ]),
           ChangeLogSection.bugFixes([
             ChangeLogItem('Updates section would reload in a never-ending loop if no project was selected'),
+            ChangeLogItem('Windows: media_kit\'s video player is now statically kept to avoid crashes caused by underlying plugin after dispose calls'),
             ChangeLogItem(
               '"To do" section fixes:',
               subItems: [
                 ChangeLogItem('Filters menu now show filtered-out categories as options'),
                 ChangeLogItem('Category is now saved when using "Add to tasks" button'),
+                ChangeLogItem('Reworked the dang whole todotasks event system to fix UI jank and missed updates'),
               ],
             ),
             ChangeLogItem(
@@ -494,7 +495,7 @@ class ChangeLogsDialog extends StatelessWidget {
           ]),
           ChangeLogSection.chores([
             ChangeLogItem('Bumped version number.'),
-            ChangeLogItem(''),
+            ChangeLogItem('Updated  Dart SDK version, and made adequate fixes.'),
           ]),
           ChangeLogSection.knownBugs([
             ChangeLogItem('Emojis are not rendered in comments (there is no Atlassian API for that)'),

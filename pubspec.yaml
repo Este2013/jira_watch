@@ -4,7 +4,7 @@ publish_to: "none"
 version: 1.3.0
 
 environment:
-  sdk: ^3.9.0-100.2.beta
+  sdk: ^3.10.0-75.1.beta
 
 dependencies:
   calendar_date_picker2: ^2.0.1

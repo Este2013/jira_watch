@@ -348,7 +348,6 @@ class ToDoTasksModel with UiLoggy {
 
   Future<void> editTask(ToDoTask edited) async {
     loggy.info('Editing task ${edited.id}');
-    loggy.debug('Edited data: ${JsonEncoder.withIndent('    ').convert(edited.toJson())}');
     final cacheIsReady = await isReady;
     if (!cacheIsReady) {
       loggy.error('Cache is not ready???');
@@ -363,7 +362,6 @@ class ToDoTasksModel with UiLoggy {
     }
     if (idx >= 0) {
       toDoTasksCache![idx] = edited;
-      loggy.debug('After edit: ${JsonEncoder.withIndent('    ').convert(toDoTasksCache!.list[idx].toJson())}');
     } else {
       loggy.warning('Task ${edited.id} not found. Adding it instead.');
       toDoTasksCache!.add(edited);

@@ -8,6 +8,7 @@ import 'package:jira_watcher/ui/home.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/utils/%F0%9F%AA%B5.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:loggy/loggy.dart';
@@ -17,6 +18,7 @@ void main() {
     logPrinter: FileLogPrinter(),
   );
   logInfo('Starting Jira Watcher app');
+  MediaKit.ensureInitialized();
   Future.wait([
     SettingsModel().appInfo.version,
     SettingsModel().appInfo.buildNumber,

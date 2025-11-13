@@ -143,8 +143,10 @@ class _UpdatesPageState extends State<UpdatesPage> {
   DateTime? get afterDateTime {
     if (timeFilter is String?) {
       switch (timeFilter) {
+        case 'all time':
         case null:
           return null;
+
         case 'today':
           return DateTime(now.year, now.month, now.day);
         case 'yesterday':
@@ -171,6 +173,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
   DateTime? get beforeDateTime {
     if (timeFilter is String?) {
       switch (timeFilter) {
+        case 'all time':
         case null:
           return null;
         case 'today':
@@ -231,7 +234,6 @@ class _UpdatesPageState extends State<UpdatesPage> {
           // size is too small for side-by-side AND
           // there is no open dialog
           //  => we show selected ticket in a dialog
-
           SchedulerBinding.instance.addPostFrameCallback(
             (_) {
               showDialog(
@@ -287,7 +289,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
                             ),
                           ),
                           TimeFilterDropdown(
-                            init: timeFilter,
+                            init: timeFilter ?? 'all time',
                             save: (data) {
                               setState(() => timeFilter = data);
                               _saveFilters();
@@ -935,12 +937,12 @@ class _TimeFilterDropdownState extends State<TimeFilterDropdown> {
   }
 
   @override
-  Widget build(BuildContext context) => DropdownMenu<String?>(
+  Widget build(BuildContext context) => DropdownMenu<String>(
     enableSearch: false,
     leadingIcon: const Icon(Icons.calendar_today),
     initialSelection: _dropdownSelection,
     dropdownMenuEntries: const [
-      DropdownMenuEntry(value: null, label: 'All time'),
+      DropdownMenuEntry(value: 'all time', label: 'All time'),
       DropdownMenuEntry(value: 'today', label: 'Today'),
       DropdownMenuEntry(value: 'yesterday', label: 'Yesterday'),
       DropdownMenuEntry(value: 'week', label: 'This week'),

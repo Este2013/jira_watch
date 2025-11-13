@@ -15,11 +15,14 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'issue_comments_view.dart';
 import 'issue_details_view.dart';
 
+enum IssueTab { history, comments, details, json }
+
 class SingleTicketView extends StatelessWidget with UiLoggy {
-  const SingleTicketView(this.ticket, {super.key, this.isPartOfDialog = false});
+  const SingleTicketView(this.ticket, {super.key, this.isPartOfDialog = false, this.initialTab = IssueTab.history});
 
   final IssueData ticket;
   final bool isPartOfDialog;
+  final IssueTab initialTab;
 
   @override
   Widget build(BuildContext context) {
@@ -104,7 +107,9 @@ class SingleTicketView extends StatelessWidget with UiLoggy {
 }
 
 class SingleTicketDialog extends StatelessWidget {
-  const SingleTicketDialog(this.ticket, {super.key});
+  const SingleTicketDialog(this.ticket, {super.key, this.initialTab = IssueTab.history});
+
+  final IssueTab initialTab;
 
   final IssueData ticket;
   @override
@@ -116,6 +121,7 @@ class SingleTicketDialog extends StatelessWidget {
         ticket,
         isPartOfDialog: true,
         key: Key(ticket.data['key']),
+        initialTab: initialTab,
       ),
     ),
   );
