@@ -667,6 +667,7 @@ class ChangeLogsDialog extends StatelessWidget {
           ]),
         ],
       ),
+
       ChangeLogCard(
         '1.3.0',
         sections: [
@@ -707,10 +708,12 @@ class ChangeLogsDialog extends StatelessWidget {
           ]),
         ],
       ),
+
       ChangeLogCard(
         '1.4.0',
         sections: [
           ChangeLogSection.features([
+            ChangeLogItem('🔍 Issue search is now available!'),
             ChangeLogItem('💬 When the window is too small, the issue details section gets shown in a new modal'),
             ChangeLogItem('🔗 Jira link tiles now open in an in-app dialog'),
           ]),
