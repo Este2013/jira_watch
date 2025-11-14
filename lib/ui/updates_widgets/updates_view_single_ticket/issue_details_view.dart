@@ -826,6 +826,7 @@ class IssueLinkTile extends StatelessWidget {
       context: context,
       builder: (_) => SingleTicketDialog(
         IssueData.fromJson({'data': issueLinkData}),
+        initialTab: IssueTab.details,
       ),
     ),
   );

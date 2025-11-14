@@ -13,8 +13,7 @@ A Jira client that shows the most recent updates done in projects you work on.
 
  - vertical view: under a width threshold, selected ticket should appear in a dialog instead of next to the list.
 
-
-  - fix: [TODO]  make a full single controller for editing notes
+ - [TODO] SEARCH in nav rail
 
 ## PRIO
 

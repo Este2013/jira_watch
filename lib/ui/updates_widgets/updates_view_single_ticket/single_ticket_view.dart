@@ -17,12 +17,30 @@ import 'issue_details_view.dart';
 
 enum IssueTab { history, comments, details, json }
 
-class SingleTicketView extends StatelessWidget with UiLoggy {
+class SingleTicketView extends StatefulWidget {
   const SingleTicketView(this.ticket, {super.key, this.isPartOfDialog = false, this.initialTab = IssueTab.history});
 
   final IssueData ticket;
   final bool isPartOfDialog;
   final IssueTab initialTab;
+
+  @override
+  State<SingleTicketView> createState() => _SingleTicketViewState();
+}
+
+class _SingleTicketViewState extends State<SingleTicketView> with TickerProviderStateMixin, UiLoggy {
+  late final TabController tabController;
+
+  @override
+  void initState() {
+    tabController = TabController(
+      length: 4,
+      initialIndex: widget.initialTab.index,
+      vsync: this,
+    );
+
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +50,7 @@ class SingleTicketView extends StatelessWidget with UiLoggy {
         icon: Icon(Symbols.history),
       ),
       Tab(
-        text: 'Comments (${ticket.commentsData?['comments']?.length ?? 0})',
+        text: 'Comments (${widget.ticket.commentsData?['comments']?.length ?? 0})',
         icon: Icon(Symbols.chat_bubble),
       ),
       Tab(
@@ -45,16 +63,16 @@ class SingleTicketView extends StatelessWidget with UiLoggy {
       ),
     ];
     Future<IssueData>? fullTicketData;
-    if ([ticket.changelog, ticket.fields, ticket.commentsData].any((e) => e == null)) {
-      loggy.info('Provided data for ${ticket.key} is incomplete; fetching a full version online');
-      if (ticket.key == null) return ErrorWidget("Can't work if the issue's key is null!!!");
-      fullTicketData = DataModel().api.getIssue(ticket.key!, expand: ['changelog']).then(
+    if ([widget.ticket.changelog, widget.ticket.fields, widget.ticket.commentsData].any((e) => e == null)) {
+      loggy.info('Provided data for ${widget.ticket.key} is incomplete; fetching a full version online');
+      if (widget.ticket.key == null) return ErrorWidget("Can't work if the issue's key is null!!!");
+      fullTicketData = DataModel().api.getIssue(widget.ticket.key!, expand: ['changelog']).then(
         (value) {
           return IssueData.fromJson({'data': jsonDecode(value.body)});
         },
       );
     } else {
-      fullTicketData = Future.value(ticket);
+      fullTicketData = Future.value(widget.ticket);
     }
 
     return FutureBuilder(
@@ -66,9 +84,9 @@ class SingleTicketView extends StatelessWidget with UiLoggy {
             length: tabs.length,
 
             child: Scaffold(
-              backgroundColor: isPartOfDialog ? Colors.transparent : null,
+              backgroundColor: widget.isPartOfDialog ? Colors.transparent : null,
               appBar: AppBar(
-                backgroundColor: isPartOfDialog ? Colors.transparent : null,
+                backgroundColor: widget.isPartOfDialog ? Colors.transparent : null,
                 toolbarHeight: kToolbarHeight + 10,
                 title: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -86,9 +104,10 @@ class SingleTicketView extends StatelessWidget with UiLoggy {
                     Text(ticket['fields']['summary'] ?? 'null'),
                   ],
                 ),
-                bottom: TabBar(tabs: tabs),
+                bottom: TabBar(tabs: tabs, controller: tabController),
               ),
               body: TabBarView(
+                controller: tabController,
                 physics: NeverScrollableScrollPhysics(),
                 children: [
                   HistoryPage(ticket: ticket),
@@ -110,8 +129,8 @@ class SingleTicketDialog extends StatelessWidget {
   const SingleTicketDialog(this.ticket, {super.key, this.initialTab = IssueTab.history});
 
   final IssueTab initialTab;
-
   final IssueData ticket;
+
   @override
   Widget build(BuildContext context) => AlertDialog(
     clipBehavior: Clip.hardEdge,

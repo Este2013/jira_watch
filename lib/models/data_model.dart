@@ -214,6 +214,24 @@ class APIModel {
 
   // ISSUES /////////////////////////////////////////////////////////////////////
 
+  /// https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-jql-get
+  Future jqlSearch(
+    String jql, {
+    List<String> expand = const [],
+    List<String> fields = const ['id'],
+    List<String> excludedFields = const [],
+  }) {
+    var data = dao.getJson(
+      '/rest/api/3/search/jql',
+      queryParameters: {
+        'jql': jql,
+        if (expand.isNotEmpty) 'expand': expand.join(','),
+        'fields': [...fields, ...excludedFields.map((e) => '-$e')].join(','),
+      },
+    );
+    return data;
+  }
+
   Future<Response> getIssue(String issueKey, {List<String> expand = const []}) {
     return dao.requestAtEndpoint(
       '/rest/api/3/issue/$issueKey',

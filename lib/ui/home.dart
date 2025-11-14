@@ -1,12 +1,17 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_page.dart';
-import 'package:jira_watcher/ui/updates_widgets/home_overview.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_home_view.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/settings.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/issue_details_view.dart';
 import 'package:loggy/loggy.dart';
+import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -125,72 +130,94 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: Row(
-      children: [
-        NavigationRail(
-          groupAlignment: 0,
-          selectedIndex: _selectedIndex,
-          onDestinationSelected: _onRailSelect,
-          labelType: NavigationRailLabelType.all,
-          trailingAtBottom: true,
-          destinations: [
-            NavigationRailDestination(
-              icon: Icon(Icons.dashboard),
-              label: Text('Updates'),
-            ),
-            NavigationRailDestination(
-              icon: Icon(Icons.bug_report),
-              label: Text('Issues'),
-            ),
-            NavigationRailDestination(
-              icon: Icon(Icons.assignment),
-              label: Text('To do'),
-            ),
-          ],
-          trailing: Padding(
-            padding: const EdgeInsets.only(bottom: 8.0),
-            child: IconButton(
-              onPressed: () {
-                loggy.info('User opens the settings dialog from navigation rail');
-                showDialog(context: context, builder: (context) => SettingsDialog());
-              },
-              icon: Icon(Icons.settings),
-            ),
-          ),
-        ),
-        VerticalDivider(width: 1),
-        Expanded(
-          child: Scaffold(
-            appBar: AppBar(
-              title: Row(
-                children: [
-                  Expanded(child: Text(_currentPage)),
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        currentPageSubtitle(_currentPage),
-                        style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
-                      ),
-                    ),
+  Widget build(BuildContext context) => Shortcuts(
+    shortcuts: {
+      LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyF): OpenSearchIssueDialogIntent(),
+    },
+    child: Actions(
+      actions: {
+        OpenSearchIssueDialogIntent: OpenSearchIssueDialogAction(context),
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          body: Row(
+            children: [
+              NavigationRail(
+                groupAlignment: 0,
+                selectedIndex: _selectedIndex,
+                onDestinationSelected: _onRailSelect,
+                labelType: NavigationRailLabelType.all,
+                trailingAtBottom: true,
+                leading: IconButton(
+                  tooltip: 'Search (Ctrl F)',
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (context) => SearchIssueDialog(),
                   ),
-                  Spacer(),
-                ],
-              ),
+                  icon: Icon(Icons.search),
+                ),
 
-              actions: [],
-            ),
-            body: IndexedStack(
-              index: _selectedIndex,
-              children: const [
-                UpdatesPage(),
-                UnderConstructionNotice(),
-                TodoPagePreLoadView(),
-              ],
-            ),
+                destinations: [
+                  NavigationRailDestination(
+                    icon: Icon(Icons.dashboard),
+                    label: Text('Updates'),
+                  ),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.bug_report),
+                    label: Text('Issues'),
+                  ),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.assignment),
+                    label: Text('To do'),
+                  ),
+                ],
+                trailing: Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: IconButton(
+                    onPressed: () {
+                      loggy.info('User opens the settings dialog from navigation rail');
+                      showDialog(context: context, builder: (context) => SettingsDialog());
+                    },
+                    icon: Icon(Icons.settings),
+                  ),
+                ),
+              ),
+              VerticalDivider(width: 1),
+              Expanded(
+                child: Scaffold(
+                  appBar: AppBar(
+                    title: Row(
+                      children: [
+                        Expanded(child: Text(_currentPage)),
+                        Expanded(
+                          child: Center(
+                            child: Text(
+                              currentPageSubtitle(_currentPage),
+                              style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+                            ),
+                          ),
+                        ),
+                        Spacer(),
+                      ],
+                    ),
+
+                    actions: [],
+                  ),
+                  body: IndexedStack(
+                    index: _selectedIndex,
+                    children: const [
+                      UpdatesPage(),
+                      UnderConstructionNotice(),
+                      TodoPagePreLoadView(),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     ),
   );
 
@@ -204,6 +231,219 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
     }
     return a;
   }
+}
+
+class OpenSearchIssueDialogIntent extends Intent {}
+
+class OpenSearchIssueDialogAction extends Action with UiLoggy {
+  BuildContext context;
+  OpenSearchIssueDialogAction(this.context);
+  @override
+  Object? invoke(Intent intent) {
+    loggy.info('User pressed ctrl + F: showing search issue dialog');
+    return showDialog(context: context, builder: (context) => SearchIssueDialog());
+  }
+}
+
+class SearchIssueDialog extends StatefulWidget {
+  const SearchIssueDialog({
+    super.key,
+  });
+
+  @override
+  State<SearchIssueDialog> createState() => _SearchIssueDialogState();
+}
+
+class _SearchIssueDialogState extends State<SearchIssueDialog> {
+  late String searchName;
+  TextEditingController searchController = TextEditingController();
+
+  Future<String> get myOwnRecentEdits async {
+    var data = await DataModel().api.myself().then((value) => jsonDecode(value.body)['displayName']);
+    return 'issue in updatedBy("$data") ORDER BY updated';
+  }
+
+  @override
+  void initState() {
+    searchName = 'My recent edits';
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Row(
+      spacing: 8,
+      children: [
+        Expanded(
+          child: TextField(
+            autofocus: true,
+            controller: searchController,
+            decoration: InputDecoration(
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.search),
+              suffix: IconButton(
+                onPressed: () => searchController.text = '',
+                icon: Icon(Symbols.close),
+                visualDensity: VisualDensity.compact,
+                iconSize: 16,
+              ),
+              label: Text('Search'),
+            ),
+
+            onChanged: (value) => setState(() {
+              searchName = 'Search results';
+            }),
+            onEditingComplete: () => setState(() {
+              searchName = 'Search results';
+            }),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(1000),
+            border: (searchName == 'My recent edits')
+                ? Border.all(
+                    color: Theme.of(context).colorScheme.primary,
+                    width: 2,
+                  )
+                : null,
+          ),
+          child: IconButton(
+            iconSize: 32,
+            tooltip: 'My recent edits',
+            onPressed: () => setState(() {
+              searchName = 'My recent edits';
+            }),
+            icon: Icon(Symbols.change_circle),
+            isSelected: searchName == 'My recent edits',
+          ),
+        ),
+      ],
+    ),
+    constraints: BoxConstraints(maxWidth: 1200 - 50, minWidth: 600),
+
+    content: AnimatedSize(
+      duration: Durations.long4,
+      child: Column(
+        spacing: 16,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 16),
+            child: Text(searchName, style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.start),
+          ),
+          if (searchName == 'Search results')
+            FutureBuilder(
+              future: Future.wait([
+                // direct key search
+                Future.microtask(
+                  () async {
+                    List results = [];
+                    var directTicketIds = RegExp(r'[A-Z]+-[0-9]+').allMatches(searchController.text);
+                    if (directTicketIds.isNotEmpty) {
+                      for (var m in directTicketIds) {
+                        String? key = m.group(0);
+                        if (key == null) continue;
+                        results.add(jsonDecode((await DataModel().api.getIssue(key)).body));
+                      }
+                    }
+                    return results;
+                  },
+                ),
+                // text search
+                DataModel().api.jqlSearch(
+                  '${searchController.text.isEmpty ? '' : 'text ~ "${searchController.text}"'} ORDER BY created',
+                  fields: [
+                    'issuetype',
+                    'priority',
+                    'status',
+                    'statusCategory',
+                    'summary',
+                  ],
+                  expand: [],
+                ),
+              ]),
+              builder: (context, snapshot) {
+                if (snapshot.hasData) {
+                  List issues = [...snapshot.data![0], ...(snapshot.data![1]['issues'] as List)];
+
+                  return Flexible(
+                    child: SizedBox(
+                      height: 500,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: [for (var i in issues) IssueLinkTile(i)],
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return LinearProgressIndicator();
+              },
+            ),
+          if (searchName == 'My recent edits')
+            FutureBuilder(
+              future: myOwnRecentEdits.then(
+                (jql) => DataModel().api.jqlSearch(
+                  jql,
+                  fields: [
+                    'issuetype',
+                    'priority',
+                    'status',
+                    'statusCategory',
+                    'summary',
+                  ],
+                  expand: [],
+                ),
+              ),
+              builder: (context, snapshot) {
+                if (snapshot.hasData) {
+                  List /*<IssueData>*/ issues = (snapshot.data!['issues'] as List); //.map((e) => IssueData(e)).toList();
+
+                  return Flexible(
+                    child: SizedBox(
+                      height: 500,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: [for (var i in issues) IssueLinkTile(i)],
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return LinearProgressIndicator();
+              },
+            ),
+
+          // "GO TO ALL" SECTION
+          Row(
+            spacing: 16,
+            children: [
+              Row(
+                spacing: 8,
+                children: [
+                  SizedBox(),
+                  Transform.rotate(angle: pi / 4, child: Icon(Symbols.navigation)),
+                  Text('Go to all:'),
+                ],
+              ),
+              ActionChip(label: Text('Boards'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().api.dao.domain}/jira/boards?page=1&sortKey=name&sortOrder=ASC'))),
+              ActionChip(label: Text('Projects'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().api.dao.domain}/jira/projects?page=1&sortKey=name&sortOrder=ASC'))),
+              ActionChip(label: Text('Filters'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().api.dao.domain}/jira/filters?Search=Search&filterView=search&name='))),
+              ActionChip(label: Text('Plans'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().api.dao.domain}/jira/plans'))),
+              ActionChip(
+                label: Text('Teams'),
+                onPressed: () => launchUrl(
+                  Uri.parse('https://${DataModel().api.dao.domain}/jira/people'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class UnderConstructionNotice extends StatelessWidget {
