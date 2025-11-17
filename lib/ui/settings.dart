@@ -91,7 +91,7 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
                     height: 48,
                   ),
                 ),
-                applicationLegalese: """A Jira client, built to easily overview recent ticket updates, and keep tabs on your tasks.\nBuilt and maintained by Esteban Aragon (GitHub @Este2013). \nAdress your dissatisfactions and/or love letters to him. Preferably the latter.""",
+                applicationLegalese: """A Jira client, built to easily overview recent work item updates, and keep tabs on your tasks.\nBuilt and maintained by Esteban Aragon (GitHub @Este2013). \nAdress your dissatisfactions and/or love letters to him. Preferably the latter.""",
               );
             },
             // icon: Icon(),
@@ -316,7 +316,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                 enableFilter: false,
                 textInputAction: TextInputAction.none,
                 requestFocusOnTap: false,
-                initialSelection: SettingsModel().useCompactTicketDisplay.value,
+                initialSelection: SettingsModel().useCompactJiraWorkItemDisplay.value,
                 dropdownMenuEntries: [
                   DropdownMenuEntry(value: 'When issue was read', label: 'When issue was read'),
                   DropdownMenuEntry(value: 'Never', label: 'Never'),
@@ -324,7 +324,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                 ],
                 onSelected: (value) => setState(() {
                   if (value == null) return;
-                  SettingsModel().useCompactTicketDisplay.value = value;
+                  SettingsModel().useCompactJiraWorkItemDisplay.value = value;
                 }),
               ),
             ],

@@ -51,13 +51,13 @@ class CommentEntry {
 class CommentsPage extends StatelessWidget {
   final List<CommentEntry>? _entries;
 
-  final JiraWorkItemData ticket;
+  final JiraWorkItemData workItem;
 
   /// Provide the raw issue JSON (with `changelog.histories` included)
   CommentsPage({
     super.key,
-    required this.ticket,
-  }) : _entries = (ticket.commentsData?['comments'] as List<dynamic>?)?.map((h) => CommentEntry.fromJson(h as Map<String, dynamic>)).toList().reversed.toList();
+    required this.workItem,
+  }) : _entries = (workItem.commentsData?['comments'] as List<dynamic>?)?.map((h) => CommentEntry.fromJson(h as Map<String, dynamic>)).toList().reversed.toList();
 
   @override
   Widget build(BuildContext context) {
@@ -70,12 +70,12 @@ class CommentsPage extends StatelessWidget {
     return _entries.isEmpty
         ? const Center(child: Text('There are no comments'))
         : ListView.builder(
-            key: Key(ticket['key']),
+            key: Key(workItem['key']),
             padding: const EdgeInsets.all(8),
             itemCount: _entries.length,
             itemBuilder: (context, index) {
               final comment = _entries[index];
-              return CommentListEntry(ticket: ticket, comment: comment);
+              return CommentListEntry(workItem: workItem, comment: comment);
             },
           );
   }
@@ -84,10 +84,10 @@ class CommentsPage extends StatelessWidget {
 class CommentListEntry extends StatelessWidget {
   const CommentListEntry({
     super.key,
-    required this.ticket,
+    required this.workItem,
     required this.comment,
   });
-  final JiraWorkItemData ticket;
+  final JiraWorkItemData workItem;
   final CommentEntry comment;
 
   @override
@@ -145,7 +145,7 @@ class CommentListEntry extends StatelessWidget {
             if (comment.body['type'] == 'doc')
               AdfRenderer(
                 adf: comment.body,
-                mediaBuilder: (context, node, size) => AdfRenderer.defaultMediaBuilder(node, context, (ticket.fields!['attachment'] as List), size),
+                mediaBuilder: (context, node, size) => AdfRenderer.defaultMediaBuilder(node, context, (workItem.fields!['attachment'] as List), size),
               ),
 
             if (kDebugMode)

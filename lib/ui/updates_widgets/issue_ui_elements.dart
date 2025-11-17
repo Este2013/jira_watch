@@ -119,28 +119,28 @@ class _IssueBadgeState extends State<IssueBadge> {
 
 /// Shows the issues project, parent and key as [IssueBadge]s.
 class IssueLinkWithParentsRow extends StatefulWidget {
-  final JiraWorkItemData ticket;
+  final JiraWorkItemData workItem;
   final bool compact;
 
-  const IssueLinkWithParentsRow(this.ticket, {super.key, this.compact = false});
+  const IssueLinkWithParentsRow(this.workItem, {super.key, this.compact = false});
 
   @override
   State<IssueLinkWithParentsRow> createState() => _IssueLinkWithParentsRowState();
 }
 
 class _IssueLinkWithParentsRowState extends State<IssueLinkWithParentsRow> {
-  String? _ticketUrl(dynamic ticketKey) {
+  String? _workItemUrl(dynamic workItemKey) {
     final domain = APIDao().domain;
-    if (domain != null && ticketKey != null) {
-      return 'https://$domain/browse/$ticketKey';
+    if (domain != null && workItemKey != null) {
+      return 'https://$domain/browse/$workItemKey';
     }
     return null;
   }
 
   @override
   Widget build(BuildContext context) {
-    final ticket = widget.ticket;
-    final fields = ticket['fields'] ?? {};
+    final workItem = widget.workItem;
+    final fields = workItem['fields'] ?? {};
     final project = fields['project'] ?? {};
     final parent = fields['parent'];
     final projectName = project['name'] ?? '';
@@ -151,7 +151,7 @@ class _IssueLinkWithParentsRowState extends State<IssueLinkWithParentsRow> {
     final parentKey = parent?['key'];
     final parentIconUrl = parent?['fields']?['issuetype']?['iconUrl'];
 
-    final issueKey = ticket['key'] ?? '';
+    final issueKey = workItem['key'] ?? '';
 
     return Row(
       children: [
@@ -174,7 +174,7 @@ class _IssueLinkWithParentsRowState extends State<IssueLinkWithParentsRow> {
             parentKey,
             key: Key(parentKey),
             iconUrl: parentIconUrl,
-            url: _ticketUrl(parentKey),
+            url: _workItemUrl(parentKey),
             badgeSize: badgeSize,
             compact: widget.compact,
           ),
@@ -183,12 +183,12 @@ class _IssueLinkWithParentsRowState extends State<IssueLinkWithParentsRow> {
           const SizedBox(width: 6),
         ],
 
-        // Your existing ticket key + copy-on-hover
+        // Your existing work item key + copy-on-hover
         IssueBadge(
           issueKey,
           key: Key(issueKey),
           iconUrl: fields?['issuetype']?['iconUrl'],
-          url: _ticketUrl(issueKey),
+          url: _workItemUrl(issueKey),
           badgeSize: badgeSize,
           copyable: true,
         ),
@@ -249,8 +249,8 @@ class JiraWorkItemStatusIndicator extends StatelessWidget {
   }
 }
 
-class CustomTicketStatusIndicator extends StatelessWidget {
-  const CustomTicketStatusIndicator(
+class CustomWorkItemStatusIndicator extends StatelessWidget {
+  const CustomWorkItemStatusIndicator(
     this.statusName, {
     this.color,
     this.colorName,

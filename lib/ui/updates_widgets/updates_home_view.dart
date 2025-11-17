@@ -8,7 +8,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_page.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
-import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/single_ticket_view.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
@@ -40,7 +40,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
   Set<String> activeProjectFilters = {};
   dynamic timeFilter;
 
-  JiraWorkItemData? selectedTicket;
+  JiraWorkItemData? selectedWorkItem;
 
   final ScrollController scrollController = ScrollController(keepScrollOffset: true);
 
@@ -229,18 +229,18 @@ class _UpdatesPageState extends State<UpdatesPage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         double minSizeForLargeView = 1200;
-        if (isAllowedToShowIssueDialog && !isIssueDialogShown && selectedTicket != null && minSizeForLargeView >= constraints.maxWidth && (ModalRoute.of(context)?.isCurrent ?? true)) {
+        if (isAllowedToShowIssueDialog && !isIssueDialogShown && selectedWorkItem != null && minSizeForLargeView >= constraints.maxWidth && (ModalRoute.of(context)?.isCurrent ?? true)) {
           // there is a selection AND
           // size is too small for side-by-side AND
           // there is no open dialog
-          //  => we show selected ticket in a dialog
+          //  => we show selected work item in a dialog
           SchedulerBinding.instance.addPostFrameCallback(
             (_) {
               showDialog(
                 context: context,
                 builder: (_) => SingleJiraWorkItemDialog(
-                  selectedTicket!,
-                  key: Key(selectedTicket!.data['key']),
+                  selectedWorkItem!,
+                  key: Key(selectedWorkItem!.data['key']),
                 ),
               ).whenComplete(
                 () => setState(() {
@@ -333,11 +333,11 @@ class _UpdatesPageState extends State<UpdatesPage> {
                                 itemBuilder: (context, index) {
                                   if (index < allLoadedIssues.length) {
                                     final t = allLoadedIssues[index];
-                                    return JiraTicketPreviewItem(
+                                    return JiraWorkItemPreviewItem(
                                       key: Key(t.key ?? ''),
-                                      ticket: t,
-                                      updateView: selectTicket,
-                                      isSelected: selectedTicket != null && selectedTicket?.key == t.key,
+                                      workItem: t,
+                                      updateView: selectWorkItem,
+                                      isSelected: selectedWorkItem != null && selectedWorkItem?.key == t.key,
                                       changedSize: loadMoreIfNoScrollPossible,
                                     );
                                   }
@@ -368,11 +368,11 @@ class _UpdatesPageState extends State<UpdatesPage> {
               if (minSizeForLargeView < constraints.maxWidth) VerticalDivider(),
               if (minSizeForLargeView < constraints.maxWidth)
                 Expanded(
-                  child: selectedTicket == null
+                  child: selectedWorkItem == null
                       ? Placeholder()
                       : SingleJiraWorkItemView(
-                          selectedTicket!,
-                          key: Key(selectedTicket!.data['key']),
+                          selectedWorkItem!,
+                          key: Key(selectedWorkItem!.data['key']),
                         ),
                 ),
             ],
@@ -382,9 +382,9 @@ class _UpdatesPageState extends State<UpdatesPage> {
     );
   }
 
-  void selectTicket(JiraWorkItemData tkt) {
+  void selectWorkItem(JiraWorkItemData tkt) {
     setState(() {
-      selectedTicket = tkt;
+      selectedWorkItem = tkt;
       isAllowedToShowIssueDialog = true;
     });
   }
@@ -486,35 +486,35 @@ class ProjectFilteringButton extends StatelessWidget {
   }
 }
 
-class JiraTicketPreviewItem extends StatefulWidget {
-  final JiraWorkItemData ticket;
-  final Function(JiraWorkItemData ticket)? updateView;
+class JiraWorkItemPreviewItem extends StatefulWidget {
+  final JiraWorkItemData workItem;
+  final Function(JiraWorkItemData workItem)? updateView;
   final Function()? changedSize;
   final bool isSelected;
 
-  const JiraTicketPreviewItem({super.key, required this.ticket, this.updateView, required this.changedSize, required this.isSelected});
+  const JiraWorkItemPreviewItem({super.key, required this.workItem, this.updateView, required this.changedSize, required this.isSelected});
 
   @override
-  State<JiraTicketPreviewItem> createState() => _JiraTicketPreviewItemState();
+  State<JiraWorkItemPreviewItem> createState() => _JiraWorkItemPreviewItemState();
 }
 
-class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
+class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
   late DateTime? lastReadTime;
 
   @override
   void initState() {
-    lastReadTime = DataModel().syncIssueMarkedAsReadTimeCache?[widget.ticket.key];
+    lastReadTime = DataModel().syncIssueMarkedAsReadTimeCache?[widget.workItem.key];
     super.initState();
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = _ticketColors(context, widget.ticket);
-    final fields = widget.ticket['fields'] ?? {};
+    final colors = _workItemColors(context, widget.workItem);
+    final fields = widget.workItem['fields'] ?? {};
 
     final summary = fields['summary'] ?? 'No Title';
     final updated = fields['updated'] as String? ?? '';
-    final lastUpdateData = (widget.ticket['changelog']['histories'] as List).firstOrNull;
+    final lastUpdateData = (widget.workItem['changelog']['histories'] as List).firstOrNull;
     bool lastEditWasAComment;
     if (lastUpdateData == null) {
       lastEditWasAComment = ((fields['comment']?['comments'] ?? []) as List).isNotEmpty;
@@ -523,11 +523,11 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
     }
 
     return AnimatedBuilder(
-      animation: Listenable.merge([SettingsModel().markAsReadOnOpen, SettingsModel().useCompactTicketDisplay]),
+      animation: Listenable.merge([SettingsModel().markAsReadOnOpen, SettingsModel().useCompactJiraWorkItemDisplay]),
 
       builder: (context, _) {
         bool shouldMarkAsReadOnOpen = SettingsModel().markAsReadOnOpen.value;
-        String useCompactMode = SettingsModel().useCompactTicketDisplay.value;
+        String useCompactMode = SettingsModel().useCompactJiraWorkItemDisplay.value;
         DateTime? updatedTime = DateTime.parse(updated);
         bool isRead = lastReadTime != null ? lastReadTime!.isAfter(updatedTime) || lastReadTime!.isAtSameMomentAs(updatedTime) : false;
         var optionsWhenSelected = Padding(
@@ -551,10 +551,10 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
               onTap: (value) {
                 // Mark as (un)reads
                 if (value == 0) {
-                  if (widget.ticket.key == null) return;
+                  if (widget.workItem.key == null) return;
                   var updatedTime = DateTime.parse(updated);
 
-                  DataModel().markAsRead(widget.ticket.key!, updatedTime, isRead: !isRead);
+                  DataModel().markAsRead(widget.workItem.key!, updatedTime, isRead: !isRead);
                   setState(() {
                     lastReadTime = !isRead ? updatedTime : null;
                   });
@@ -563,14 +563,14 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
                 else if (value == 1) {
                   DataModel().todoTasks
                       .createNewTask(
-                        title: '${widget.ticket.key} — ${widget.ticket.fields?['summary']}',
-                        ticketKeys: [widget.ticket.key!],
+                        title: '${widget.workItem.key} — ${widget.workItem.fields?['summary']}',
+                        workItemKeys: [widget.workItem.key!],
                       )
                       .whenComplete(
                         // ignore: use_build_context_synchronously
                         () => ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Saved in your "To do" queue as "${widget.ticket.key}"'),
+                            content: Text('Saved in your "To do" queue as "${widget.workItem.key}"'),
                           ),
                         ),
                       );
@@ -579,28 +579,28 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
                 else if (value == 2) {
                   showDialog(
                     context: context,
-                    builder: (context) => AddIssueToDoDialog(widget.ticket),
+                    builder: (context) => AddIssueToDoDialog(widget.workItem),
                   );
                 }
                 // View on website
                 else if (value == 3) {
-                  String? getTicketUrl(dynamic ticketKey) {
+                  String? getWorkItemUrl(dynamic workItemKey) {
                     final domain = APIDao().domain;
-                    if (domain != null && ticketKey != null) {
-                      return 'https://$domain/browse/$ticketKey';
+                    if (domain != null && workItemKey != null) {
+                      return 'https://$domain/browse/$workItemKey';
                     }
                     return null;
                   }
 
-                  var ticketUrl = getTicketUrl(widget.ticket.key);
-                  if (ticketUrl != null) {
-                    launchUrl(Uri.parse(ticketUrl));
+                  var workItemURL = getWorkItemUrl(widget.workItem.key);
+                  if (workItemURL != null) {
+                    launchUrl(Uri.parse(workItemURL));
                   } else {
                     showDialog(
                       context: context,
                       builder: (context) => AlertDialog(
                         title: Text('Something went wrong'),
-                        content: Text('The given ticketUrl is null?\nFor ticket key: ${widget.ticket.key}, domain ${APIDao().domain}'),
+                        content: Text('The given workItemURL is null?\nFor workItem key: ${widget.workItem.key}, domain ${APIDao().domain}'),
                       ),
                     );
                   }
@@ -632,11 +632,11 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
                   children: [
                     Row(
                       children: [
-                        IssueLinkWithParentsRow(widget.ticket, compact: showAsCompact),
+                        IssueLinkWithParentsRow(widget.workItem, compact: showAsCompact),
                         if (!showAsCompact)
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: JiraWorkItemStatusIndicator(issue: widget.ticket),
+                            child: JiraWorkItemStatusIndicator(issue: widget.workItem),
                           ),
                         if (showAsCompact)
                           Expanded(
@@ -664,7 +664,7 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
                           child: Builder(
                             builder: (context) {
                               var updatorData = lastEditWasAComment
-                                  ? widget.ticket.fields!['comment']['comments'].last['author']
+                                  ? widget.workItem.fields!['comment']['comments'].last['author']
                                   : lastUpdateData == null
                                   ? fields['creator']
                                   : lastUpdateData['author'];
@@ -678,7 +678,7 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
                                             ? 'Commented'
                                             : 'Changed ${((lastUpdateData['items'] as List).firstOrNull?['field'])}'}'
                                       : updatorData['displayName'],
-                                  child: JiraAvatar(key: Key(widget.ticket['id']), url: updatorData['avatarUrls']['32x32']),
+                                  child: JiraAvatar(key: Key(widget.workItem['id']), url: updatorData['avatarUrls']['32x32']),
                                 ),
                               );
                             },
@@ -716,14 +716,14 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
                 ),
               ),
               onTap: () async {
-                if (shouldMarkAsReadOnOpen && widget.ticket.key != null) {
+                if (shouldMarkAsReadOnOpen && widget.workItem.key != null) {
                   var updatedTime = DateTime.parse(updated);
-                  DataModel().markAsRead(widget.ticket.key!, updatedTime);
+                  DataModel().markAsRead(widget.workItem.key!, updatedTime);
                   setState(() {
                     lastReadTime = updatedTime;
                   });
                 }
-                widget.updateView?.call(widget.ticket);
+                widget.updateView?.call(widget.workItem);
               },
             ),
           ),
@@ -732,8 +732,8 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
     );
   }
 
-  Map<String, Color> _ticketColors(BuildContext context, JiraWorkItemData ticket) {
-    var type = ticket['fields']['issuetype']['name'];
+  Map<String, Color> _workItemColors(BuildContext context, JiraWorkItemData workItem) {
+    var type = workItem['fields']['issuetype']['name'];
     bool isLightTheme = Theme.of(context).brightness == Brightness.light;
     switch (type) {
       case 'Bug':

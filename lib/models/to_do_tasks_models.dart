@@ -69,7 +69,7 @@ class ToDoTasksModel with UiLoggy {
   Future<ToDoTask> createNewTask({
     String? title,
     String? notes,
-    List<String>? ticketKeys,
+    List<String>? workItemKeys,
     int categoryID = -1,
   }) async {
     loggy.info('Creating a new task');
@@ -84,7 +84,7 @@ class ToDoTasksModel with UiLoggy {
       id: validId,
       title: title,
       notes: notes,
-      linkedIssues: ticketKeys ?? [],
+      linkedIssues: workItemKeys ?? [],
       category: categoryID,
       dateAdded: DateTime.now(),
     );
@@ -257,7 +257,7 @@ class ToDoTask {
   late final DateTime dateAdded;
   DateTime? toDoBefore;
 
-  /// List of relevant tickets
+  /// List of relevant workItems
   List<String> linkedIssues;
   String? title, notes;
 
@@ -295,14 +295,14 @@ class ToDoTask {
     final toDoBeforeValue = json['toDoBefore'];
     final toDoBefore = toDoBeforeValue != null ? DateTime.parse(toDoBeforeValue.toString()) : null;
 
-    final ticketsRaw = json['tickets'];
-    final tickets = ticketsRaw is List ? ticketsRaw.map((e) => e.toString()).toList() : <String>[];
+    final workItemsRaw = json['tickets'];
+    final workItems = workItemsRaw is List ? workItemsRaw.map((e) => e.toString()).toList() : <String>[];
 
     return ToDoTask(
       id: json['id'],
       title: json['title']?.toString(),
       notes: json['notes']?.toString(),
-      linkedIssues: tickets,
+      linkedIssues: workItems,
       toDoBefore: toDoBefore,
       dateAdded: added,
       isComplete: json['isComplete'] ?? false,

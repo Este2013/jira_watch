@@ -55,13 +55,13 @@ class HistoryEntry {
 class HistoryPage extends StatelessWidget {
   final List<HistoryEntry> _entries;
 
-  final JiraWorkItemData ticket;
+  final JiraWorkItemData workItem;
 
   /// Provide the raw issue JSON (with `changelog.histories` included)
   HistoryPage({
     super.key,
-    required this.ticket,
-  }) : _entries = (ticket['changelog']['histories'] as List<dynamic>).map((h) => HistoryEntry.fromJson(h as Map<String, dynamic>)).toList();
+    required this.workItem,
+  }) : _entries = (workItem['changelog']['histories'] as List<dynamic>).map((h) => HistoryEntry.fromJson(h as Map<String, dynamic>)).toList();
 
   @override
   Widget build(BuildContext context) {

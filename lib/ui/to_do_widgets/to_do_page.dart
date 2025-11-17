@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/to_do_tasks_models.dart';
-import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/issue_details_view.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -195,7 +195,7 @@ class _TodoPageState extends State<TodoPage> {
                                                   style: taskController.isComplete.value ? TextStyle(decoration: TextDecoration.lineThrough) : null,
                                                 ),
                                                 subtitle: SingleChildScrollView(
-                                                  child: Text(taskController.linkedIssues.isEmpty ? 'No linked tickets' : taskController.linkedIssues.list.join(', ')),
+                                                  child: Text(taskController.linkedIssues.isEmpty ? 'No linked work items' : taskController.linkedIssues.list.join(', ')),
                                                 ),
                                                 leading: IconButton(
                                                   icon: Icon(categoryData.$2, fill: 1),
@@ -373,12 +373,13 @@ class SingleTaskView extends StatelessWidget {
                       ),
                       Padding(
                         padding: const EdgeInsets.only(top: 16),
-                        child: Text('Linked tickets', style: Theme.of(context).textTheme.titleMedium),
+                        child: Text('Linked work items', style: Theme.of(context).textTheme.titleMedium),
                       ),
                       AnimatedBuilder(
                         animation: taskController.linkedIssues,
                         builder: (context, child) => Column(
                           children: [
+                            if (taskController.linkedIssues.list.isEmpty) Text('No linked work items'),
                             for (var tkt in taskController.linkedIssues.list)
                               FutureBuilder(
                                 key: Key('Work item $tkt linked to task ${taskController.id}'),
@@ -469,9 +470,9 @@ class SingleTaskView extends StatelessWidget {
 }
 
 class AddIssueToDoDialog extends StatefulWidget {
-  const AddIssueToDoDialog(this.ticket, {super.key});
+  const AddIssueToDoDialog(this.workItem, {super.key});
 
-  final JiraWorkItemData ticket;
+  final JiraWorkItemData workItem;
 
   @override
   State<AddIssueToDoDialog> createState() => _AddIssueToDoDialogState();
@@ -492,14 +493,14 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
   @override
   void initState() {
     tabCtrl = TabController(length: 2, vsync: this);
-    titleController = TextEditingController(text: '${widget.ticket.key} — ${widget.ticket.fields?['summary']}');
+    titleController = TextEditingController(text: '${widget.workItem.key} — ${widget.workItem.fields?['summary']}');
     notesController = TextEditingController();
     super.initState();
   }
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text('Add ${widget.ticket.key} to task'),
+    title: Text('Add ${widget.workItem.key} to task'),
     content: SizedBox(
       width: 600,
       height: 700,
@@ -534,7 +535,7 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
                               decoration: InputDecoration(
                                 border: OutlineInputBorder(),
                                 label: Text('Title'),
-                                hintText: '${widget.ticket.key} — ${widget.ticket.fields?['summary']}',
+                                hintText: '${widget.workItem.key} — ${widget.workItem.fields?['summary']}',
                               ),
                             ),
                           ),
@@ -626,14 +627,14 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
             // new task
             String title = titleController.text.trim();
             if (title.isEmpty) {
-              title = '${widget.ticket.key} — ${widget.ticket.fields?['summary']}';
+              title = '${widget.workItem.key} — ${widget.workItem.fields?['summary']}';
             }
             String notes = notesController.text.trim();
             ToDoTasksModel()
                 .createNewTask(
                   title: title,
                   notes: notes.isEmpty ? null : notes,
-                  ticketKeys: [widget.ticket.key!],
+                  workItemKeys: [widget.workItem.key!],
                   categoryID: categoryID,
                 )
                 .whenComplete(Navigator.of(context).pop);
@@ -647,9 +648,9 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
 
               for (var t in edits) {
                 if (isItemSelected(t.toToDoTask())) {
-                  t.linkedIssues.add(widget.ticket.key!);
+                  t.linkedIssues.add(widget.workItem.key!);
                 } else {
-                  t.linkedIssues.remove(widget.ticket.key!);
+                  t.linkedIssues.remove(widget.workItem.key!);
                 }
               }
               Navigator.of(context).pop();
@@ -665,12 +666,12 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
   );
 
   bool isItemSelected(ToDoTask task) {
-    bool ogTaskHasTicket = task.linkedIssues.contains(widget.ticket.key);
-    return (ogTaskHasTicket || addLinkTo.contains(task.id)) && !removeLinkFrom.contains(task.id);
+    bool ogTaskHasWorkItem = task.linkedIssues.contains(widget.workItem.key);
+    return (ogTaskHasWorkItem || addLinkTo.contains(task.id)) && !removeLinkFrom.contains(task.id);
   }
 
   void toggleSelection(ToDoTask task) {
-    String? tktKey = widget.ticket.key;
+    String? tktKey = widget.workItem.key;
     if (task.linkedIssues.contains(tktKey)) {
       if (removeLinkFrom.contains(task.id)) {
         removeLinkFrom.remove(task.id);

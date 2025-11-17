@@ -9,7 +9,7 @@ import 'package:jira_watcher/ui/to_do_widgets/to_do_page.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_home_view.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/settings.dart';
-import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/issue_details_view.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -340,9 +340,9 @@ class _SearchIssueDialogState extends State<SearchIssueDialog> {
                 Future.microtask(
                   () async {
                     List results = [];
-                    var directTicketIds = RegExp(r'[A-Z]+-[0-9]+').allMatches(searchController.text);
-                    if (directTicketIds.isNotEmpty) {
-                      for (var m in directTicketIds) {
+                    var directWorkItemIds = RegExp(r'[A-Z]+-[0-9]+').allMatches(searchController.text);
+                    if (directWorkItemIds.isNotEmpty) {
+                      for (var m in directWorkItemIds) {
                         String? key = m.group(0);
                         if (key == null) continue;
                         results.add(jsonDecode((await DataModel().api.getIssue(key)).body));
@@ -659,7 +659,6 @@ class ChangeLogsDialog extends StatelessWidget {
             ChangeLogItem('Added dependency to fading_edge_scrollview and calendar_date_picker2.'),
             ChangeLogItem('Refactored the ticket details 🡢 json view for more helpful debugging and inspection'),
           ]),
-          // ChangeLogSection.bugFixes([]),
           ChangeLogSection.knownBugs([
             ChangeLogItem('Emojis are not rendered in comments (there is no Atlassian API for that)'),
             ChangeLogItem('Newer request is dropped by UI if project filters are changed before request completes'),

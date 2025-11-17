@@ -22,21 +22,21 @@ import 'package:path/path.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../issue_ui_elements.dart';
-import 'single_ticket_view.dart';
+import 'single_work_item_view.dart';
 
-class TicketDetailsView extends StatelessWidget {
-  const TicketDetailsView({super.key, required this.ticket});
-  final JiraWorkItemData ticket;
+class JiraWorkItemDetailsView extends StatelessWidget {
+  const JiraWorkItemDetailsView({super.key, required this.workItem});
+  final JiraWorkItemData workItem;
   @override
   Widget build(BuildContext context) {
-    if (ticket.fields == null) {
+    if (workItem.fields == null) {
       return Text('No fields were found');
     }
 
-    bool labels = ticket.fields?['labels'] != null && ticket.fields!['labels'].isNotEmpty;
-    bool components = ticket.fields?['components'] != null && ticket.fields!['components'].isNotEmpty;
+    bool labels = workItem.fields?['labels'] != null && workItem.fields!['labels'].isNotEmpty;
+    bool components = workItem.fields?['components'] != null && workItem.fields!['components'].isNotEmpty;
     return Padding(
-      key: Key(ticket['key']),
+      key: Key(workItem['key']),
       padding: const EdgeInsets.all(32.0),
       child: ListView(
         children: [
@@ -46,13 +46,13 @@ class TicketDetailsView extends StatelessWidget {
               spacing: 8,
               children: [
                 Expanded(
-                  child: PersonField('Assigned to', field: 'assignee', ticket: ticket),
+                  child: PersonField('Assigned to', field: 'assignee', workItem: workItem),
                 ),
                 Expanded(
-                  child: PersonField('Reported by', field: 'reporter', ticket: ticket),
+                  child: PersonField('Reported by', field: 'reporter', workItem: workItem),
                 ),
-                Expanded(child: PriorityField(ticket: ticket)),
-                SizedBox(width: 50, child: WatchedByField(ticket: ticket)),
+                Expanded(child: PriorityField(workItem: workItem)),
+                SizedBox(width: 50, child: WatchedByField(workItem: workItem)),
               ],
             ),
           ),
@@ -64,7 +64,7 @@ class TicketDetailsView extends StatelessWidget {
                     child: ListingTypeField(
                       'Labels',
                       icon: Icon(Icons.label),
-                      itemList: ticket.fields?['labels'],
+                      itemList: workItem.fields?['labels'],
                     ),
                   ),
                 if (components)
@@ -72,7 +72,7 @@ class TicketDetailsView extends StatelessWidget {
                     child: ListingTypeField(
                       'Components',
                       icon: Icon(Icons.extension),
-                      itemList: ticket.fields?['components'],
+                      itemList: workItem.fields?['components'],
                       itemToString: (item) => (item as Map)['name']!,
                     ),
                   ),
@@ -81,24 +81,23 @@ class TicketDetailsView extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: VersionsField('Affected version', ticket: ticket, property: 'versions', icon: Icon(Icons.bug_report)),
+                child: VersionsField('Affected version', workItem: workItem, property: 'versions', icon: Icon(Icons.bug_report)),
               ),
               Expanded(
-                child: VersionsField('Fix version', ticket: ticket, property: 'fixVersions', icon: Icon(Icons.auto_awesome)),
+                child: VersionsField('Fix version', workItem: workItem, property: 'fixVersions', icon: Icon(Icons.auto_awesome)),
               ),
             ],
           ),
-          if (ticket.fields!['description'] != null) DescriptionLikeField('Description', contentData: ticket.fields!['description'], attachments: (ticket.fields!['attachment'] as List)),
-          if (ticket.fields!['environment'] != null) DescriptionLikeField('Environment', contentData: ticket.fields!['environment'], attachments: (ticket.fields!['attachment'] as List)),
-          if (ticket.fields!['attachment'] != null && (ticket.fields!['attachment'] as List).isNotEmpty) AttachmentsField(attachmentsData: ticket.fields!['attachment']),
-          if (ticket.fields?['issuelinks'] != null && ticket.fields!['issuelinks'].isNotEmpty) IssueLinksField(issueLinksData: (ticket.fields!['issuelinks']! as List).cast()),
+          if (workItem.fields!['description'] != null) DescriptionLikeField('Description', contentData: workItem.fields!['description'], attachments: (workItem.fields!['attachment'] as List)),
+          if (workItem.fields!['environment'] != null) DescriptionLikeField('Environment', contentData: workItem.fields!['environment'], attachments: (workItem.fields!['attachment'] as List)),
+          if (workItem.fields!['attachment'] != null && (workItem.fields!['attachment'] as List).isNotEmpty) AttachmentsField(attachmentsData: workItem.fields!['attachment']),
+          if (workItem.fields?['issuelinks'] != null && workItem.fields!['issuelinks'].isNotEmpty) IssueLinksField(issueLinksData: (workItem.fields!['issuelinks']! as List).cast()),
 
-          DateDisplay('Created${ticket.fields!['creator']?['displayName'] != null ? " by ${ticket.fields!['creator']['displayName']}" : ''}', date: ticket.fields!['created']),
-          if (ticket.fields?['updated'] != null) DateDisplay('Updated', date: ticket.fields!['updated']),
-          if (ticket.fields?['resolutiondate'] != null) DateDisplay('Resolution date', date: ticket.fields!['resolutiondate']),
-          if (ticket.fields?['statuscategorychangedate'] != null) DateDisplay('Last status category change', date: ticket.fields!['statuscategorychangedate']),
-          if (ticket.fields?['lastViewed'] != null) DateDisplay('Last viewed', date: ticket.fields!['lastViewed']),
-          // Text(ticket.fields!['fixVersions'].toString()),
+          DateDisplay('Created${workItem.fields!['creator']?['displayName'] != null ? " by ${workItem.fields!['creator']['displayName']}" : ''}', date: workItem.fields!['created']),
+          if (workItem.fields?['updated'] != null) DateDisplay('Updated', date: workItem.fields!['updated']),
+          if (workItem.fields?['resolutiondate'] != null) DateDisplay('Resolution date', date: workItem.fields!['resolutiondate']),
+          if (workItem.fields?['statuscategorychangedate'] != null) DateDisplay('Last status category change', date: workItem.fields!['statuscategorychangedate']),
+          if (workItem.fields?['lastViewed'] != null) DateDisplay('Last viewed', date: workItem.fields!['lastViewed']),
         ].expand((w) => [w, SizedBox(height: 8)]).toList(),
       ),
     );
@@ -110,31 +109,31 @@ class PersonField extends StatelessWidget {
     this.name, {
     super.key,
     required this.field,
-    required this.ticket,
+    required this.workItem,
   });
 
-  final JiraWorkItemData ticket;
+  final JiraWorkItemData workItem;
   final String name, field;
 
   @override
   Widget build(BuildContext context) {
     Future<bool> isMe = DataModel().api.myself().then(
-      (value) => jsonDecode(value.body)['accountId'] == ticket.fields?[field]?['accountId'],
+      (value) => jsonDecode(value.body)['accountId'] == workItem.fields?[field]?['accountId'],
     );
 
-    var hasPerson = ticket.fields?[field] != null;
+    var hasPerson = workItem.fields?[field] != null;
     return FutureBuilder(
       future: isMe,
       builder: (context, asyncSnapshot) {
         return LabeledPopupTextField(
-          controller: TextEditingController(text: hasPerson ? (ticket.fields?[field]['displayName']) : 'Unnassigned'),
+          controller: TextEditingController(text: hasPerson ? (workItem.fields?[field]['displayName']) : 'Unnassigned'),
           label: name,
           readOnly: true,
           showPopupOnFocus: true,
           borderColor: (asyncSnapshot.data ?? false) ? null : Theme.of(context).colorScheme.outlineVariant,
           prefixIcon: Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 4, left: 8),
-            child: hasPerson ? ClipOval(child: JiraAvatar(url: ticket.fields?[field]['avatarUrls']['16x16'])) : Icon(Icons.account_circle_outlined),
+            child: hasPerson ? ClipOval(child: JiraAvatar(url: workItem.fields?[field]['avatarUrls']['16x16'])) : Icon(Icons.account_circle_outlined),
           ),
           popupBuilder: hasPerson
               ? (context, dismiss, controller) => Padding(
@@ -153,40 +152,40 @@ class PersonField extends StatelessWidget {
                             children: [
                               ClipRRect(
                                 borderRadius: BorderRadiusGeometry.circular(4),
-                                child: JiraAvatar(url: ticket.fields?[field]['avatarUrls']['48x48']),
+                                child: JiraAvatar(url: workItem.fields?[field]['avatarUrls']['48x48']),
                               ),
-                              Text(ticket.fields?[field]['displayName'], style: Theme.of(context).textTheme.titleLarge),
+                              Text(workItem.fields?[field]['displayName'], style: Theme.of(context).textTheme.titleLarge),
                             ],
                           ),
                           Divider(),
-                          if (ticket.fields?[field]?['emailAddress'] != null)
+                          if (workItem.fields?[field]?['emailAddress'] != null)
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               spacing: 8,
                               children: [
                                 Icon(Icons.email),
-                                Text(ticket.fields?[field]['emailAddress']),
+                                Text(workItem.fields?[field]['emailAddress']),
                                 IconButton(
-                                  onPressed: () => Clipboard.setData(ClipboardData(text: ticket.fields?[field]['emailAddress'])),
+                                  onPressed: () => Clipboard.setData(ClipboardData(text: workItem.fields?[field]['emailAddress'])),
                                   icon: Icon(Icons.copy),
                                   visualDensity: VisualDensity.compact,
                                   iconSize: 16,
                                 ),
                               ],
                             ),
-                          if (ticket.fields?[field]?['timeZone'] != null)
+                          if (workItem.fields?[field]?['timeZone'] != null)
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               spacing: 8,
                               children: [
                                 Icon(Icons.schedule),
-                                Text(ticket.fields?[field]['timeZone']),
+                                Text(workItem.fields?[field]['timeZone']),
                               ],
                             ),
 
-                          if (ticket.fields?[field]?['active'] != null)
+                          if (workItem.fields?[field]?['active'] != null)
                             Text(
-                              '${ticket.fields?[field]?['active'] ? "🟢" : "🔴"} This account is ${ticket.fields?[field]?['active'] ? '' : 'in'}active',
+                              '${workItem.fields?[field]?['active'] ? "🟢" : "🔴"} This account is ${workItem.fields?[field]?['active'] ? '' : 'in'}active',
                               style: TextStyle(color: Theme.of(context).hintColor),
                             ),
                           Row(
@@ -195,13 +194,13 @@ class PersonField extends StatelessWidget {
                             children: [
                               Flexible(
                                 child: Text(
-                                  'ID #${ticket.fields?[field]['accountId']}',
+                                  'ID #${workItem.fields?[field]['accountId']}',
                                   style: TextStyle(color: Theme.of(context).hintColor),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                               IconButton(
-                                onPressed: () => Clipboard.setData(ClipboardData(text: ticket.fields?[field]['accountId'])),
+                                onPressed: () => Clipboard.setData(ClipboardData(text: workItem.fields?[field]['accountId'])),
                                 icon: Icon(Icons.copy),
                                 visualDensity: VisualDensity.compact,
                                 iconSize: 16,
@@ -223,24 +222,24 @@ class PersonField extends StatelessWidget {
 class PriorityField extends StatelessWidget {
   const PriorityField({
     super.key,
-    required this.ticket,
+    required this.workItem,
   });
 
-  final JiraWorkItemData ticket;
+  final JiraWorkItemData workItem;
 
   @override
   Widget build(BuildContext context) {
     String field = 'priority';
-    var hasField = ticket.fields?[field] != null;
+    var hasField = workItem.fields?[field] != null;
     return LabeledPopupTextField(
-      controller: TextEditingController(text: hasField ? (ticket.fields?[field]['name']) : 'None'),
+      controller: TextEditingController(text: hasField ? (workItem.fields?[field]['name']) : 'None'),
       label: 'Priority',
       readOnly: true,
       showPopupOnFocus: true,
       borderColor: Theme.of(context).colorScheme.outlineVariant,
       prefixIcon: Padding(
         padding: const EdgeInsets.only(top: 8, bottom: 8, left: 8),
-        child: hasField ? ClipOval(child: JiraAvatar(url: ticket.fields?[field]['iconUrl'])) : Icon(Icons.block),
+        child: hasField ? ClipOval(child: JiraAvatar(url: workItem.fields?[field]['iconUrl'])) : Icon(Icons.block),
       ),
       popupBuilder: (context, dismiss, controller) => Padding(
         padding: const EdgeInsets.all(8.0),
@@ -257,14 +256,14 @@ class PriorityField extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   spacing: 8,
                   children: [
-                    JiraAvatar(url: ticket.fields?[field]['iconUrl']),
-                    Text(ticket.fields?[field]['name'], style: Theme.of(context).textTheme.titleLarge),
+                    JiraAvatar(url: workItem.fields?[field]['iconUrl']),
+                    Text(workItem.fields?[field]['name'], style: Theme.of(context).textTheme.titleLarge),
                   ],
                 ),
                 Divider(),
-                if (ticket.fields?[field]?['description'] != null) Text(ticket.fields?[field]['description']),
+                if (workItem.fields?[field]?['description'] != null) Text(workItem.fields?[field]['description']),
                 Text(
-                  'ID #${ticket.fields?[field]['id']}',
+                  'ID #${workItem.fields?[field]['id']}',
                   style: TextStyle(color: Theme.of(context).hintColor),
                 ),
               ],
@@ -279,10 +278,10 @@ class PriorityField extends StatelessWidget {
 class WatchedByField extends StatefulWidget {
   const WatchedByField({
     super.key,
-    required this.ticket,
+    required this.workItem,
   });
 
-  final JiraWorkItemData ticket;
+  final JiraWorkItemData workItem;
 
   @override
   State<WatchedByField> createState() => _WatchedByFieldState();
@@ -294,10 +293,10 @@ class _WatchedByFieldState extends State<WatchedByField> with UiLoggy {
   @override
   Widget build(BuildContext context) {
     String field = 'watches';
-    var hasField = widget.ticket.fields?[field] != null;
-    bool isCurrentlyWatching = widget.ticket.fields?[field]['isWatching'] ?? false;
+    var hasField = widget.workItem.fields?[field] != null;
+    bool isCurrentlyWatching = widget.workItem.fields?[field]['isWatching'] ?? false;
     return LabeledPopupTextField(
-      controller: TextEditingController(text: hasField ? (widget.ticket.fields?[field]['name']) : 'None'),
+      controller: TextEditingController(text: hasField ? (widget.workItem.fields?[field]['name']) : 'None'),
       label: '',
       readOnly: true,
       showPopupOnFocus: true,
@@ -308,7 +307,7 @@ class _WatchedByFieldState extends State<WatchedByField> with UiLoggy {
       ),
 
       popupBuilder: (context, dismiss, controller) {
-        int watchCount = widget.ticket.fields?[field]['watchCount'];
+        int watchCount = widget.workItem.fields?[field]['watchCount'];
 
         if (watchCount == 0) {
           return Text('No one is wathing this issue.');
@@ -316,7 +315,7 @@ class _WatchedByFieldState extends State<WatchedByField> with UiLoggy {
 
         Future<http.Response>? resp;
         if (cache == null) {
-          String url = widget.ticket.fields?[field]['self'];
+          String url = widget.workItem.fields?[field]['self'];
           resp = APIDao().directRequest(Uri.parse(url));
           SchedulerBinding.instance.addPostFrameCallback(
             (timeStamp) => setState(() {
@@ -792,7 +791,7 @@ class IssueLinkTile extends StatelessWidget {
             ),
           ),
         ),
-        CustomTicketStatusIndicator(
+        CustomWorkItemStatusIndicator(
           issueLinkData['fields']['status']['name'],
           colorName: issueLinkData['fields']['status']['statusCategory']['colorName'],
         ),
@@ -899,13 +898,13 @@ class VersionsField extends StatelessWidget {
   const VersionsField(
     this.name, {
     super.key,
-    required this.ticket,
+    required this.workItem,
     required this.property,
     this.icon,
   });
 
   final String name, property;
-  final JiraWorkItemData ticket;
+  final JiraWorkItemData workItem;
   final Widget? icon;
 
   @override
@@ -918,7 +917,7 @@ class VersionsField extends StatelessWidget {
   );
 
   List<dynamic>? versionList() {
-    var versionList = ticket.fields![property] as List?;
+    var versionList = workItem.fields![property] as List?;
     versionList?.sort(
       (a, b) {
         if (a['released'] && b['released']) {

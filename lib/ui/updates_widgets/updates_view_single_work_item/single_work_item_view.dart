@@ -6,21 +6,21 @@ import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/home.dart';
 import 'package:jira_watcher/ui/updates_widgets/issue_ui_elements.dart';
-import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/issue_history_view.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_history_view.dart';
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // ignore: unused_import
-import 'issue_comments_view.dart';
-import 'issue_details_view.dart';
+import 'work_item_comments_view.dart';
+import 'work_item_details_view.dart';
 
 enum JiraWorkItemTab { history, comments, details, json }
 
 class SingleJiraWorkItemView extends StatefulWidget {
-  const SingleJiraWorkItemView(this.ticket, {super.key, this.isPartOfDialog = false, this.initialTab = JiraWorkItemTab.history});
+  const SingleJiraWorkItemView(this.workItem, {super.key, this.isPartOfDialog = false, this.initialTab = JiraWorkItemTab.history});
 
-  final JiraWorkItemData ticket;
+  final JiraWorkItemData workItem;
   final bool isPartOfDialog;
   final JiraWorkItemTab initialTab;
 
@@ -50,7 +50,7 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
         icon: Icon(Symbols.history),
       ),
       Tab(
-        text: 'Comments (${widget.ticket.commentsData?['comments']?.length ?? 0})',
+        text: 'Comments (${widget.workItem.commentsData?['comments']?.length ?? 0})',
         icon: Icon(Symbols.chat_bubble),
       ),
       Tab(
@@ -62,24 +62,24 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
         icon: Icon(Symbols.data_object),
       ),
     ];
-    Future<JiraWorkItemData>? fullTicketData;
-    if ([widget.ticket.changelog, widget.ticket.fields, widget.ticket.commentsData].any((e) => e == null)) {
-      loggy.info('Provided data for ${widget.ticket.key} is incomplete; fetching a full version online');
-      if (widget.ticket.key == null) return ErrorWidget("Can't work if the issue's key is null!!!");
-      fullTicketData = DataModel().api.getIssue(widget.ticket.key!, expand: ['changelog']).then(
+    Future<JiraWorkItemData>? fullWorkItemData;
+    if ([widget.workItem.changelog, widget.workItem.fields, widget.workItem.commentsData].any((e) => e == null)) {
+      loggy.info('Provided data for ${widget.workItem.key} is incomplete; fetching a full version online');
+      if (widget.workItem.key == null) return ErrorWidget("Can't work if the issue's key is null!!!");
+      fullWorkItemData = DataModel().api.getIssue(widget.workItem.key!, expand: ['changelog']).then(
         (value) {
           return JiraWorkItemData.fromJson({'data': jsonDecode(value.body)});
         },
       );
     } else {
-      fullTicketData = Future.value(widget.ticket);
+      fullWorkItemData = Future.value(widget.workItem);
     }
 
     return FutureBuilder(
-      future: fullTicketData,
+      future: fullWorkItemData,
       builder: (context, asyncSnapshot) {
         if (asyncSnapshot.hasData) {
-          var ticket = asyncSnapshot.data!;
+          var workItem = asyncSnapshot.data!;
           return DefaultTabController(
             length: tabs.length,
 
@@ -95,13 +95,13 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
                       style: Theme.of(context).textTheme.bodyMedium ?? TextStyle(),
                       child: Row(
                         children: [
-                          IssueLinkWithParentsRow(ticket),
+                          IssueLinkWithParentsRow(workItem),
 
-                          JiraWorkItemStatusIndicator(issue: ticket),
+                          JiraWorkItemStatusIndicator(issue: workItem),
                         ],
                       ),
                     ),
-                    Text(ticket['fields']['summary'] ?? 'null'),
+                    Text(workItem['fields']['summary'] ?? 'null'),
                   ],
                 ),
                 bottom: TabBar(tabs: tabs, controller: tabController),
@@ -110,10 +110,10 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
                 controller: tabController,
                 physics: NeverScrollableScrollPhysics(),
                 children: [
-                  HistoryPage(ticket: ticket),
-                  CommentsPage(ticket: ticket),
-                  TicketDetailsView(ticket: ticket),
-                  AdvancedDataView(ticket: ticket),
+                  HistoryPage(workItem: workItem),
+                  CommentsPage(workItem: workItem),
+                  JiraWorkItemDetailsView(workItem: workItem),
+                  AdvancedDataView(workItem: workItem),
                 ],
               ),
             ),
@@ -126,10 +126,10 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
 }
 
 class SingleJiraWorkItemDialog extends StatelessWidget {
-  const SingleJiraWorkItemDialog(this.ticket, {super.key, this.initialTab = JiraWorkItemTab.history});
+  const SingleJiraWorkItemDialog(this.workItem, {super.key, this.initialTab = JiraWorkItemTab.history});
 
   final JiraWorkItemTab initialTab;
-  final JiraWorkItemData ticket;
+  final JiraWorkItemData workItem;
 
   @override
   Widget build(BuildContext context) => AlertDialog(
@@ -137,9 +137,9 @@ class SingleJiraWorkItemDialog extends StatelessWidget {
     content: SizedBox(
       width: 1200 - 50,
       child: SingleJiraWorkItemView(
-        ticket,
+        workItem,
         isPartOfDialog: true,
-        key: Key(ticket.data['key']),
+        key: Key(workItem.data['key']),
         initialTab: initialTab,
       ),
     ),
@@ -149,10 +149,10 @@ class SingleJiraWorkItemDialog extends StatelessWidget {
 class AdvancedDataView extends StatelessWidget {
   const AdvancedDataView({
     super.key,
-    required this.ticket,
+    required this.workItem,
   });
 
-  final JiraWorkItemData ticket;
+  final JiraWorkItemData workItem;
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
@@ -171,13 +171,8 @@ class AdvancedDataView extends StatelessWidget {
             padding: const EdgeInsets.all(16.0),
             child: TabBarView(
               children: [
-                JsonTicketView(ticket: ticket),
-                // JsonWidget(
-                //   json: json.decode(JsonEncoder().convert(ticket)),
-                //   initialExpandDepth: 2,
-                //   nodeIndent: 32,
-                // ),
-                FieldsTable(ticket),
+                JsonWorkItemView(workItem: workItem),
+                FieldsTable(workItem),
                 UnderConstructionNotice(),
               ],
             ),
@@ -188,19 +183,19 @@ class AdvancedDataView extends StatelessWidget {
   );
 }
 
-class JsonTicketView extends StatefulWidget {
-  const JsonTicketView({
+class JsonWorkItemView extends StatefulWidget {
+  const JsonWorkItemView({
     super.key,
-    required this.ticket,
+    required this.workItem,
   });
 
-  final JiraWorkItemData ticket;
+  final JiraWorkItemData workItem;
 
   @override
-  State<JsonTicketView> createState() => _JsonTicketViewState();
+  State<JsonWorkItemView> createState() => _JsonWorkItemViewState();
 }
 
-class _JsonTicketViewState extends State<JsonTicketView> {
+class _JsonWorkItemViewState extends State<JsonWorkItemView> {
   TextEditingController search = TextEditingController();
   bool filterEmpties = false;
 
@@ -232,7 +227,7 @@ class _JsonTicketViewState extends State<JsonTicketView> {
       Expanded(
         child: SingleChildScrollView(
           child: JsonViewer(
-            data: json.decode(JsonEncoder().convert(widget.ticket)),
+            data: json.decode(JsonEncoder().convert(widget.workItem)),
             initialExpandDepth: 2,
             searchController: search,
             filterNullValues: filterEmpties,
@@ -244,9 +239,9 @@ class _JsonTicketViewState extends State<JsonTicketView> {
 }
 
 class FieldsTable extends StatefulWidget {
-  const FieldsTable(this.ticket, {super.key});
+  const FieldsTable(this.workItem, {super.key});
 
-  final JiraWorkItemData ticket;
+  final JiraWorkItemData workItem;
   @override
   State<FieldsTable> createState() => _FieldsTableState();
 }
@@ -298,7 +293,7 @@ class _FieldsTableState extends State<FieldsTable> {
                 animation: searchController,
                 builder: (context, _) {
                   List<MapEntry<dynamic, dynamic>> fields =
-                      widget.ticket.fields!.entries
+                      widget.workItem.fields!.entries
                           .where(
                             (e) => !(e.key as String).contains('customfield'),
                           )
@@ -423,7 +418,7 @@ class _FieldsTableState extends State<FieldsTable> {
                                 child: SingleChildScrollView(
                                   child: JsonViewer(
                                     key: Key('viewer:${selectedKey ?? 'none is selected'}'),
-                                    data: widget.ticket.fields![selectedKey],
+                                    data: widget.workItem.fields![selectedKey],
                                   ),
                                 ),
                               ),

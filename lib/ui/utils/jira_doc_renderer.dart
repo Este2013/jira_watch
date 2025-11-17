@@ -8,8 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
-import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/issue_details_view.dart';
-import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/single_ticket_view.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/ui/utils/spanning_table.dart';
 import 'package:loggy/loggy.dart';
@@ -319,7 +319,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     if (url == null) return null;
 
     if ((url as String).startsWith('https://${SettingsModel().domainController.text}.atlassian.net/browse')) {
-      // Jira ticket card
+      // Jira workItem card
       var issueKey = url
           .replaceAll(
             'https://${SettingsModel().domainController.text}.atlassian.net/browse/',
