@@ -3,17 +3,17 @@
 A Jira client that shows the most recent updates done in projects you work on.
 
 # TODO
- - View ticket (not edit) add custom fields
+
+ - mac support
+ - FIX cannot write notes correctly for todo items
+ - clicking image in desc should bring it up
+
+ - add custom fields
  - Comments
-   - View tkt comments 
-     - [document nodes](https://developer.atlassian.com/cloud/jira/platform/apis/document/nodes/)
-     - Check how nested replies get shown
-   - make sure they appear as updates
-     - 🐞They are counted in the update sort, but dont actually appear in the history
+   - nested replies
+   - show in history
+ - History: show "ticket creation" item
 
- - vertical view: under a width threshold, selected ticket should appear in a dialog instead of next to the list.
-
- - [TODO] SEARCH in nav rail
 
 ## PRIO
 
@@ -21,7 +21,6 @@ A Jira client that shows the most recent updates done in projects you work on.
  
  - refresh (per few minutes)
  - improve Login page in settings dialog
- - clicking image in desc should bring it up
 
 ### TOUGH, IMPORTANT
  - Filters:
