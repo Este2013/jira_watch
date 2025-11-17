@@ -5,7 +5,6 @@ A Jira client that shows the most recent updates done in projects you work on.
 # TODO
 
  - mac support
- - FIX cannot write notes correctly for todo items
  - clicking image in desc should bring it up
 
  - add custom fields
@@ -54,6 +53,9 @@ A Jira client that shows the most recent updates done in projects you work on.
 ## BUGS
  - if project filters are changed before request completes, the newer request is not taken into account
  - if a ticket is selected and a refresh occurs, the selected ticket does not update on right side 
+ - Emojis are not rendered in comments (there is no Atlassian API for that)
+ - Comments: nested replies are not shown as nested
 
 # Furthemore
- - GitLab view
+- GitLab view
+- 

@@ -81,7 +81,7 @@ class APIModel {
     );
   }
 
-  Future<(Iterable<IssueData>, bool, String?)> fetchLastUpdatedIssues({
+  Future<(Iterable<JiraWorkItemData>, bool, String?)> fetchLastUpdatedIssues({
     int maxResults = 0,
     DateTime? before,
     DateTime? after,
@@ -117,7 +117,7 @@ class APIModel {
         .then(
           (data) {
             var now = DateTime.now();
-            final issues = (data['issues'] as List).map((e) => IssueData(e, lastCacheUpdate: now));
+            final issues = (data['issues'] as List).map((e) => JiraWorkItemData(e, lastCacheUpdate: now));
 
             // print(data.keys);
             return (issues, data['isLast'] as bool, data['nextPageToken'] as String?);

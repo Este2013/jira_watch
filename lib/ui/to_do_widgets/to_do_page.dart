@@ -471,7 +471,7 @@ class SingleTaskView extends StatelessWidget {
 class AddIssueToDoDialog extends StatefulWidget {
   const AddIssueToDoDialog(this.ticket, {super.key});
 
-  final IssueData ticket;
+  final JiraWorkItemData ticket;
 
   @override
   State<AddIssueToDoDialog> createState() => _AddIssueToDoDialogState();

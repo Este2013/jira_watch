@@ -119,7 +119,7 @@ class _IssueBadgeState extends State<IssueBadge> {
 
 /// Shows the issues project, parent and key as [IssueBadge]s.
 class IssueLinkWithParentsRow extends StatefulWidget {
-  final IssueData ticket;
+  final JiraWorkItemData ticket;
   final bool compact;
 
   const IssueLinkWithParentsRow(this.ticket, {super.key, this.compact = false});
@@ -197,13 +197,13 @@ class _IssueLinkWithParentsRowState extends State<IssueLinkWithParentsRow> {
   }
 }
 
-class TicketStatusIndicator extends StatelessWidget {
-  const TicketStatusIndicator({
+class JiraWorkItemStatusIndicator extends StatelessWidget {
+  const JiraWorkItemStatusIndicator({
     super.key,
     required this.issue,
   });
 
-  final IssueData issue;
+  final JiraWorkItemData issue;
 
   @override
   Widget build(BuildContext context) {

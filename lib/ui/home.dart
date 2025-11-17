@@ -747,6 +747,21 @@ class ChangeLogsDialog extends StatelessWidget {
           ]),
         ],
       ),
+
+      ChangeLogCard(
+        '1.4.1',
+        sections: [
+          ChangeLogSection.bugFixes([
+            ChangeLogItem('Todo tasks can now be edited correctly'),
+            ChangeLogItem('Jira link cards now open in an in-app dialog (instead of in browser)'),
+          ]),
+          ChangeLogSection.chores([
+            ChangeLogItem('Bumped version number.'),
+            ChangeLogItem('Moved known bugs to the project\'s README.'),
+            ChangeLogItem('Code classes will be renamed to fit Jira\'s convention "work item", instead of "issue" or "ticket".'),
+          ]),
+        ],
+      ),
     ];
     var ctrl = PageController(initialPage: versionsData.length - 1);
     return AlertDialog(

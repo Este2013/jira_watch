@@ -34,17 +34,17 @@ class _UpdatesPageState extends State<UpdatesPage> {
   bool hasMore = true; // more pages left?
   int? totalAvailable; // optional: if your API returns total in value.$2
 
-  late FutureOr<(Iterable<IssueData>, bool, String?)> futurePage;
+  late FutureOr<(Iterable<JiraWorkItemData>, bool, String?)> futurePage;
   String? nextPageToken;
 
   Set<String> activeProjectFilters = {};
   dynamic timeFilter;
 
-  IssueData? selectedTicket;
+  JiraWorkItemData? selectedTicket;
 
   final ScrollController scrollController = ScrollController(keepScrollOffset: true);
 
-  final List<IssueData> allLoadedIssues = [];
+  final List<JiraWorkItemData> allLoadedIssues = [];
 
   bool isAllowedToShowIssueDialog = true;
   bool isIssueDialogShown = false;
@@ -238,7 +238,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
             (_) {
               showDialog(
                 context: context,
-                builder: (_) => SingleTicketDialog(
+                builder: (_) => SingleJiraWorkItemDialog(
                   selectedTicket!,
                   key: Key(selectedTicket!.data['key']),
                 ),
@@ -370,7 +370,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
                 Expanded(
                   child: selectedTicket == null
                       ? Placeholder()
-                      : SingleTicketView(
+                      : SingleJiraWorkItemView(
                           selectedTicket!,
                           key: Key(selectedTicket!.data['key']),
                         ),
@@ -382,7 +382,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
     );
   }
 
-  void selectTicket(IssueData tkt) {
+  void selectTicket(JiraWorkItemData tkt) {
     setState(() {
       selectedTicket = tkt;
       isAllowedToShowIssueDialog = true;
@@ -487,8 +487,8 @@ class ProjectFilteringButton extends StatelessWidget {
 }
 
 class JiraTicketPreviewItem extends StatefulWidget {
-  final IssueData ticket;
-  final Function(IssueData ticket)? updateView;
+  final JiraWorkItemData ticket;
+  final Function(JiraWorkItemData ticket)? updateView;
   final Function()? changedSize;
   final bool isSelected;
 
@@ -636,7 +636,7 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
                         if (!showAsCompact)
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: TicketStatusIndicator(issue: widget.ticket),
+                            child: JiraWorkItemStatusIndicator(issue: widget.ticket),
                           ),
                         if (showAsCompact)
                           Expanded(
@@ -732,7 +732,7 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
     );
   }
 
-  Map<String, Color> _ticketColors(BuildContext context, IssueData ticket) {
+  Map<String, Color> _ticketColors(BuildContext context, JiraWorkItemData ticket) {
     var type = ticket['fields']['issuetype']['name'];
     bool isLightTheme = Theme.of(context).brightness == Brightness.light;
     switch (type) {

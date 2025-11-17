@@ -51,7 +51,7 @@ class CommentEntry {
 class CommentsPage extends StatelessWidget {
   final List<CommentEntry>? _entries;
 
-  final IssueData ticket;
+  final JiraWorkItemData ticket;
 
   /// Provide the raw issue JSON (with `changelog.histories` included)
   CommentsPage({
@@ -87,7 +87,7 @@ class CommentListEntry extends StatelessWidget {
     required this.ticket,
     required this.comment,
   });
-  final IssueData ticket;
+  final JiraWorkItemData ticket;
   final CommentEntry comment;
 
   @override

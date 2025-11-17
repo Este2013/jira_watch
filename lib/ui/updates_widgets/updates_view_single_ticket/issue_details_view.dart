@@ -26,7 +26,7 @@ import 'single_ticket_view.dart';
 
 class TicketDetailsView extends StatelessWidget {
   const TicketDetailsView({super.key, required this.ticket});
-  final IssueData ticket;
+  final JiraWorkItemData ticket;
   @override
   Widget build(BuildContext context) {
     if (ticket.fields == null) {
@@ -113,7 +113,7 @@ class PersonField extends StatelessWidget {
     required this.ticket,
   });
 
-  final IssueData ticket;
+  final JiraWorkItemData ticket;
   final String name, field;
 
   @override
@@ -226,7 +226,7 @@ class PriorityField extends StatelessWidget {
     required this.ticket,
   });
 
-  final IssueData ticket;
+  final JiraWorkItemData ticket;
 
   @override
   Widget build(BuildContext context) {
@@ -282,7 +282,7 @@ class WatchedByField extends StatefulWidget {
     required this.ticket,
   });
 
-  final IssueData ticket;
+  final JiraWorkItemData ticket;
 
   @override
   State<WatchedByField> createState() => _WatchedByFieldState();
@@ -824,9 +824,9 @@ class IssueLinkTile extends StatelessWidget {
     ),
     onTap: () => showDialog(
       context: context,
-      builder: (_) => SingleTicketDialog(
-        IssueData.fromJson({'data': issueLinkData}),
-        initialTab: IssueTab.details,
+      builder: (_) => SingleJiraWorkItemDialog(
+        JiraWorkItemData.fromJson({'data': issueLinkData}),
+        initialTab: JiraWorkItemTab.details,
       ),
     ),
   );
@@ -905,7 +905,7 @@ class VersionsField extends StatelessWidget {
   });
 
   final String name, property;
-  final IssueData ticket;
+  final JiraWorkItemData ticket;
   final Widget? icon;
 
   @override

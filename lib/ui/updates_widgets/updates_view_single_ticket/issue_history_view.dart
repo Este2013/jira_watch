@@ -55,7 +55,7 @@ class HistoryEntry {
 class HistoryPage extends StatelessWidget {
   final List<HistoryEntry> _entries;
 
-  final IssueData ticket;
+  final JiraWorkItemData ticket;
 
   /// Provide the raw issue JSON (with `changelog.histories` included)
   HistoryPage({

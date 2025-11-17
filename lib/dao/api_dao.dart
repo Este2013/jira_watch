@@ -151,15 +151,15 @@ class APIDao with UiLoggy {
   ///////// PROJECTS /////////
 }
 
-class IssueData {
+class JiraWorkItemData {
   dynamic data;
   DateTime? lastCacheUpdate;
 
   /// A distinct way to know which method added this to the cache / null if read from cache or irrelevant.
   String? providerToCache;
 
-  IssueData(this.data, {this.lastCacheUpdate});
-  factory IssueData.fromJson(Map data) => IssueData(
+  JiraWorkItemData(this.data, {this.lastCacheUpdate});
+  factory JiraWorkItemData.fromJson(Map data) => JiraWorkItemData(
     data['data'],
     lastCacheUpdate: data['last_updated'] == null ? null : DateTime.parse(data['last_updated']),
     // providerToCache left null
@@ -194,7 +194,7 @@ class IssuesDAO {
 
   /////////////////////////////////////////////////////////////////////
 
-  Future<List<IssueData>> jqlSearch(String jql, {int maxResults = 0, String? expand}) async {
+  Future<List<JiraWorkItemData>> jqlSearch(String jql, {int maxResults = 0, String? expand}) async {
     if (kDebugMode) print(jql);
     late final dynamic data;
     data = await APIDao().getJson(
@@ -206,6 +206,6 @@ class IssuesDAO {
       },
     );
     var time = DateTime.now();
-    return ((data['issues'] as List).map((d) => IssueData(d, lastCacheUpdate: time))).toList().cast();
+    return ((data['issues'] as List).map((d) => JiraWorkItemData(d, lastCacheUpdate: time))).toList().cast();
   }
 }

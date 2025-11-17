@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/issue_details_view.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/single_ticket_view.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/ui/utils/spanning_table.dart';
 import 'package:loggy/loggy.dart';
@@ -17,21 +19,7 @@ import '../updates_widgets/issue_ui_elements.dart';
 
 Color selectionColor = const Color(0x336694e8);
 
-/// A lightweight renderer for Atlassian Document Format (Jira doc) JSON.
-///
-/// Supported nodes (initial set):
-/// - document root { version, type, content }
-/// - paragraph
-/// - text (with marks: bold, italic, underline, strike, code, link)
-/// - bulletList
-/// - listItem (including nested lists)
-/// - mediaSingle -> media (file/external) via [mediaBuilder]
-///
-/// Extension points:
-/// - Provide a [mediaBuilder] to render images/attachments given the media attrs
-///   (e.g., map Jira file id -> a NetworkImage or a custom widget).
-/// - Provide [linkHandler] to intercept link taps.
-/// - Provide [textStyle] and [codeStyle] to align with app theming.
+/// Renderer for Atlassian Document Format (Jira doc) JSON.
 class AdfRenderer extends StatelessWidget {
   const AdfRenderer({
     super.key,
@@ -362,7 +350,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
           }
           if (asyncSnapshot.hasData) {
             if (asyncSnapshot.data?.statusCode == 200) {
-              var issue = IssueData(jsonDecode(asyncSnapshot.data?.body ?? ''), lastCacheUpdate: DateTime.now());
+              var issue = JiraWorkItemData(jsonDecode(asyncSnapshot.data?.body ?? ''), lastCacheUpdate: DateTime.now());
               return ActionChip(
                 label: Wrap(
                   spacing: 8,
@@ -371,12 +359,18 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                       '$issueKey: ${issue.fields?['summary']}',
                       overflow: TextOverflow.ellipsis,
                     ),
-                    TicketStatusIndicator(issue: issue),
+                    JiraWorkItemStatusIndicator(issue: issue),
                   ],
                 ),
                 avatar: JiraAvatar(url: issue.fields?['issuetype']['iconUrl']),
 
-                onPressed: () => launchUrl(Uri.parse(url)),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => SingleJiraWorkItemDialog(issue, initialTab: JiraWorkItemTab.details),
+                  );
+                  // launchUrl(Uri.parse(url));
+                },
               );
             }
             return Tooltip(
@@ -711,11 +705,6 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       );
     }
     return table;
-  }
-
-  Future startUrl(String url) {
-    // TODO make this open an issue view in a dialog
-    return launchUrl(Uri.parse(url));
   }
 
   static List<Map<String, dynamic>> _asList(dynamic v) {

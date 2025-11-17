@@ -69,7 +69,7 @@ class DataModel with UiLoggy {
 
   // ISSUES /////////////////////////////////////////////////////////////////////
 
-  Future<(Iterable<IssueData>, bool, String?)> fetchLastUpdatedIssues({int maxResults = 0, String? nextPageToken, DateTime? before, DateTime? after, List<String>? filterByProjectCodes}) {
+  Future<(Iterable<JiraWorkItemData>, bool, String?)> fetchLastUpdatedIssues({int maxResults = 0, String? nextPageToken, DateTime? before, DateTime? after, List<String>? filterByProjectCodes}) {
     // TODO missing cache check
     return api.fetchLastUpdatedIssues(
       maxResults: maxResults,
@@ -80,7 +80,7 @@ class DataModel with UiLoggy {
     );
   }
 
-  Future<(Iterable<IssueData>, bool, String?)> fetchLastUpdatedIssuesByPage({
+  Future<(Iterable<JiraWorkItemData>, bool, String?)> fetchLastUpdatedIssuesByPage({
     required int pageSize,
     int pageIndex = 0,
     String? nextPageToken,

@@ -15,20 +15,20 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'issue_comments_view.dart';
 import 'issue_details_view.dart';
 
-enum IssueTab { history, comments, details, json }
+enum JiraWorkItemTab { history, comments, details, json }
 
-class SingleTicketView extends StatefulWidget {
-  const SingleTicketView(this.ticket, {super.key, this.isPartOfDialog = false, this.initialTab = IssueTab.history});
+class SingleJiraWorkItemView extends StatefulWidget {
+  const SingleJiraWorkItemView(this.ticket, {super.key, this.isPartOfDialog = false, this.initialTab = JiraWorkItemTab.history});
 
-  final IssueData ticket;
+  final JiraWorkItemData ticket;
   final bool isPartOfDialog;
-  final IssueTab initialTab;
+  final JiraWorkItemTab initialTab;
 
   @override
-  State<SingleTicketView> createState() => _SingleTicketViewState();
+  State<SingleJiraWorkItemView> createState() => _SingleJiraWorkItemViewState();
 }
 
-class _SingleTicketViewState extends State<SingleTicketView> with TickerProviderStateMixin, UiLoggy {
+class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with TickerProviderStateMixin, UiLoggy {
   late final TabController tabController;
 
   @override
@@ -62,13 +62,13 @@ class _SingleTicketViewState extends State<SingleTicketView> with TickerProvider
         icon: Icon(Symbols.data_object),
       ),
     ];
-    Future<IssueData>? fullTicketData;
+    Future<JiraWorkItemData>? fullTicketData;
     if ([widget.ticket.changelog, widget.ticket.fields, widget.ticket.commentsData].any((e) => e == null)) {
       loggy.info('Provided data for ${widget.ticket.key} is incomplete; fetching a full version online');
       if (widget.ticket.key == null) return ErrorWidget("Can't work if the issue's key is null!!!");
       fullTicketData = DataModel().api.getIssue(widget.ticket.key!, expand: ['changelog']).then(
         (value) {
-          return IssueData.fromJson({'data': jsonDecode(value.body)});
+          return JiraWorkItemData.fromJson({'data': jsonDecode(value.body)});
         },
       );
     } else {
@@ -97,7 +97,7 @@ class _SingleTicketViewState extends State<SingleTicketView> with TickerProvider
                         children: [
                           IssueLinkWithParentsRow(ticket),
 
-                          TicketStatusIndicator(issue: ticket),
+                          JiraWorkItemStatusIndicator(issue: ticket),
                         ],
                       ),
                     ),
@@ -125,18 +125,18 @@ class _SingleTicketViewState extends State<SingleTicketView> with TickerProvider
   }
 }
 
-class SingleTicketDialog extends StatelessWidget {
-  const SingleTicketDialog(this.ticket, {super.key, this.initialTab = IssueTab.history});
+class SingleJiraWorkItemDialog extends StatelessWidget {
+  const SingleJiraWorkItemDialog(this.ticket, {super.key, this.initialTab = JiraWorkItemTab.history});
 
-  final IssueTab initialTab;
-  final IssueData ticket;
+  final JiraWorkItemTab initialTab;
+  final JiraWorkItemData ticket;
 
   @override
   Widget build(BuildContext context) => AlertDialog(
     clipBehavior: Clip.hardEdge,
     content: SizedBox(
       width: 1200 - 50,
-      child: SingleTicketView(
+      child: SingleJiraWorkItemView(
         ticket,
         isPartOfDialog: true,
         key: Key(ticket.data['key']),
@@ -152,7 +152,7 @@ class AdvancedDataView extends StatelessWidget {
     required this.ticket,
   });
 
-  final IssueData ticket;
+  final JiraWorkItemData ticket;
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
@@ -194,7 +194,7 @@ class JsonTicketView extends StatefulWidget {
     required this.ticket,
   });
 
-  final IssueData ticket;
+  final JiraWorkItemData ticket;
 
   @override
   State<JsonTicketView> createState() => _JsonTicketViewState();
@@ -246,7 +246,7 @@ class _JsonTicketViewState extends State<JsonTicketView> {
 class FieldsTable extends StatefulWidget {
   const FieldsTable(this.ticket, {super.key});
 
-  final IssueData ticket;
+  final JiraWorkItemData ticket;
   @override
   State<FieldsTable> createState() => _FieldsTableState();
 }
