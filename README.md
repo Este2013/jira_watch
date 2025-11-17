@@ -15,7 +15,7 @@ A Jira client that shows the most recent updates done in projects you work on.
  - History: show "ticket creation" item
 
 
-## PRIO
+## PRIORIZATION
 
 ### EASY, IMPORTANT
  
@@ -32,6 +32,7 @@ A Jira client that shows the most recent updates done in projects you work on.
 ### EASY, nice
  - assing ticket to me
  - copy comment links
+ - custom categories
 
 ### TOUGH, nice
  - local favorites (hold a ticket always on top)

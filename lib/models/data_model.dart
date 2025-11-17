@@ -1,16 +1,15 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
 
 import 'package:csv/csv.dart';
-import 'package:http/http.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/settings_model.dart';
-import 'package:jira_watcher/ui/to_do_widgets/to_do_page.dart';
+import 'package:jira_watcher/models/to_do_tasks_models.dart';
 import 'package:loggy/loggy.dart';
-import 'package:observable_datasets/observable_list.dart';
 import 'package:path/path.dart' as path;
 import 'dart:io';
+
+import 'jira_api_model.dart';
 
 /// Accessor to cached data.
 ///
@@ -22,9 +21,11 @@ class DataModel with UiLoggy {
 
   DataModel._internal() {
     api = APIModel();
+    todoTasks = ToDoTasksModel();
   }
 
   late final APIModel api;
+  late final ToDoTasksModel todoTasks;
 
   // PROJECTS /////////////////////////////////////////////////////////////////////
 
@@ -159,297 +160,6 @@ class DataModel with UiLoggy {
     } on Exception catch (e) {
       loggy.error('_issueMarkedAsReadTimeDataFile could not be written to!\n${e.toString()}');
     }
-  }
-
-  // - To do section /////////////////////////////////////////////////////////////////////
-}
-
-/// Specialized in fetching data from the interwebs
-class APIModel {
-  static final APIModel _instance = APIModel._internal();
-
-  factory APIModel() => _instance;
-  APIModel._internal() {
-    dao = APIDao();
-  }
-
-  late APIDao dao;
-
-  Future<Response>? _cacheMyself;
-  Future<Response> myself({bool allowCache = true}) async {
-    if (allowCache && _cacheMyself != null) {
-      return _cacheMyself!;
-    }
-    _cacheMyself = dao.myself();
-    return _cacheMyself!;
-  }
-
-  // PROJECTS /////////////////////////////////////////////////////////////////////
-
-  Future fetchProjects() async => dao.getJson(
-    '/rest/api/3/project/',
-    // queryParameters: {
-    //   'properties': ['id', 'avatarUrls', 'key', 'favourite', 'isPrivate', 'expand', 'issueTypes', 'name', 'url', 'style'],
-    // },
-  );
-
-  /// Use expand to include additional information in the response. This parameter accepts a comma-separated list. Note that the project description, issue types, and project lead are included in all responses by default. Expand options include:
-  ///  - description The project description.
-  ///  - issueTypes The issue types associated with the project.
-  ///  - lead The project lead.
-  ///  - projectKeys All project keys associated with the project.
-  ///  - issueTypeHierarchy The project issue type hierarchy.
-  ///
-  /// Or use properties for a select set of returned properties.
-  Future fetchSingleProject(String code, {List<String>? expand}) async {
-    final data = await dao.getJson(
-      '/rest/api/3/project/$code',
-      queryParameters: {
-        if (expand != null && expand.isNotEmpty) 'expand': expand.join(','),
-        // 'properties': ['id', 'avatarUrls', 'key', 'favourite', 'isPrivate', 'expand', 'issueTypes', 'name', 'url', 'style'],
-      },
-    );
-    return data;
-  }
-
-  // ISSUES /////////////////////////////////////////////////////////////////////
-
-  /// https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-jql-get
-  Future jqlSearch(
-    String jql, {
-    List<String> expand = const [],
-    List<String> fields = const ['id'],
-    List<String> excludedFields = const [],
-  }) {
-    var data = dao.getJson(
-      '/rest/api/3/search/jql',
-      queryParameters: {
-        'jql': jql,
-        if (expand.isNotEmpty) 'expand': expand.join(','),
-        'fields': [...fields, ...excludedFields.map((e) => '-$e')].join(','),
-      },
-    );
-    return data;
-  }
-
-  Future<Response> getIssue(String issueKey, {List<String> expand = const []}) {
-    return dao.requestAtEndpoint(
-      '/rest/api/3/issue/$issueKey',
-      queryParameters: {
-        if (expand.isNotEmpty) 'expand': expand.join(','),
-      },
-    );
-  }
-
-  Future<(Iterable<IssueData>, bool, String?)> fetchLastUpdatedIssues({
-    int maxResults = 0,
-    DateTime? before,
-    DateTime? after,
-    List<String>? filterByProjectCodes,
-    String? nextPageToken,
-  }) async {
-    // get projects of interest
-    await APIDao().load();
-    var starredProjects = SettingsModel().starredProjects.value?.toSet() ?? {};
-
-    // prepare jql query
-    String projectFilter = '';
-    if (starredProjects.isNotEmpty) {
-      final keys = filterByProjectCodes?.join(', ') ?? starredProjects.map((k) => k.trim()).where((k) => k.isNotEmpty).join(',');
-      projectFilter = 'project in ($keys) ';
-    }
-
-    String dateToJiraString(DateTime d) => d.toIso8601String().replaceAll('T', ' ').substring(0, 16);
-
-    final jql = '$projectFilter ${before != null ? "AND updated <= \"${dateToJiraString(before)}\"" : ""} ${after != null ? "AND updated >= \"${dateToJiraString(after)}\"" : ""} ORDER BY updated DESC';
-
-    return APIDao()
-        .getJson(
-          '/rest/api/3/search/jql',
-          queryParameters: {
-            'jql': jql,
-            'nextPageToken': nextPageToken,
-            'fields': '*all',
-            'maxResults': '$maxResults',
-            'expand': 'changelog',
-          },
-        )
-        .then(
-          (data) {
-            var now = DateTime.now();
-            final issues = (data['issues'] as List).map((e) => IssueData(e, lastCacheUpdate: now));
-
-            // print(data.keys);
-            return (issues, data['isLast'] as bool, data['nextPageToken'] as String?);
-          },
-        );
-  }
-}
-
-class ToDoTasksModel with UiLoggy {
-  static final ToDoTasksModel _instance = ToDoTasksModel._internal();
-
-  factory ToDoTasksModel() => _instance;
-  ToDoTasksModel._internal() {
-    isReady = _getReady();
-    _saveTimer = Timer.periodic(
-      Duration(seconds: 1),
-      (timer) {
-        if (_saveRequested) {
-          _saveIsAllowed = true;
-          saveToDoTasksCache();
-        }
-        _saveRequested = false;
-      },
-    );
-  }
-
-  bool _saveIsAllowed = true, _saveRequested = false;
-  // ignore: unused_field
-  Timer? _saveTimer;
-
-  final File _toDoDataFile = File(
-    path
-        .join(
-          SettingsModel().settingsFolder.path,
-          'to_do.json',
-        )
-        .replaceFirst(RegExp(r'^\\?/?'), ''),
-  );
-
-  final List<int> _deletedTodoIds = [];
-  late final ObservableList<ToDoTask>? toDoTasksCache;
-
-  late Future<bool> isReady;
-  Future<bool> _getReady() async {
-    loggy.info('Getting cache ready');
-    if (!await _toDoDataFile.exists()) {
-      loggy.warning('_toDoDataFile does not exist. Initializing cache to []');
-      toDoTasksCache = ObservableList();
-    } else {
-      var raw = await _toDoDataFile.readAsString();
-
-      List data = raw.trim().isEmpty ? [] : jsonDecode(raw)?['taskList'] ?? [];
-      toDoTasksCache = ObservableList.from(data.map((e) => ToDoTask.fromJson(e)));
-    }
-    return true;
-  }
-
-  /// Gives a new task with the correct unique ID and creation date.
-  Future<ToDoTask> createNewTask({
-    String? title,
-    String? notes,
-    List<String>? ticketKeys,
-    int categoryID = -1,
-  }) async {
-    loggy.info('Creating a new task');
-    var cacheIsReady = await isReady;
-    if (!cacheIsReady) {
-      loggy.error('Cache is not ready???');
-      throw Exception('Cache is not ready???');
-    }
-    int validId = toDoTasksCache!.list.fold(0, (v, t) => v = max(v, t.id)) + 1;
-    var task = ToDoTask(
-      id: validId,
-      title: title,
-      notes: notes,
-      linkedIssues: ticketKeys ?? [],
-      category: categoryID,
-      dateAdded: DateTime.now(),
-    );
-    _deletedTodoIds.remove(validId);
-    toDoTasksCache?.add(task);
-    await saveToDoTasksCache();
-    loggy.info('Created task id ${task.id}');
-    return task;
-  }
-
-  Future<void> editTask(ToDoTask edited) async {
-    loggy.info('Editing task ${edited.id}');
-    final cacheIsReady = await isReady;
-    if (!cacheIsReady) {
-      loggy.error('Cache is not ready???');
-      throw Exception('Cache is not ready???');
-    }
-
-    final idx = toDoTasksCache!.list.indexWhere((t) => t.id == edited.id);
-
-    if (_deletedTodoIds.contains(edited.id)) {
-      loggy.warning('Because task #${edited.id} was already deleted, editing is aborted.');
-      return;
-    }
-    if (idx >= 0) {
-      toDoTasksCache![idx] = edited;
-    } else {
-      loggy.warning('Task ${edited.id} not found. Adding it instead.');
-      toDoTasksCache!.add(edited);
-    }
-    await saveToDoTasksCache();
-  }
-
-  void editTasks(Iterable<ToDoTask> editedList) async {
-    loggy.info('Editing ${editedList.length} task(s)');
-    final cacheIsReady = await isReady;
-    if (!cacheIsReady) {
-      loggy.error('Cache is not ready???');
-      throw Exception('Cache is not ready???');
-    }
-    for (var edited in editedList) {
-      if (_deletedTodoIds.contains(edited.id)) {
-        loggy.warning('Because task #${edited.id} was already deleted, editing is aborted.');
-        continue;
-      }
-      final idx = toDoTasksCache!.list.indexWhere((t) => t.id == edited.id);
-      if (idx >= 0) {
-        toDoTasksCache![idx] = edited;
-      } else {
-        loggy.warning('Task ${edited.id} not found. Adding it instead.');
-        toDoTasksCache!.add(edited);
-      }
-    }
-    saveToDoTasksCache();
-  }
-
-  void deleteTask(ToDoTask deleted) => deleteTaskById(deleted.id);
-
-  void deleteTaskById(int id) async {
-    loggy.info('Deleting task with id: $id');
-
-    final cacheIsReady = await isReady;
-    if (!cacheIsReady) {
-      loggy.error('Cache is not ready???');
-      throw Exception('Cache is not ready???');
-    }
-    final idx = toDoTasksCache!.list.indexWhere((t) => t.id == id);
-    if (idx >= 0) {
-      var task = toDoTasksCache!.removeAt(idx);
-      _deletedTodoIds.add(task.id);
-    } else {
-      loggy.warning('Task $id was not found.');
-    }
-    await saveToDoTasksCache();
-  }
-
-  Future saveToDoTasksCache() async {
-    loggy.info('Saving the tasks cache');
-
-    if (!_saveIsAllowed) {
-      loggy.warning('The save timer is on cooldown; saving request');
-      _saveRequested = true;
-      return;
-    }
-    _saveIsAllowed = false;
-    final cacheIsReady = await isReady;
-    if (!cacheIsReady) {
-      loggy.error('Cache is not ready???');
-      throw Exception('Cache is not ready???');
-    }
-
-    if (!await _toDoDataFile.exists()) {
-      loggy.warning('_toDoDataFile does not exist. Creating the file at:\n${_toDoDataFile.path}');
-      await _toDoDataFile.create(recursive: true);
-    }
-    return _toDoDataFile.writeAsString(JsonEncoder.withIndent(' ' * 4).convert({'taskList': toDoTasksCache!.list}));
   }
 }
 

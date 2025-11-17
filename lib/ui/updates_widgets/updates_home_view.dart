@@ -561,7 +561,7 @@ class _JiraTicketPreviewItemState extends State<JiraTicketPreviewItem> {
                 }
                 // Keep for later
                 else if (value == 1) {
-                  ToDoTasksModel()
+                  DataModel().todoTasks
                       .createNewTask(
                         title: '${widget.ticket.key} — ${widget.ticket.fields?['summary']}',
                         ticketKeys: [widget.ticket.key!],

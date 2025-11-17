@@ -341,7 +341,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
             RegExp(r'\?.*'),
             '',
           );
-      var response = APIModel().getIssue(issueKey);
+      var response = DataModel().api.getIssue(issueKey);
 
       return FutureBuilder(
         future: response,
@@ -593,7 +593,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
   Widget? _buildMention(BuildContext context, Map<String, dynamic> node) {
     var t = Theme.of(context).colorScheme;
     String userIdMentionned = node['attrs']['id'];
-    Future<bool> isMe = APIModel().myself().then(
+    Future<bool> isMe = DataModel().api.myself().then(
       (value) => jsonDecode(value.body)['accountId'] == userIdMentionned,
     );
 

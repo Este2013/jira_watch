@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/models/to_do_tasks_models.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_ticket/issue_details_view.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:observable_datasets/observable_list.dart';
 
 class TodoPagePreLoadView extends StatelessWidget {
   const TodoPagePreLoadView({super.key});
@@ -41,317 +41,256 @@ class _TodoPageState extends State<TodoPage> {
   int? showCategory;
 
   late Iterable<ToDoTask> nonFilteredTaskList;
-  List<ToDoTaskEditingController>? taskControllersList;
-
-  @override
-  void initState() {
-    super.initState();
-
-    // TODO nonFilteredTaskList and taskControllersList need to be updated correctly without recreating all controllers when prepareControllers procs
-    ToDoTasksModel().toDoTasksCache!.addListener(updateControllers);
-    prepareControllers();
-  }
-
-  @override
-  void dispose() {
-    ToDoTasksModel().toDoTasksCache!.removeListener(updateControllers);
-    super.dispose();
-  }
-
-  void updateControllers() {
-    setState(() {
-      prepareControllers();
-    });
-  }
-
-  void prepareControllers() {
-    nonFilteredTaskList = ToDoTasksModel().toDoTasksCache!.list;
-
-    if (taskControllersList == null) {
-      taskControllersList = nonFilteredTaskList.map<ToDoTaskEditingController>((e) => ToDoTaskEditingController.fromToDoTask(e)).toList();
-    } else {
-      // IMPORTANT! This part only gets called in a setState.
-      Map<int, ToDoTaskEditingController> mapOfControllers = {for (var e in taskControllersList!) e.id: e};
-      final Set<int> sourceIds = <int>{};
-      for (final src in nonFilteredTaskList) {
-        sourceIds.add(src.id);
-
-        final existing = mapOfControllers[src.id];
-        if (existing != null) {
-          // id in both → update existing controller
-          existing.modify(src);
-        } else {
-          // new id → create and add new controller
-          final newListeningItem = ToDoTaskEditingController.fromToDoTask(src);
-          taskControllersList!.add(newListeningItem);
-        }
-        mapOfControllers.remove(src.id);
-      }
-      // what is left in mapOfControllers is what was not in nonFilteredTaskList, but still is in taskControllersList.
-      // We need to delete those controllers and change the selection accordingly.
-      taskControllersList!.removeWhere((e) => mapOfControllers.keys.contains(e.id));
-      if (mapOfControllers[selectedTaskID] != null) {
-        // the currently selected task was deleted.
-        selectedTaskID = taskControllersList!.firstOrNull?.id;
-      }
-    }
-
-    taskControllersList!.sort(
-      (a, b) {
-        if (a.isComplete.value && !b.isComplete.value) {
-          return 1; // completed tasks should appear below others
-        } else if (a.category.value == -8 && b.category.value != -8) {
-          return -1; // critical tasks should be shown above all else
-        }
-        return b.dateAdded.compareTo(a.dateAdded);
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
-    bool isAnyTaskSelected = selectedTaskID != null && taskControllersList!.any((t) => selectedTaskID == t.id);
-    return Padding(
-      padding: const EdgeInsets.only(left: 8.0),
-      child: Builder(
-        builder: (context) {
-          if (taskControllersList!.isEmpty) {
-            ServicesBinding.instance.addPostFrameCallback(
-              (timeStamp) {
-                setState(() {
-                  selectedTaskID = null;
-                });
-              },
-            );
-          }
-          return Row(
-            children: [
-              SizedBox(
-                width: 500,
-                child: Column(
-                  children: [
-                    // List settings
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Row(
-                        spacing: 8,
-                        children: [
-                          TextButton.icon(
-                            onPressed: createNewTask,
-                            label: Text('New task'),
-                            icon: Icon(Icons.add),
-                          ),
-                          Spacer(),
-                          PopupMenuButton<String>(
-                            icon: Badge(
-                              label: Text('1'),
-                              isLabelVisible: showCategory != null,
-                              child: Icon(Icons.filter_alt),
-                            ),
-                            tooltip: 'Filter by category',
-                            itemBuilder: (context) => <PopupMenuEntry<String>>[
-                              PopupMenuItem<String>(
-                                value: '',
-                                child: Row(
-                                  spacing: 16,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.hide_source),
-                                    Text('All categories'),
-                                  ],
-                                ),
+    return AnimatedBuilder(
+      animation: DataModel().todoTasks.toDoTasksControllers,
+      builder: (context, _) {
+        bool isAnyTaskSelected = selectedTaskID != null && DataModel().todoTasks.toDoTasksControllers.list.any((t) => selectedTaskID == t.id);
+        return Padding(
+          padding: const EdgeInsets.only(left: 8.0),
+          child: Builder(
+            builder: (context) {
+              if (DataModel().todoTasks.toDoTasksControllers.isEmpty) {
+                ServicesBinding.instance.addPostFrameCallback(
+                  (timeStamp) {
+                    setState(() {
+                      selectedTaskID = null;
+                    });
+                  },
+                );
+              }
+              return Row(
+                children: [
+                  SizedBox(
+                    width: 500,
+                    child: Column(
+                      children: [
+                        // List settings
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Row(
+                            spacing: 8,
+                            children: [
+                              TextButton.icon(
+                                onPressed: createNewTask,
+                                label: Text('New task'),
+                                icon: Icon(Icons.add),
                               ),
-                              for (var c in DefaultTaskCategory.values.where(
-                                (cat) => nonFilteredTaskList.any(
-                                  (e) => e.category == cat.id,
+                              Spacer(),
+                              PopupMenuButton<String>(
+                                icon: Badge(
+                                  label: Text('1'),
+                                  isLabelVisible: showCategory != null,
+                                  child: Icon(Icons.filter_alt),
                                 ),
-                              ))
-                                PopupMenuItem<String>(
-                                  value: c.id.toString(),
-
-                                  child: Row(
-                                    spacing: 16,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(c.icon, color: c.color, fill: 1),
-                                      Text(c.displayName),
-                                    ],
+                                tooltip: 'Filter by category',
+                                itemBuilder: (context) => <PopupMenuEntry<String>>[
+                                  PopupMenuItem<String>(
+                                    value: '',
+                                    child: Row(
+                                      spacing: 16,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.hide_source),
+                                        Text('All categories'),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                            ],
+                                  for (var c in DefaultTaskCategory.values.where(
+                                    (cat) => nonFilteredTaskList.any(
+                                      (e) => e.category == cat.id,
+                                    ),
+                                  ))
+                                    PopupMenuItem<String>(
+                                      value: c.id.toString(),
 
-                            onSelected: (value) => setState(() {
-                              if (value.isEmpty) {
-                                showCategory = null;
-                              } else {
-                                showCategory = int.parse(value);
-                              }
-                            }),
+                                      child: Row(
+                                        spacing: 16,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(c.icon, color: c.color, fill: 1),
+                                          Text(c.displayName),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+
+                                onSelected: (value) => setState(() {
+                                  if (value.isEmpty) {
+                                    showCategory = null;
+                                  } else {
+                                    showCategory = int.parse(value);
+                                  }
+                                }),
+                              ),
+                              IconButton(
+                                tooltip: 'Show${filterOutCompletedTasks ? '' : 'ing'} completed tasks',
+                                onPressed: () => setState(() {
+                                  filterOutCompletedTasks = !filterOutCompletedTasks;
+                                }),
+                                isSelected: !filterOutCompletedTasks,
+                                selectedIcon: Icon(Icons.verified, fill: 1),
+                                icon: Icon(Symbols.verified_off, fill: 1),
+                              ),
+                            ],
                           ),
-                          IconButton(
-                            tooltip: 'Show${filterOutCompletedTasks ? '' : 'ing'} completed tasks',
-                            onPressed: () => setState(() {
-                              filterOutCompletedTasks = !filterOutCompletedTasks;
-                            }),
-                            isSelected: !filterOutCompletedTasks,
-                            selectedIcon: Icon(Icons.verified, fill: 1),
-                            icon: Icon(Symbols.verified_off, fill: 1),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Divider(),
-                    // Task list
-                    Expanded(
-                      child: Center(
-                        child: taskControllersList!.isEmpty
-                            ? Column(
-                                mainAxisSize: MainAxisSize.min,
-                                spacing: 16,
-                                children: [
-                                  filterOutCompletedTasks ? Text('🫡 You have no open tasks') : Text('😁 All clear!'),
-                                  Row(
-                                    spacing: 8,
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                        ),
+                        Divider(),
+                        // Task list
+                        Expanded(
+                          child: Center(
+                            child: DataModel().todoTasks.toDoTasksControllers.isEmpty
+                                ? Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    spacing: 16,
                                     children: [
-                                      if (showCategory != null)
-                                        TextButton(
-                                          onPressed: () => setState(() {
-                                            showCategory = null;
-                                          }),
-                                          child: Text('Clear filters'),
-                                        ),
-                                      FilledButton.icon(
-                                        onPressed: createNewTask,
-                                        label: Text('New task'),
-                                        icon: Icon(Icons.add),
+                                      filterOutCompletedTasks ? Text('🫡 You have no open tasks') : Text('😁 All clear!'),
+                                      Row(
+                                        spacing: 8,
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          if (showCategory != null)
+                                            TextButton(
+                                              onPressed: () => setState(() {
+                                                showCategory = null;
+                                              }),
+                                              child: Text('Clear filters'),
+                                            ),
+                                          FilledButton.icon(
+                                            onPressed: createNewTask,
+                                            label: Text('New task'),
+                                            icon: Icon(Icons.add),
+                                          ),
+                                        ],
                                       ),
                                     ],
-                                  ),
-                                ],
-                              )
-                            : Builder(
-                                key: Key('list filters: {cat:$showCategory, filtercompleted:$filterOutCompletedTasks}'),
-                                builder: (context) {
-                                  var list = taskControllersList!
-                                      .where(
-                                        (t) => !filterOutCompletedTasks || !t.isComplete.value,
-                                      )
-                                      .where(
-                                        (t) => showCategory == null || t.category.value == showCategory,
-                                      )
-                                      .toList();
-                                  return ListView.builder(
-                                    itemCount: list.length,
-                                    itemBuilder: (context, index) {
-                                      var taskController = list[index];
-                                      return AnimatedBuilder(
-                                        animation: taskController,
-                                        builder: (context, child) {
-                                          var categoryData = ToDoTask.categoryDataFrom(taskController.category.value);
-                                          return ListTile(
-                                            key: Key('ListTile of task #${taskController.id}'),
-                                            title: Text(
-                                              taskController.title.text.isEmpty ? 'no title' : taskController.title.text,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: taskController.isComplete.value ? TextStyle(decoration: TextDecoration.lineThrough) : null,
-                                            ),
-                                            subtitle: SingleChildScrollView(
-                                              child: Text(taskController.linkedIssues.isEmpty ? 'No linked tickets' : taskController.linkedIssues.list.join(', ')),
-                                            ),
-                                            leading: IconButton(
-                                              icon: Icon(categoryData.$2, fill: 1),
-                                              color: categoryData.$3,
-                                              tooltip: categoryData.$1,
-                                              onPressed: () {
-                                                showDialog(
-                                                  context: context,
-                                                  builder: (context) {
-                                                    return EditToDoTaskCategoryDialog();
-                                                  },
-                                                ).then(
-                                                  (catId) {
-                                                    if (catId == null) {
-                                                      return;
-                                                    }
-                                                    setState(() {
-                                                      taskController.category.value = catId;
-                                                      ToDoTasksModel().editTask(taskController.toToDoTask());
-                                                    });
-                                                  },
-                                                );
-                                              },
-                                            ),
-                                            trailing: PopupMenuButton(
-                                              icon: Icon(Icons.more_vert),
-                                              itemBuilder: (_) => [
-                                                PopupMenuItem(
-                                                  child: Row(
-                                                    spacing: 8,
-                                                    children: [
-                                                      Icon(taskController.isComplete.value ? Symbols.verified_off : Symbols.verified, fill: 1),
-                                                      Text(taskController.isComplete.value ? 'Reopen this issue' : 'Mark as complete'),
-                                                    ],
-                                                  ),
-                                                  onTap: () => taskController.isComplete.value = !taskController.isComplete.value,
+                                  )
+                                : Builder(
+                                    key: Key('list filters: {cat:$showCategory, filtercompleted:$filterOutCompletedTasks}'),
+                                    builder: (context) {
+                                      var list = DataModel().todoTasks.toDoTasksControllers.list
+                                          .where(
+                                            (t) => !filterOutCompletedTasks || !t.isComplete.value,
+                                          )
+                                          .where(
+                                            (t) => showCategory == null || t.category.value == showCategory,
+                                          )
+                                          .toList();
+                                      return ListView.builder(
+                                        itemCount: list.length,
+                                        itemBuilder: (context, index) {
+                                          var taskController = list[index];
+                                          return AnimatedBuilder(
+                                            animation: taskController,
+                                            builder: (context, child) {
+                                              var categoryData = ToDoTask.categoryDataFrom(taskController.category.value);
+                                              return ListTile(
+                                                key: Key('ListTile of task #${taskController.id}'),
+                                                title: Text(
+                                                  taskController.title.text.isEmpty ? 'no title' : taskController.title.text,
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: taskController.isComplete.value ? TextStyle(decoration: TextDecoration.lineThrough) : null,
                                                 ),
-                                                PopupMenuItem(
-                                                  child: Row(
-                                                    spacing: 8,
-                                                    children: [
-                                                      Icon(
-                                                        Symbols.delete_forever,
-                                                        fill: 1,
-                                                        color: Theme.of(context).colorScheme.error,
+                                                subtitle: SingleChildScrollView(
+                                                  child: Text(taskController.linkedIssues.isEmpty ? 'No linked tickets' : taskController.linkedIssues.list.join(', ')),
+                                                ),
+                                                leading: IconButton(
+                                                  icon: Icon(categoryData.$2, fill: 1),
+                                                  color: categoryData.$3,
+                                                  tooltip: categoryData.$1,
+                                                  onPressed: () {
+                                                    showDialog(
+                                                      context: context,
+                                                      builder: (context) {
+                                                        return EditToDoTaskCategoryDialog();
+                                                      },
+                                                    ).then(
+                                                      (catId) {
+                                                        if (catId == null) {
+                                                          return;
+                                                        }
+                                                        setState(() {
+                                                          taskController.category.value = catId;
+                                                          ToDoTasksModel().editTask(taskController.toToDoTask());
+                                                        });
+                                                      },
+                                                    );
+                                                  },
+                                                ),
+                                                trailing: PopupMenuButton(
+                                                  icon: Icon(Icons.more_vert),
+                                                  itemBuilder: (_) => [
+                                                    PopupMenuItem(
+                                                      child: Row(
+                                                        spacing: 8,
+                                                        children: [
+                                                          Icon(taskController.isComplete.value ? Symbols.verified_off : Symbols.verified, fill: 1),
+                                                          Text(taskController.isComplete.value ? 'Reopen this issue' : 'Mark as complete'),
+                                                        ],
                                                       ),
-                                                      Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                                                    ],
-                                                  ),
-                                                  onTap: () => ToDoTasksModel().deleteTask(taskController.toToDoTask()),
+                                                      onTap: () => taskController.isComplete.value = !taskController.isComplete.value,
+                                                    ),
+                                                    PopupMenuItem(
+                                                      child: Row(
+                                                        spacing: 8,
+                                                        children: [
+                                                          Icon(
+                                                            Symbols.delete_forever,
+                                                            fill: 1,
+                                                            color: Theme.of(context).colorScheme.error,
+                                                          ),
+                                                          Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                                                        ],
+                                                      ),
+                                                      onTap: () => ToDoTasksModel().deleteTask(taskController.toToDoTask()),
+                                                    ),
+                                                  ],
                                                 ),
-                                              ],
-                                            ),
-                                            selected: taskController.id == selectedTaskID,
-                                            onTap: () => setState(() {
-                                              selectedTaskID = taskController.id;
-                                            }),
+                                                selected: taskController.id == selectedTaskID,
+                                                onTap: () => setState(() {
+                                                  selectedTaskID = taskController.id;
+                                                }),
+                                              );
+                                            },
                                           );
                                         },
                                       );
                                     },
-                                  );
-                                },
-                              ),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  VerticalDivider(),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Center(
+                        child: isAnyTaskSelected
+                            ? SingleTaskView(
+                                DataModel().todoTasks.toDoTasksControllers.list.firstWhere((t) => t.id == selectedTaskID),
+                                key: ValueKey(selectedTaskID),
+                              )
+                            : Text('🡠 Select a task in the list to your left to start working on it'),
                       ),
                     ),
-                  ],
-                ),
-              ),
-              VerticalDivider(),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Center(
-                    child: isAnyTaskSelected
-                        ? SingleTaskView(
-                            taskControllersList!.firstWhere((t) => t.id == selectedTaskID),
-                            key: ValueKey(selectedTaskID),
-                          )
-                        : Text('🡠 Select a task in the list to your left to start working on it'),
                   ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
+                ],
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
   void createNewTask() => ToDoTasksModel().createNewTask().then(
     (newTask) => setState(() {
-      prepareControllers();
+      // prepareControllers();
       selectedTaskID = newTask.id;
     }),
   );
@@ -371,6 +310,117 @@ class SingleTaskView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       persistentFooterAlignment: AlignmentDirectional.center,
+
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 800),
+          child: ListView(
+            shrinkWrap: true,
+            children:
+                [
+                      SizedBox.shrink(),
+                      Row(
+                        spacing: 8,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: taskController.title,
+                              // onChanged: (value) => save(),
+                              decoration: InputDecoration(
+                                border: OutlineInputBorder(),
+                                label: Text('Title'),
+                              ),
+                            ),
+                          ),
+                          AnimatedBuilder(
+                            animation: taskController.category,
+                            builder: (context, _) {
+                              int category = taskController.category.value;
+                              if (category < 0) {
+                                // default icons
+                                DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == taskController.category.value, orElse: () => DefaultTaskCategory.forLater);
+                                return IconButton(
+                                  tooltip: cat.displayName,
+                                  icon: Icon(cat.icon, color: cat.color, fill: 1),
+                                  onPressed: () =>
+                                      showDialog<int>(
+                                        context: context,
+                                        builder: (context) => EditToDoTaskCategoryDialog(),
+                                      ).then(
+                                        (value) {
+                                          if (value == null) return;
+                                          taskController.category.value = value;
+                                          ToDoTasksModel().editTask(taskController.toToDoTask());
+                                        },
+                                      ),
+                                );
+                              }
+                              // TODO custom categories
+                              throw UnimplementedError();
+                            },
+                          ),
+                        ],
+                      ),
+                      TextField(
+                        controller: taskController.notes,
+                        // onChanged: (value) => save(),
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(),
+                          label: Text('Notes'),
+                        ),
+                        minLines: 10,
+                        maxLines: null,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Text('Linked tickets', style: Theme.of(context).textTheme.titleMedium),
+                      ),
+                      AnimatedBuilder(
+                        animation: taskController.linkedIssues,
+                        builder: (context, child) => Column(
+                          children: [
+                            for (var tkt in taskController.linkedIssues.list)
+                              FutureBuilder(
+                                key: Key('Work item $tkt linked to task ${taskController.id}'),
+                                future: DataModel().api.getIssue(tkt, expand: ['changelog']),
+                                builder: (context, asyncSnapshot) {
+                                  if (asyncSnapshot.hasData) {
+                                    return IssueLinkTile(jsonDecode(asyncSnapshot.data!.body));
+                                  }
+                                  if (asyncSnapshot.hasError) {
+                                    return ListTile(
+                                      tileColor: Colors.red.withAlpha(100),
+                                      leading: Icon(Icons.error),
+
+                                      title: Text(tkt),
+                                      subtitle: Text(asyncSnapshot.error.toString()),
+                                      trailing: IconButton(
+                                        onPressed: () => Clipboard.setData(ClipboardData(text: asyncSnapshot.error.toString())),
+                                        icon: Icon(Icons.copy),
+                                      ),
+                                    );
+                                  }
+                                  return ListTile(
+                                    leading: CircularProgressIndicator(),
+                                    title: Text(tkt),
+                                  );
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                    ]
+                    .expand(
+                      (w) => [
+                        Padding(padding: const EdgeInsets.only(right: 16.0), child: w),
+                        SizedBox(height: 16),
+                      ],
+                    )
+                    .toList()
+                  ..removeLast(),
+          ),
+        ),
+      ),
       persistentFooterButtons: [
         AnimatedBuilder(
           animation: taskController.isComplete,
@@ -414,115 +464,6 @@ class SingleTaskView extends StatelessWidget {
           label: Text('Delete'),
         ),
       ],
-      body: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: 800),
-          child: ListView(
-            shrinkWrap: true,
-            children:
-                [
-                      SizedBox.shrink(),
-                      Row(
-                        spacing: 8,
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: taskController.title,
-                              onChanged: (value) => save(),
-                              decoration: InputDecoration(
-                                border: OutlineInputBorder(),
-                                label: Text('Title'),
-                              ),
-                            ),
-                          ),
-                          AnimatedBuilder(
-                            animation: taskController.category,
-                            builder: (context, _) {
-                              int category = taskController.category.value;
-                              if (category < 0) {
-                                // default icons
-                                DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == taskController.category.value, orElse: () => DefaultTaskCategory.forLater);
-                                return IconButton(
-                                  tooltip: cat.displayName,
-                                  icon: Icon(cat.icon, color: cat.color, fill: 1),
-                                  onPressed: () =>
-                                      showDialog<int>(
-                                        context: context,
-                                        builder: (context) => EditToDoTaskCategoryDialog(),
-                                      ).then(
-                                        (value) {
-                                          if (value == null) return;
-                                          taskController.category.value = value;
-                                          ToDoTasksModel().editTask(taskController.toToDoTask());
-                                        },
-                                      ),
-                                );
-                              }
-                              // TODO custom categories
-                              throw UnimplementedError();
-                            },
-                          ),
-                        ],
-                      ),
-                      TextField(
-                        controller: taskController.notes,
-                        onChanged: (value) => save(),
-                        decoration: InputDecoration(
-                          border: OutlineInputBorder(),
-                          label: Text('Notes'),
-                        ),
-                        minLines: 10,
-                        maxLines: null,
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16),
-                        child: Text('Linked tickets', style: Theme.of(context).textTheme.titleMedium),
-                      ),
-                      AnimatedBuilder(
-                        animation: taskController.linkedIssues,
-                        builder: (context, child) => Column(
-                          children: [
-                            for (var tkt in taskController.linkedIssues.list)
-                              FutureBuilder(
-                                future: APIModel().getIssue(tkt, expand: ['changelog']),
-                                builder: (context, asyncSnapshot) {
-                                  if (asyncSnapshot.hasData) {
-                                    return IssueLinkTile(jsonDecode(asyncSnapshot.data!.body));
-                                  }
-                                  if (asyncSnapshot.hasError) {
-                                    return ListTile(
-                                      tileColor: Colors.red.withAlpha(100),
-                                      leading: Icon(Icons.error),
-
-                                      title: Text(tkt),
-                                      subtitle: Text(asyncSnapshot.error.toString()),
-                                      trailing: IconButton(
-                                        onPressed: () => Clipboard.setData(ClipboardData(text: asyncSnapshot.error.toString())),
-                                        icon: Icon(Icons.copy),
-                                      ),
-                                    );
-                                  }
-                                  return ListTile(
-                                    leading: CircularProgressIndicator(),
-                                    title: Text(tkt),
-                                  );
-                                },
-                              ),
-                          ],
-                        ),
-                      ),
-                    ]
-                    .expand(
-                      (w) => [
-                        Padding(padding: const EdgeInsets.only(right: 16.0), child: w),
-                        SizedBox(height: 16),
-                      ],
-                    )
-                    .toList()
-                  ..removeLast(),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -642,19 +583,19 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
                     future: ToDoTasksModel().isReady,
                     builder: (context, asyncSnapshot) {
                       if (asyncSnapshot.hasData) {
-                        var list = ToDoTasksModel().toDoTasksCache!.list.where((t) => !t.isComplete).toList()
+                        var list = DataModel().todoTasks.toDoTasksControllers.list.where((t) => !t.isComplete.value).toList()
                           ..sort(
                             (a, b) => a.dateAdded.compareTo(b.dateAdded),
                           );
                         return ListView.builder(
                           itemCount: list.length,
                           itemBuilder: (context, index) {
-                            var taskItem = ToDoTasksModel().toDoTasksCache![index];
+                            var taskItem = list[index].toToDoTask();
                             var categoryData = taskItem.categoryData;
                             return ListTile(
                               leading: Tooltip(
                                 message: categoryData.$1,
-                                child: Icon(categoryData.$2, color: categoryData.$3),
+                                child: Icon(categoryData.$2, color: categoryData.$3, fill: 1),
                               ),
                               title: Text(taskItem.title ?? 'No title found'),
                               subtitle: taskItem.notes == null ? null : Text(taskItem.notes!, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -699,19 +640,18 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
             return;
           } else if (tabCtrl.index == 1) {
             ToDoTasksModel().isReady.then((value) {
-              var list = ToDoTasksModel().toDoTasksCache!.list;
+              var list = DataModel().todoTasks.toDoTasksControllers.list;
               List<int> editedIds = [...addLinkTo, ...removeLinkFrom];
-              Iterable<ToDoTask> edits = list.where((t) => editedIds.contains(t.id));
+              print(editedIds);
+              Iterable<ToDoTaskEditingController> edits = list.where((t) => editedIds.contains(t.id));
+
               for (var t in edits) {
-                if (isItemSelected(t)) {
+                if (isItemSelected(t.toToDoTask())) {
                   t.linkedIssues.add(widget.ticket.key!);
-                  t.linkedIssues = t.linkedIssues.toSet().toList();
                 } else {
                   t.linkedIssues.remove(widget.ticket.key!);
                 }
               }
-              // ignore: use_build_context_synchronously
-              ToDoTasksModel().editTasks(edits);
               Navigator.of(context).pop();
             });
             return;
@@ -863,165 +803,4 @@ class EditToDoTaskCategoryDialog extends StatelessWidget {
       ),
     ),
   );
-}
-
-// // DATA SECTION
-
-class ToDoTaskEditingController extends ChangeNotifier {
-  final int id;
-  late final DateTime dateAdded;
-  late final TextEditingController title, notes;
-  late final ValueNotifier<int> category;
-  late final ValueNotifier<bool> isComplete;
-  late final ValueNotifier<DateTime?> toDoBefore;
-  late final ObservableList<String> linkedIssues;
-
-  ToDoTaskEditingController({
-    required this.id,
-    required this.title,
-    required this.notes,
-    required this.linkedIssues,
-    required this.toDoBefore,
-    required this.dateAdded,
-    required this.isComplete,
-    required this.category,
-  }) {
-    title.addListener(notifyListeners);
-    notes.addListener(notifyListeners);
-    category.addListener(notifyListeners);
-    isComplete.addListener(notifyListeners);
-    toDoBefore.addListener(notifyListeners);
-    linkedIssues.addListener(notifyListeners);
-  }
-
-  factory ToDoTaskEditingController.fromToDoTask(ToDoTask task) {
-    return ToDoTaskEditingController(
-      id: task.id,
-      dateAdded: task.dateAdded,
-      title: TextEditingController(text: task.title),
-      notes: TextEditingController(text: task.notes),
-      linkedIssues: ObservableList.from(task.linkedIssues),
-      toDoBefore: ValueNotifier(task.toDoBefore),
-      isComplete: ValueNotifier(task.isComplete),
-      category: ValueNotifier(task.category),
-    );
-  }
-  ToDoTask toToDoTask() => ToDoTask(
-    id: id,
-    dateAdded: dateAdded,
-    title: title.text.trim().isEmpty ? null : title.text.trim(),
-    notes: notes.text.trim().isEmpty ? null : notes.text.trim(),
-    linkedIssues: linkedIssues.list,
-    toDoBefore: toDoBefore.value,
-    isComplete: isComplete.value,
-    category: category.value,
-  );
-
-  void modify(ToDoTask newTaskData) {
-    title.text = newTaskData.title ?? '';
-    notes.text = newTaskData.notes ?? '';
-    category.value = newTaskData.category;
-    isComplete.value = newTaskData.isComplete;
-    toDoBefore.value = newTaskData.toDoBefore;
-    linkedIssues.reset();
-    linkedIssues.addAll(newTaskData.linkedIssues);
-  }
-}
-
-class ToDoTask {
-  int id;
-  late final DateTime dateAdded;
-  DateTime? toDoBefore;
-
-  /// List of relevant tickets
-  List<String> linkedIssues;
-  String? title, notes;
-
-  bool isComplete;
-
-  /// Default categories will have negative indexes, custom ones go from 0 up
-  /// If this list is empty, the category "For later" is used.
-  int category;
-
-  ToDoTask({
-    required this.id,
-    this.title,
-    this.notes,
-    required this.linkedIssues,
-    this.toDoBefore,
-    required this.dateAdded,
-    this.isComplete = false,
-    this.category = -1,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'title': title,
-    'notes': notes,
-    'tickets': linkedIssues,
-    'toDoBefore': toDoBefore?.toIso8601String(),
-    'creationDate': dateAdded.toIso8601String(),
-    'isComplete': isComplete,
-    'category': category,
-  };
-  factory ToDoTask.fromJson(Map<String, dynamic> json) {
-    final creationDateValue = json['creationDate'] ?? json['added'];
-    final added = creationDateValue != null ? DateTime.parse(creationDateValue.toString()) : DateTime.now();
-
-    final toDoBeforeValue = json['toDoBefore'];
-    final toDoBefore = toDoBeforeValue != null ? DateTime.parse(toDoBeforeValue.toString()) : null;
-
-    final ticketsRaw = json['tickets'];
-    final tickets = ticketsRaw is List ? ticketsRaw.map((e) => e.toString()).toList() : <String>[];
-
-    return ToDoTask(
-      id: json['id'],
-      title: json['title']?.toString(),
-      notes: json['notes']?.toString(),
-      linkedIssues: tickets,
-      toDoBefore: toDoBefore,
-      dateAdded: added,
-      isComplete: json['isComplete'] ?? false,
-      category: json['category'] ?? -1,
-    );
-  }
-
-  (String, IconData, Color?) get categoryData => categoryDataFrom(category);
-
-  static (String, IconData, Color?) categoryDataFrom(int categoryID) {
-    if (categoryID < 0) {
-      // default icons
-      DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == categoryID, orElse: () => DefaultTaskCategory.forLater);
-      return (
-        cat.displayName,
-        cat.icon,
-        cat.color,
-      );
-    }
-    throw UnimplementedError(); //TODO custom categories
-  }
-}
-
-enum DefaultTaskCategory {
-  forLater(-1, 'For later', Icons.push_pin),
-  forNextMeeting(-2, 'For next meeting', Symbols.groups),
-  toDocument(-3, 'To document', Icons.edit_document),
-  toRetest(-4, 'To test', Symbols.experiment),
-  toReview(-5, 'To review', Symbols.mystery),
-  waitingForInput(-6, 'Waiting for input', Symbols.pending),
-  missingScoping(-7, 'Missing scoping', Symbols.filter_center_focus),
-  critical(-8, 'Critical', Symbols.dangerous, color: Colors.red)
-  ;
-
-  final int id;
-  final String displayName;
-  final IconData icon;
-  final Color? color;
-
-  const DefaultTaskCategory(
-    this.id,
-    this.displayName,
-    this.icon, {
-    this.color,
-  });
 }

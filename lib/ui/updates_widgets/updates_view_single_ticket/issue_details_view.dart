@@ -118,7 +118,7 @@ class PersonField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Future<bool> isMe = APIModel().myself().then(
+    Future<bool> isMe = DataModel().api.myself().then(
       (value) => jsonDecode(value.body)['accountId'] == ticket.fields?[field]?['accountId'],
     );
 
