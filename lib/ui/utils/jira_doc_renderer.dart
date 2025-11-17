@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
-import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/ui/utils/spanning_table.dart';
@@ -81,10 +80,37 @@ class AdfRenderer extends StatelessWidget {
         ),
         builder: (context, snapshot) {
           return snapshot.hasData
-              ? JiraImage(
-                  url: snapshot.data!,
-                  boxFit: BoxFit.fitWidth,
-                  width: size.toDouble(),
+              ? InkWell(
+                  onTap: () => showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      constraints: BoxConstraints.expand(),
+                      title: Row(
+                        children: [
+                          Text(node.toString()),
+                          Spacer(),
+                          // IconButton(onPressed: () => launchUrl(Uri.parse(contentURL)), icon: Icon(Icons.download)),
+                        ],
+                      ),
+                      content: InteractiveViewer(
+                        child: Center(
+                          child: JiraImage(
+                            url: snapshot.data!,
+                            boxFit: BoxFit.contain,
+                            width: size.toDouble(),
+                          ),
+                        ),
+                      ),
+                      actions: [
+                        TextButton(onPressed: Navigator.of(context).pop, child: Text('Close')),
+                      ],
+                    ),
+                  ),
+                  child: JiraImage(
+                    url: snapshot.data!,
+                    boxFit: BoxFit.fitWidth,
+                    width: size.toDouble(),
+                  ),
                 )
               : CircularProgressIndicator();
         },

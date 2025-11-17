@@ -3,7 +3,6 @@
 A Jira client that shows the most recent updates done in projects you work on.
 
 # TODO
-
  - mac support
  - clicking image in desc should bring it up
 

@@ -666,7 +666,9 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
             ),
 
           if (widget.attachments.length > 1) VerticalDivider(),
-          Expanded(child: Center(child: content)),
+          Expanded(
+            child: InteractiveViewer(child: Center(child: content)),
+          ),
         ],
       ),
       actions: [
