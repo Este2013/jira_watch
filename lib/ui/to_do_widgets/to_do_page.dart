@@ -643,7 +643,7 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
             ToDoTasksModel().isReady.then((value) {
               var list = DataModel().todoTasks.toDoTasksControllers.list;
               List<int> editedIds = [...addLinkTo, ...removeLinkFrom];
-              print(editedIds);
+
               Iterable<ToDoTaskEditingController> edits = list.where((t) => editedIds.contains(t.id));
 
               for (var t in edits) {
@@ -653,6 +653,7 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
                   t.linkedWorkItems.remove(widget.workItem.key!);
                 }
               }
+              // ignore: use_build_context_synchronously
               Navigator.of(context).pop();
             });
             return;

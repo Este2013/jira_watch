@@ -79,7 +79,7 @@ class ToDoTasksModel with UiLoggy {
       throw Exception('Cache is not ready???');
     }
     // int validId = toDoTasksCache!.list.fold(0, (v, t) => v = max(v, t.id)) + 1;
-    int validId = toDoTasksControllers!.list.fold(0, (v, t) => v = max(v, t.id)) + 1;
+    int validId = toDoTasksControllers.list.fold(0, (v, t) => v = max(v, t.id)) + 1;
     var task = ToDoTask(
       id: validId,
       title: title,
@@ -105,23 +105,22 @@ class ToDoTasksModel with UiLoggy {
       throw Exception('Cache is not ready???');
     }
 
-    final idx = toDoTasksControllers!.list.indexWhere((t) => t.id == edited.id);
+    final idx = toDoTasksControllers.list.indexWhere((t) => t.id == edited.id);
 
     if (_deletedTodoIds.contains(edited.id)) {
       loggy.warning('Because task #${edited.id} was already deleted, editing is aborted.');
       return;
     }
     if (idx >= 0) {
-      toDoTasksControllers![idx].modify(edited);
+      toDoTasksControllers[idx].modify(edited);
     } else {
       loggy.warning('Task ${edited.id} not found. Adding it instead.');
-      toDoTasksControllers!.add(ToDoTaskEditingController.fromToDoTask(edited));
+      toDoTasksControllers.add(ToDoTaskEditingController.fromToDoTask(edited));
     }
     await saveToDoTasksCache();
   }
 
   void editTasks(Iterable<ToDoTask> editedList) async {
-    print(editedList.first.toJson());
     loggy.info('Editing ${editedList.length} task(s)');
     final cacheIsReady = await isReady;
     if (!cacheIsReady) {
@@ -154,9 +153,9 @@ class ToDoTasksModel with UiLoggy {
       loggy.error('Cache is not ready???');
       throw Exception('Cache is not ready???');
     }
-    final idx = toDoTasksControllers!.list.indexWhere((t) => t.id == id);
+    final idx = toDoTasksControllers.list.indexWhere((t) => t.id == id);
     if (idx >= 0) {
-      var task = toDoTasksControllers!.removeAt(idx);
+      var task = toDoTasksControllers.removeAt(idx);
       _deletedTodoIds.add(task.id);
     } else {
       loggy.warning('Task $id was not found.');
