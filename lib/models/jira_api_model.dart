@@ -35,10 +35,10 @@ class APIModel {
 
   /// Use expand to include additional information in the response. This parameter accepts a comma-separated list. Note that the project description, issue types, and project lead are included in all responses by default. Expand options include:
   ///  - description The project description.
-  ///  - issueTypes The issue types associated with the project.
+  ///  - issueTypes The workItem types associated with the project.
   ///  - lead The project lead.
   ///  - projectKeys All project keys associated with the project.
-  ///  - issueTypeHierarchy The project issue type hierarchy.
+  ///  - issueTypeHierarchy The project workItem type hierarchy.
   ///
   /// Or use properties for a select set of returned properties.
   Future fetchSingleProject(String code, {List<String>? expand}) async {
@@ -52,7 +52,7 @@ class APIModel {
     return data;
   }
 
-  // ISSUES /////////////////////////////////////////////////////////////////////
+  // WORK ITEMS /////////////////////////////////////////////////////////////////////
 
   /// https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-jql-get
   Future jqlSearch(
@@ -72,7 +72,7 @@ class APIModel {
     return data;
   }
 
-  Future<Response> getIssue(String issueKey, {List<String> expand = const []}) {
+  Future<Response> getWorkItem(String issueKey, {List<String> expand = const []}) {
     return dao.requestAtEndpoint(
       '/rest/api/3/issue/$issueKey',
       queryParameters: {
@@ -81,7 +81,7 @@ class APIModel {
     );
   }
 
-  Future<(Iterable<JiraWorkItemData>, bool, String?)> fetchLastUpdatedIssues({
+  Future<(Iterable<JiraWorkItemData>, bool, String?)> fetchLastUpdatedWorkItems({
     int maxResults = 0,
     DateTime? before,
     DateTime? after,
@@ -117,10 +117,8 @@ class APIModel {
         .then(
           (data) {
             var now = DateTime.now();
-            final issues = (data['issues'] as List).map((e) => JiraWorkItemData(e, lastCacheUpdate: now));
-
-            // print(data.keys);
-            return (issues, data['isLast'] as bool, data['nextPageToken'] as String?);
+            final workItems = (data['issues'] as List).map((e) => JiraWorkItemData(e, lastCacheUpdate: now));
+            return (workItems, data['isLast'] as bool, data['nextPageToken'] as String?);
           },
         );
   }

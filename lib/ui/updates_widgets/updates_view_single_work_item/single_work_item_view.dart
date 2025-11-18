@@ -66,7 +66,7 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
     if ([widget.workItem.changelog, widget.workItem.fields, widget.workItem.commentsData].any((e) => e == null)) {
       loggy.info('Provided data for ${widget.workItem.key} is incomplete; fetching a full version online');
       if (widget.workItem.key == null) return ErrorWidget("Can't work if the issue's key is null!!!");
-      fullWorkItemData = DataModel().api.getIssue(widget.workItem.key!, expand: ['changelog']).then(
+      fullWorkItemData = DataModel().api.getWorkItem(widget.workItem.key!, expand: ['changelog']).then(
         (value) {
           return JiraWorkItemData.fromJson({'data': jsonDecode(value.body)});
         },

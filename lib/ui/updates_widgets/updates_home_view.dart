@@ -44,7 +44,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
 
   final ScrollController scrollController = ScrollController(keepScrollOffset: true);
 
-  final List<JiraWorkItemData> allLoadedIssues = [];
+  final List<JiraWorkItemData> allLoadedWorkItems = [];
 
   bool isAllowedToShowIssueDialog = true;
   bool isIssueDialogShown = false;
@@ -99,7 +99,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
     isLoading = false;
     totalAvailable = null;
     nextPageToken = null;
-    allLoadedIssues.clear();
+    allLoadedWorkItems.clear();
     startFetchingNewPage();
   }
 
@@ -109,7 +109,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
     setState(() => isLoading = true);
 
     return futurePage =
-        DataModel().fetchLastUpdatedIssuesByPage(
+        DataModel().fetchLastUpdatedWorkItemsByPage(
             pageSize: pageSize,
             pageIndex: pageShown,
             filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
@@ -124,7 +124,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
             setState(() {
               pageShown += 1;
               nextPageToken = value.$3;
-              allLoadedIssues.addAll(items);
+              allLoadedWorkItems.addAll(items);
 
               // Determine whether there are more pages:
               // Option A (robust if API provides total):
@@ -325,14 +325,14 @@ class _UpdatesPageState extends State<UpdatesPage> {
                             return false;
                           },
                           child: FutureBuilder(
-                            future: DataModel().issueMarkedAsReadTime(),
+                            future: DataModel().workItemMarkedAsReadTime(),
                             builder: (_, _) {
                               return ListView.builder(
                                 controller: scrollController,
-                                itemCount: allLoadedIssues.length + (isLoading || hasMore ? 1 : 0), // +1 for footer
+                                itemCount: allLoadedWorkItems.length + (isLoading || hasMore ? 1 : 0), // +1 for footer
                                 itemBuilder: (context, index) {
-                                  if (index < allLoadedIssues.length) {
-                                    final t = allLoadedIssues[index];
+                                  if (index < allLoadedWorkItems.length) {
+                                    final t = allLoadedWorkItems[index];
                                     return JiraWorkItemPreviewItem(
                                       key: Key(t.key ?? ''),
                                       workItem: t,
@@ -503,7 +503,7 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
 
   @override
   void initState() {
-    lastReadTime = DataModel().syncIssueMarkedAsReadTimeCache?[widget.workItem.key];
+    lastReadTime = DataModel().syncWorkItemMarkedAsReadTimeCache?[widget.workItem.key];
     super.initState();
   }
 

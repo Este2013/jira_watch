@@ -195,7 +195,7 @@ class _TodoPageState extends State<TodoPage> {
                                                   style: taskController.isComplete.value ? TextStyle(decoration: TextDecoration.lineThrough) : null,
                                                 ),
                                                 subtitle: SingleChildScrollView(
-                                                  child: Text(taskController.linkedIssues.isEmpty ? 'No linked work items' : taskController.linkedIssues.list.join(', ')),
+                                                  child: Text(taskController.linkedWorkItems.isEmpty ? 'No linked work items' : taskController.linkedWorkItems.list.join(', ')),
                                                 ),
                                                 leading: IconButton(
                                                   icon: Icon(categoryData.$2, fill: 1),
@@ -376,14 +376,14 @@ class SingleTaskView extends StatelessWidget {
                         child: Text('Linked work items', style: Theme.of(context).textTheme.titleMedium),
                       ),
                       AnimatedBuilder(
-                        animation: taskController.linkedIssues,
+                        animation: taskController.linkedWorkItems,
                         builder: (context, child) => Column(
                           children: [
-                            if (taskController.linkedIssues.list.isEmpty) Text('No linked work items'),
-                            for (var tkt in taskController.linkedIssues.list)
+                            if (taskController.linkedWorkItems.list.isEmpty) Text('No linked work items'),
+                            for (var tkt in taskController.linkedWorkItems.list)
                               FutureBuilder(
                                 key: Key('Work item $tkt linked to task ${taskController.id}'),
-                                future: DataModel().api.getIssue(tkt, expand: ['changelog']),
+                                future: DataModel().api.getWorkItem(tkt, expand: ['changelog']),
                                 builder: (context, asyncSnapshot) {
                                   if (asyncSnapshot.hasData) {
                                     return IssueLinkTile(jsonDecode(asyncSnapshot.data!.body));
@@ -648,9 +648,9 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
 
               for (var t in edits) {
                 if (isItemSelected(t.toToDoTask())) {
-                  t.linkedIssues.add(widget.workItem.key!);
+                  t.linkedWorkItems.add(widget.workItem.key!);
                 } else {
-                  t.linkedIssues.remove(widget.workItem.key!);
+                  t.linkedWorkItems.remove(widget.workItem.key!);
                 }
               }
               Navigator.of(context).pop();
@@ -666,13 +666,13 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
   );
 
   bool isItemSelected(ToDoTask task) {
-    bool ogTaskHasWorkItem = task.linkedIssues.contains(widget.workItem.key);
+    bool ogTaskHasWorkItem = task.linkedWorkItems.contains(widget.workItem.key);
     return (ogTaskHasWorkItem || addLinkTo.contains(task.id)) && !removeLinkFrom.contains(task.id);
   }
 
   void toggleSelection(ToDoTask task) {
     String? tktKey = widget.workItem.key;
-    if (task.linkedIssues.contains(tktKey)) {
+    if (task.linkedWorkItems.contains(tktKey)) {
       if (removeLinkFrom.contains(task.id)) {
         removeLinkFrom.remove(task.id);
       } else {

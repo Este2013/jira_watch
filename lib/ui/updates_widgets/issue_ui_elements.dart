@@ -4,9 +4,9 @@ import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Shows an issues icon and key, formatting appropriately for links and adding a copy button if requested.
-class IssueBadge extends StatefulWidget {
-  const IssueBadge(
+/// Shows a work item's icon and key, formatting appropriately for links and adding a copy button if requested.
+class WorkItemBadge extends StatefulWidget {
+  const WorkItemBadge(
     this.label, {
     super.key,
     this.url,
@@ -23,10 +23,10 @@ class IssueBadge extends StatefulWidget {
   final bool copyable, compact;
 
   @override
-  State<IssueBadge> createState() => _IssueBadgeState();
+  State<WorkItemBadge> createState() => _WorkItemBadgeState();
 }
 
-class _IssueBadgeState extends State<IssueBadge> {
+class _WorkItemBadgeState extends State<WorkItemBadge> {
   bool _hovering = false;
   bool _hoveringCopy = false;
   @override
@@ -117,7 +117,7 @@ class _IssueBadgeState extends State<IssueBadge> {
   }
 }
 
-/// Shows the issues project, parent and key as [IssueBadge]s.
+/// Shows the work items project, parent and key as [WorkItemBadge]s.
 class IssueLinkWithParentsRow extends StatefulWidget {
   final JiraWorkItemData workItem;
   final bool compact;
@@ -157,7 +157,7 @@ class _IssueLinkWithParentsRowState extends State<IssueLinkWithParentsRow> {
       children: [
         // Project badge
         if (projectIconUrl != null) ...[
-          IssueBadge(
+          WorkItemBadge(
             projectName,
             iconUrl: projectIconUrl,
             badgeSize: badgeSize,
@@ -170,7 +170,7 @@ class _IssueLinkWithParentsRowState extends State<IssueLinkWithParentsRow> {
 
         // Parent badge, if any
         if (parentKey != null && !widget.compact) ...[
-          IssueBadge(
+          WorkItemBadge(
             parentKey,
             key: Key(parentKey),
             iconUrl: parentIconUrl,
@@ -184,7 +184,7 @@ class _IssueLinkWithParentsRowState extends State<IssueLinkWithParentsRow> {
         ],
 
         // Your existing work item key + copy-on-hover
-        IssueBadge(
+        WorkItemBadge(
           issueKey,
           key: Key(issueKey),
           iconUrl: fields?['issuetype']?['iconUrl'],

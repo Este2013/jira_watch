@@ -717,7 +717,7 @@ class IssueLinksField extends StatelessWidget {
     }
 
     return ExpandablePanel(
-      'Related issues',
+      'Related work items',
       content: Column(
         spacing: 16,
         children: [

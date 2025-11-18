@@ -67,11 +67,11 @@ class DataModel with UiLoggy {
     return api.fetchSingleProject(code, expand: expand);
   }
 
-  // ISSUES /////////////////////////////////////////////////////////////////////
+  // WORK ITEMS /////////////////////////////////////////////////////////////////////
 
-  Future<(Iterable<JiraWorkItemData>, bool, String?)> fetchLastUpdatedIssues({int maxResults = 0, String? nextPageToken, DateTime? before, DateTime? after, List<String>? filterByProjectCodes}) {
+  Future<(Iterable<JiraWorkItemData>, bool, String?)> fetchLastUpdatedWorkItems({int maxResults = 0, String? nextPageToken, DateTime? before, DateTime? after, List<String>? filterByProjectCodes}) {
     // TODO missing cache check
-    return api.fetchLastUpdatedIssues(
+    return api.fetchLastUpdatedWorkItems(
       maxResults: maxResults,
       before: before,
       after: after,
@@ -80,7 +80,7 @@ class DataModel with UiLoggy {
     );
   }
 
-  Future<(Iterable<JiraWorkItemData>, bool, String?)> fetchLastUpdatedIssuesByPage({
+  Future<(Iterable<JiraWorkItemData>, bool, String?)> fetchLastUpdatedWorkItemsByPage({
     required int pageSize,
     int pageIndex = 0,
     String? nextPageToken,
@@ -89,7 +89,7 @@ class DataModel with UiLoggy {
     List<String>? filterByProjectCodes,
   }) {
     // TODO missing cache check
-    return fetchLastUpdatedIssues(
+    return fetchLastUpdatedWorkItems(
       maxResults: pageSize,
       nextPageToken: nextPageToken,
       before: before,
@@ -101,11 +101,11 @@ class DataModel with UiLoggy {
   // LOCAL DATA /////////////////////////////////////////////////////////////////////
 
   /// Contains for each entry:
-  ///  - issue key (eg. "EVH-1234")
-  ///  - last issue update time that was marked as read.
-  /// If an issue update is more recent than a cache value stored here, then its unread.
-  Map<String, DateTime>? syncIssueMarkedAsReadTimeCache;
-  final File _issueMarkedAsReadTimeDataFile = File(
+  ///  - workitem key (eg. "EVH-1234")
+  ///  - last workitem update time that was marked as read.
+  /// If a workitem update is more recent than a cache value stored here, then its unread.
+  Map<String, DateTime>? syncWorkItemMarkedAsReadTimeCache;
+  final File _workItemMarkedAsReadTimeDataFile = File(
     path
         .join(
           SettingsModel().settingsFolder.path,
@@ -114,18 +114,18 @@ class DataModel with UiLoggy {
         .replaceFirst(RegExp(r'^\\?/?'), ''),
   );
 
-  Future initIssueMarkedAsReadCache() async {
-    if (syncIssueMarkedAsReadTimeCache == null) {
-      loggy.info('initializing syncIssueMarkedAsReadTimeCache');
-      if (!await _issueMarkedAsReadTimeDataFile.exists()) {
-        loggy.warning('_issueMarkedAsReadTimeDataFile does not exist. creating it at: ${_issueMarkedAsReadTimeDataFile.path}');
+  Future initWorkItemMarkedAsReadCache() async {
+    if (syncWorkItemMarkedAsReadTimeCache == null) {
+      loggy.info('initializing syncWorkItemMarkedAsReadTimeCache');
+      if (!await _workItemMarkedAsReadTimeDataFile.exists()) {
+        loggy.warning('_workItemMarkedAsReadTimeDataFile does not exist. creating it at: ${_workItemMarkedAsReadTimeDataFile.path}');
         try {
-          await _issueMarkedAsReadTimeDataFile.create(recursive: true);
+          await _workItemMarkedAsReadTimeDataFile.create(recursive: true);
         } on Exception catch (e) {
-          loggy.error('_issueMarkedAsReadTimeDataFile could not be created!\n${e.toString()}');
+          loggy.error('_workItemMarkedAsReadTimeDataFile could not be created!\n${e.toString()}');
         }
       }
-      syncIssueMarkedAsReadTimeCache ??= await _issueMarkedAsReadTimeDataFile.readAsString().then(
+      syncWorkItemMarkedAsReadTimeCache ??= await _workItemMarkedAsReadTimeDataFile.readAsString().then(
         (strData) {
           var csv = const CsvToListConverter().convert(strData);
           return {for (var line in csv) line.first: DateTime.parse(line.last)};
@@ -134,31 +134,31 @@ class DataModel with UiLoggy {
     }
   }
 
-  Future<Map<String, DateTime>> issueMarkedAsReadTime() async {
-    await initIssueMarkedAsReadCache();
-    return syncIssueMarkedAsReadTimeCache!;
+  Future<Map<String, DateTime>> workItemMarkedAsReadTime() async {
+    await initWorkItemMarkedAsReadCache();
+    return syncWorkItemMarkedAsReadTimeCache!;
   }
 
-  Future<void> markAsRead(String issueKey, DateTime time, {bool isRead = true}) async {
-    loggy.debug('Marking $issueKey as ${isRead ? '' : 'un'}read');
-    await initIssueMarkedAsReadCache();
+  Future<void> markAsRead(String workItemKey, DateTime time, {bool isRead = true}) async {
+    loggy.debug('Marking $workItemKey as ${isRead ? '' : 'un'}read');
+    await initWorkItemMarkedAsReadCache();
     if (isRead) {
-      if (syncIssueMarkedAsReadTimeCache != null) {
-        syncIssueMarkedAsReadTimeCache![issueKey] = time;
+      if (syncWorkItemMarkedAsReadTimeCache != null) {
+        syncWorkItemMarkedAsReadTimeCache![workItemKey] = time;
       }
     } else {
-      if (syncIssueMarkedAsReadTimeCache != null) {
-        syncIssueMarkedAsReadTimeCache!.remove(issueKey);
+      if (syncWorkItemMarkedAsReadTimeCache != null) {
+        syncWorkItemMarkedAsReadTimeCache!.remove(workItemKey);
       }
     }
 
     String csv = const ListToCsvConverter().convert([
-      for (var e in syncIssueMarkedAsReadTimeCache!.entries) [e.key, e.value.toIso8601String()],
+      for (var e in syncWorkItemMarkedAsReadTimeCache!.entries) [e.key, e.value.toIso8601String()],
     ]);
     try {
-      await _issueMarkedAsReadTimeDataFile.writeAsString(csv);
+      await _workItemMarkedAsReadTimeDataFile.writeAsString(csv);
     } on Exception catch (e) {
-      loggy.error('_issueMarkedAsReadTimeDataFile could not be written to!\n${e.toString()}');
+      loggy.error('_workItemMarkedAsReadTimeDataFile could not be written to!\n${e.toString()}');
     }
   }
 }

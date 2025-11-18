@@ -84,7 +84,7 @@ class ToDoTasksModel with UiLoggy {
       id: validId,
       title: title,
       notes: notes,
-      linkedIssues: workItemKeys ?? [],
+      linkedWorkItems: workItemKeys ?? [],
       category: categoryID,
       dateAdded: DateTime.now(),
     );
@@ -198,13 +198,13 @@ class ToDoTaskEditingController extends ChangeNotifier {
   late final ValueNotifier<int> category;
   late final ValueNotifier<bool> isComplete;
   late final ValueNotifier<DateTime?> toDoBefore;
-  late final ObservableList<String> linkedIssues;
+  late final ObservableList<String> linkedWorkItems;
 
   ToDoTaskEditingController({
     required this.id,
     required this.title,
     required this.notes,
-    required this.linkedIssues,
+    required this.linkedWorkItems,
     required this.toDoBefore,
     required this.dateAdded,
     required this.isComplete,
@@ -215,7 +215,7 @@ class ToDoTaskEditingController extends ChangeNotifier {
     category.addListener(notifyListeners);
     isComplete.addListener(notifyListeners);
     toDoBefore.addListener(notifyListeners);
-    linkedIssues.addListener(notifyListeners);
+    linkedWorkItems.addListener(notifyListeners);
   }
 
   factory ToDoTaskEditingController.fromToDoTask(ToDoTask task) {
@@ -224,7 +224,7 @@ class ToDoTaskEditingController extends ChangeNotifier {
       dateAdded: task.dateAdded,
       title: TextEditingController(text: task.title),
       notes: TextEditingController(text: task.notes),
-      linkedIssues: ObservableList.from(task.linkedIssues),
+      linkedWorkItems: ObservableList.from(task.linkedWorkItems),
       toDoBefore: ValueNotifier(task.toDoBefore),
       isComplete: ValueNotifier(task.isComplete),
       category: ValueNotifier(task.category),
@@ -235,7 +235,7 @@ class ToDoTaskEditingController extends ChangeNotifier {
     dateAdded: dateAdded,
     title: title.text.trim().isEmpty ? null : title.text.trim(),
     notes: notes.text.trim().isEmpty ? null : notes.text.trim(),
-    linkedIssues: linkedIssues.list,
+    linkedWorkItems: linkedWorkItems.list,
     toDoBefore: toDoBefore.value,
     isComplete: isComplete.value,
     category: category.value,
@@ -247,8 +247,8 @@ class ToDoTaskEditingController extends ChangeNotifier {
     category.value = newTaskData.category;
     isComplete.value = newTaskData.isComplete;
     toDoBefore.value = newTaskData.toDoBefore;
-    linkedIssues.reset();
-    linkedIssues.addAll(newTaskData.linkedIssues);
+    linkedWorkItems.reset();
+    linkedWorkItems.addAll(newTaskData.linkedWorkItems);
   }
 }
 
@@ -258,7 +258,7 @@ class ToDoTask {
   DateTime? toDoBefore;
 
   /// List of relevant workItems
-  List<String> linkedIssues;
+  List<String> linkedWorkItems;
   String? title, notes;
 
   bool isComplete;
@@ -271,7 +271,7 @@ class ToDoTask {
     required this.id,
     this.title,
     this.notes,
-    required this.linkedIssues,
+    required this.linkedWorkItems,
     this.toDoBefore,
     required this.dateAdded,
     this.isComplete = false,
@@ -282,7 +282,7 @@ class ToDoTask {
     'id': id,
     'title': title,
     'notes': notes,
-    'tickets': linkedIssues,
+    'tickets': linkedWorkItems,
     'toDoBefore': toDoBefore?.toIso8601String(),
     'creationDate': dateAdded.toIso8601String(),
     'isComplete': isComplete,
@@ -302,7 +302,7 @@ class ToDoTask {
       id: json['id'],
       title: json['title']?.toString(),
       notes: json['notes']?.toString(),
-      linkedIssues: workItems,
+      linkedWorkItems: workItems,
       toDoBefore: toDoBefore,
       dateAdded: added,
       isComplete: json['isComplete'] ?? false,

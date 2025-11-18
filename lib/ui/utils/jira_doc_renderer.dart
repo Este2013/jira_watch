@@ -355,7 +355,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
             RegExp(r'\?.*'),
             '',
           );
-      var response = DataModel().api.getIssue(issueKey);
+      var response = DataModel().api.getWorkItem(issueKey);
 
       return FutureBuilder(
         future: response,

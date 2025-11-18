@@ -318,7 +318,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                 requestFocusOnTap: false,
                 initialSelection: SettingsModel().useCompactJiraWorkItemDisplay.value,
                 dropdownMenuEntries: [
-                  DropdownMenuEntry(value: 'When issue was read', label: 'When issue was read'),
+                  DropdownMenuEntry(value: 'When issue was read', label: 'When update was read'),
                   DropdownMenuEntry(value: 'Never', label: 'Never'),
                   DropdownMenuEntry(value: 'Always', label: 'Always'),
                 ],

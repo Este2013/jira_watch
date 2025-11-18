@@ -185,12 +185,12 @@ class JiraWorkItemData {
   Map? get commentsData => fields?['comment'];
 }
 
-class IssuesDAO {
-  static final IssuesDAO _instance = IssuesDAO._internal();
+class WorkItemsDAO {
+  static final WorkItemsDAO _instance = WorkItemsDAO._internal();
 
-  factory IssuesDAO() => _instance;
+  factory WorkItemsDAO() => _instance;
 
-  IssuesDAO._internal();
+  WorkItemsDAO._internal();
 
   /////////////////////////////////////////////////////////////////////
 

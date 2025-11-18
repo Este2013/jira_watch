@@ -28,7 +28,7 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
     switch (_currentPage) {
       case 'Updates':
         return 0;
-      case 'Issues':
+      case 'Work items':
         return 1;
       case 'To do':
         return 2;
@@ -40,15 +40,15 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
   void _onRailSelect(int index) {
     switch (index) {
       case 0:
-        loggy.info('User selected Updates tab (#$index)');
+        loggy.info('User selected "Updates" tab (#$index)');
         setState(() => _currentPage = 'Updates');
         break;
       case 1:
-        loggy.info('User selected Issues tab (#$index)');
-        setState(() => _currentPage = 'Issues');
+        loggy.info('User selected "Work items" tab (#$index)');
+        setState(() => _currentPage = 'Work items');
         break;
       case 2:
-        loggy.info('User selected Issues tab (#$index)');
+        loggy.info('User selected "To do" tab (#$index)');
         setState(() => _currentPage = 'To do');
         break;
     }
@@ -87,7 +87,7 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
         return 'View the latest changes made in projects you work on.';
       case 'To do':
         return 'Locally keep track of your own tasks.';
-      case 'Issues':
+      case 'Work items':
       default:
         return 'No subtitle for this page, call the dev.';
     }
@@ -165,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
                   ),
                   NavigationRailDestination(
                     icon: Icon(Icons.bug_report),
-                    label: Text('Issues'),
+                    label: Text('Work items'),
                   ),
                   NavigationRailDestination(
                     icon: Icon(Icons.assignment),
@@ -345,7 +345,7 @@ class _SearchIssueDialogState extends State<SearchIssueDialog> {
                       for (var m in directWorkItemIds) {
                         String? key = m.group(0);
                         if (key == null) continue;
-                        results.add(jsonDecode((await DataModel().api.getIssue(key)).body));
+                        results.add(jsonDecode((await DataModel().api.getWorkItem(key)).body));
                       }
                     }
                     return results;
@@ -366,14 +366,14 @@ class _SearchIssueDialogState extends State<SearchIssueDialog> {
               ]),
               builder: (context, snapshot) {
                 if (snapshot.hasData) {
-                  List issues = [...snapshot.data![0], ...(snapshot.data![1]['issues'] as List)];
+                  List workItems = [...snapshot.data![0], ...(snapshot.data![1]['issues'] as List)];
 
                   return Flexible(
                     child: SizedBox(
                       height: 500,
                       child: SingleChildScrollView(
                         child: Column(
-                          children: [for (var i in issues) IssueLinkTile(i)],
+                          children: [for (var i in workItems) IssueLinkTile(i)],
                         ),
                       ),
                     ),
@@ -399,14 +399,14 @@ class _SearchIssueDialogState extends State<SearchIssueDialog> {
               ),
               builder: (context, snapshot) {
                 if (snapshot.hasData) {
-                  List /*<IssueData>*/ issues = (snapshot.data!['issues'] as List); //.map((e) => IssueData(e)).toList();
+                  List workItems = (snapshot.data!['issues'] as List); //.map((e) => IssueData(e)).toList();
 
                   return Flexible(
                     child: SizedBox(
                       height: 500,
                       child: SingleChildScrollView(
                         child: Column(
-                          children: [for (var i in issues) IssueLinkTile(i)],
+                          children: [for (var i in workItems) IssueLinkTile(i)],
                         ),
                       ),
                     ),
