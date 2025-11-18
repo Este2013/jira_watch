@@ -753,6 +753,7 @@ class ChangeLogsDialog extends StatelessWidget {
           ChangeLogSection.bugFixes([
             ChangeLogItem('Todo tasks can now be edited correctly'),
             ChangeLogItem('Jira link cards now open in an in-app dialog (instead of in browser)'),
+            ChangeLogItem('You can now open and zoom on medias from Jira.'),
           ]),
           ChangeLogSection.chores([
             ChangeLogItem('Bumped version number.'),
