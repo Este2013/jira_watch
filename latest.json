@@ -1,4 +1,8 @@
 {
+    "1.4.1": {
+        "changelog": "🪲 Bug fixes\n᛫ Todo tasks can now be edited correctly\n᛫ Jira link cards now open in an in-app dialog (instead of in browser)\n᛫ You can now open and zoom on medias from Jira.\n\n🧼 Chores\n᛫ Bumped version number.\n᛫ Moved known bugs to the project's README.\n᛫ Code classes will be renamed to fit Jira's convention \"work item\", instead of \"issue\" or \"ticket\".",
+        "x64": "v1.4.1/Binaries (x64).zip"
+    },
     "1.4.0": {
         "changelog": "✨ Features:\n ᛫ 🔍 Issue search is now available!\n ᛫ 💬 When the window is too small, the issue details section gets shown in a new modal\n ᛫ 🔗 Jira link tiles now open in an in-app dialog\n\n🪲 Bug fixes\n ᛫ Updates section would reload in a never-ending loop if no project was selected\n ᛫ Windows: media_kit's video player is now statically kept to avoid crashes caused by underlying plugin after dispose calls\n ᛫ \"To do\" section fixes:\n     ᛫ Filters menu now show filtered-out categories as options\n     ᛫ Category is now saved when using \"Add to tasks\" button\n     ᛫ Reworked the dang whole todotasks event system to fix UI jank and missed updates\n ᛫ Text renderer fixes:\n     ᛫ Link cards were unreadable in light mode\n     ᛫ Description panels would overflow if text was longer than could fit on one line\n\n🧼 Chores\n ᛫ Bumped version number.\n ᛫ Updated  Dart SDK version, and made adequate fixes.\n\n🐛 Known bugs\n ᛫ Emojis are not rendered in comments (there is no Atlassian API for that)   \n ᛫ Newer request is dropped by UI if project filters are changed before request completes\n ᛫ Comments: nested replies are not shown as nested",
         "x64": "v1.4.0/Binaries (x64).zip"
