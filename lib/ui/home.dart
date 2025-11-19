@@ -781,6 +781,7 @@ class ChangeLogsDialog extends StatelessWidget {
           ChangeLogSection.chores([
             ChangeLogItem('Bumped version number.'),
             ChangeLogItem('More code renamed to fit Jira\'s convention "work item" (instead of "issue" or "ticket").'),
+            ChangeLogItem('Added log level filter and search in log reading dialog'),
           ]),
         ],
       ),

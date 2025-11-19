@@ -140,7 +140,7 @@ class APIDao with GlobalLoggy {
 
   /// Convenience for GET requests, returns decoded JSON
   Future<dynamic> getJson(String path, {Map<String, dynamic>? queryParameters}) async {
-    debugPrint(queryParameters?['jql']);
+    // debugPrint(queryParameters?['jql']);
     final response = await requestAtEndpoint(path, queryParameters: queryParameters);
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
