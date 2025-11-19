@@ -762,6 +762,28 @@ class ChangeLogsDialog extends StatelessWidget {
           ]),
         ],
       ),
+
+      ChangeLogCard(
+        '1.4.2',
+        sections: [
+          ChangeLogSection.features([
+            ChangeLogItem(
+              'Assignee/reporter:',
+              subItems: [
+                ChangeLogItem('now show a higher-res profile picture;'),
+                ChangeLogItem('their names can be copied;'),
+              ],
+            ),
+            ChangeLogItem(''),
+            ChangeLogItem(''),
+          ]),
+          ChangeLogSection.bugFixes([]),
+          ChangeLogSection.chores([
+            ChangeLogItem('Bumped version number.'),
+            ChangeLogItem('More code renamed to fit Jira\'s convention "work item" (instead of "issue" or "ticket").'),
+          ]),
+        ],
+      ),
     ];
     var ctrl = PageController(initialPage: versionsData.length - 1);
     return AlertDialog(

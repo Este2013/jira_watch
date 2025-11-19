@@ -938,6 +938,7 @@ class _LogsDialog extends StatefulWidget {
 class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
   late Timer pollTimer;
   String? contents;
+  String minLevelShown = 'Info';
 
   @override
   void initState() {
@@ -975,25 +976,91 @@ class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
     title: Text('Logs reader'),
     constraints: BoxConstraints(minWidth: double.maxFinite),
     actions: [
-      TextButton(
-        onPressed: () => loggy.debug('Writing a debug message...'),
-        child: Text(emoteForLevel('Debug')),
-      ),
-      TextButton(
-        onPressed: () => loggy.info('Writing an info message...'),
-        child: Text(emoteForLevel('Info')),
-      ),
-      TextButton(
-        onPressed: () => loggy.warning('Writing a warning message...'),
-        child: Text(emoteForLevel('Warning')),
-      ),
-      TextButton(
-        onPressed: () => loggy.error('Writing an error message...'),
-        child: Text(emoteForLevel('Error')),
-      ),
-      TextButton(
-        onPressed: Navigator.of(context).pop,
-        child: Text('Close'),
+      Row(
+        spacing: 8,
+        children: [
+          PopupMenuButton<String>(
+            icon: Icon(Icons.edit),
+            tooltip: 'Test writing a message',
+
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'debug',
+                child: Row(
+                  children: [
+                    Text(emoteForLevel('Debug')),
+                    SizedBox(width: 8),
+                    Text('Debug'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'info',
+                child: Row(
+                  children: [
+                    Text(emoteForLevel('Info')),
+                    SizedBox(width: 8),
+                    Text('Info'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'warning',
+                child: Row(
+                  children: [
+                    Text(emoteForLevel('Warning')),
+                    SizedBox(width: 8),
+                    Text('Warning'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'error',
+                child: Row(
+                  children: [
+                    Text(emoteForLevel('Error')),
+                    SizedBox(width: 8),
+                    Text('Error'),
+                  ],
+                ),
+              ),
+            ],
+            onSelected: (value) {
+              switch (value) {
+                case 'debug':
+                  loggy.debug('Writing a debug message...');
+                  break;
+                case 'info':
+                  loggy.info('Writing an info message...');
+                  break;
+                case 'warning':
+                  loggy.warning('Writing a warning message...');
+                  break;
+                case 'error':
+                  loggy.error('Writing an error message...');
+                  break;
+              }
+            },
+          ),
+          SegmentedButton(
+            segments: [
+              for (var lvl in ['Debug', 'Info', 'Warning', 'Error']) ButtonSegment(value: lvl, label: Text('${emoteForLevel(lvl)} $lvl')),
+            ],
+
+            selected: {minLevelShown},
+            multiSelectionEnabled: false,
+            showSelectedIcon: false,
+            onSelectionChanged: (p0) => setState(() {
+              minLevelShown = p0.first;
+            }),
+          ),
+
+          Spacer(),
+          TextButton(
+            onPressed: Navigator.of(context).pop,
+            child: Text('Close'),
+          ),
+        ],
       ),
     ],
     content: DefaultTextStyle(
@@ -1007,7 +1074,7 @@ class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
               child: SelectableText.rich(
                 TextSpan(
                   children: [
-                    for (var line in asyncSnapshot.data!) ...[
+                    for (var line in filtered(asyncSnapshot.data!)) ...[
                       if (line.startsWith(RegExp(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T'))) ...[
                         TextSpan(text: emoteForLevel(line.split(' ')[1])),
                         TextSpan(text: ' '),
@@ -1038,4 +1105,53 @@ class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
       ),
     ),
   );
+
+  Iterable<String> filtered(List<String> listOfLines) sync* {
+    /// Maps filter level to its map of allowed levels
+    Map levetIsOutTable = {
+      'Debug': {
+        'Debug': true,
+        'Info': true,
+        'Warning': true,
+        'Error': true,
+      },
+      'Info': {
+        'Debug': false,
+        'Info': true,
+        'Warning': true,
+        'Error': true,
+      },
+      'Warning': {
+        'Debug': false,
+        'Info': false,
+        'Warning': true,
+        'Error': true,
+      },
+      'Error': {
+        'Debug': false,
+        'Info': false,
+        'Warning': false,
+        'Error': true,
+      },
+    };
+
+    bool currentLogEntryIsFilteredOut = false;
+    for (var line in listOfLines) {
+      if (line.startsWith(RegExp(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T'))) {
+        String level = line.split(' ')[1];
+        bool isLevelAllowed = levetIsOutTable[minLevelShown][level] ?? true;
+        if (isLevelAllowed) {
+          yield line;
+          currentLogEntryIsFilteredOut = false;
+        } else {
+          currentLogEntryIsFilteredOut = true;
+        }
+      } else {
+        // this is part of the above log line
+        if (!currentLogEntryIsFilteredOut) {
+          yield line;
+        }
+      }
+    }
+  }
 }

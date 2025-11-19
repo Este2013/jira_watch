@@ -14,7 +14,7 @@ import 'jira_api_model.dart';
 /// Accessor to cached data.
 ///
 /// Handles fetching from local memory or API.
-class DataModel with UiLoggy {
+class DataModel with GlobalLoggy {
   static final DataModel _instance = DataModel._internal();
 
   factory DataModel() => _instance;

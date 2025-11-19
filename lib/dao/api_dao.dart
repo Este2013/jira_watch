@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-class APIDao with UiLoggy {
+class APIDao with GlobalLoggy {
   static final APIDao _instance = APIDao._internal();
 
   factory APIDao() => _instance;

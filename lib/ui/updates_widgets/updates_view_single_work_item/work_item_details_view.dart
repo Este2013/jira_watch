@@ -133,7 +133,7 @@ class PersonField extends StatelessWidget {
           borderColor: (asyncSnapshot.data ?? false) ? null : Theme.of(context).colorScheme.outlineVariant,
           prefixIcon: Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 4, left: 8),
-            child: hasPerson ? ClipOval(child: JiraAvatar(url: workItem.fields?[field]['avatarUrls']['16x16'])) : Icon(Icons.account_circle_outlined),
+            child: hasPerson ? ClipOval(child: JiraAvatar(url: workItem.fields?[field]['avatarUrls']['48x48'])) : Icon(Icons.account_circle_outlined),
           ),
           popupBuilder: hasPerson
               ? (context, dismiss, controller) => Padding(
@@ -150,11 +150,23 @@ class PersonField extends StatelessWidget {
                             mainAxisAlignment: MainAxisAlignment.center,
                             spacing: 8,
                             children: [
+                              Spacer(),
                               ClipRRect(
                                 borderRadius: BorderRadiusGeometry.circular(4),
                                 child: JiraAvatar(url: workItem.fields?[field]['avatarUrls']['48x48']),
                               ),
                               Text(workItem.fields?[field]['displayName'], style: Theme.of(context).textTheme.titleLarge),
+                              Expanded(
+                                child: Align(
+                                  alignment: AlignmentGeometry.centerEnd,
+                                  child: IconButton(
+                                    onPressed: () => Clipboard.setData(ClipboardData(text: workItem.fields?[field]['displayName'])),
+                                    icon: Icon(Icons.copy),
+                                    visualDensity: VisualDensity.compact,
+                                    iconSize: 16,
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                           Divider(),
