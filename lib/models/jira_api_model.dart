@@ -16,6 +16,35 @@ class APIModel {
   late APIDao dao;
 
   Future<Response>? _cacheMyself;
+
+  List<String> defaultFields = [
+    'assignee',
+    'assignee',
+    'attachment',
+    'comment',
+    'components',
+    'created',
+    'creator',
+    'description',
+    'environment',
+    'fixVersions',
+    'issuelinks',
+    'issuetype',
+    'labels',
+    'lastViewed',
+    'priority',
+    'project',
+    'reporter',
+    'resolutiondate',
+    'status',
+    'statusCategory',
+    'statuscategorychangedate',
+    'summary',
+    'updated',
+    'versions',
+    'watches',
+  ];
+
   Future<Response> myself({bool allowCache = true}) async {
     if (allowCache && _cacheMyself != null) {
       return _cacheMyself!;

@@ -88,8 +88,8 @@ class HistoryPage extends StatelessWidget {
       padding: const EdgeInsets.all(8),
       itemCount: groups.length + 1, // +1 reseved for the work item's creation
       itemBuilder: (context, index) {
+        // workItem's creation
         if (index == groups.length) {
-          // workItem's creation
           return Card(
             margin: const EdgeInsets.symmetric(vertical: 8),
             child: Padding(
@@ -115,6 +115,7 @@ class HistoryPage extends StatelessWidget {
           );
           ;
         }
+        // any edit
         final group = groups[index];
         return Card(
           margin: const EdgeInsets.symmetric(vertical: 8),

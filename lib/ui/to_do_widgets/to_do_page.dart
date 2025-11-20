@@ -383,7 +383,7 @@ class SingleTaskView extends StatelessWidget {
                             for (var tkt in taskController.linkedWorkItems.list)
                               FutureBuilder(
                                 key: Key('Work item $tkt linked to task ${taskController.id}'),
-                                future: DataModel().api.getWorkItem(tkt, expand: ['changelog']),
+                                future: DataModel().jiraApi.getWorkItem(tkt, expand: ['changelog']),
                                 builder: (context, asyncSnapshot) {
                                   if (asyncSnapshot.hasData) {
                                     return IssueLinkTile(jsonDecode(asyncSnapshot.data!.body));
