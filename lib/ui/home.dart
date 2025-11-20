@@ -774,18 +774,18 @@ class ChangeLogsDialog extends StatelessWidget {
                 ChangeLogItem('their names can be copied;'),
               ],
             ),
-            ChangeLogItem(''),
-            ChangeLogItem(''),
+            ChangeLogItem('Json and ips files are now handled in attachements with a proper Json viewer.'),
           ]),
-          ChangeLogSection.bugFixes([]),
+          // ChangeLogSection.bugFixes([
+          // ]),
           ChangeLogSection.chores([
             ChangeLogItem('Bumped version number.'),
             ChangeLogItem('More code renamed to fit Jira\'s convention "work item" (instead of "issue" or "ticket").'),
             ChangeLogItem(
-              'Log reading dialog',
+              'Settings > Advanced > Log-reading dialog',
               subItems: [
                 ChangeLogItem('Added log level filter and search'),
-                ChangeLogItem('Logs are now legible in light mode'),
+                ChangeLogItem('Now legible in light mode'),
               ],
             ),
           ]),

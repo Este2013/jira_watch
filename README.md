@@ -11,6 +11,8 @@ A Jira client that shows the most recent updates done in projects you work on.
    - show in history
  - History: show "workItem creation" item
 
+ - TO FIX : Jira attachment (application.json) is given to the JiraImage widget, instead of building a widget for non-image types => ```// TODO FIX #json&ips```
+
 
 ## PRIORIZATION
 

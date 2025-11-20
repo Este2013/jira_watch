@@ -18,6 +18,7 @@ import 'package:jira_watcher/ui/utils/json_viewer.dart';
 import 'package:jira_watcher/ui/utils/labelled_text_presenter.dart';
 import 'package:jira_watcher/ui/utils/network_video_player.dart';
 import 'package:loggy/loggy.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -466,6 +467,11 @@ class AttachmentPreview extends StatelessWidget {
                   child: Icon(Icons.text_fields, size: 48),
                 );
               }
+              if (filetype == 'application/json') {
+                return Center(
+                  child: Icon(Symbols.file_json, size: 48, fill: 1),
+                );
+              }
               if (filetype.startsWith('video')) {
                 return Center(
                   child: Icon(Icons.movie, size: 48),
@@ -573,7 +579,10 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
       ],
     );
 
+    bool isMediaType = false;
+
     if (filetype.split('/')[0] == 'image') {
+      isMediaType = true;
       content = Image.network(
         contentURL,
         headers: {'Authorization': APIDao().authHeader},
@@ -625,9 +634,56 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
           return Center(child: CircularProgressIndicator());
         },
       );
+    } else if (filetype == 'application/json') {
+      content = FutureBuilder(
+        future: fetchText(contentURL),
+        builder: (context, asyncSnapshot) {
+          if (asyncSnapshot.hasError) {
+            return ErrorWidget('Could not load the text:\n${asyncSnapshot.error}');
+          }
+          if (asyncSnapshot.hasData) {
+            var jsonDecodedData;
+            if ((attachment['filename'] as String).endsWith('.ips')) {
+              // We wrap it in a list to ensure ips files don't crash the decoder (they dont have a single json root :/)
+              jsonDecodedData = jsonDecode('{"data": [${asyncSnapshot.data!.replaceAll(RegExp(r'}\s*{'), '}, {')}]}');
+              if ((jsonDecodedData["data"] as List).length == 1) {
+                jsonDecodedData = jsonDecodedData["data"];
+              }
+            } else {
+              jsonDecodedData = jsonDecode(asyncSnapshot.data!);
+            }
+            return ScrollbarTheme(
+              data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 16.0),
+                      child: JsonViewer(
+                        data: jsonDecodedData,
+                        initialExpandDepth: ((attachment['filename'] as String).endsWith('.ips')) ? 4 : 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+          return Center(child: CircularProgressIndicator());
+        },
+      );
     } // TODO are there non-plain text types?
     else if (filetype.startsWith('video')) {
+      isMediaType = true;
       content = NetworkVideoPlayer(url: contentURL);
+    }
+
+    // Wrap medias with zoom controls
+    if (isMediaType) {
+      content = InteractiveViewer(child: Center(child: content));
+    } else {
+      content = Center(child: content);
     }
 
     return AlertDialog(
@@ -679,7 +735,7 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
 
           if (widget.attachments.length > 1) VerticalDivider(),
           Expanded(
-            child: InteractiveViewer(child: Center(child: content)),
+            child: content,
           ),
         ],
       ),
