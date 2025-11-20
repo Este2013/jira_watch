@@ -11,8 +11,15 @@ import 'package:package_info_plus/package_info_plus.dart' as pkg;
 
 class SettingsModel with UiLoggy {
   static final SettingsModel _instance = SettingsModel._internal();
-  Uri get settingsFolderUri => Uri.directory(join(Platform.environment['APPDATA']!, "com.este", "jira_watcher"));
-  Directory get settingsFolder => Directory(join(Platform.environment['APPDATA']!, "com.este", "jira_watcher"));
+  Future<Uri> get settingsFolderUri async => Uri.directory(await _settingsFolderPath);
+ Future <Directory> get settingsFolder async=> Directory(await _settingsFolderPath);
+  
+  Future<String>get _settingsFolderPath  async {
+ if(Platform.isMacOS){
+      return join( (await getApplicationSupportDirectory()).path, "com.este", "jira_watcher");
+    }
+    return join(Platform.environment['APPDATA']!, "com.este", "jira_watcher");
+  }
 
   factory SettingsModel() => _instance;
 
@@ -123,6 +130,7 @@ class SettingsModel with UiLoggy {
 
 class PackageInfoData {
   PackageInfoData() {
+    WidgetsFlutterBinding.ensureInitialized();
     _info = pkg.PackageInfo.fromPlatform().then<Map<String, String>>(
       (packageInfo) => {
         'appName': packageInfo.appName,

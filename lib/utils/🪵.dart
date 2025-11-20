@@ -12,22 +12,23 @@ class FileLogPrinter extends LoggyPrinter {
 
   int maxLoggerNameLength = 30;
 
-  static File logFile = File(join(SettingsModel().settingsFolder.path, 'app_log.txt').replaceAll(RegExp(r'^[\/\\]?'), ''));
+  static Future<File> logFile =SettingsModel().settingsFolder.then((value) => File(join(value.path, 'app_log.txt').replaceAll(RegExp(r'^[\/\\]?'), '')));
 
   FileLogPrinter() {
     _initFuture = _init();
   }
 
   Future<void> _init() async {
-    if (await logFile.exists()) {
-      await logFile.delete();
+var file = (await logFile);
+    if (await file.exists()) {
+      await file.delete();
     }
-    await logFile.create(recursive: true);
+    await file.create(recursive: true);
 
     // Append mode
-    _sink = logFile.openWrite(mode: FileMode.append);
+    _sink = file.openWrite(mode: FileMode.append);
 
-    debugPrint('📄 Log file initialized at: ${logFile.path}');
+    debugPrint('📄 Log file initialized at: ${file.path}');
   }
 
   @override
