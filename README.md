@@ -8,10 +8,7 @@ A Jira client that shows the most recent updates done in projects you work on.
  - add custom fields
  - Comments
    - nested replies
-   - show in history
- - History: show "workItem creation" item
-
- - TO FIX : Jira attachment (application.json) is given to the JiraImage widget, instead of building a widget for non-image types => ```// TODO FIX #json&ips```
+   - show in history 
 
 
 ## PRIORIZATION
@@ -55,7 +52,8 @@ A Jira client that shows the most recent updates done in projects you work on.
  - if a workItem is selected and a refresh occurs, the selected workItem does not update on right side 
  - Emojis are not rendered in comments (there is no Atlassian API for that)
  - Comments: nested replies are not shown as nested
+ - Jira attachments in description (ex: application/json) is given to the JiraImage widget, instead of building a dedicated widget for non-image types => ```// TODO FIX #json&ips```
+ - macOS: Advanced tab is unable to open any of the folders shown
 
 # Furthemore
 - GitLab view
-- 

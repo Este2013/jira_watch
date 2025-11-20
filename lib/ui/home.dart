@@ -775,6 +775,8 @@ class ChangeLogsDialog extends StatelessWidget {
               ],
             ),
             ChangeLogItem('Json and ips files are now handled in attachements with a proper Json viewer.'),
+
+            ChangeLogItem('Work item history now shows an entry for the ticket\'s creation.'),
           ]),
           // ChangeLogSection.bugFixes([
           // ]),
