@@ -18,6 +18,13 @@ class DiffReviewer extends StatefulWidget {
     this.showAdditions = true,
     this.showDeletions = true,
   });
+  static TextStyle addedTextStyle = TextStyle(
+    backgroundColor: Colors.green.withAlpha(255 ~/ 3),
+  );
+  static TextStyle removedTextStyle = TextStyle(
+    decoration: TextDecoration.lineThrough,
+    backgroundColor: Colors.red.withAlpha(255 ~/ 3),
+  );
 
   @override
   State<DiffReviewer> createState() => _DiffReviewerState();
@@ -41,26 +48,17 @@ class _DiffReviewerState extends State<DiffReviewer> {
         case DIFF_INSERT:
           if (!widget.showAdditions) continue;
           spans.add(
-            TextSpan(
-              text: diff.text,
-              style: TextStyle(
-                backgroundColor: Colors.green.withAlpha(255 ~/ 3),
-              ),
-            ),
+            TextSpan(text: diff.text, style: DiffReviewer.addedTextStyle),
           );
           break;
+
         case DIFF_DELETE:
           if (!widget.showDeletions) continue;
           spans.add(
-            TextSpan(
-              text: diff.text,
-              style: TextStyle(
-                decoration: TextDecoration.lineThrough,
-                backgroundColor: Colors.red.withAlpha(255 ~/ 3),
-              ),
-            ),
+            TextSpan(text: diff.text, style: DiffReviewer.removedTextStyle),
           );
           break;
+
         case DIFF_EQUAL:
           spans.add(TextSpan(text: diff.text));
           break;

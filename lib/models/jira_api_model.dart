@@ -19,7 +19,6 @@ class APIModel {
 
   List<String> defaultFields = [
     'assignee',
-    'assignee',
     'attachment',
     'comment',
     'components',
