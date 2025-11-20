@@ -977,197 +977,207 @@ class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text('Logs reader'),
-    constraints: BoxConstraints(minWidth: double.maxFinite),
-    actions: [
-      Row(
-        spacing: 8,
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Row(
-                spacing: 8,
-                children: [
-                  SizedBox(
-                    width: 250,
-                    child: TextField(
-                      controller: searchController,
-                      decoration: InputDecoration(
-                        prefixIcon: Icon(Icons.search),
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Match case',
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(1000),
-                      child: CircleAvatar(
-                        backgroundColor: searchIsCaseSensitive ? null : Colors.transparent,
-                        child: Icon(Symbols.text_fields, size: 20),
-                      ),
-                      onTap: () => setState(() {
-                        searchIsCaseSensitive = !searchIsCaseSensitive;
-                      }),
-                    ),
-                  ),
-                  AnimatedBuilder(
-                    animation: searchController,
-                    builder: (context, _) {
-                      bool regexHasError = (searchController.text.isNotEmpty && !searchController.text.isValidRegex());
-                      return Tooltip(
-                        message: regexHasError ? 'Invalid regular expression' : 'Use regular expression',
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(1000),
-                          child: CircleAvatar(
-                            backgroundColor: searchIsRegex
-                                ? regexHasError
-                                      ? Theme.of(context).colorScheme.errorContainer
-                                      : null
-                                : Colors.transparent,
-                            child: Icon(Symbols.regular_expression, size: 20),
-                          ),
-                          onTap: () => setState(() {
-                            searchIsRegex = !searchIsRegex;
-                          }),
+  Widget build(BuildContext context) {
+    bool isLightTheme = Theme.of(context).brightness == Brightness.light;
+    return AlertDialog(
+      title: Text('Logs reader'),
+      constraints: BoxConstraints(minWidth: double.maxFinite),
+      actions: [
+        Row(
+          spacing: 8,
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: Row(
+                  spacing: 8,
+                  children: [
+                    SizedBox(
+                      width: 250,
+                      child: TextField(
+                        controller: searchController,
+                        decoration: InputDecoration(
+                          prefixIcon: Icon(Icons.search),
                         ),
-                      );
-                    },
-                  ),
-                ],
+                      ),
+                    ),
+                    Tooltip(
+                      message: 'Match case',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(1000),
+                        child: CircleAvatar(
+                          backgroundColor: searchIsCaseSensitive ? null : Colors.transparent,
+                          child: Icon(Symbols.text_fields, size: 20),
+                        ),
+                        onTap: () => setState(() {
+                          searchIsCaseSensitive = !searchIsCaseSensitive;
+                        }),
+                      ),
+                    ),
+                    AnimatedBuilder(
+                      animation: searchController,
+                      builder: (context, _) {
+                        bool regexHasError = (searchController.text.isNotEmpty && !searchController.text.isValidRegex());
+                        return Tooltip(
+                          message: regexHasError ? 'Invalid regular expression' : 'Use regular expression',
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(1000),
+                            child: CircleAvatar(
+                              backgroundColor: searchIsRegex
+                                  ? regexHasError
+                                        ? Theme.of(context).colorScheme.errorContainer
+                                        : null
+                                  : Colors.transparent,
+                              child: Icon(Symbols.regular_expression, size: 20),
+                            ),
+                            onTap: () => setState(() {
+                              searchIsRegex = !searchIsRegex;
+                            }),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          SegmentedButton(
-            segments: [
-              for (var lvl in ['Debug', 'Info', 'Warning', 'Error']) ButtonSegment(value: lvl, label: Text('${emoteForLevel(lvl)} $lvl')),
-            ],
-            selected: {minLevelShown},
-            multiSelectionEnabled: false,
-            showSelectedIcon: false,
-            onSelectionChanged: (p0) => setState(() {
-              minLevelShown = p0.first;
-            }),
-          ),
-          Text('･'),
-          PopupMenuButton<String>(
-            icon: Icon(Icons.edit),
-            tooltip: 'Test writing a message',
+            SegmentedButton(
+              segments: [
+                for (var lvl in ['Debug', 'Info', 'Warning', 'Error']) ButtonSegment(value: lvl, label: Text('${emoteForLevel(lvl)} $lvl')),
+              ],
+              selected: {minLevelShown},
+              multiSelectionEnabled: false,
+              showSelectedIcon: false,
+              onSelectionChanged: (p0) => setState(() {
+                minLevelShown = p0.first;
+              }),
+            ),
+            Text('･'),
+            PopupMenuButton<String>(
+              icon: Icon(Icons.edit),
+              tooltip: 'Test writing a message',
 
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'debug',
-                child: Row(
-                  children: [
-                    Text(emoteForLevel('Debug')),
-                    SizedBox(width: 8),
-                    Text('Debug'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'info',
-                child: Row(
-                  children: [
-                    Text(emoteForLevel('Info')),
-                    SizedBox(width: 8),
-                    Text('Info'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'warning',
-                child: Row(
-                  children: [
-                    Text(emoteForLevel('Warning')),
-                    SizedBox(width: 8),
-                    Text('Warning'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'error',
-                child: Row(
-                  children: [
-                    Text(emoteForLevel('Error')),
-                    SizedBox(width: 8),
-                    Text('Error'),
-                  ],
-                ),
-              ),
-            ],
-            onSelected: (value) {
-              switch (value) {
-                case 'debug':
-                  loggy.debug('Writing a debug message...');
-                  break;
-                case 'info':
-                  loggy.info('Writing an info message...');
-                  break;
-                case 'warning':
-                  loggy.warning('Writing a warning message...');
-                  break;
-                case 'error':
-                  loggy.error('Writing an error message...');
-                  break;
-              }
-            },
-          ),
-          Spacer(),
-          TextButton(
-            onPressed: Navigator.of(context).pop,
-            child: Text('Close'),
-          ),
-        ],
-      ),
-    ],
-    content: DefaultTextStyle(
-      style: TextStyle(fontFamily: 'RobotoMono'),
-      child: FutureBuilder(
-        key: ValueKey(hash),
-        future: FileLogPrinter.logFile.readAsLines(),
-        builder: (context, asyncSnapshot) {
-          if (asyncSnapshot.hasData) {
-            return AnimatedBuilder(
-              animation: searchController,
-              builder: (context, _) => SingleChildScrollView(
-                child: SelectableText.rich(
-                  TextSpan(
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'debug',
+                  child: Row(
                     children: [
-                      for (var entry in filtered(asyncSnapshot.data!)) ...[
-                        ...[
-                          TextSpan(text: emoteForLevel(entry.first.split(' ')[1])),
-                          TextSpan(text: ' '),
-                          TextSpan(
-                            text: entry.first.split(' ')[0].split('T')[1],
-                            style: TextStyle(color: Colors.greenAccent),
-                          ),
-                          TextSpan(text: ' '),
-
-                          TextSpan(
-                            text: entry.first.split(RegExp(r'[\[\]]'))[1],
-                            style: TextStyle(color: Theme.of(context).hintColor),
-                          ),
-                          TextSpan(text: ' '),
-
-                          TextSpan(text: entry.first.split(RegExp(r']')).sublist(1).join(']')),
-                        ],
-                        if (entry.length > 1)
-                          for (var line in entry.sublist(1)) TextSpan(text: '\n    | $line'),
-                        TextSpan(text: '\n'),
-                      ],
+                      Text(emoteForLevel('Debug')),
+                      SizedBox(width: 8),
+                      Text('Debug'),
                     ],
                   ),
                 ),
-              ),
-            );
-          }
-          return Center(child: CircularProgressIndicator());
-        },
+                PopupMenuItem(
+                  value: 'info',
+                  child: Row(
+                    children: [
+                      Text(emoteForLevel('Info')),
+                      SizedBox(width: 8),
+                      Text('Info'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'warning',
+                  child: Row(
+                    children: [
+                      Text(emoteForLevel('Warning')),
+                      SizedBox(width: 8),
+                      Text('Warning'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'error',
+                  child: Row(
+                    children: [
+                      Text(emoteForLevel('Error')),
+                      SizedBox(width: 8),
+                      Text('Error'),
+                    ],
+                  ),
+                ),
+              ],
+              onSelected: (value) {
+                switch (value) {
+                  case 'debug':
+                    loggy.debug('Writing a debug message...');
+                    break;
+                  case 'info':
+                    loggy.info('Writing an info message...');
+                    break;
+                  case 'warning':
+                    loggy.warning('Writing a warning message...');
+                    break;
+                  case 'error':
+                    loggy.error('Writing an error message...');
+                    break;
+                }
+              },
+            ),
+            Spacer(),
+            TextButton(
+              onPressed: Navigator.of(context).pop,
+              child: Text('Close'),
+            ),
+          ],
+        ),
+      ],
+      content: DefaultTextStyle(
+        style: TextStyle(fontFamily: 'RobotoMono'),
+        child: FutureBuilder(
+          key: ValueKey(hash),
+          future: FileLogPrinter.logFile.readAsLines(),
+          builder: (context, asyncSnapshot) {
+            if (asyncSnapshot.hasData) {
+              return AnimatedBuilder(
+                animation: searchController,
+                builder: (context, _) => SingleChildScrollView(
+                  child: SelectableText.rich(
+                    TextSpan(
+                      children: [
+                        for (var entry in filtered(asyncSnapshot.data!)) ...[
+                          ...[
+                            TextSpan(text: emoteForLevel(entry.first.split(' ')[1])),
+                            TextSpan(text: ' '),
+                            TextSpan(
+                              text: entry.first.split(' ')[0].split('T')[1],
+                              style: TextStyle(color: isLightTheme ? Colors.green : Colors.greenAccent),
+                            ),
+                            TextSpan(text: ' '),
+
+                            TextSpan(
+                              text: entry.first.split(RegExp(r'[\[\]]'))[1],
+                              style: TextStyle(color: Theme.of(context).hintColor),
+                            ),
+                            TextSpan(text: ' '),
+
+                            TextSpan(
+                              text: entry.first.split(RegExp(r']')).sublist(1).join(']'),
+                              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                            ),
+                          ],
+                          if (entry.length > 1)
+                            for (var line in entry.sublist(1))
+                              TextSpan(
+                                text: '\n    | $line',
+                                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                              ),
+                          TextSpan(text: '\n'),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+            return Center(child: CircularProgressIndicator());
+          },
+        ),
       ),
-    ),
-  );
+    );
+  }
 
   Iterable<List<String>> filtered(List<String> list) => filteredBySearch(filteredByLevel(groupedByEntries(list)));
 
