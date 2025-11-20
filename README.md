@@ -3,8 +3,6 @@
 A Jira client that shows the most recent updates done in projects you work on.
 
 # TODO
- - mac support
-
  - add custom fields
  - Comments
    - nested replies

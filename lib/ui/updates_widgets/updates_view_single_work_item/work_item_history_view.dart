@@ -108,7 +108,7 @@ class HistoryPage extends StatelessWidget {
                     ),
                   ),
                   Spacer(),
-                  // TimeAgoDisplay(timeStr: group.first.created),
+                  TimeAgoDisplay(timeStr: workItem.fields?['created']),
                 ],
               ),
             ),
