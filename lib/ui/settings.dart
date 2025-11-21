@@ -737,7 +737,7 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                     children: [
                       Text('Settings files'),
                       Spacer(),
-                      TextButton(onPressed: () => launchUrl(SettingsModel().settingsFolderUri), child: Text("View in folder")),
+                      TextButton(onPressed: () =>SettingsModel().settingsFolderUri .then(launchUrl), child: Text("View in folder")),
                     ],
                   ),
                 ],
@@ -757,9 +757,17 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                 child: Column(
                   spacing: 8,
                   children: [
-                    SelectableText(
-                      FileLogPrinter.logFile.path,
-                      textAlign: TextAlign.end,
+                    FutureBuilder(
+                      future:   FileLogPrinter.logFile, 
+                      builder: (context, asyncSnapshot) {
+                        if (!asyncSnapshot.hasData){
+return Text('...');
+                        }
+                        return SelectableText(
+                          asyncSnapshot.data!.path,
+                          textAlign: TextAlign.end,
+                        );
+                      }
                     ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -770,7 +778,7 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                           onPressed: () => showDialog(context: context, builder: (context) => _LogsDialog()),
                           label: Text("Read the logs"),
                         ),
-                        TextButton.icon(icon: Icon(Icons.folder), onPressed: () => launchUrl(SettingsModel().settingsFolderUri), label: Text("Open in folder")),
+                        TextButton.icon(icon: Icon(Icons.folder), onPressed: () =>SettingsModel().settingsFolderUri .then(launchUrl), label: Text("Open in folder")),
                       ],
                     ),
                   ],
@@ -843,7 +851,7 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
   );
 
   Stream<String> testWritingToSettingsFolder() async* {
-    File test = File(join(SettingsModel().settingsFolder.path, 'diag_test_file.txt'));
+    File test = await SettingsModel().settingsFolder.then((value) => File(join(value.path, 'diag_test_file.txt')));
     yield 'Test file is located at:\n${test.path}';
     var exists = await test.exists();
     yield 'The file ${exists ? '' : 'does not '}exist';
@@ -979,7 +987,7 @@ class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
     pollTimer = Timer.periodic(
       Duration(seconds: 1),
       (timer) async {
-        var temp = await FileLogPrinter.logFile.readAsString();
+        var temp = await (await FileLogPrinter.logFile).readAsString();
 
         if (contents != temp) {
           setState(() {

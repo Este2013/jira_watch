@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -19,7 +20,7 @@ void main() {
     logPrinter: FileLogPrinter(),
   );
   logInfo('Starting Jira Watcher app');
-  MediaKit.ensureInitialized();
+  if (Platform.isWindows){MediaKit.ensureInitialized();}
   Future.wait([
     SettingsModel().appInfo.version,
     SettingsModel().appInfo.buildNumber,
