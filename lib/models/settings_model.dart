@@ -9,7 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart' as pkg;
 
-class SettingsModel with UiLoggy {
+class SettingsModel with GlobalLoggy {
   static final SettingsModel _instance = SettingsModel._internal();
   Future<Uri> get settingsFolderUri async => Uri.directory(await _settingsFolderPath);
  Future <Directory> get settingsFolder async=> Directory(await _settingsFolderPath);

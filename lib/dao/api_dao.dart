@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-class APIDao with UiLoggy {
+class APIDao with GlobalLoggy {
   static final APIDao _instance = APIDao._internal();
 
   factory APIDao() => _instance;
@@ -140,7 +140,7 @@ class APIDao with UiLoggy {
 
   /// Convenience for GET requests, returns decoded JSON
   Future<dynamic> getJson(String path, {Map<String, dynamic>? queryParameters}) async {
-    debugPrint(queryParameters?['jql']);
+    // debugPrint(queryParameters?['jql']);
     final response = await requestAtEndpoint(path, queryParameters: queryParameters);
     if (response.statusCode == 200) {
       return jsonDecode(response.body);

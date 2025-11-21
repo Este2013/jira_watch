@@ -9,10 +9,11 @@ import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/home.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/models/settings_model.dart';
+import 'package:jira_watcher/utils/local_auth.dart';
+import 'package:jira_watcher/utils/string_utils.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:path/path.dart';
-// import 'package:path/path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
@@ -435,111 +436,139 @@ class ConnectionSettingsPage extends StatefulWidget {
   State<ConnectionSettingsPage> createState() => _ConnectionSettingsPageState();
 }
 
-class _ConnectionSettingsPageState extends State<ConnectionSettingsPage> {
-  bool editingEnabled = false;
-
-  final TextEditingController _domainController = TextEditingController();
-  final TextEditingController _apiKeyController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  bool _apiKeyVisible = false;
-
+class _ConnectionSettingsPageState extends State<ConnectionSettingsPage> with UiLoggy {
   @override
-  void initState() {
-    super.initState();
-    _domainController.text = SettingsModel().domainController.text;
-    _apiKeyController.text = SettingsModel().apiKeyController.text;
-    _emailController.text = SettingsModel().emailController.text;
-  }
+  Widget build(BuildContext context) => Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+    spacing: 16,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      FutureBuilder(
+        future: DataModel().jiraApi.myself(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            loggy.error("An error occured while fetching the user's account data 😵\nError: ${snapshot.error}\nStacktrace: ${snapshot.stackTrace}");
+            return Card(
+              child: ListTile(
+                leading: Icon(Symbols.error, fill: 1, color: Theme.of(context).colorScheme.error),
+                title: Text('An error occured 😵'),
+                subtitle: Text(snapshot.error.toString()),
+              ),
+            );
+          }
+          if (snapshot.hasData) {
+            if (snapshot.data!.statusCode == 200) {
+              var userData = jsonDecode(snapshot.data!.body);
+              return Card(
+                child: ListTile(
+                  leading: JiraAvatar(url: userData['avatarUrls']['48x48']),
+                  title: Text(userData['displayName']),
+                  subtitle: SelectableText('Account id: ${userData['accountId']}'),
+                  trailing: IconButton(
+                    onPressed: () => Clipboard.setData(ClipboardData(text: userData['accountId'])),
+                    tooltip: 'Copy account ID',
+                    icon: Icon(Symbols.content_copy),
+                  ),
+                ),
+              );
+            }
+            loggy.warning("User's account data could not be fetched 😕\nError: ${snapshot.error}\nStacktrace: ${snapshot.stackTrace}");
+            return Card(
+              child: ListTile(
+                leading: Icon(Symbols.error, fill: 1, color: Theme.of(context).colorScheme.error),
+                title: Text('Your account data could not be fetched 😕'),
+                subtitle: Text('Error ${snapshot.data!.statusCode}: ${snapshot.data!.reasonPhrase}'),
+              ),
+            );
+          }
+          return ListTile(
+            leading: CircularProgressIndicator(),
+            title: Text('Looking for your account...'),
+          );
+        },
+      ),
+      ListTile(
+        title: Text('Jira domain'),
+        trailing: SelectableText(SettingsModel().domainController.text, style: Theme.of(context).textTheme.bodyMedium),
+      ),
+      ListTile(
+        title: Text('User email'),
+        trailing: SelectableText(SettingsModel().emailController.text, style: Theme.of(context).textTheme.bodyMedium),
+      ),
+      ListTile(
+        title: Text('Atlassian API key'),
+        trailing: IconButton(
+          onPressed: () async {
+            const url = 'https://id.atlassian.com/manage-profile/security/api-tokens';
+            if (await canLaunchUrl(Uri.parse(url))) {
+              await launchUrl(Uri.parse(url));
+            }
+          },
+          icon: Icon(Symbols.open_in_browser),
+          tooltip: 'Manage your API keys',
+        ),
+      ),
+      SizedBox(height: 8),
+      OutlinedButton.icon(
+        onPressed: () => showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('🤨 Are you sure?'),
+            content: Text('You are about to view some sensitive information.\nDo you really want to edit your Atlassian connection settings?'),
+            actions: [
+              TextButton(onPressed: Navigator.of(context).pop, child: Text('Cancel')),
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  showDialog<bool>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) {
+                      // ignore: use_build_context_synchronously
+                      LocalAuthManager().authenticate().then(
+                        (value) {
+                          loggy.info('Authentication result: $value');
+                          if (!value) {
+                            // ignore: use_build_context_synchronously
+                            Navigator.of(context).pop();
+                            return;
+                          }
+                          // ignore: use_build_context_synchronously
+                          Navigator.popUntil(context, ModalRoute.withName('/home'));
+                          // ignore: use_build_context_synchronously
+                          Navigator.of(context).pushReplacementNamed('/apikey');
+                        },
+                      );
 
-  Future<void> _saveSettings() async {
-    SettingsModel().domainController.text = _domainController.text.trim();
-    SettingsModel().apiKeyController.text = _apiKeyController.text.trim();
-    SettingsModel().emailController.text = _emailController.text.trim();
-  }
-
-  Future<void> _openInBrowser() async {
-    final url = 'https://${_domainController.text.trim()}';
-    if (await canLaunchUrl(Uri.parse(url))) {
-      await launchUrl(Uri.parse(url));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      spacing: 32,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextField(
-          controller: _domainController,
-          enabled: editingEnabled,
-          decoration: InputDecoration(
-            labelText: 'Jira Domain',
-            suffixIcon: IconButton(
-              icon: Icon(Icons.open_in_browser),
-              onPressed: _openInBrowser,
-            ),
+                      return AlertDialog(
+                        title: Text('Authenticating'),
+                        constraints: BoxConstraints(maxWidth: 400, maxHeight: 400, minWidth: 300),
+                        content: Column(
+                          spacing: 16,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            LinearProgressIndicator(),
+                            Text('Please sign in through the system prompt.'),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                  foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+                ),
+                child: Text('I know what I am doing'),
+              ),
+            ],
           ),
         ),
-        TextField(
-          controller: _emailController,
-          enabled: editingEnabled,
-          decoration: InputDecoration(labelText: 'User email'),
-        ),
-        TextField(
-          controller: _apiKeyController,
-          obscureText: !_apiKeyVisible,
-          enabled: editingEnabled,
-          decoration: InputDecoration(
-            labelText: 'API Key',
-            suffixIcon: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: Icon(_apiKeyVisible ? Icons.visibility_off : Icons.visibility),
-                  onPressed: () {
-                    setState(() {
-                      _apiKeyVisible = !_apiKeyVisible;
-                    });
-                  },
-                ),
-                IconButton(
-                  icon: Icon(Icons.copy),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: _apiKeyController.text));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('API Key copied to clipboard')),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        Row(
-          spacing: 8,
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            ElevatedButton(
-              onPressed: () => setState(() {
-                editingEnabled = !editingEnabled;
-                _domainController.text = SettingsModel().domainController.text;
-                _apiKeyController.text = SettingsModel().apiKeyController.text;
-                _emailController.text = SettingsModel().emailController.text;
-              }),
-              child: Text(editingEnabled ? 'Cancel' : 'Edit'),
-            ),
-            ElevatedButton(
-              onPressed: editingEnabled ? _saveSettings : null,
-              child: Text('Save'),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+        icon: Icon(Symbols.edit, fill: 1),
+        label: Text('View and edit credentials'),
+      ),
+    ],
+  );
 }
 
 // --- Extracted Projects Settings Page ---
@@ -946,10 +975,15 @@ class _LogsDialog extends StatefulWidget {
 class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
   late Timer pollTimer;
   String? contents;
+  String minLevelShown = 'Info';
+  late TextEditingController searchController;
+  bool searchIsCaseSensitive = false;
+  bool searchIsRegex = false;
 
   @override
   void initState() {
     super.initState();
+    searchController = TextEditingController();
     pollTimer = Timer.periodic(
       Duration(seconds: 1),
       (timer) async {
@@ -979,71 +1013,307 @@ class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text('Logs reader'),
-    constraints: BoxConstraints(minWidth: double.maxFinite),
-    actions: [
-      TextButton(
-        onPressed: () => loggy.debug('Writing a debug message...'),
-        child: Text(emoteForLevel('Debug')),
-      ),
-      TextButton(
-        onPressed: () => loggy.info('Writing an info message...'),
-        child: Text(emoteForLevel('Info')),
-      ),
-      TextButton(
-        onPressed: () => loggy.warning('Writing a warning message...'),
-        child: Text(emoteForLevel('Warning')),
-      ),
-      TextButton(
-        onPressed: () => loggy.error('Writing an error message...'),
-        child: Text(emoteForLevel('Error')),
-      ),
-      TextButton(
-        onPressed: Navigator.of(context).pop,
-        child: Text('Close'),
-      ),
-    ],
-    content: DefaultTextStyle(
-      style: TextStyle(fontFamily: 'RobotoMono'),
-      child: FutureBuilder(
-        key: ValueKey(hash),
-        future: ( FileLogPrinter.logFile).then((v)=>v.readAsLines()),
-        builder: (context, asyncSnapshot) {
-          if (asyncSnapshot.hasData) {
-            return SingleChildScrollView(
-              child: SelectableText.rich(
-                TextSpan(
+  Widget build(BuildContext context) {
+    bool isLightTheme = Theme.of(context).brightness == Brightness.light;
+    return AlertDialog(
+      title: Text('Logs reader'),
+      constraints: BoxConstraints(minWidth: double.maxFinite),
+      actions: [
+        Row(
+          spacing: 8,
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: Row(
+                  spacing: 8,
                   children: [
-                    for (var line in asyncSnapshot.data!) ...[
-                      if (line.startsWith(RegExp(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T'))) ...[
-                        TextSpan(text: emoteForLevel(line.split(' ')[1])),
-                        TextSpan(text: ' '),
-                        TextSpan(
-                          text: line.split(' ')[0].split('T')[1],
-                          style: TextStyle(color: Colors.greenAccent),
+                    SizedBox(
+                      width: 250,
+                      child: TextField(
+                        controller: searchController,
+                        decoration: InputDecoration(
+                          prefixIcon: Icon(Icons.search),
                         ),
-                        TextSpan(text: ' '),
-
-                        TextSpan(
-                          text: line.split(RegExp(r'[\[\]]'))[1],
-                          style: TextStyle(color: Theme.of(context).hintColor),
+                      ),
+                    ),
+                    Tooltip(
+                      message: 'Match case',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(1000),
+                        child: CircleAvatar(
+                          backgroundColor: searchIsCaseSensitive ? null : Colors.transparent,
+                          child: Icon(Symbols.text_fields, size: 20),
                         ),
-                        TextSpan(text: ' '),
-
-                        TextSpan(text: line.split(RegExp(r']')).sublist(1).join(']')),
-                      ] else
-                        TextSpan(text: line),
-                      TextSpan(text: '\n'),
-                    ],
+                        onTap: () => setState(() {
+                          searchIsCaseSensitive = !searchIsCaseSensitive;
+                        }),
+                      ),
+                    ),
+                    AnimatedBuilder(
+                      animation: searchController,
+                      builder: (context, _) {
+                        bool regexHasError = (searchController.text.isNotEmpty && !searchController.text.isValidRegex());
+                        return Tooltip(
+                          message: regexHasError ? 'Invalid regular expression' : 'Use regular expression',
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(1000),
+                            child: CircleAvatar(
+                              backgroundColor: searchIsRegex
+                                  ? regexHasError
+                                        ? Theme.of(context).colorScheme.errorContainer
+                                        : null
+                                  : Colors.transparent,
+                              child: Icon(Symbols.regular_expression, size: 20),
+                            ),
+                            onTap: () => setState(() {
+                              searchIsRegex = !searchIsRegex;
+                            }),
+                          ),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
-            );
-          }
-          return Center(child: CircularProgressIndicator());
-        },
+            ),
+            SegmentedButton(
+              segments: [
+                for (var lvl in ['Debug', 'Info', 'Warning', 'Error']) ButtonSegment(value: lvl, label: Text('${emoteForLevel(lvl)} $lvl')),
+              ],
+              selected: {minLevelShown},
+              multiSelectionEnabled: false,
+              showSelectedIcon: false,
+              onSelectionChanged: (p0) => setState(() {
+                minLevelShown = p0.first;
+              }),
+            ),
+            Text('･'),
+            PopupMenuButton<String>(
+              icon: Icon(Icons.edit),
+              tooltip: 'Test writing a message',
+
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'debug',
+                  child: Row(
+                    children: [
+                      Text(emoteForLevel('Debug')),
+                      SizedBox(width: 8),
+                      Text('Debug'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'info',
+                  child: Row(
+                    children: [
+                      Text(emoteForLevel('Info')),
+                      SizedBox(width: 8),
+                      Text('Info'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'warning',
+                  child: Row(
+                    children: [
+                      Text(emoteForLevel('Warning')),
+                      SizedBox(width: 8),
+                      Text('Warning'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'error',
+                  child: Row(
+                    children: [
+                      Text(emoteForLevel('Error')),
+                      SizedBox(width: 8),
+                      Text('Error'),
+                    ],
+                  ),
+                ),
+              ],
+              onSelected: (value) {
+                switch (value) {
+                  case 'debug':
+                    loggy.debug('Writing a debug message...');
+                    break;
+                  case 'info':
+                    loggy.info('Writing an info message...');
+                    break;
+                  case 'warning':
+                    loggy.warning('Writing a warning message...');
+                    break;
+                  case 'error':
+                    loggy.error('Writing an error message...');
+                    break;
+                }
+              },
+            ),
+            Spacer(),
+            TextButton(
+              onPressed: Navigator.of(context).pop,
+              child: Text('Close'),
+            ),
+          ],
+        ),
+      ],
+      content: DefaultTextStyle(
+        style: TextStyle(fontFamily: 'RobotoMono'),
+        child: FutureBuilder(
+          key: ValueKey(hash),
+          future: FileLogPrinter.logFile.readAsLines(),
+          builder: (context, asyncSnapshot) {
+            if (asyncSnapshot.hasData) {
+              return AnimatedBuilder(
+                animation: searchController,
+                builder: (context, _) => SingleChildScrollView(
+                  child: SelectableText.rich(
+                    TextSpan(
+                      children: [
+                        for (var entry in filtered(asyncSnapshot.data!)) ...[
+                          ...[
+                            TextSpan(text: emoteForLevel(entry.first.split(' ')[1])),
+                            TextSpan(text: ' '),
+                            TextSpan(
+                              text: entry.first.split(' ')[0].split('T')[1],
+                              style: TextStyle(color: isLightTheme ? Colors.green : Colors.greenAccent),
+                            ),
+                            TextSpan(text: ' '),
+
+                            TextSpan(
+                              text: entry.first.split(RegExp(r'[\[\]]'))[1],
+                              style: TextStyle(color: Theme.of(context).hintColor),
+                            ),
+                            TextSpan(text: ' '),
+
+                            TextSpan(
+                              text: entry.first.split(RegExp(r']')).sublist(1).join(']'),
+                              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                            ),
+                          ],
+                          if (entry.length > 1)
+                            for (var line in entry.sublist(1))
+                              TextSpan(
+                                text: '\n    | $line',
+                                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                              ),
+                          TextSpan(text: '\n'),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+            return Center(child: CircularProgressIndicator());
+          },
+        ),
       ),
-    ),
-  );
+    );
+  }
+
+  Iterable<List<String>> filtered(List<String> list) => filteredBySearch(filteredByLevel(groupedByEntries(list)));
+
+  Iterable<List<String>> filteredBySearch(Iterable<List<String>> listOfEntries) sync* {
+    if (searchController.text.isEmpty) {
+      for (var entry in listOfEntries) {
+        yield entry;
+      }
+      return;
+    }
+
+    if (searchIsRegex) {
+      if (!searchController.text.isValidRegex()) {
+        for (var entry in listOfEntries) {
+          yield entry;
+        }
+        return;
+      }
+      var regexp = RegExp(searchController.text, caseSensitive: searchIsCaseSensitive);
+      for (var entry in listOfEntries) {
+        String entryString = entry.join('\n');
+        if (regexp.hasMatch(entryString)) {
+          yield entry;
+        }
+      }
+      return;
+    }
+    for (var entry in listOfEntries) {
+      String entryString = entry.join('\n');
+      if (entryString.contains(searchController.text)) {
+        yield entry;
+      }
+    }
+  }
+
+  Iterable<List<String>> filteredByLevel(Iterable<List<String>> listOfEntries) sync* {
+    /// Maps filter level to its map of allowed levels
+    Map levetIsOutTable = {
+      'Debug': {
+        'Debug': true,
+        'Info': true,
+        'Warning': true,
+        'Error': true,
+      },
+      'Info': {
+        'Debug': false,
+        'Info': true,
+        'Warning': true,
+        'Error': true,
+      },
+      'Warning': {
+        'Debug': false,
+        'Info': false,
+        'Warning': true,
+        'Error': true,
+      },
+      'Error': {
+        'Debug': false,
+        'Info': false,
+        'Warning': false,
+        'Error': true,
+      },
+    };
+
+    bool currentLogEntryIsFilteredOut = false;
+    for (var entry in listOfEntries) {
+      if (entry.isEmpty) continue;
+      String line = entry.first;
+      if (line.startsWith(RegExp(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T'))) {
+        String level = line.split(' ')[1];
+        bool isLevelAllowed = levetIsOutTable[minLevelShown][level] ?? true;
+        if (isLevelAllowed) {
+          yield entry;
+          currentLogEntryIsFilteredOut = false;
+        } else {
+          currentLogEntryIsFilteredOut = true;
+        }
+      } else {
+        // this is part of the above log line
+        if (!currentLogEntryIsFilteredOut) {
+          yield entry;
+        }
+      }
+    }
+  }
+
+  Iterable<List<String>> groupedByEntries(List<String> listOfLines) sync* {
+    if (listOfLines.isEmpty) return;
+    List<String> currentEntry = [];
+    for (var line in listOfLines) {
+      if (line.startsWith(RegExp(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T'))) {
+        if (currentEntry.isNotEmpty) {
+          yield currentEntry;
+        }
+        currentEntry = [];
+      }
+      currentEntry.add(line);
+    }
+    if (currentEntry.isNotEmpty) {
+      yield currentEntry;
+    }
+  }
 }

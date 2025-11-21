@@ -47,11 +47,6 @@ var file = (await logFile);
 
     _sink?.writeln(message);
     // _sink?.flush();
-
-    // Optional: also print to console
-    if (kDebugMode) {
-      debugPrint(message);
-    }
   }
 
   String createMsgFromRecord(String time, String level, LogRecord record) => createMsg(time, level, record.loggerName, record.message);
