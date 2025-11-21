@@ -759,7 +759,7 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
             Column(
               spacing: 8,
               children: [
-                Row(
+               if (Platform.isWindows)  Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   spacing: 8,
                   children: [
@@ -768,7 +768,7 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                       onPressed: () => showDialog(context: context, builder: (context) => _PreferencesDialog()),
                       label: Text("View preferences"),
                     ),
-                    if (Platform.isWindows)
+                   
                       TextButton.icon(
                         onPressed: () => SettingsModel().settingsFolderUri.then(launchUrl),
                         icon: Icon(Icons.folder),
