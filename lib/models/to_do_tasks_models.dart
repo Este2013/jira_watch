@@ -10,7 +10,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:observable_datasets/observable_list.dart';
 import 'package:path/path.dart' as path;
 
-class ToDoTasksModel with UiLoggy {
+class ToDoTasksModel with GlobalLoggy {
   static final ToDoTasksModel _instance = ToDoTasksModel._internal();
 
   factory ToDoTasksModel() => _instance;

@@ -259,7 +259,7 @@ class _SearchIssueDialogState extends State<SearchIssueDialog> {
   TextEditingController searchController = TextEditingController();
 
   Future<String> get myOwnRecentEdits async {
-    var data = await DataModel().api.myself().then((value) => jsonDecode(value.body)['displayName']);
+    var data = await DataModel().jiraApi.myself().then((value) => jsonDecode(value.body)['displayName']);
     return 'issue in updatedBy("$data") ORDER BY updated';
   }
 
@@ -345,14 +345,14 @@ class _SearchIssueDialogState extends State<SearchIssueDialog> {
                       for (var m in directWorkItemIds) {
                         String? key = m.group(0);
                         if (key == null) continue;
-                        results.add(jsonDecode((await DataModel().api.getWorkItem(key)).body));
+                        results.add(jsonDecode((await DataModel().jiraApi.getWorkItem(key)).body));
                       }
                     }
                     return results;
                   },
                 ),
                 // text search
-                DataModel().api.jqlSearch(
+                DataModel().jiraApi.jqlSearch(
                   '${searchController.text.isEmpty ? '' : 'text ~ "${searchController.text}"'} ORDER BY created',
                   fields: [
                     'issuetype',
@@ -385,7 +385,7 @@ class _SearchIssueDialogState extends State<SearchIssueDialog> {
           if (searchName == 'My recent edits')
             FutureBuilder(
               future: myOwnRecentEdits.then(
-                (jql) => DataModel().api.jqlSearch(
+                (jql) => DataModel().jiraApi.jqlSearch(
                   jql,
                   fields: [
                     'issuetype',
@@ -428,14 +428,14 @@ class _SearchIssueDialogState extends State<SearchIssueDialog> {
                   Text('Go to all:'),
                 ],
               ),
-              ActionChip(label: Text('Boards'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().api.dao.domain}/jira/boards?page=1&sortKey=name&sortOrder=ASC'))),
-              ActionChip(label: Text('Projects'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().api.dao.domain}/jira/projects?page=1&sortKey=name&sortOrder=ASC'))),
-              ActionChip(label: Text('Filters'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().api.dao.domain}/jira/filters?Search=Search&filterView=search&name='))),
-              ActionChip(label: Text('Plans'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().api.dao.domain}/jira/plans'))),
+              ActionChip(label: Text('Boards'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/boards?page=1&sortKey=name&sortOrder=ASC'))),
+              ActionChip(label: Text('Projects'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/projects?page=1&sortKey=name&sortOrder=ASC'))),
+              ActionChip(label: Text('Filters'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/filters?Search=Search&filterView=search&name='))),
+              ActionChip(label: Text('Plans'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/plans'))),
               ActionChip(
                 label: Text('Teams'),
                 onPressed: () => launchUrl(
-                  Uri.parse('https://${DataModel().api.dao.domain}/jira/people'),
+                  Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/people'),
                 ),
               ),
             ],
@@ -759,6 +759,43 @@ class ChangeLogsDialog extends StatelessWidget {
             ChangeLogItem('Bumped version number.'),
             ChangeLogItem('Moved known bugs to the project\'s README.'),
             ChangeLogItem('Code classes will be renamed to fit Jira\'s convention "work item", instead of "issue" or "ticket".'),
+          ]),
+        ],
+      ),
+
+      ChangeLogCard(
+        '1.4.2',
+        sections: [
+          ChangeLogSection.features([
+            ChangeLogItem('Improved setting\'s "Connection" page and login page'),
+            ChangeLogItem('Json and ips files are now handled in attachements with a proper Json viewer.'),
+            ChangeLogItem(
+              'Assignee/reporter:',
+              subItems: [
+                ChangeLogItem('now show a higher-res profile picture;'),
+                ChangeLogItem('their names can be copied;'),
+              ],
+            ),
+            ChangeLogItem(
+              'Work item history view:',
+              subItems: [
+                ChangeLogItem('Work item history now shows an entry for the ticket\'s creation.'),
+                ChangeLogItem('Improved display of some default field edits in history view'),
+              ],
+            ),
+          ]),
+          // ChangeLogSection.bugFixes([
+          // ]),
+          ChangeLogSection.chores([
+            ChangeLogItem('Bumped version number.'),
+            ChangeLogItem('More code renamed to fit Jira\'s convention "work item" (instead of "issue" or "ticket").'),
+            ChangeLogItem(
+              'Settings > Advanced > Log-reading dialog',
+              subItems: [
+                ChangeLogItem('Added log level filter and search'),
+                ChangeLogItem('Now legible in light mode'),
+              ],
+            ),
           ]),
         ],
       ),

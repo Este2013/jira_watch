@@ -14,17 +14,17 @@ import 'jira_api_model.dart';
 /// Accessor to cached data.
 ///
 /// Handles fetching from local memory or API.
-class DataModel with UiLoggy {
+class DataModel with GlobalLoggy {
   static final DataModel _instance = DataModel._internal();
 
   factory DataModel() => _instance;
 
   DataModel._internal() {
-    api = APIModel();
+    jiraApi = APIModel();
     todoTasks = ToDoTasksModel();
   }
 
-  late final APIModel api;
+  late final APIModel jiraApi;
   late final ToDoTasksModel todoTasks;
 
   // PROJECTS /////////////////////////////////////////////////////////////////////
@@ -50,7 +50,7 @@ class DataModel with UiLoggy {
       return _projectsDataCache!;
     }
 
-    final data = await api.fetchProjects();
+    final data = await jiraApi.fetchProjects();
     final result = (data as List);
     _projectsDataCache = result;
     return result;
@@ -64,14 +64,14 @@ class DataModel with UiLoggy {
 
   Future fetchSingleProject(String code, {List<String>? expand}) {
     // TODO missing cache check
-    return api.fetchSingleProject(code, expand: expand);
+    return jiraApi.fetchSingleProject(code, expand: expand);
   }
 
   // WORK ITEMS /////////////////////////////////////////////////////////////////////
 
   Future<(Iterable<JiraWorkItemData>, bool, String?)> fetchLastUpdatedWorkItems({int maxResults = 0, String? nextPageToken, DateTime? before, DateTime? after, List<String>? filterByProjectCodes}) {
     // TODO missing cache check
-    return api.fetchLastUpdatedWorkItems(
+    return jiraApi.fetchLastUpdatedWorkItems(
       maxResults: maxResults,
       before: before,
       after: after,

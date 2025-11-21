@@ -132,23 +132,6 @@ class _JiraAvatarState extends State<JiraAvatar> {
       throw Exception('No <img> found in HTML');
     } else if (mimeType.contains('svg')) {
       return svgFromBytes(bytes, size: widget.size);
-      // return SvgPicture.memory(
-      //   bytes,
-      //   width: widget.size,
-      //   height: widget.size,
-      //   placeholderBuilder: (_) => SizedBox(
-      //     width: widget.size / 2,
-      //     height: widget.size / 2,
-      //     child: const Center(
-      //       child: FractionallySizedBox(
-      //         widthFactor: .8,
-      //         heightFactor: .8,
-      //         child: CircularProgressIndicator(strokeWidth: 2),
-      //       ),
-      //     ),
-      //   ),
-      //   fit: widget.boxFit,
-      // );
     } else if (mimeType.startsWith('image/')) {
       return Image.memory(
         bytes,
@@ -221,6 +204,8 @@ class _JiraImageState extends State<JiraImage> {
   }
 
   Future<Widget> _loadImg(String url) async {
+    // TODO FIX #json&ips (see readme)
+
     // 2️⃣ Fetch via cacheManager; it returns a File from disk or network
     final file = await jiraAvatarCacheManager.getSingleFile(
       url,

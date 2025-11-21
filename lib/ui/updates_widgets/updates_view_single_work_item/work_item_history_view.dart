@@ -84,79 +84,144 @@ class HistoryPage extends StatelessWidget {
       last = e;
     }
 
-    return _entries.isEmpty
-        ? const Center(child: Text('No history available.'))
-        : ListView.builder(
-            padding: const EdgeInsets.all(8),
-            itemCount: groups.length,
-            itemBuilder: (context, index) {
-              final group = groups[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(vertical: 8),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // title
-                      Row(
-                        spacing: 8,
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadiusGeometry.circular(10000),
-                            child: JiraAvatar(key: Key(group.first.author), url: group.first.authorAvatar),
-                          ),
-                          Text(
-                            'By ${group.first.author}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
+    return ListView.builder(
+      padding: const EdgeInsets.all(8),
+      itemCount: groups.length + 1, // +1 reseved for the work item's creation
+      itemBuilder: (context, index) {
+        // workItem's creation
+        if (index == groups.length) {
+          return Card(
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                spacing: 8,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadiusGeometry.circular(10000),
+                    child: JiraAvatar(key: Key(workItem.fields?['creator']['displayName'] ?? 'unknown creator\'s avatar'), url: workItem.fields?['creator']['avatarUrls']['32x32']),
+                  ),
+                  Text(
+                    "Issue created by ${workItem.fields?['creator']['displayName'] ?? 'unknown creator\'s'}",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Spacer(),
+                  TimeAgoDisplay(timeStr: workItem.fields?['created']),
+                ],
+              ),
+            ),
+          );
+          ;
+        }
+        // any edit
+        final group = groups[index];
+        return EditingGroupDisplay(group: group);
+      },
+    );
+  }
+}
+
+class EditingGroupDisplay extends StatelessWidget {
+  const EditingGroupDisplay({
+    super.key,
+    required this.group,
+  });
+
+  final List<HistoryEntry> group;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: const EdgeInsets.symmetric(vertical: 8),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // title
+          Row(
+            spacing: 8,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadiusGeometry.circular(10000),
+                child: JiraAvatar(key: Key(group.first.author), url: group.first.authorAvatar),
+              ),
+              Text(
+                'By ${group.first.author}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Spacer(),
+              TimeAgoDisplay(timeStr: group.first.created),
+            ],
+          ),
+          Divider(),
+          const SizedBox(height: 8),
+          // changes
+          Table(
+            columnWidths: {0: IntrinsicColumnWidth()},
+            border: TableBorder(horizontalInside: BorderSide(color: Theme.of(context).dividerColor.withAlpha(100))),
+            children: group
+                .fold(
+                  <ChangeItem>[],
+                  (previousValue, element) => previousValue..addAll(element.items.reversed),
+                )
+                .map(
+                  (item) {
+                    Widget diff;
+                    if ([
+                      'assignee',
+                      'Key',
+                      'priority',
+                      'project',
+                      'reporter',
+                      'status',
+                      'statusCategory',
+                    ].contains(item.field)) {
+                      diff = Text.rich(
+                        TextSpan(
+                          children: [
+                            if (item.fromString?.isEmpty ?? true) TextSpan(text: 'None') else TextSpan(text: item.fromString, style: DiffReviewer.removedTextStyle),
+                            TextSpan(text: ' → '),
+                            if (item.toStringData?.isEmpty ?? true) TextSpan(text: 'None') else TextSpan(text: item.toStringData, style: DiffReviewer.addedTextStyle),
+                          ],
+                        ),
+                      );
+                    } else {
+                      diff = DiffReviewer(
+                        before: item.fromString ?? '',
+                        after: item.toStringData ?? '',
+                      );
+                    }
+                    return TableRow(
+                      children: [
+                        TableCell(
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Align(
+                              alignment: Alignment.topLeft,
+                              child: Chip(label: Text(item.field.capitalize())),
                             ),
                           ),
-                          Spacer(),
-                          TimeAgoDisplay(timeStr: group.first.created),
-                        ],
-                      ),
-                      Divider(),
-                      const SizedBox(height: 8),
-                      // changes
-                      Table(
-                        columnWidths: {0: IntrinsicColumnWidth()},
-                        border: TableBorder(horizontalInside: BorderSide(color: Theme.of(context).dividerColor.withAlpha(100))),
-                        children: group
-                            .fold(
-                              <ChangeItem>[],
-                              (previousValue, element) => previousValue..addAll(element.items.reversed),
-                            )
-                            .map(
-                              (item) => TableRow(
-                                children: [
-                                  TableCell(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(8.0),
-                                      child: Align(
-                                        alignment: Alignment.topLeft,
-                                        child: Chip(label: Text(item.field.capitalize())),
-                                      ),
-                                    ),
-                                  ),
-                                  TableCell(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(16),
-                                      child: DiffReviewer(before: item.fromString ?? '', after: item.toStringData ?? ''),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-  }
+                        ),
+                        TableCell(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: diff,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                )
+                .toList(),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 extension StringCasingExtension on String {

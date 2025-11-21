@@ -167,7 +167,6 @@ class _UpdatesPageState extends State<UpdatesPage> {
       return timeFilter.first;
     }
     throw Exception();
-    // return null;
   }
 
   DateTime? get beforeDateTime {
@@ -352,7 +351,14 @@ class _UpdatesPageState extends State<UpdatesPage> {
                                               width: 24,
                                               child: CircularProgressIndicator(strokeWidth: 2),
                                             )
-                                          : noProjectDisplay,
+                                          : FilledButton(
+                                              onPressed: () => startFetchingNewPage().whenComplete(
+                                                () => SchedulerBinding.instance.addPostFrameCallback((timeStamp) {
+                                                  loadMoreIfNoScrollPossible;
+                                                }),
+                                              ),
+                                              child: Text('Load more'),
+                                            ),
                                     ),
                                   );
                                 },

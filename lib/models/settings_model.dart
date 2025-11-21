@@ -9,7 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart' as pkg;
 
-class SettingsModel with UiLoggy {
+class SettingsModel with GlobalLoggy {
   static final SettingsModel _instance = SettingsModel._internal();
   Uri get settingsFolderUri => Uri.directory(join(Platform.environment['APPDATA']!, "com.este", "jira_watcher"));
   Directory get settingsFolder => Directory(join(Platform.environment['APPDATA']!, "com.este", "jira_watcher"));
