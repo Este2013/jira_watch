@@ -42,7 +42,7 @@ Future<(bool, String?, Map?)> fetchNewUpdateData({
       return onEmpty?.call(context).then((value) => (false, null, null)) ?? (false, null, null);
     }
 
-    Map<String, dynamic> data = jsonDecode(resp.body);
+    Map<String, dynamic> data = jsonDecode(betaresp.body);
     MapEntry? mostRecentFromBeta = data.entries.firstOrNull;
     if (mostRecentFromBeta != null) {
       if (isVersioStrictlyAbove(mostRecentFromBeta.key, baseline: mostRecent?.key ?? '0.0.0')) {

@@ -208,29 +208,34 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                                 context: context,
                                 builder: (context) => AlertDialog(
                                   title: Text('A new update is available!'),
-                                  content: SizedBox(
-                                    width: 400,
-                                    height: 400,
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                                      spacing: 16,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Expanded(child: Text('Version ${data.$2!}', style: Theme.of(context).textTheme.titleMedium)),
-                                            Text('(Current: ${snapshot.data})'),
-                                          ],
-                                        ),
-                                        if (data.$3?['changelog'] == null)
-                                          Expanded(child: Center(child: Text(data.$3?['changelog'] ?? 'No changelog :(')))
-                                        else
-                                          Card(
-                                            child: Padding(
-                                              padding: EdgeInsetsGeometry.all(16),
-                                              child: SingleChildScrollView(child: Text(data.$3?['changelog'] ?? 'No changelog :(')),
-                                            ),
+                                  content: ScrollbarTheme(
+                                    data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
+                                    child: SizedBox(
+                                      width: 400,
+                                      height: 400,
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        spacing: 16,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(child: Text('Version ${data.$2!}', style: Theme.of(context).textTheme.titleMedium)),
+                                              Text('(Current: ${snapshot.data})'),
+                                            ],
                                           ),
-                                      ],
+                                          if (data.$3?['changelog'] == null)
+                                            Expanded(child: Center(child: Text(data.$3?['changelog'] ?? 'No changelog :(')))
+                                          else
+                                            Expanded(
+                                              child: Card(
+                                                child: Padding(
+                                                  padding: EdgeInsetsGeometry.all(16),
+                                                  child: SingleChildScrollView(child: Text(data.$3?['changelog'] ?? 'No changelog :(')),
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                   actions: [
