@@ -9,11 +9,11 @@ import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/home.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/models/settings_model.dart';
+import 'package:jira_watcher/utils/local_auth.dart';
 import 'package:jira_watcher/utils/string_utils.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:path/path.dart';
-// import 'package:path/path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
@@ -436,111 +436,95 @@ class ConnectionSettingsPage extends StatefulWidget {
   State<ConnectionSettingsPage> createState() => _ConnectionSettingsPageState();
 }
 
-class _ConnectionSettingsPageState extends State<ConnectionSettingsPage> {
-  bool editingEnabled = false;
-
-  final TextEditingController _domainController = TextEditingController();
-  final TextEditingController _apiKeyController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  bool _apiKeyVisible = false;
-
+class _ConnectionSettingsPageState extends State<ConnectionSettingsPage> with UiLoggy {
   @override
-  void initState() {
-    super.initState();
-    _domainController.text = SettingsModel().domainController.text;
-    _apiKeyController.text = SettingsModel().apiKeyController.text;
-    _emailController.text = SettingsModel().emailController.text;
-  }
+  Widget build(BuildContext context) => Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+    spacing: 16,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      ListTile(
+        title: Text('Jira domain'),
+        trailing: SelectableText(SettingsModel().domainController.text, style: Theme.of(context).textTheme.bodyMedium),
+      ),
 
-  Future<void> _saveSettings() async {
-    SettingsModel().domainController.text = _domainController.text.trim();
-    SettingsModel().apiKeyController.text = _apiKeyController.text.trim();
-    SettingsModel().emailController.text = _emailController.text.trim();
-  }
+      ListTile(
+        title: Text('User email'),
+        trailing: SelectableText(SettingsModel().emailController.text, style: Theme.of(context).textTheme.bodyMedium),
+      ),
+      ListTile(
+        title: Text('Atlassian API key'),
+        trailing: IconButton(
+          onPressed: () async {
+            const url = 'https://id.atlassian.com/manage-profile/security/api-tokens';
+            if (await canLaunchUrl(Uri.parse(url))) {
+              await launchUrl(Uri.parse(url));
+            }
+          },
+          icon: Icon(Symbols.open_in_browser),
+          tooltip: 'Manage',
+        ),
+      ),
+      OutlinedButton.icon(
+        onPressed: () => showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('🤨 Are you sure?'),
+            content: Text('You are about to view some sensitive information.\nDo you really want to edit your Atlassian connection settings?'),
+            actions: [
+              TextButton(onPressed: Navigator.of(context).pop, child: Text('Cancel')),
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  showDialog<bool>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) {
+                      // ignore: use_build_context_synchronously
+                      LocalAuthManager().authenticate().then(
+                        (value) {
+                          loggy.info('Authentication result: $value');
+                          if (!value) {
+                            // ignore: use_build_context_synchronously
+                            Navigator.of(context).pop();
+                            return;
+                          }
+                          // ignore: use_build_context_synchronously
+                          Navigator.popUntil(context, ModalRoute.withName('/home'));
+                          // ignore: use_build_context_synchronously
+                          Navigator.of(context).pushReplacementNamed('/apikey');
+                        },
+                      );
 
-  Future<void> _openInBrowser() async {
-    final url = 'https://${_domainController.text.trim()}';
-    if (await canLaunchUrl(Uri.parse(url))) {
-      await launchUrl(Uri.parse(url));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      spacing: 32,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextField(
-          controller: _domainController,
-          enabled: editingEnabled,
-          decoration: InputDecoration(
-            labelText: 'Jira Domain',
-            suffixIcon: IconButton(
-              icon: Icon(Icons.open_in_browser),
-              onPressed: _openInBrowser,
-            ),
+                      return AlertDialog(
+                        title: Text('Authenticating'),
+                        constraints: BoxConstraints(maxWidth: 400, maxHeight: 400, minWidth: 300),
+                        content: Column(
+                          spacing: 16,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            LinearProgressIndicator(),
+                            Text('Please sign in through the system prompt.'),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                  foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+                ),
+                child: Text('I know what I am doing'),
+              ),
+            ],
           ),
         ),
-        TextField(
-          controller: _emailController,
-          enabled: editingEnabled,
-          decoration: InputDecoration(labelText: 'User email'),
-        ),
-        TextField(
-          controller: _apiKeyController,
-          obscureText: !_apiKeyVisible,
-          enabled: editingEnabled,
-          decoration: InputDecoration(
-            labelText: 'API Key',
-            suffixIcon: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: Icon(_apiKeyVisible ? Icons.visibility_off : Icons.visibility),
-                  onPressed: () {
-                    setState(() {
-                      _apiKeyVisible = !_apiKeyVisible;
-                    });
-                  },
-                ),
-                IconButton(
-                  icon: Icon(Icons.copy),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: _apiKeyController.text));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('API Key copied to clipboard')),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        Row(
-          spacing: 8,
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            ElevatedButton(
-              onPressed: () => setState(() {
-                editingEnabled = !editingEnabled;
-                _domainController.text = SettingsModel().domainController.text;
-                _apiKeyController.text = SettingsModel().apiKeyController.text;
-                _emailController.text = SettingsModel().emailController.text;
-              }),
-              child: Text(editingEnabled ? 'Cancel' : 'Edit'),
-            ),
-            ElevatedButton(
-              onPressed: editingEnabled ? _saveSettings : null,
-              child: Text('Save'),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+        icon: Icon(Symbols.edit, fill: 1),
+        label: Text('View and edit credentials'),
+      ),
+    ],
+  );
 }
 
 // --- Extracted Projects Settings Page ---

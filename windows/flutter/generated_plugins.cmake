@@ -6,6 +6,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   desktop_webview_window
   flutter_secure_storage_windows
   irondash_engine_context
+  local_auth_windows
   media_kit_libs_windows_video
   media_kit_video
   super_native_extensions

@@ -8,6 +8,7 @@ import 'package:jira_watcher/ui/home.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/utils/%F0%9F%AA%B5.dart';
+import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
@@ -139,19 +140,30 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> {
   }
 
   void _checkValidity() {
-    if (SettingsModel().domainController.text.isEmpty || SettingsModel().emailController.text.isEmpty || SettingsModel().apiKeyController.text.isEmpty) return;
+    if (anyControllerIsEmpty()) {
+      setState(() {
+        checkValidity = null;
+      });
+      return;
+    }
     setState(() {
-      checkValidity = APIDao().testJiraAuth(
-        domainOrHost: '${SettingsModel().domainController.text}.atlassian.net',
-        email: SettingsModel().emailController.text,
-        apiToken: SettingsModel().apiKeyController.text,
-      );
+      checkValidity = _testJiraAuth();
     });
   }
+
+  bool anyControllerIsEmpty() => SettingsModel().domainController.text.isEmpty || SettingsModel().emailController.text.isEmpty || SettingsModel().apiKeyController.text.isEmpty;
+
+  Future<Response> _testJiraAuth() => APIDao().testJiraAuth(
+    domainOrHost: '${SettingsModel().domainController.text}.atlassian.net',
+    email: SettingsModel().emailController.text,
+    apiToken: SettingsModel().apiKeyController.text,
+  );
 
   @override
   void initState() {
     listener = Listenable.merge([SettingsModel().domainController, SettingsModel().emailController, SettingsModel().apiKeyController])..addListener(_checkValidity);
+    if (SettingsModel().domainController.text.isEmpty || SettingsModel().emailController.text.isEmpty || SettingsModel().apiKeyController.text.isEmpty) return;
+    checkValidity = _testJiraAuth();
     super.initState();
   }
 
@@ -176,7 +188,53 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Your Jira Credentials', style: Theme.of(context).textTheme.titleLarge),
+                  Row(
+                    children: [
+                      Text('Your Jira Credentials', style: Theme.of(context).textTheme.titleLarge),
+                      Spacer(),
+                      if (checkValidity != null)
+                        FutureBuilder<Response>(
+                          future: checkValidity,
+                          builder: (context, snapshot) {
+                            if (snapshot.hasData) {
+                              var res = snapshot.data!;
+                              if (res.statusCode == 200) {
+                                var data = jsonDecode(res.body);
+                                return Row(
+                                  spacing: 8,
+                                  children: [
+                                    JiraAvatar(url: data['avatarUrls']['48x48']),
+                                    Text(data['displayName'], style: Theme.of(context).textTheme.titleLarge),
+                                  ],
+                                );
+                              }
+                              if (res.statusCode == 404) {
+                                return Tooltip(
+                                  message: "Your Jira domain is likely incorrect.\nError ${res.statusCode}: ${res.body}",
+                                  child: Text('😕', style: Theme.of(context).textTheme.titleLarge),
+                                );
+                              }
+                              if (res.statusCode == 401) {
+                                return Tooltip(
+                                  message: "Your credentials might be incorrect.\nError ${res.statusCode}: ${res.body}",
+                                  child: Text('🤔', style: Theme.of(context).textTheme.titleLarge),
+                                );
+                              }
+                              return Tooltip(
+                                message: "Error ${res.statusCode}: ${res.body}",
+                                child: Text('😵', style: Theme.of(context).textTheme.titleLarge),
+                              );
+                            }
+                            return CircularProgressIndicator();
+                          },
+                        )
+                      else
+                        Tooltip(
+                          message: "I'm not peeking",
+                          child: Text('👀', style: Theme.of(context).textTheme.titleLarge),
+                        ),
+                    ],
+                  ),
 
                   if (widget.code == 401)
                     Card(
@@ -212,15 +270,17 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> {
                     },
                     autovalidateMode: AutovalidateMode.onUnfocus,
                   ),
-                  TextField(
+                  TextFormField(
                     controller: SettingsModel().emailController,
                     decoration: InputDecoration(
                       labelText: 'Email Address (for API Auth)',
                       border: OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.emailAddress,
+                    validator: (value) => (value != null && value.isNotEmpty) ? null : 'email adress must be provided',
+                    autovalidateMode: AutovalidateMode.onUnfocus,
                   ),
-                  TextField(
+                  TextFormField(
                     controller: SettingsModel().apiKeyController,
                     decoration: InputDecoration(
                       labelText: 'API Key',
@@ -236,22 +296,26 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> {
                       ),
                     ),
                     obscureText: true,
+                    validator: (value) => (value != null && value.isNotEmpty) ? null : 'API key must be provided',
+                    autovalidateMode: AutovalidateMode.onUnfocus,
                   ),
                   Row(
                     children: [
-                      TextButton(
+                      TextButton.icon(
+                        icon: Icon(Symbols.help, fill: 1),
                         onPressed: () async {
                           const url = 'https://id.atlassian.com/manage-profile/security/api-tokens';
                           if (await canLaunchUrl(Uri.parse(url))) {
                             await launchUrl(Uri.parse(url));
                           }
                         },
-                        child: Text('Where do I get my Jira API Key?'),
+                        label: Text('Where do I get my Jira API Key?'),
                       ),
                       Spacer(),
                       FutureBuilder(
                         future: checkValidity,
                         builder: (context, snapshot) {
+                          print(snapshot.connectionState);
                           if (snapshot.hasData && snapshot.data!.statusCode == 200) {
                             return ElevatedButton(
                               onPressed: () {
@@ -273,47 +337,6 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> {
             ),
           ),
         ),
-        if (checkValidity != null)
-          SizedBox.square(
-            dimension: 300,
-            child: FutureBuilder<Response>(
-              future: checkValidity,
-              builder: (context, snapshot) {
-                if (snapshot.hasData) {
-                  var res = snapshot.data!;
-                  return Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Builder(
-                        builder: (context) {
-                          if (res.statusCode == 200) {
-                            var data = jsonDecode(res.body);
-                            return Column(
-                              children: [
-                                // Text(data.keys.toString()),
-                                Row(
-                                  spacing: 16,
-                                  children: [
-                                    JiraAvatar(url: data['avatarUrls']['48x48']),
-                                    Text(data['displayName'], style: Theme.of(context).textTheme.titleLarge),
-                                  ],
-                                ),
-                              ],
-                            );
-                          }
-                          if (res.statusCode == 401) {
-                            return Text('⚠️ Your credentials might be incorrect!\n\nError ${res.statusCode}:\n${res.body}', style: TextStyle(color: Colors.amber));
-                          }
-                          return Text('Error ${res.statusCode}:\n${res.body}');
-                        },
-                      ),
-                    ),
-                  );
-                }
-                return CircularProgressIndicator();
-              },
-            ),
-          ),
       ],
     ),
   );

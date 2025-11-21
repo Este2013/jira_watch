@@ -14,7 +14,6 @@ A Jira client that shows the most recent updates done in projects you work on.
 ### EASY, IMPORTANT
  
  - refresh (per few minutes)
- - improve Login page in settings dialog
 
 ### TOUGH, IMPORTANT
  - Filters:
@@ -33,17 +32,20 @@ A Jira client that shows the most recent updates done in projects you work on.
  - control workItem status
    - UI/UX make workItem drag and dropable in certain statuses ( e.g In progress, Done , etc)
  - Reverse update sorting
- - Linked test cases and builds (Jira integrations) 
-   - test coverage overview
  - custom filters
- - comments
  - hide workItems
- - [OPT] Websocket exposition for SD plugin
-   - stats
-   - new workItems, updates...
  - Tree graph 
- - Similarity detection view (via [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity))
- - add to [MS TODO](https://support.microsoft.com/en-au/office/using-microsoft-to-do-s-api-f944256d-3b08-4945-ba69-2c17afeb60b4#:~:text=Microsoft%20To%20Do%20uses%20Exchange,API%20reference%20(version%202.0))
+
+# Long term ideas
+ - GitLab and Qase views
+    - Linked test cases and builds (Jira integrations) 
+    - test coverage overview
+ - Websocket exposition for SD plugin
+    - stats
+    - new workItems, updates...
+ - Dupe finder / Similarity detection (via [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity))
+ - [MS TODO](https://support.microsoft.com/en-au/office/using-microsoft-to-do-s-api-f944256d-3b08-4945-ba69-2c17afeb60b4#:~:text=Microsoft%20To%20Do%20uses%20Exchange,API%20reference%20(version%202.0)) ntegration
+
 
 ## BUGS
  - if project filters are changed before request completes, the newer request is not taken into account
@@ -52,6 +54,3 @@ A Jira client that shows the most recent updates done in projects you work on.
  - Comments: nested replies are not shown as nested
  - Jira attachments in description (ex: application/json) is given to the JiraImage widget, instead of building a dedicated widget for non-image types => ```// TODO FIX #json&ips```
  - macOS: Advanced tab is unable to open any of the folders shown
-
-# Furthemore
-- GitLab view
