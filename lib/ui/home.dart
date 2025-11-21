@@ -764,18 +764,12 @@ class ChangeLogsDialog extends StatelessWidget {
       ),
 
       ChangeLogCard(
-        '1.4.2',
+        '1.5.0',
         sections: [
           ChangeLogSection.features([
+            ChangeLogItem('🍎 macOS is now supported!'),
             ChangeLogItem('Improved setting\'s "Connection" page and login page'),
             ChangeLogItem('Json and ips files are now handled in attachements with a proper Json viewer.'),
-            ChangeLogItem(
-              'Assignee/reporter:',
-              subItems: [
-                ChangeLogItem('now show a higher-res profile picture;'),
-                ChangeLogItem('their names can be copied;'),
-              ],
-            ),
             ChangeLogItem(
               'Work item history view:',
               subItems: [
@@ -783,9 +777,17 @@ class ChangeLogsDialog extends StatelessWidget {
                 ChangeLogItem('Improved display of some default field edits in history view'),
               ],
             ),
+            ChangeLogItem(
+              'Assignee/reporter:',
+              subItems: [
+                ChangeLogItem('now show a higher-res profile picture;'),
+                ChangeLogItem('their names can be copied;'),
+              ],
+            ),
           ]),
-          // ChangeLogSection.bugFixes([
-          // ]),
+          ChangeLogSection.bugFixes([
+            ChangeLogItem('Settings dialog can now scroll when too small'),
+          ]),
           ChangeLogSection.chores([
             ChangeLogItem('Bumped version number.'),
             ChangeLogItem('More code renamed to fit Jira\'s convention "work item" (instead of "issue" or "ticket").'),

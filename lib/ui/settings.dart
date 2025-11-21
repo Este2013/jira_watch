@@ -359,6 +359,10 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
         context: context,
         builder: (context) => _UpToDateDialog('You are running the server\'s latest version ($mostRecent)'),
       ),
+      onAheadOfServer: (context, mostRecent) => showDialog(
+        context: context,
+        builder: (context) => _AheadOfReleaseDialog('The server\'s latest version is $mostRecent. You\'re ahead of us!'),
+      ),
     );
   }
 }
@@ -375,6 +379,31 @@ class _UpToDateDialog extends StatelessWidget {
         children: [
           Icon(Icons.check_circle, color: Colors.green),
           Text('You are up to date'),
+        ],
+      ),
+      content: Text(details),
+      actions: [
+        TextButton(
+          onPressed: Navigator.of(context).pop,
+          child: Text('Got it'),
+        ),
+      ],
+    );
+  }
+}
+
+class _AheadOfReleaseDialog extends StatelessWidget {
+  const _AheadOfReleaseDialog(this.details);
+  final String details;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        spacing: 8,
+        children: [
+          Icon(Icons.check_circle, color: Colors.green),
+          Text('Now wait a second 🤨'),
         ],
       ),
       content: Text(details),

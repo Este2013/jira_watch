@@ -17,6 +17,7 @@ Future<(bool, String?, Map?)> fetchNewUpdateData({
   _DialogBuilder? onEmpty,
   _DialogBuilder? onNoData,
   _DialogWithVersionBuilder? onLatest,
+  _DialogWithVersionBuilder? onAheadOfServer,
 }) async {
   final resp = await http.get(latestDataUri);
 
@@ -31,6 +32,9 @@ Future<(bool, String?, Map?)> fetchNewUpdateData({
   }
 
   if (!isVersioStrictlyAbove(mostRecent.key, baseline: currentVersion)) {
+    if (isVersioStrictlyAbove(currentVersion, baseline: mostRecent.key)) {
+      return onAheadOfServer?.call(context, mostRecent.key).then((value) => (false, null, null)) ?? (false, null, null);
+    }
     return onLatest?.call(context, mostRecent.key).then((value) => (false, null, null)) ?? (false, null, null);
   }
 
