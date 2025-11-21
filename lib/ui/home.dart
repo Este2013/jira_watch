@@ -767,6 +767,8 @@ class ChangeLogsDialog extends StatelessWidget {
         '1.4.2',
         sections: [
           ChangeLogSection.features([
+            ChangeLogItem('Improved setting\'s "Connection" page and login page'),
+            ChangeLogItem('Json and ips files are now handled in attachements with a proper Json viewer.'),
             ChangeLogItem(
               'Assignee/reporter:',
               subItems: [
@@ -774,7 +776,6 @@ class ChangeLogsDialog extends StatelessWidget {
                 ChangeLogItem('their names can be copied;'),
               ],
             ),
-            ChangeLogItem('Json and ips files are now handled in attachements with a proper Json viewer.'),
             ChangeLogItem(
               'Work item history view:',
               subItems: [

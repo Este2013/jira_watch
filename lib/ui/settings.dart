@@ -443,11 +443,54 @@ class _ConnectionSettingsPageState extends State<ConnectionSettingsPage> with Ui
     spacing: 16,
     mainAxisSize: MainAxisSize.min,
     children: [
+      FutureBuilder(
+        future: DataModel().jiraApi.myself(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            loggy.error("An error occured while fetching the user's account data 😵\nError: ${snapshot.error}\nStacktrace: ${snapshot.stackTrace}");
+            return Card(
+              child: ListTile(
+                leading: Icon(Symbols.error, fill: 1, color: Theme.of(context).colorScheme.error),
+                title: Text('An error occured 😵'),
+                subtitle: Text(snapshot.error.toString()),
+              ),
+            );
+          }
+          if (snapshot.hasData) {
+            if (snapshot.data!.statusCode == 200) {
+              var userData = jsonDecode(snapshot.data!.body);
+              return Card(
+                child: ListTile(
+                  leading: JiraAvatar(url: userData['avatarUrls']['48x48']),
+                  title: Text(userData['displayName']),
+                  subtitle: SelectableText('Account id: ${userData['accountId']}'),
+                  trailing: IconButton(
+                    onPressed: () => Clipboard.setData(ClipboardData(text: userData['accountId'])),
+                    tooltip: 'Copy account ID',
+                    icon: Icon(Symbols.content_copy),
+                  ),
+                ),
+              );
+            }
+            loggy.warning("User's account data could not be fetched 😕\nError: ${snapshot.error}\nStacktrace: ${snapshot.stackTrace}");
+            return Card(
+              child: ListTile(
+                leading: Icon(Symbols.error, fill: 1, color: Theme.of(context).colorScheme.error),
+                title: Text('Your account data could not be fetched 😕'),
+                subtitle: Text('Error ${snapshot.data!.statusCode}: ${snapshot.data!.reasonPhrase}'),
+              ),
+            );
+          }
+          return ListTile(
+            leading: CircularProgressIndicator(),
+            title: Text('Looking for your account...'),
+          );
+        },
+      ),
       ListTile(
         title: Text('Jira domain'),
         trailing: SelectableText(SettingsModel().domainController.text, style: Theme.of(context).textTheme.bodyMedium),
       ),
-
       ListTile(
         title: Text('User email'),
         trailing: SelectableText(SettingsModel().emailController.text, style: Theme.of(context).textTheme.bodyMedium),
@@ -462,9 +505,10 @@ class _ConnectionSettingsPageState extends State<ConnectionSettingsPage> with Ui
             }
           },
           icon: Icon(Symbols.open_in_browser),
-          tooltip: 'Manage',
+          tooltip: 'Manage your API keys',
         ),
       ),
+      SizedBox(height: 8),
       OutlinedButton.icon(
         onPressed: () => showDialog(
           context: context,
