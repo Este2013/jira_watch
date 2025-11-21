@@ -20,7 +20,9 @@ void main() {
     logPrinter: FileLogPrinter(),
   );
   logInfo('Starting Jira Watcher app');
-  if (Platform.isWindows){MediaKit.ensureInitialized();}
+  if (Platform.isWindows) {
+    MediaKit.ensureInitialized();
+  }
   Future.wait([
     SettingsModel().appInfo.version,
     SettingsModel().appInfo.buildNumber,
@@ -316,7 +318,6 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> {
                       FutureBuilder(
                         future: checkValidity,
                         builder: (context, snapshot) {
-                          print(snapshot.connectionState);
                           if (snapshot.hasData && snapshot.data!.statusCode == 200) {
                             return ElevatedButton(
                               onPressed: () {

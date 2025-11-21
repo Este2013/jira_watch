@@ -355,52 +355,6 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
         builder: (context) => _UpToDateDialog('You are running the server\'s latest version ($mostRecent)'),
       ),
     );
-
-    // Uri latestDataUri = Uri.parse("https://este2013.github.io/jira_watch/latest.json");
-    // final resp = await http.get(latestDataUri);
-
-    // if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
-    //   return showDialog(
-    //     // ignore: use_build_context_synchronously
-    //     context: context,
-    //     builder: (context) => upToDateDialog('Server has no latest version data (empty response)'),
-    //   ).then((value) => (false, null, null));
-    // }
-
-    // Map<String, dynamic> data = jsonDecode(resp.body);
-    // MapEntry? mostRecent = data.entries.firstOrNull;
-    // if (mostRecent == null) {
-    //   return showDialog(
-    //     // ignore: use_build_context_synchronously
-    //     context: context,
-    //     builder: (context) => upToDateDialog('Server has no latest version data (no entries: empty map)'),
-    //   ).then((value) => (false, null, null));
-    // }
-
-    // bool isVersioStrictlyAbove(String version, {required String baseline}) {
-    //   var versionL = version.split('.').map(int.parse);
-    //   var baselineL = baseline.split('.').map(int.parse).toList();
-    //   for (var v in versionL.indexed) {
-    //     if (baselineL.length == v.$1) baselineL.add(0);
-    //     if (v.$2 > baselineL[v.$1]) {
-    //       return true;
-    //     }
-    //     if (v.$2 < baselineL[v.$1]) {
-    //       return false;
-    //     }
-    //   }
-    //   return false;
-    // }
-
-    // if (!isVersioStrictlyAbove(mostRecent.key, baseline: currentVersion)) {
-    //   return showDialog(
-    //     // ignore: use_build_context_synchronously
-    //     context: context,
-    //     builder: (context) => upToDateDialog('You are running the server\'s latest version (${mostRecent.key})'),
-    //   ).then((value) => (false, null, null));
-    // }
-
-    // return (true, mostRecent.key as String, mostRecent.value as Map);
   }
 }
 
@@ -737,7 +691,7 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                     children: [
                       Text('Settings files'),
                       Spacer(),
-                      TextButton(onPressed: () =>SettingsModel().settingsFolderUri .then(launchUrl), child: Text("View in folder")),
+                      TextButton(onPressed: () => SettingsModel().settingsFolderUri.then(launchUrl), child: Text("View in folder")),
                     ],
                   ),
                 ],
@@ -758,16 +712,16 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                   spacing: 8,
                   children: [
                     FutureBuilder(
-                      future:   FileLogPrinter.logFile, 
+                      future: FileLogPrinter.logFile,
                       builder: (context, asyncSnapshot) {
-                        if (!asyncSnapshot.hasData){
-return Text('...');
+                        if (!asyncSnapshot.hasData) {
+                          return Text('...');
                         }
                         return SelectableText(
                           asyncSnapshot.data!.path,
                           textAlign: TextAlign.end,
                         );
-                      }
+                      },
                     ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -778,7 +732,7 @@ return Text('...');
                           onPressed: () => showDialog(context: context, builder: (context) => _LogsDialog()),
                           label: Text("Read the logs"),
                         ),
-                        TextButton.icon(icon: Icon(Icons.folder), onPressed: () =>SettingsModel().settingsFolderUri .then(launchUrl), label: Text("Open in folder")),
+                        TextButton.icon(icon: Icon(Icons.folder), onPressed: () => SettingsModel().settingsFolderUri.then(launchUrl), label: Text("Open in folder")),
                       ],
                     ),
                   ],
@@ -1164,7 +1118,7 @@ class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
         style: TextStyle(fontFamily: 'RobotoMono'),
         child: FutureBuilder(
           key: ValueKey(hash),
-          future: FileLogPrinter.logFile.readAsLines(),
+          future: FileLogPrinter.logFile.then((value) => value.readAsLines()),
           builder: (context, asyncSnapshot) {
             if (asyncSnapshot.hasData) {
               return AnimatedBuilder(

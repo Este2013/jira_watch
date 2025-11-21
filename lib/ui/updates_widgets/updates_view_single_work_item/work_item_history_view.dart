@@ -113,7 +113,6 @@ class HistoryPage extends StatelessWidget {
               ),
             ),
           );
-          ;
         }
         // any edit
         final group = groups[index];
