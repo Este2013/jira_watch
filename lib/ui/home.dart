@@ -781,18 +781,21 @@ class ChangeLogsDialog extends StatelessWidget {
               'Assignee/reporter:',
               subItems: [
                 ChangeLogItem('now show a higher-res profile picture;'),
-                ChangeLogItem('their names can be copied;'),
+                ChangeLogItem('their names can be copied.'),
               ],
             ),
           ]),
           ChangeLogSection.bugFixes([
-            ChangeLogItem('Settings dialog can now scroll when too small'),
+            ChangeLogItem('Settings dialog can now scroll when too small;'),
+            ChangeLogItem('App now can no longer be shrunk below 900x600.'),
           ]),
           ChangeLogSection.chores([
             ChangeLogItem('Bumped version number.'),
-            ChangeLogItem('More code renamed to fit Jira\'s convention "work item" (instead of "issue" or "ticket").'),
+            ChangeLogItem('Added window_manager as dependency;'),
+            ChangeLogItem('More code renamed to fit Jira\'s convention "work item" (instead of "issue" or "ticket");'),
+            ChangeLogItem('Removed that ugly placeholder in Updates page.'),
             ChangeLogItem(
-              'Settings > Advanced > Log-reading dialog',
+              'In Settings > Advanced > Log-reading dialog',
               subItems: [
                 ChangeLogItem('Added log level filter and search'),
                 ChangeLogItem('Now legible in light mode'),
