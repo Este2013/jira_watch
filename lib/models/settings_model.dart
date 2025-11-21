@@ -12,10 +12,10 @@ import 'package:package_info_plus/package_info_plus.dart' as pkg;
 class SettingsModel with GlobalLoggy {
   static final SettingsModel _instance = SettingsModel._internal();
   Future<Uri> get settingsFolderUri async => Uri.directory(await _settingsFolderPath);
- Future <Directory> get settingsFolder async=> Directory(await _settingsFolderPath);
-  
-  Future<String>get _settingsFolderPath  async {
- if(Platform.isMacOS){
+  Future<Directory> get settingsFolder async => Directory(await _settingsFolderPath);
+
+  Future<String> get _settingsFolderPath async {
+    if (Platform.isMacOS) {
       return (await getApplicationSupportDirectory()).path;
     }
     return join(Platform.environment['APPDATA']!, "com.este", "jira_watcher");
@@ -32,6 +32,9 @@ class SettingsModel with GlobalLoggy {
         theme.value = prefs.getString('theme') ?? 'system';
         theme.addListener(() => prefs.setString('theme', theme.value));
         _lastAppVersion = prefs.getString('last_app_version') ?? '0.0.0';
+        updateTrack = ValueNotifier(UpdateTrack.values.firstWhere((v) => v.name == prefs.getString('update_track'), orElse: () => UpdateTrack.main));
+        updateTrack.addListener(() => prefs.setString('update_track', updateTrack.value.name));
+
         // GENERAL - Updates view settings
         markAsReadOnOpen.value = prefs.getBool('mark_as_read_on_open') ?? true;
         markAsReadOnOpen.addListener(() => prefs.setBool('mark_as_read_on_open', markAsReadOnOpen.value));
@@ -107,6 +110,8 @@ class SettingsModel with GlobalLoggy {
     return _lastAppVersion;
   }
 
+  late ValueNotifier<UpdateTrack> updateTrack;
+
   // GENERAL - Updates view settings
   final ValueNotifier<bool> markAsReadOnOpen = ValueNotifier(true);
 
@@ -147,3 +152,5 @@ class PackageInfoData {
   Future<String> get version => _info.then((v) => v["version"]!);
   Future<String> get buildNumber => _info.then((v) => v["buildNumber"]!);
 }
+
+enum UpdateTrack { main, beta }

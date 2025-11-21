@@ -10,6 +10,7 @@ import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/home.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/models/settings_model.dart';
+import 'package:jira_watcher/ui/utils/json_viewer.dart';
 import 'package:jira_watcher/utils/local_auth.dart';
 import 'package:jira_watcher/utils/string_utils.dart';
 import 'package:loggy/loggy.dart';
@@ -165,7 +166,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
               Row(
                 spacing: 8,
                 children: [
-                  Text('Application version'),
+                  Text('Current version'),
                   Spacer(),
                   FutureBuilder(
                     future: SettingsModel().appInfo.version,
@@ -262,21 +263,65 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
               Row(
                 spacing: 8,
                 children: [
+                  Text('Updade track'),
+                  Spacer(),
+                  SegmentedButton<UpdateTrack>(
+                    segments: const [
+                      ButtonSegment(
+                        value: UpdateTrack.main,
+                        icon: Icon(Symbols.home, size: 16, fill: 1),
+                        label: Text('Stable'),
+                      ),
+                      ButtonSegment(
+                        value: UpdateTrack.beta,
+                        icon: Icon(Symbols.experiment, size: 16, fill: 1),
+                        label: Text('Beta'),
+                      ),
+                    ],
+                    selected: {SettingsModel().updateTrack.value},
+                    onSelectionChanged: (newSelection) {
+                      if (newSelection.isNotEmpty) {
+                        SettingsModel().updateTrack.value = newSelection.first;
+                        setState(() {}); // refresh UI if needed
+                      }
+                    },
+                    multiSelectionEnabled: false,
+                    showSelectedIcon: false,
+                  ),
+                ],
+              ),
+              Row(
+                spacing: 8,
+                children: [
                   Text('Theme'),
                   Spacer(),
-                  DropdownMenu(
-                    dropdownMenuEntries: [
-                      DropdownMenuEntry(value: 'system', label: 'Same as system', leadingIcon: Icon(Icons.computer)),
-                      DropdownMenuEntry(value: 'light', label: 'Light theme', leadingIcon: Icon(Icons.light_mode)),
-                      DropdownMenuEntry(value: 'dark', label: 'Dark theme', leadingIcon: Icon(Icons.dark_mode)),
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(
+                        value: 'system',
+                        icon: Icon(Icons.computer, size: 16),
+                        label: Text('System'),
+                      ),
+                      ButtonSegment(
+                        value: 'light',
+                        icon: Icon(Icons.light_mode, size: 16),
+                        label: Text('Light'),
+                      ),
+                      ButtonSegment(
+                        value: 'dark',
+                        icon: Icon(Icons.dark_mode, size: 16),
+                        label: Text('Dark'),
+                      ),
                     ],
-                    onSelected: (value) => SettingsModel().theme.value = value!,
-                    initialSelection: SettingsModel().theme.value,
-                    // VVV disable writing VVV
-                    enableSearch: false,
-                    enableFilter: false,
-                    requestFocusOnTap: false,
-                    focusNode: FocusNode()..canRequestFocus = false,
+                    selected: {SettingsModel().theme.value},
+                    onSelectionChanged: (newSelection) {
+                      if (newSelection.isNotEmpty) {
+                        SettingsModel().theme.value = newSelection.first;
+                        setState(() {}); // refresh UI if needed
+                      }
+                    },
+                    multiSelectionEnabled: false,
+                    showSelectedIcon: false,
                   ),
                 ],
               ),
@@ -284,13 +329,13 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
           ),
         ),
 
-        // Updates view
+        // Jira Updates view
         Padding(
           padding: const EdgeInsets.only(top: 32.0),
           child: Row(
             spacing: 8,
             children: [
-              Text('Updates view', style: Theme.of(context).textTheme.titleMedium),
+              Text('Jira Updates view', style: Theme.of(context).textTheme.titleMedium),
               Expanded(child: Divider()),
             ],
           ),
@@ -717,20 +762,30 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                     IconButton(onPressed: () => jiraAvatarCacheManager.emptyCache(), icon: Icon(Icons.delete)),
                   ],
                 ),
-                if (!Platform.isWindows)
-                  Row(
-                    spacing: 8,
-                    children: [
-                      Text('Settings files'),
-                      Spacer(),
-                      TextButton(onPressed: () => SettingsModel().settingsFolderUri.then(launchUrl), child: Text("View in folder")),
-                    ],
-                  ),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  spacing: 8,
+                  children: [
+                    TextButton.icon(
+                      icon: Icon(Symbols.data_object),
+                      onPressed: () => showDialog(context: context, builder: (context) => _PreferencesDialog()),
+                      label: Text("View preferences"),
+                    ),
+                    if (Platform.isWindows)
+                      TextButton.icon(
+                        icon: Icon(Icons.folder),
+                        onPressed: () => SettingsModel().settingsFolderUri.then(launchUrl),
+                        label: Text("View data file in folder"),
+                      ),
+                  ],
+                ),
               ],
             ),
             Padding(
               padding: const EdgeInsets.only(top: 32.0),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 spacing: 8,
                 children: [
                   Text('Logging', style: Theme.of(context).textTheme.titleMedium),
@@ -950,6 +1005,242 @@ class _DiagnosticsDialogState extends State<DiagnosticsDialog> {
       ),
     ),
   );
+}
+
+class _PreferencesDialog extends StatefulWidget {
+  const _PreferencesDialog();
+
+  @override
+  State<_PreferencesDialog> createState() => _PreferencesDialogState();
+}
+
+class _PreferencesDialogState extends State<_PreferencesDialog> with UiLoggy {
+  late Timer pollTimer;
+  String? contents;
+  String minLevelShown = 'Info';
+  late TextEditingController searchController;
+  bool searchIsCaseSensitive = false;
+  bool searchIsRegex = false;
+
+  ScrollController scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    searchController = TextEditingController();
+    pollTimer = Timer.periodic(
+      Duration(seconds: 1),
+      (timer) async {
+        var temp = await (await FileLogPrinter.logFile).readAsString();
+
+        if (contents != temp) {
+          setState(() {
+            contents = temp;
+          });
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    pollTimer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    bool isLightTheme = Theme.of(context).brightness == Brightness.light;
+    return AlertDialog(
+      title: Text('App Preferences reader'),
+      constraints: BoxConstraints(minWidth: double.maxFinite),
+      actions: [
+        Row(
+          spacing: 8,
+          children: [
+            // Card(
+            //   child: Padding(
+            //     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            //     child: Row(
+            //       spacing: 8,
+            //       children: [
+            //         SizedBox(
+            //           width: 250,
+            //           child: TextField(
+            //             controller: searchController,
+            //             decoration: InputDecoration(
+            //               prefixIcon: Icon(Icons.search),
+            //             ),
+            //           ),
+            //         ),
+            //         Tooltip(
+            //           message: 'Match case',
+            //           child: InkWell(
+            //             borderRadius: BorderRadius.circular(1000),
+            //             child: CircleAvatar(
+            //               backgroundColor: searchIsCaseSensitive ? null : Colors.transparent,
+            //               child: Icon(Symbols.text_fields, size: 20),
+            //             ),
+            //             onTap: () => setState(() {
+            //               searchIsCaseSensitive = !searchIsCaseSensitive;
+            //             }),
+            //           ),
+            //         ),
+            //         AnimatedBuilder(
+            //           animation: searchController,
+            //           builder: (context, _) {
+            //             bool regexHasError = (searchController.text.isNotEmpty && !searchController.text.isValidRegex());
+            //             return Tooltip(
+            //               message: regexHasError ? 'Invalid regular expression' : 'Use regular expression',
+            //               child: InkWell(
+            //                 borderRadius: BorderRadius.circular(1000),
+            //                 child: CircleAvatar(
+            //                   backgroundColor: searchIsRegex
+            //                       ? regexHasError
+            //                             ? Theme.of(context).colorScheme.errorContainer
+            //                             : null
+            //                       : Colors.transparent,
+            //                   child: Icon(Symbols.regular_expression, size: 20),
+            //                 ),
+            //                 onTap: () => setState(() {
+            //                   searchIsRegex = !searchIsRegex;
+            //                 }),
+            //               ),
+            //             );
+            //           },
+            //         ),
+            //       ],
+            //     ),
+            //   ),
+            // ),
+            Spacer(),
+            TextButton(
+              onPressed: Navigator.of(context).pop,
+              child: Text('Close'),
+            ),
+          ],
+        ),
+      ],
+      content: DefaultTextStyle(
+        style: TextStyle(fontFamily: 'RobotoMono'),
+        child: FutureBuilder(
+          key: ValueKey(hash),
+          future: SettingsModel().settingsFolder.then((dir) => File(join(dir.path, 'shared_preferences.json')).readAsString()),
+          builder: (context, asyncSnapshot) {
+            if (asyncSnapshot.hasData) {
+              return AnimatedBuilder(
+                animation: searchController,
+                builder: (context, _) => JsonViewer(data: jsonDecode(asyncSnapshot.data!)),
+              );
+            }
+            return Center(child: CircularProgressIndicator());
+          },
+        ),
+      ),
+    );
+  }
+
+  Iterable<List<String>> filtered(List<String> list) => filteredBySearch(filteredByLevel(groupedByEntries(list)));
+
+  Iterable<List<String>> filteredBySearch(Iterable<List<String>> listOfEntries) sync* {
+    if (searchController.text.isEmpty) {
+      for (var entry in listOfEntries) {
+        yield entry;
+      }
+      return;
+    }
+
+    if (searchIsRegex) {
+      if (!searchController.text.isValidRegex()) {
+        for (var entry in listOfEntries) {
+          yield entry;
+        }
+        return;
+      }
+      var regexp = RegExp(searchController.text, caseSensitive: searchIsCaseSensitive);
+      for (var entry in listOfEntries) {
+        String entryString = entry.join('\n');
+        if (regexp.hasMatch(entryString)) {
+          yield entry;
+        }
+      }
+      return;
+    }
+    for (var entry in listOfEntries) {
+      String entryString = entry.join('\n');
+      if (entryString.contains(searchController.text)) {
+        yield entry;
+      }
+    }
+  }
+
+  Iterable<List<String>> filteredByLevel(Iterable<List<String>> listOfEntries) sync* {
+    /// Maps filter level to its map of allowed levels
+    Map levetIsOutTable = {
+      'Debug': {
+        'Debug': true,
+        'Info': true,
+        'Warning': true,
+        'Error': true,
+      },
+      'Info': {
+        'Debug': false,
+        'Info': true,
+        'Warning': true,
+        'Error': true,
+      },
+      'Warning': {
+        'Debug': false,
+        'Info': false,
+        'Warning': true,
+        'Error': true,
+      },
+      'Error': {
+        'Debug': false,
+        'Info': false,
+        'Warning': false,
+        'Error': true,
+      },
+    };
+
+    bool currentLogEntryIsFilteredOut = false;
+    for (var entry in listOfEntries) {
+      if (entry.isEmpty) continue;
+      String line = entry.first;
+      if (line.startsWith(RegExp(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T'))) {
+        String level = line.split(' ')[1];
+        bool isLevelAllowed = levetIsOutTable[minLevelShown][level] ?? true;
+        if (isLevelAllowed) {
+          yield entry;
+          currentLogEntryIsFilteredOut = false;
+        } else {
+          currentLogEntryIsFilteredOut = true;
+        }
+      } else {
+        // this is part of the above log line
+        if (!currentLogEntryIsFilteredOut) {
+          yield entry;
+        }
+      }
+    }
+  }
+
+  Iterable<List<String>> groupedByEntries(List<String> listOfLines) sync* {
+    if (listOfLines.isEmpty) return;
+    List<String> currentEntry = [];
+    for (var line in listOfLines) {
+      if (line.startsWith(RegExp(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T'))) {
+        if (currentEntry.isNotEmpty) {
+          yield currentEntry;
+        }
+        currentEntry = [];
+      }
+      currentEntry.add(line);
+    }
+    if (currentEntry.isNotEmpty) {
+      yield currentEntry;
+    }
+  }
 }
 
 class _LogsDialog extends StatefulWidget {
