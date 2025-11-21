@@ -755,15 +755,6 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
               spacing: 8,
               children: [
                 Row(
-                  spacing: 8,
-                  children: [
-                    Text('Icon cache'),
-                    Spacer(),
-                    IconButton(onPressed: () => jiraAvatarCacheManager.emptyCache(), icon: Icon(Icons.delete)),
-                  ],
-                ),
-
-                Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   spacing: 8,
                   children: [
@@ -774,11 +765,17 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                     ),
                     if (Platform.isWindows)
                       TextButton.icon(
-                        icon: Icon(Icons.folder),
                         onPressed: () => SettingsModel().settingsFolderUri.then(launchUrl),
-                        label: Text("View data file in folder"),
+                        icon: Icon(Icons.folder),
+                        label: Text("View data files in folder"),
                       ),
                   ],
+                ),
+                TextButton.icon(
+                  style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+                  onPressed: () => jiraAvatarCacheManager.emptyCache(),
+                  icon: Icon(Symbols.delete, fill: 1),
+                  label: Text("Delete images and icons cache"),
                 ),
               ],
             ),
@@ -1049,198 +1046,93 @@ class _PreferencesDialogState extends State<_PreferencesDialog> with UiLoggy {
   }
 
   @override
-  Widget build(BuildContext context) {
-    bool isLightTheme = Theme.of(context).brightness == Brightness.light;
-    return AlertDialog(
-      title: Text('App Preferences reader'),
-      constraints: BoxConstraints(minWidth: double.maxFinite),
-      actions: [
-        Row(
-          spacing: 8,
-          children: [
-            // Card(
-            //   child: Padding(
-            //     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            //     child: Row(
-            //       spacing: 8,
-            //       children: [
-            //         SizedBox(
-            //           width: 250,
-            //           child: TextField(
-            //             controller: searchController,
-            //             decoration: InputDecoration(
-            //               prefixIcon: Icon(Icons.search),
-            //             ),
-            //           ),
-            //         ),
-            //         Tooltip(
-            //           message: 'Match case',
-            //           child: InkWell(
-            //             borderRadius: BorderRadius.circular(1000),
-            //             child: CircleAvatar(
-            //               backgroundColor: searchIsCaseSensitive ? null : Colors.transparent,
-            //               child: Icon(Symbols.text_fields, size: 20),
-            //             ),
-            //             onTap: () => setState(() {
-            //               searchIsCaseSensitive = !searchIsCaseSensitive;
-            //             }),
-            //           ),
-            //         ),
-            //         AnimatedBuilder(
-            //           animation: searchController,
-            //           builder: (context, _) {
-            //             bool regexHasError = (searchController.text.isNotEmpty && !searchController.text.isValidRegex());
-            //             return Tooltip(
-            //               message: regexHasError ? 'Invalid regular expression' : 'Use regular expression',
-            //               child: InkWell(
-            //                 borderRadius: BorderRadius.circular(1000),
-            //                 child: CircleAvatar(
-            //                   backgroundColor: searchIsRegex
-            //                       ? regexHasError
-            //                             ? Theme.of(context).colorScheme.errorContainer
-            //                             : null
-            //                       : Colors.transparent,
-            //                   child: Icon(Symbols.regular_expression, size: 20),
-            //                 ),
-            //                 onTap: () => setState(() {
-            //                   searchIsRegex = !searchIsRegex;
-            //                 }),
-            //               ),
-            //             );
-            //           },
-            //         ),
-            //       ],
-            //     ),
-            //   ),
-            // ),
-            Spacer(),
-            TextButton(
-              onPressed: Navigator.of(context).pop,
-              child: Text('Close'),
-            ),
-          ],
-        ),
-      ],
-      content: DefaultTextStyle(
-        style: TextStyle(fontFamily: 'RobotoMono'),
-        child: FutureBuilder(
-          key: ValueKey(hash),
-          future: SettingsModel().settingsFolder.then((dir) => File(join(dir.path, 'shared_preferences.json')).readAsString()),
-          builder: (context, asyncSnapshot) {
-            if (asyncSnapshot.hasData) {
-              return AnimatedBuilder(
-                animation: searchController,
-                builder: (context, _) => JsonViewer(data: jsonDecode(asyncSnapshot.data!)),
-              );
-            }
-            return Center(child: CircularProgressIndicator());
-          },
-        ),
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text('App Preferences reader'),
+    constraints: BoxConstraints(minWidth: double.maxFinite),
+    actions: [
+      Row(
+        spacing: 8,
+        children: [
+          // Card(
+          //   child: Padding(
+          //     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          //     child: Row(
+          //       spacing: 8,
+          //       children: [
+          //         SizedBox(
+          //           width: 250,
+          //           child: TextField(
+          //             controller: searchController,
+          //             decoration: InputDecoration(
+          //               prefixIcon: Icon(Icons.search),
+          //             ),
+          //           ),
+          //         ),
+          //         Tooltip(
+          //           message: 'Match case',
+          //           child: InkWell(
+          //             borderRadius: BorderRadius.circular(1000),
+          //             child: CircleAvatar(
+          //               backgroundColor: searchIsCaseSensitive ? null : Colors.transparent,
+          //               child: Icon(Symbols.text_fields, size: 20),
+          //             ),
+          //             onTap: () => setState(() {
+          //               searchIsCaseSensitive = !searchIsCaseSensitive;
+          //             }),
+          //           ),
+          //         ),
+          //         AnimatedBuilder(
+          //           animation: searchController,
+          //           builder: (context, _) {
+          //             bool regexHasError = (searchController.text.isNotEmpty && !searchController.text.isValidRegex());
+          //             return Tooltip(
+          //               message: regexHasError ? 'Invalid regular expression' : 'Use regular expression',
+          //               child: InkWell(
+          //                 borderRadius: BorderRadius.circular(1000),
+          //                 child: CircleAvatar(
+          //                   backgroundColor: searchIsRegex
+          //                       ? regexHasError
+          //                             ? Theme.of(context).colorScheme.errorContainer
+          //                             : null
+          //                       : Colors.transparent,
+          //                   child: Icon(Symbols.regular_expression, size: 20),
+          //                 ),
+          //                 onTap: () => setState(() {
+          //                   searchIsRegex = !searchIsRegex;
+          //                 }),
+          //               ),
+          //             );
+          //           },
+          //         ),
+          //       ],
+          //     ),
+          //   ),
+          // ),
+          Spacer(),
+          TextButton(
+            onPressed: Navigator.of(context).pop,
+            child: Text('Close'),
+          ),
+        ],
       ),
-    );
-  }
-
-  Iterable<List<String>> filtered(List<String> list) => filteredBySearch(filteredByLevel(groupedByEntries(list)));
-
-  Iterable<List<String>> filteredBySearch(Iterable<List<String>> listOfEntries) sync* {
-    if (searchController.text.isEmpty) {
-      for (var entry in listOfEntries) {
-        yield entry;
-      }
-      return;
-    }
-
-    if (searchIsRegex) {
-      if (!searchController.text.isValidRegex()) {
-        for (var entry in listOfEntries) {
-          yield entry;
-        }
-        return;
-      }
-      var regexp = RegExp(searchController.text, caseSensitive: searchIsCaseSensitive);
-      for (var entry in listOfEntries) {
-        String entryString = entry.join('\n');
-        if (regexp.hasMatch(entryString)) {
-          yield entry;
-        }
-      }
-      return;
-    }
-    for (var entry in listOfEntries) {
-      String entryString = entry.join('\n');
-      if (entryString.contains(searchController.text)) {
-        yield entry;
-      }
-    }
-  }
-
-  Iterable<List<String>> filteredByLevel(Iterable<List<String>> listOfEntries) sync* {
-    /// Maps filter level to its map of allowed levels
-    Map levetIsOutTable = {
-      'Debug': {
-        'Debug': true,
-        'Info': true,
-        'Warning': true,
-        'Error': true,
-      },
-      'Info': {
-        'Debug': false,
-        'Info': true,
-        'Warning': true,
-        'Error': true,
-      },
-      'Warning': {
-        'Debug': false,
-        'Info': false,
-        'Warning': true,
-        'Error': true,
-      },
-      'Error': {
-        'Debug': false,
-        'Info': false,
-        'Warning': false,
-        'Error': true,
-      },
-    };
-
-    bool currentLogEntryIsFilteredOut = false;
-    for (var entry in listOfEntries) {
-      if (entry.isEmpty) continue;
-      String line = entry.first;
-      if (line.startsWith(RegExp(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T'))) {
-        String level = line.split(' ')[1];
-        bool isLevelAllowed = levetIsOutTable[minLevelShown][level] ?? true;
-        if (isLevelAllowed) {
-          yield entry;
-          currentLogEntryIsFilteredOut = false;
-        } else {
-          currentLogEntryIsFilteredOut = true;
-        }
-      } else {
-        // this is part of the above log line
-        if (!currentLogEntryIsFilteredOut) {
-          yield entry;
-        }
-      }
-    }
-  }
-
-  Iterable<List<String>> groupedByEntries(List<String> listOfLines) sync* {
-    if (listOfLines.isEmpty) return;
-    List<String> currentEntry = [];
-    for (var line in listOfLines) {
-      if (line.startsWith(RegExp(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T'))) {
-        if (currentEntry.isNotEmpty) {
-          yield currentEntry;
-        }
-        currentEntry = [];
-      }
-      currentEntry.add(line);
-    }
-    if (currentEntry.isNotEmpty) {
-      yield currentEntry;
-    }
-  }
+    ],
+    content: DefaultTextStyle(
+      style: TextStyle(fontFamily: 'RobotoMono'),
+      child: FutureBuilder(
+        key: ValueKey(hash),
+        future: SettingsModel().settingsFolder.then((dir) => File(join(dir.path, 'shared_preferences.json')).readAsString()),
+        builder: (context, asyncSnapshot) {
+          if (asyncSnapshot.hasData) {
+            return AnimatedBuilder(
+              animation: searchController,
+              builder: (context, _) => JsonViewer(data: jsonDecode(asyncSnapshot.data!)),
+            );
+          }
+          return Center(child: CircularProgressIndicator());
+        },
+      ),
+    ),
+  );
 }
 
 class _LogsDialog extends StatefulWidget {
