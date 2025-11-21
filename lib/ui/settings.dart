@@ -686,7 +686,7 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                       IconButton(onPressed: () => jiraAvatarCacheManager.emptyCache(), icon: Icon(Icons.delete)),
                     ],
                   ),
-                  Row(
+                 if (!Platform.isWindows) Row(
                     spacing: 8,
                     children: [
                       Text('Settings files'),
@@ -723,7 +723,7 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                         );
                       },
                     ),
-                    Row(
+                   if (!Platform.isWindows)   Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       spacing: 8,
                       children: [

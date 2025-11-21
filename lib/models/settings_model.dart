@@ -16,7 +16,7 @@ class SettingsModel with GlobalLoggy {
   
   Future<String>get _settingsFolderPath  async {
  if(Platform.isMacOS){
-      return join( (await getApplicationSupportDirectory()).path, "com.este", "jira_watcher");
+      return (await getApplicationSupportDirectory()).path;
     }
     return join(Platform.environment['APPDATA']!, "com.este", "jira_watcher");
   }
