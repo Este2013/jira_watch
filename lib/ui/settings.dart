@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:fading_edge_scrollview/fading_edge_scrollview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:jira_watcher/dao/updates_dao.dart';
@@ -966,6 +967,8 @@ class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
   bool searchIsCaseSensitive = false;
   bool searchIsRegex = false;
 
+  ScrollController scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -1002,7 +1005,87 @@ class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
   Widget build(BuildContext context) {
     bool isLightTheme = Theme.of(context).brightness == Brightness.light;
     return AlertDialog(
-      title: Text('Logs reader'),
+      title: Row(
+        spacing: 8,
+        children: [
+          Text('Logs reader'),
+          PopupMenuButton<String>(
+            icon: Icon(Icons.edit),
+            tooltip: 'Test writing a message',
+
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'debug',
+                child: Row(
+                  children: [
+                    Text(emoteForLevel('Debug')),
+                    SizedBox(width: 8),
+                    Text('Debug'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'info',
+                child: Row(
+                  children: [
+                    Text(emoteForLevel('Info')),
+                    SizedBox(width: 8),
+                    Text('Info'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'warning',
+                child: Row(
+                  children: [
+                    Text(emoteForLevel('Warning')),
+                    SizedBox(width: 8),
+                    Text('Warning'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'error',
+                child: Row(
+                  children: [
+                    Text(emoteForLevel('Error')),
+                    SizedBox(width: 8),
+                    Text('Error'),
+                  ],
+                ),
+              ),
+            ],
+            onSelected: (value) {
+              switch (value) {
+                case 'debug':
+                  loggy.debug('Writing a debug message...');
+                  break;
+                case 'info':
+                  loggy.info('Writing an info message...');
+                  break;
+                case 'warning':
+                  loggy.warning('Writing a warning message...');
+                  break;
+                case 'error':
+                  loggy.error('Writing an error message...');
+                  break;
+              }
+            },
+          ),
+          Spacer(),
+          SegmentedButton(
+            segments: [
+              for (var lvl in ['Debug', 'Info', 'Warning', 'Error']) ButtonSegment(value: lvl, label: Text('${emoteForLevel(lvl)} $lvl')),
+            ],
+            selected: {minLevelShown},
+            multiSelectionEnabled: false,
+            showSelectedIcon: false,
+            onSelectionChanged: (p0) => setState(() {
+              minLevelShown = p0.first;
+            }),
+          ),
+        ],
+      ),
       constraints: BoxConstraints(minWidth: double.maxFinite),
       actions: [
         Row(
@@ -1063,81 +1146,6 @@ class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
                 ),
               ),
             ),
-            SegmentedButton(
-              segments: [
-                for (var lvl in ['Debug', 'Info', 'Warning', 'Error']) ButtonSegment(value: lvl, label: Text('${emoteForLevel(lvl)} $lvl')),
-              ],
-              selected: {minLevelShown},
-              multiSelectionEnabled: false,
-              showSelectedIcon: false,
-              onSelectionChanged: (p0) => setState(() {
-                minLevelShown = p0.first;
-              }),
-            ),
-            Text('･'),
-            PopupMenuButton<String>(
-              icon: Icon(Icons.edit),
-              tooltip: 'Test writing a message',
-
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 'debug',
-                  child: Row(
-                    children: [
-                      Text(emoteForLevel('Debug')),
-                      SizedBox(width: 8),
-                      Text('Debug'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'info',
-                  child: Row(
-                    children: [
-                      Text(emoteForLevel('Info')),
-                      SizedBox(width: 8),
-                      Text('Info'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'warning',
-                  child: Row(
-                    children: [
-                      Text(emoteForLevel('Warning')),
-                      SizedBox(width: 8),
-                      Text('Warning'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'error',
-                  child: Row(
-                    children: [
-                      Text(emoteForLevel('Error')),
-                      SizedBox(width: 8),
-                      Text('Error'),
-                    ],
-                  ),
-                ),
-              ],
-              onSelected: (value) {
-                switch (value) {
-                  case 'debug':
-                    loggy.debug('Writing a debug message...');
-                    break;
-                  case 'info':
-                    loggy.info('Writing an info message...');
-                    break;
-                  case 'warning':
-                    loggy.warning('Writing a warning message...');
-                    break;
-                  case 'error':
-                    loggy.error('Writing an error message...');
-                    break;
-                }
-              },
-            ),
             Spacer(),
             TextButton(
               onPressed: Navigator.of(context).pop,
@@ -1155,40 +1163,43 @@ class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
             if (asyncSnapshot.hasData) {
               return AnimatedBuilder(
                 animation: searchController,
-                builder: (context, _) => SingleChildScrollView(
-                  child: SelectableText.rich(
-                    TextSpan(
-                      children: [
-                        for (var entry in filtered(asyncSnapshot.data!)) ...[
-                          ...[
-                            TextSpan(text: emoteForLevel(entry.first.split(' ')[1])),
-                            TextSpan(text: ' '),
-                            TextSpan(
-                              text: entry.first.split(' ')[0].split('T')[1],
-                              style: TextStyle(color: isLightTheme ? Colors.green : Colors.greenAccent),
-                            ),
-                            TextSpan(text: ' '),
-
-                            TextSpan(
-                              text: entry.first.split(RegExp(r'[\[\]]'))[1],
-                              style: TextStyle(color: Theme.of(context).hintColor),
-                            ),
-                            TextSpan(text: ' '),
-
-                            TextSpan(
-                              text: entry.first.split(RegExp(r']')).sublist(1).join(']'),
-                              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-                            ),
-                          ],
-                          if (entry.length > 1)
-                            for (var line in entry.sublist(1))
+                builder: (context, _) => FadingEdgeScrollView.fromSingleChildScrollView(
+                  child: SingleChildScrollView(
+                    controller: scrollController,
+                    child: SelectableText.rich(
+                      TextSpan(
+                        children: [
+                          for (var entry in filtered(asyncSnapshot.data!)) ...[
+                            ...[
+                              TextSpan(text: emoteForLevel(entry.first.split(' ')[1])),
+                              TextSpan(text: ' '),
                               TextSpan(
-                                text: '\n    | $line',
+                                text: entry.first.split(' ')[0].split('T')[1],
+                                style: TextStyle(color: isLightTheme ? Colors.green : Colors.greenAccent),
+                              ),
+                              TextSpan(text: ' '),
+
+                              TextSpan(
+                                text: entry.first.split(RegExp(r'[\[\]]'))[1],
+                                style: TextStyle(color: Theme.of(context).hintColor),
+                              ),
+                              TextSpan(text: ' '),
+
+                              TextSpan(
+                                text: entry.first.split(RegExp(r']')).sublist(1).join(']'),
                                 style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
                               ),
-                          TextSpan(text: '\n'),
+                            ],
+                            if (entry.length > 1)
+                              for (var line in entry.sublist(1))
+                                TextSpan(
+                                  text: '\n    | $line',
+                                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                                ),
+                            TextSpan(text: '\n'),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
