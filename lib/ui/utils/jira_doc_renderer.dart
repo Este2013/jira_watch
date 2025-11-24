@@ -343,7 +343,6 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
   Widget? _buildInlineCard(BuildContext context, Map<String, dynamic> node) {
     var url = node['attrs']['url'];
     if (url == null) return null;
-
     if ((url as String).startsWith('https://${SettingsModel().domainController.text}.atlassian.net/browse')) {
       // Jira workItem card
       var issueKey = url
@@ -416,8 +415,9 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       );
     }
 
-    return Chip(
+    return ActionChip(
       label: Text(node['attrs']['url']),
+            onPressed: () => launchUrl(Uri.parse(url)),
     );
   }
 
