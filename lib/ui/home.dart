@@ -768,17 +768,18 @@ class ChangeLogsDialog extends StatelessWidget {
         sections: [
           ChangeLogSection.features([
             ChangeLogItem('🍎 macOS is now supported!'),
-            ChangeLogItem('Improved setting\'s "Connection" page and login page'),
-            ChangeLogItem('Json and ips files are now handled in attachements with a proper Json viewer.'),
+            ChangeLogItem('👤 Improved setting\'s "Connection" page and login page;'),
+            ChangeLogItem('🧪 Added beta update track;'),
+            ChangeLogItem('📁 Json and ips files are now handled in attachements with a proper Json viewer.'),
             ChangeLogItem(
-              'Work item history view:',
+              '🕜 Work item history view:',
               subItems: [
                 ChangeLogItem('Work item history now shows an entry for the ticket\'s creation.'),
                 ChangeLogItem('Improved display of some default field edits in history view'),
               ],
             ),
             ChangeLogItem(
-              'Assignee/reporter:',
+              '😀 Assignee/reporter:',
               subItems: [
                 ChangeLogItem('now show a higher-res profile picture;'),
                 ChangeLogItem('their names can be copied.'),
