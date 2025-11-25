@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/dao/updates_dao.dart';
@@ -55,7 +56,10 @@ Future<void> fetchNewUpdateDataAndShowResults(BuildContext context, String curre
               child: Text('GitHub'),
             ),
             FilledButton.icon(
-              onPressed: () => launchUrl(Uri.parse('https://este2013.github.io/jira_watch/${newUpdate.metadata['x64']}')),
+              onPressed: () {
+                String targetOS = Platform.isWindows ? 'x64' : 'osX';
+                launchUrl(Uri.parse('https://este2013.github.io/jira_watch/${newUpdate.metadata[targetOS]}'));
+              },
               icon: Icon(Symbols.download),
               label: Text('Download'),
             ),

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -485,7 +486,10 @@ class NewUpdateAvailableAlertDialog extends StatelessWidget {
             onPressed: () => launchUrl(Uri.parse('https://github.com/Este2013/jira_watch/releases')),
             child: Text('Github'),
           ),
-          FilledButton(onPressed: () => launchUrl(Uri.parse('https://este2013.github.io/jira_watch/${data.$3?['x64']}')), child: Text('Download')),
+          FilledButton(onPressed: () {
+String            targetOS = Platform.isWindows ? 'x64':'osX';
+            launchUrl(Uri.parse('https://este2013.github.io/jira_watch/${data.$3?[targetOS]}'));
+          }, child: Text('Download')),
         ],
       ),
     ],
