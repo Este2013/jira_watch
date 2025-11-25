@@ -2,6 +2,17 @@
 
 A Jira client that shows the most recent updates done in projects you work on.
 
+## Running on macOS
+
+Available starting in release 1.5.0.
+MacOS will show a security warning and refuse to run the app (at first).
+To run it anyway:
+   - Close the system prompt
+   - Open system settings
+   - Navigate to "Privacy and security"
+   - Near the bottom of the page, allow jira_watch to "Run anyway". 
+
+
 # TODO
  - add custom fields
  - Comments
