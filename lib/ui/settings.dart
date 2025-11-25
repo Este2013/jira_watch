@@ -8,6 +8,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:jira_watcher/dao/updates_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/home.dart';
+import 'package:jira_watcher/ui/updates_dialog.dart';
 import 'package:jira_watcher/ui/utils/avatar.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
@@ -200,61 +201,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                           ),
                           IconButton(
                             visualDensity: VisualDensity.compact,
-                            onPressed: () async {
-                              var data = await _fetchNewUpdateData(context, currentVersion: snapshot.data!);
-                              if (!data.$1) return;
-                              showDialog(
-                                // ignore: use_build_context_synchronously
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: Text('A new update is available!'),
-                                  content: ScrollbarTheme(
-                                    data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
-                                    child: SizedBox(
-                                      width: 400,
-                                      height: 400,
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                                        spacing: 16,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Expanded(child: Text('Version ${data.$2!}', style: Theme.of(context).textTheme.titleMedium)),
-                                              Text('(Current: ${snapshot.data})'),
-                                            ],
-                                          ),
-                                          if (data.$3?['changelog'] == null)
-                                            Expanded(child: Center(child: Text(data.$3?['changelog'] ?? 'No changelog :(')))
-                                          else
-                                            Expanded(
-                                              child: Card(
-                                                child: Padding(
-                                                  padding: EdgeInsetsGeometry.all(16),
-                                                  child: SingleChildScrollView(child: Text(data.$3?['changelog'] ?? 'No changelog :(')),
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  actions: [
-                                    Row(
-                                      spacing: 8,
-                                      children: [
-                                        TextButton(onPressed: Navigator.of(context).pop, child: Text('Not now')),
-                                        Spacer(),
-                                        TextButton(
-                                          onPressed: () => launchUrl(Uri.parse('https://github.com/Este2013/jira_watch/releases')),
-                                          child: Text('Github'),
-                                        ),
-                                        FilledButton(onPressed: () => launchUrl(Uri.parse('https://este2013.github.io/jira_watch/${data.$3?['x64']}')), child: Text('Download')),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
+                            onPressed: () => fetchNewUpdateDataAndShowResults(context, snapshot.data!),
                             tooltip: "Check for updates",
                             icon: Icon(Icons.update),
                             iconSize: 16,
@@ -270,28 +217,42 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                 children: [
                   Text('Updade track'),
                   Spacer(),
-                  SegmentedButton<UpdateTrack>(
-                    segments: const [
-                      ButtonSegment(
-                        value: UpdateTrack.main,
-                        icon: Icon(Symbols.home, size: 16, fill: 1),
-                        label: Text('Stable'),
-                      ),
-                      ButtonSegment(
-                        value: UpdateTrack.beta,
-                        icon: Icon(Symbols.experiment, size: 16, fill: 1),
-                        label: Text('Beta'),
-                      ),
-                    ],
-                    selected: {SettingsModel().updateTrack.value},
-                    onSelectionChanged: (newSelection) {
-                      if (newSelection.isNotEmpty) {
-                        SettingsModel().updateTrack.value = newSelection.first;
-                        setState(() {}); // refresh UI if needed
+                  FutureBuilder(
+                    future: SettingsModel().appInfo.version,
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(),
+                        );
                       }
+                      return SegmentedButton<UpdateTrack>(
+                        segments: const [
+                          ButtonSegment(
+                            value: UpdateTrack.main,
+                            icon: Icon(Symbols.home, size: 16, fill: 1),
+                            label: Text('Stable'),
+                          ),
+                          ButtonSegment(
+                            value: UpdateTrack.beta,
+                            icon: Icon(Symbols.experiment, size: 16, fill: 1),
+                            label: Text('Beta'),
+                          ),
+                        ],
+                        selected: {SettingsModel().updateTrack.value},
+                        onSelectionChanged: (newSelection) {
+                          if (newSelection.isNotEmpty) {
+                            SettingsModel().updateTrack.value = newSelection.first;
+                            setState(() {});
+                            if (newSelection.first == UpdateTrack.beta) {
+                              fetchNewUpdateDataAndShowResults(context, snapshot.data!);
+                            }
+                          }
+                        },
+                        multiSelectionEnabled: false,
+                        showSelectedIcon: false,
+                      );
                     },
-                    multiSelectionEnabled: false,
-                    showSelectedIcon: false,
                   ),
                 ],
               ),
@@ -390,82 +351,6 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       ].expand<Widget>((w) => [w, SizedBox(height: 8)]).toList()..removeLast(),
     ),
   );
-
-  Future<(bool, String?, Map?)> _fetchNewUpdateData(BuildContext context, {required String currentVersion}) async {
-    return fetchNewUpdateData(
-      context: context,
-      currentVersion: currentVersion,
-      onEmpty: (context) => showDialog(
-        // ignore: use_build_context_synchronously
-        context: context,
-        builder: (context) => _UpToDateDialog('Server has no latest version data (empty response)'),
-      ),
-      onNoData: (context) => showDialog(
-        // ignore: use_build_context_synchronously
-        context: context,
-        builder: (context) => _UpToDateDialog('Server has no latest version data (no entries: empty map)'),
-      ),
-      onLatest: (context, mostRecent) => showDialog(
-        // ignore: use_build_context_synchronously
-        context: context,
-        builder: (context) => _UpToDateDialog('You are running the server\'s latest version ($mostRecent)'),
-      ),
-      onAheadOfServer: (context, mostRecent) => showDialog(
-        context: context,
-        builder: (context) => _AheadOfReleaseDialog('The server\'s latest version is $mostRecent. You\'re ahead of us!'),
-      ),
-    );
-  }
-}
-
-class _UpToDateDialog extends StatelessWidget {
-  const _UpToDateDialog(this.details);
-  final String details;
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Row(
-        spacing: 8,
-        children: [
-          Icon(Icons.check_circle, color: Colors.green),
-          Text('You are up to date'),
-        ],
-      ),
-      content: Text(details),
-      actions: [
-        TextButton(
-          onPressed: Navigator.of(context).pop,
-          child: Text('Got it'),
-        ),
-      ],
-    );
-  }
-}
-
-class _AheadOfReleaseDialog extends StatelessWidget {
-  const _AheadOfReleaseDialog(this.details);
-  final String details;
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Row(
-        spacing: 8,
-        children: [
-          Icon(Icons.check_circle, color: Colors.green),
-          Text('Now wait a second 🤨'),
-        ],
-      ),
-      content: Text(details),
-      actions: [
-        TextButton(
-          onPressed: Navigator.of(context).pop,
-          child: Text('Got it'),
-        ),
-      ],
-    );
-  }
 }
 
 class ConnectionSettingsPage extends StatefulWidget {
@@ -759,23 +644,24 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
             Column(
               spacing: 8,
               children: [
-               if (Platform.isWindows)  Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  spacing: 8,
-                  children: [
-                    TextButton.icon(
-                      icon: Icon(Symbols.data_object),
-                      onPressed: () => showDialog(context: context, builder: (context) => _PreferencesDialog()),
-                      label: Text("View preferences"),
-                    ),
-                   
+                if (Platform.isWindows)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    spacing: 8,
+                    children: [
+                      TextButton.icon(
+                        icon: Icon(Symbols.data_object),
+                        onPressed: () => showDialog(context: context, builder: (context) => _PreferencesDialog()),
+                        label: Text("View preferences"),
+                      ),
+
                       TextButton.icon(
                         onPressed: () => SettingsModel().settingsFolderUri.then(launchUrl),
                         icon: Icon(Icons.folder),
                         label: Text("View data files in folder"),
                       ),
-                  ],
-                ),
+                    ],
+                  ),
                 TextButton.icon(
                   style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
                   onPressed: () => jiraAvatarCacheManager.emptyCache(),
@@ -928,14 +814,14 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
     yield '💡 This test fakes the current version as being 0.0.0.';
     yield 'Fetching release data from:\n$latestDataUri';
     var data = await fetchNewUpdateData(context: context, currentVersion: '0.0.0');
-    yield 'Found the following:\nIs a new version available? => ${data.$1}\nWhat is that version\'s number? => ${data.$2}\nChangelog:\n${JsonEncoder.withIndent('    ').convert(data.$3)}';
+    yield 'Found the following:\nIs a new version available? => ${data.$1}\nWhat is that version\'s number? => ${data.$2}\nChangelog:\n${JsonEncoder.withIndent('    ').convert(data.$2?.toJson())}';
 
     yield '';
 
     yield '💡 Now testing with the actual correct version: ${await currentVersion}';
     // ignore: use_build_context_synchronously
     data = await fetchNewUpdateData(context: context, currentVersion: await currentVersion);
-    yield 'Found the following:\nIs a new version available? => ${data.$1}\nWhat is that version\'s number? => ${data.$2}\nChangelog:\n${JsonEncoder.withIndent('    ').convert(data.$3)}';
+    yield 'Found the following:\nIs a new version available? => ${data.$1}\nWhat is that version\'s number? => ${data.$2}\nChangelog:\n${JsonEncoder.withIndent('    ').convert(data.$2?.toJson())}';
   }
 }
 

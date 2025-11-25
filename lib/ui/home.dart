@@ -3,9 +3,10 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
+import 'package:jira_watcher/dao/updates_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_page.dart';
+import 'package:jira_watcher/ui/updates_dialog.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_home_view.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/settings.dart';
@@ -66,15 +67,7 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
           ),
         );
       } else {
-        WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
-          var data = await fetchNewUpdateData(context, currentVersion: ver);
-          if (!data.$1) return;
-          showDialog(
-            // ignore: use_build_context_synchronously
-            context: context,
-            builder: (context) => NewUpdateAvailableAlertDialog(data: data, version: ver),
-          );
-        });
+        WidgetsBinding.instance.addPostFrameCallback((timeStamp) => fetchNewUpdateDataAndShowResults(context, ver, alertIfNoNewVersion: false));
       }
     });
 
@@ -91,42 +84,6 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
       default:
         return 'No subtitle for this page, call the dev.';
     }
-  }
-
-  Future<(bool, String?, Map?)> fetchNewUpdateData(BuildContext context, {required String currentVersion}) async {
-    Uri latestDataUri = Uri.parse("https://este2013.github.io/jira_watch/latest.json");
-    final resp = await http.get(latestDataUri);
-
-    if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
-      return (false, null, null);
-    }
-
-    Map<String, dynamic> data = jsonDecode(resp.body);
-    MapEntry? mostRecent = data.entries.firstOrNull;
-    if (mostRecent == null) {
-      return (false, null, null);
-    }
-
-    bool isVersioStrictlyAbove(String version, {required String baseline}) {
-      var versionL = version.split('.').map(int.parse);
-      var baselineL = baseline.split('.').map(int.parse).toList();
-      for (var v in versionL.indexed) {
-        if (baselineL.length == v.$1) baselineL.add(0);
-        if (v.$2 > baselineL[v.$1]) {
-          return true;
-        }
-        if (v.$2 < baselineL[v.$1]) {
-          return false;
-        }
-      }
-      return false;
-    }
-
-    if (!isVersioStrictlyAbove(mostRecent.key, baseline: currentVersion)) {
-      return (false, null, null);
-    }
-
-    return (true, mostRecent.key as String, mostRecent.value as Map);
   }
 
   @override
