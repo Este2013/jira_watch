@@ -789,6 +789,7 @@ class ChangeLogsDialog extends StatelessWidget {
           ChangeLogSection.bugFixes([
             ChangeLogItem('Settings dialog can now scroll when too small;'),
             ChangeLogItem('App now can no longer be shrunk below 900x600.'),
+            ChangeLogItem('Link cards that aren\'t linking to Jira can now be opened in browser.'),
           ]),
           ChangeLogSection.chores([
             ChangeLogItem('Bumped version number.'),
