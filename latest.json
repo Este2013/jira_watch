@@ -1,4 +1,9 @@
 {
+    "1.5.0": {
+        "changelog": "✨ Features:\n ᛫ 🍎 macOS is now supported!\n ᛫ 👤 Improved setting's \"Connection\" page and login page;\n ᛫ 🧪 Added beta update track;\n ᛫ 📁 Json and ips files are now handled in attachements with a proper Json viewer.\n ᛫ 🕜 Work item history view:\n     ᛫ Work item history now shows an entry for the ticket's creation.\n     ᛫ Improved display of some default field edits in history view\n ᛫ 😀 Assignee/reporter:\n     ᛫ now show a higher-res profile picture;\n     ᛫ their names can be copied.\n\n🪲 Bug fixes\n ᛫ Settings dialog can now scroll when too small;\n ᛫ App now can no longer be shrunk below 900x600.\n ᛫ Link cards that aren't linking to Jira can now be opened in browser.\n\n🧼 Chores\n ᛫ Bumped version number.\n ᛫ Added window_manager as dependency;\n ᛫ More code renamed to fit Jira's convention \"work item\" (instead of \"issue\" or \"ticket\");\n ᛫ Removed that ugly placeholder in Updates page.\n ᛫ In Settings > Advanced > Log-reading dialog\n     ᛫ Added log level filter and search\n     ᛫ Now legible in light mode",
+        "x64": "v1.5.0/Binaries (x64).zip",
+        "osX": "v1.5.0/Binaries (x64).zip"
+    },
     "1.4.1": {
         "changelog": "🪲 Bug fixes\n᛫ Todo tasks can now be edited correctly\n᛫ Jira link cards now open in an in-app dialog (instead of in browser)\n᛫ You can now open and zoom on medias from Jira.\n\n🧼 Chores\n᛫ Bumped version number.\n᛫ Moved known bugs to the project's README.\n᛫ Code classes will be renamed to fit Jira's convention \"work item\", instead of \"issue\" or \"ticket\".",
         "x64": "v1.4.1/Binaries (x64).zip"

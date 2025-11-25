@@ -1,7 +1,1 @@
-{
-    "2.0.0": {
-        "changelog": "A new version\n\n\n\n:D\n\n\n\n\n\nScroll down\n\n\n\n🪲 Bug fixes\n᛫ Todo tasks can now be edited correctly\n᛫ Jira link cards now open in an in-app dialog (instead of in browser)\n᛫ You can now open and zoom on medias from Jira.\n\n🧼 Chores\n᛫ Bumped version number.\n᛫ Moved known bugs to the project's README.\n᛫ Code classes will be renamed to fit Jira's convention \"work item\", instead of \"issue\" or \"ticket\".",
-        "x64": "v2.0.0_beta/Binaries (x64).zip",
-        "osX": "v2.0.0_beta/Binaries (osX).zip"
-    }
-}
+{}
