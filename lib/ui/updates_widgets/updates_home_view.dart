@@ -375,7 +375,10 @@ class _UpdatesPageState extends State<UpdatesPage> {
               if (minSizeForLargeView < constraints.maxWidth)
                 Expanded(
                   child: selectedWorkItem == null
-                      ? Placeholder()
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Center(child: Text('← Select a work item in the list to your left to view its recent changes')),
+                        )
                       : SingleJiraWorkItemView(
                           selectedWorkItem!,
                           key: Key(selectedWorkItem!.data['key']),

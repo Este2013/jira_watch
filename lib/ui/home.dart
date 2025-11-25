@@ -1,11 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
+import 'package:jira_watcher/dao/updates_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_page.dart';
+import 'package:jira_watcher/ui/updates_dialog.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_home_view.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/settings.dart';
@@ -66,15 +68,7 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
           ),
         );
       } else {
-        WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
-          var data = await fetchNewUpdateData(context, currentVersion: ver);
-          if (!data.$1) return;
-          showDialog(
-            // ignore: use_build_context_synchronously
-            context: context,
-            builder: (context) => NewUpdateAvailableAlertDialog(data: data, version: ver),
-          );
-        });
+        WidgetsBinding.instance.addPostFrameCallback((timeStamp) => fetchNewUpdateDataAndShowResults(context, ver, alertIfNoNewVersion: false));
       }
     });
 
@@ -91,42 +85,6 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
       default:
         return 'No subtitle for this page, call the dev.';
     }
-  }
-
-  Future<(bool, String?, Map?)> fetchNewUpdateData(BuildContext context, {required String currentVersion}) async {
-    Uri latestDataUri = Uri.parse("https://este2013.github.io/jira_watch/latest.json");
-    final resp = await http.get(latestDataUri);
-
-    if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
-      return (false, null, null);
-    }
-
-    Map<String, dynamic> data = jsonDecode(resp.body);
-    MapEntry? mostRecent = data.entries.firstOrNull;
-    if (mostRecent == null) {
-      return (false, null, null);
-    }
-
-    bool isVersioStrictlyAbove(String version, {required String baseline}) {
-      var versionL = version.split('.').map(int.parse);
-      var baselineL = baseline.split('.').map(int.parse).toList();
-      for (var v in versionL.indexed) {
-        if (baselineL.length == v.$1) baselineL.add(0);
-        if (v.$2 > baselineL[v.$1]) {
-          return true;
-        }
-        if (v.$2 < baselineL[v.$1]) {
-          return false;
-        }
-      }
-      return false;
-    }
-
-    if (!isVersioStrictlyAbove(mostRecent.key, baseline: currentVersion)) {
-      return (false, null, null);
-    }
-
-    return (true, mostRecent.key as String, mostRecent.value as Map);
   }
 
   @override
@@ -528,7 +486,10 @@ class NewUpdateAvailableAlertDialog extends StatelessWidget {
             onPressed: () => launchUrl(Uri.parse('https://github.com/Este2013/jira_watch/releases')),
             child: Text('Github'),
           ),
-          FilledButton(onPressed: () => launchUrl(Uri.parse('https://este2013.github.io/jira_watch/${data.$3?['x64']}')), child: Text('Download')),
+          FilledButton(onPressed: () {
+String            targetOS = Platform.isWindows ? 'x64':'osX';
+            launchUrl(Uri.parse('https://este2013.github.io/jira_watch/${data.$3?[targetOS]}'));
+          }, child: Text('Download')),
         ],
       ),
     ],
@@ -764,33 +725,40 @@ class ChangeLogsDialog extends StatelessWidget {
       ),
 
       ChangeLogCard(
-        '1.4.2',
+        '1.5.0',
         sections: [
           ChangeLogSection.features([
-            ChangeLogItem('Improved setting\'s "Connection" page and login page'),
-            ChangeLogItem('Json and ips files are now handled in attachements with a proper Json viewer.'),
+            ChangeLogItem('🍎 macOS is now supported!'),
+            ChangeLogItem('👤 Improved setting\'s "Connection" page and login page;'),
+            ChangeLogItem('🧪 Added beta update track;'),
+            ChangeLogItem('📁 Json and ips files are now handled in attachements with a proper Json viewer.'),
             ChangeLogItem(
-              'Assignee/reporter:',
-              subItems: [
-                ChangeLogItem('now show a higher-res profile picture;'),
-                ChangeLogItem('their names can be copied;'),
-              ],
-            ),
-            ChangeLogItem(
-              'Work item history view:',
+              '🕜 Work item history view:',
               subItems: [
                 ChangeLogItem('Work item history now shows an entry for the ticket\'s creation.'),
                 ChangeLogItem('Improved display of some default field edits in history view'),
               ],
             ),
+            ChangeLogItem(
+              '😀 Assignee/reporter:',
+              subItems: [
+                ChangeLogItem('now show a higher-res profile picture;'),
+                ChangeLogItem('their names can be copied.'),
+              ],
+            ),
           ]),
-          // ChangeLogSection.bugFixes([
-          // ]),
+          ChangeLogSection.bugFixes([
+            ChangeLogItem('Settings dialog can now scroll when too small;'),
+            ChangeLogItem('App now can no longer be shrunk below 900x600.'),
+            ChangeLogItem('Link cards that aren\'t linking to Jira can now be opened in browser.'),
+          ]),
           ChangeLogSection.chores([
             ChangeLogItem('Bumped version number.'),
-            ChangeLogItem('More code renamed to fit Jira\'s convention "work item" (instead of "issue" or "ticket").'),
+            ChangeLogItem('Added window_manager as dependency;'),
+            ChangeLogItem('More code renamed to fit Jira\'s convention "work item" (instead of "issue" or "ticket");'),
+            ChangeLogItem('Removed that ugly placeholder in Updates page.'),
             ChangeLogItem(
-              'Settings > Advanced > Log-reading dialog',
+              'In Settings > Advanced > Log-reading dialog',
               subItems: [
                 ChangeLogItem('Added log level filter and search'),
                 ChangeLogItem('Now legible in light mode'),

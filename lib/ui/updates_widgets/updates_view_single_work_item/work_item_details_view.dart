@@ -642,7 +642,7 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
             return ErrorWidget('Could not load the text:\n${asyncSnapshot.error}');
           }
           if (asyncSnapshot.hasData) {
-            var jsonDecodedData;
+            dynamic jsonDecodedData;
             if ((attachment['filename'] as String).endsWith('.ips')) {
               // We wrap it in a list to ensure ips files don't crash the decoder (they dont have a single json root :/)
               jsonDecodedData = jsonDecode('{"data": [${asyncSnapshot.data!.replaceAll(RegExp(r'}\s*{'), '}, {')}]}');

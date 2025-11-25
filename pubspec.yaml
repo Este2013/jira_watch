@@ -1,12 +1,13 @@
 name: jira_watcher
 description: "A Jira client, built to easily overview recent updates, and keep tabs on your work items."
 publish_to: "none"
-version: 1.4.1
+version: 1.5.0
 
 environment:
-  sdk: ^3.10.0-75.1.beta
+  sdk: ^3.11.0-93.1.beta
 
 dependencies:
+  window_manager: ^0.3.0
   calendar_date_picker2: ^2.0.1
   charset: ^2.0.1
   chewie: ^1.13.0

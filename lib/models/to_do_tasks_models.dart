@@ -32,14 +32,14 @@ class ToDoTasksModel with GlobalLoggy {
   // ignore: unused_field
   Timer? _saveTimer;
 
-  final File _toDoDataFile = File(
+  final Future<File> _toDoDataFile =SettingsModel().settingsFolder.then((value) =>  File(
     path
         .join(
-          SettingsModel().settingsFolder.path,
+          value.path,
           'to_do.json',
         )
         .replaceFirst(RegExp(r'^\\?/?'), ''),
-  );
+  ));
 
   final List<int> _deletedTodoIds = [];
   // late final ObservableList<ToDoTask>? toDoTasksCache;
@@ -47,13 +47,13 @@ class ToDoTasksModel with GlobalLoggy {
 
   late Future<bool> isReady;
   Future<bool> _getReady() async {
-    loggy.info('Getting cache ready');
-    if (!await _toDoDataFile.exists()) {
+    loggy.info('Getting cache ready');var file = await _toDoDataFile;
+    if (! await file.exists()) {
       loggy.warning('_toDoDataFile does not exist. Initializing cache to []');
       // toDoTasksCache = ObservableList();
       toDoTasksControllers = ObservableList();
     } else {
-      var raw = await _toDoDataFile.readAsString();
+      var raw = await file.readAsString();
 
       List data = raw.trim().isEmpty ? [] : jsonDecode(raw)?['taskList'] ?? [];
       // toDoTasksCache = ObservableList.from(data.map((e) => ToDoTask.fromJson(e)));
@@ -176,13 +176,13 @@ class ToDoTasksModel with GlobalLoggy {
     if (!cacheIsReady) {
       loggy.error('Cache is not ready???');
       throw Exception('Cache is not ready???');
+    }var file = 
+(await _toDoDataFile);
+    if (!await file.exists()) {
+      loggy.warning('_toDoDataFile does not exist. Creating the file at:\n${file.  path}');
+      await file.create(recursive: true);
     }
-
-    if (!await _toDoDataFile.exists()) {
-      loggy.warning('_toDoDataFile does not exist. Creating the file at:\n${_toDoDataFile.path}');
-      await _toDoDataFile.create(recursive: true);
-    }
-    return _toDoDataFile.writeAsString(
+    return file.writeAsString(
       JsonEncoder.withIndent(' ' * 4).convert({
         'taskList': toDoTasksControllers.list.map((e) => e.toToDoTask().toJson()).toList(),
       }),

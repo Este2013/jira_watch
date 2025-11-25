@@ -275,7 +275,7 @@ class _TodoPageState extends State<TodoPage> {
                                 DataModel().todoTasks.toDoTasksControllers.list.firstWhere((t) => t.id == selectedTaskID),
                                 key: ValueKey(selectedTaskID),
                               )
-                            : Text('🡠 Select a task in the list to your left to start working on it'),
+                            : Text('← Select a task in the list to your left to start working on it'),
                       ),
                     ),
                   ),

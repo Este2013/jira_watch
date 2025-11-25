@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -13,18 +14,31 @@ import 'package:media_kit/media_kit.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:loggy/loggy.dart';
+import 'package:window_manager/window_manager.dart';
 
-void main() {
+void main() async {
   Loggy.initLoggy(
     logPrinter: FileLogPrinter(),
   );
   logInfo('Starting Jira Watcher app');
-  MediaKit.ensureInitialized();
+  if (Platform.isWindows) {
+    MediaKit.ensureInitialized();
+  }
   Future.wait([
     SettingsModel().appInfo.version,
     SettingsModel().appInfo.buildNumber,
   ]).then(
     (value) => logInfo('App version: ${value[0]} (${value[1]})${kDebugMode ? ", in debug mode" : ""}'),
+  );
+
+  WidgetsFlutterBinding.ensureInitialized();
+  await windowManager.ensureInitialized();
+  windowManager.waitUntilReadyToShow(
+    WindowOptions(minimumSize: Size(900, 600)),
+    () async {
+      await windowManager.show();
+      await windowManager.focus();
+    },
   );
   runApp(MyApp());
 }
@@ -315,7 +329,6 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> {
                       FutureBuilder(
                         future: checkValidity,
                         builder: (context, snapshot) {
-                          print(snapshot.connectionState);
                           if (snapshot.hasData && snapshot.data!.statusCode == 200) {
                             return ElevatedButton(
                               onPressed: () {
