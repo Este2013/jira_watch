@@ -25,6 +25,7 @@ class _SingleTaskViewState extends State<SingleTaskView> {
 
   @override
   void initState() {
+    takingNotes = widget.taskController.notes.text.trim().isNotEmpty;
     super.initState();
   }
 
@@ -84,16 +85,27 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                         ),
                       ],
                     ),
-                    TextField(
-                      controller: widget.taskController.notes,
-                      // onChanged: (value) => save(),
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(),
-                        label: Text('Notes'),
+                    if (takingNotes)
+                      TextField(
+                        controller: widget.taskController.notes,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(),
+                          label: Text('Notes'),
+                        ),
+                        minLines: 6,
+                        maxLines: null,
+                      )
+                    else
+                      Align(
+                        alignment: AlignmentGeometry.centerLeft,
+                        child: ActionChip(
+                          avatar: Icon(Symbols.contract_edit),
+                          label: Text('Start taking notes'),
+                          onPressed: () => setState(() {
+                            takingNotes = true;
+                          }),
+                        ),
                       ),
-                      minLines: 10,
-                      maxLines: null,
-                    ),
                     Padding(
                       padding: const EdgeInsets.only(top: 16),
                       child: Text('Linked work items', style: Theme.of(context).textTheme.titleMedium),
