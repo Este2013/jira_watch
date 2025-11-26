@@ -1,8 +1,19 @@
 # jira_watch
 
-A Jira client that shows the most recent updates done in projects you work on.
+A Jira client made to provide a fast and simple way to check progress across multiple Jira projects. 
 
-## Running on macOS
+Overview recent changes, search for tickets, take notes for later, all in one desktop app.
+
+## How do I install this?
+
+Check out the latest stable releases in this repository's [Releases](https://github.com/Este2013/jira_watch/releases/tag/1.5.0) section; and download the binaries you wish for.  
+There is currently no installer for this app.
+
+### Windows
+
+Place the binaries in your prefered folder and run!
+
+### macOS
 
 Available starting in release 1.5.0.
 MacOS will show a security warning and refuse to run the app (at first).
@@ -12,56 +23,18 @@ To run it anyway:
    - Navigate to "Privacy and security"
    - Near the bottom of the page, allow jira_watch to "Run anyway". 
 
+## How do I log in?
 
-# TODO
- - add custom fields
- - Comments
-   - nested replies
-   - show in history 
+To access Jira, the jira watcher needs a valid API key. 
+When prompted upon starting the app, provide:
+  - your company name (as registered in Atlassian);
+  - your company email;
+  - your API key (which will be encrypted on disk 👍): can be found [here](https://id.atlassian.com/login?continue=https%3A%2F%2Fid.atlassian.com%2Fmanage-profile%2Fsecurity%2Fapi-tokens).
 
+When your credentials are correct, your profile picture and name will appear in the top-right:
 
-## PRIORIZATION
+![assets/readme/connection.png](assets/readme/connection.png)
 
-### EASY, IMPORTANT
- 
- - refresh (per few minutes)
+## What's on the horizon? 
 
-### TOUGH, IMPORTANT
- - Filters:
-   - workItem type filter ( bugs, features req, stories, epics etc. )
-   - Assignee filter
-   - Creator filter
-   - Type filter (bug, feat.)
-
-### EASY, nice
- - assing workItem to me
- - copy comment links
- - custom categories
-
-### TOUGH, nice
- - local favorites (hold a workItem always on top)
- - control workItem status
-   - UI/UX make workItem drag and dropable in certain statuses ( e.g In progress, Done , etc)
- - Reverse update sorting
- - custom filters
- - hide workItems
- - Tree graph 
-
-# Long term ideas
- - GitLab and Qase views
-    - Linked test cases and builds (Jira integrations) 
-    - test coverage overview
- - Websocket exposition for SD plugin
-    - stats
-    - new workItems, updates...
- - Dupe finder / Similarity detection (via [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity))
- - [MS TODO](https://support.microsoft.com/en-au/office/using-microsoft-to-do-s-api-f944256d-3b08-4945-ba69-2c17afeb60b4#:~:text=Microsoft%20To%20Do%20uses%20Exchange,API%20reference%20(version%202.0)) ntegration
-
-
-## BUGS
- - if project filters are changed before request completes, the newer request is not taken into account
- - if a workItem is selected and a refresh occurs, the selected workItem does not update on right side 
- - Emojis are not rendered in comments (there is no Atlassian API for that)
- - Comments: nested replies are not shown as nested
- - Jira attachments in description (ex: application/json) is given to the JiraImage widget, instead of building a dedicated widget for non-image types => ```// TODO FIX #json&ips```
- - macOS: Advanced tab is unable to open any of the folders shown
+See [TODO.md](TODO.md) to see what's been though about for future development.
