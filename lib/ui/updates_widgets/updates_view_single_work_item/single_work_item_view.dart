@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
-import 'package:jira_watcher/ui/home.dart';
 import 'package:jira_watcher/ui/updates_widgets/issue_ui_elements.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_history_view.dart';
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
@@ -12,6 +11,7 @@ import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // ignore: unused_import
+import '../../utils/under_constuction_notice.dart';
 import 'work_item_comments_view.dart';
 import 'work_item_details_view.dart';
 

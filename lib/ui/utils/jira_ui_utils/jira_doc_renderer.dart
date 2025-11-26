@@ -9,12 +9,12 @@ import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
-import 'package:jira_watcher/ui/utils/avatar.dart';
+import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/ui/utils/spanning_table.dart';
 import 'package:loggy/loggy.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../updates_widgets/issue_ui_elements.dart';
+import '../../updates_widgets/issue_ui_elements.dart';
 
 Color selectionColor = const Color(0x336694e8);
 
@@ -417,7 +417,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
 
     return ActionChip(
       label: Text(node['attrs']['url']),
-            onPressed: () => launchUrl(Uri.parse(url)),
+      onPressed: () => launchUrl(Uri.parse(url)),
     );
   }
 
