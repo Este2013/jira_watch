@@ -1,9 +1,6 @@
 # TODO 
 
-
 ## UNSORTED
- 
-### TODOTasks improvements
 
  - Collapse notes when none
  - Make category into a dropdown
