@@ -10,7 +10,7 @@ import 'dart:convert';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:xml/xml.dart' as xml;
 
-import 'network_video_player.dart';
+import '../network_video_player.dart';
 
 final CacheManager jiraAvatarCacheManager = CacheManager(
   Config(
