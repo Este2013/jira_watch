@@ -28,10 +28,11 @@ codesign --force --deep --options runtime \
   jira_watch.app
 
 BETTER?
-codesign --force --deep --options runtime \
-  --preserve-metadata=entitlements \
+codesign --force \
+  --options runtime \
+  --entitlements macos/Runner/Release.entitlements \
   --sign "Apple Development: cesteban112@gmail.com (637C656Q22)" \
-  jira_watch.app
+  build/macos/Build/Products/Release/jira_watch.app 
 ```
 
 If you’re just testing between your own Macs (ad-hoc)
