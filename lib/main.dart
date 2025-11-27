@@ -126,17 +126,20 @@ class ApiKeyInputScreen extends StatefulWidget {
   State<ApiKeyInputScreen> createState() => _ApiKeyInputScreenState();
 }
 
-class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> {
+class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> with UiLoggy {
   Future<Response>? checkValidity;
   late Listenable listener;
 
   Future<void> _saveCredentials(BuildContext context) async {
+    loggy.info('Saving credentials...');
+
     final settings = SettingsModel();
     final email = settings.emailController.text.trim();
     final apiKey = settings.apiKeyController.text.trim();
     String domain = settings.domainController.text.trim();
 
     if (email.isEmpty || apiKey.isEmpty || domain.isEmpty) {
+      loggy.warning('Some credentials are empty. Refusing to proceed.');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('All fields are required.')),
       );
@@ -146,9 +149,45 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> {
     if (!domain.endsWith('.atlassian.net')) {
       domain += '.atlassian.net';
     }
-
-    await APIDao().updateCredentials(email: email, apiKey: apiKey, domain: domain);
-
+    bool success = true;
+    await APIDao().updateCredentials(email: email, apiKey: apiKey, domain: domain).onError(
+      // ignore: use_build_context_synchronously
+      (error, stackTrace) {
+        success = false;
+        loggy.error('An error occured while updating credentials in API DAO:\n$error\n$stackTrace');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Theme.of(context).colorScheme.errorContainer,
+            content: Text(
+              'An error occured while saving your credentials',
+              style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+            ),
+            action: SnackBarAction(
+              label: 'Inspect',
+              onPressed: () => AlertDialog(
+                backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                title: Text('Error occured while saving your credentials'),
+                content: SelectableText.rich(
+                  TextSpan(
+                    style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+                    children: [
+                      TextSpan(
+                        text: error.toString(),
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      TextSpan(text: '\n'),
+                      TextSpan(text: stackTrace.toString()),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    if (!success) return;
+    loggy.info('Login was ${success ? '' : 'NOT '}successful. Proceeding to /home.');
     // ignore: use_build_context_synchronously
     Navigator.pushReplacementNamed(context, '/home');
   }
