@@ -26,6 +26,12 @@ Pick your Developer ID Application identity, then:
 codesign --force --deep --options runtime \
   --sign "Developer ID Application: Your Name (TEAMID)" \
   jira_watch.app
+
+BETTER?
+codesign --force --deep --options runtime \
+  --preserve-metadata=entitlements \
+  --sign "Apple Development: cesteban112@gmail.com (637C656Q22)" \
+  jira_watch.app
 ```
 
 If you’re just testing between your own Macs (ad-hoc)
