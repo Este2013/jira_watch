@@ -7,7 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart';
 import 'package:jira_watcher/ui/home.dart';
 import 'package:jira_watcher/models/settings_model.dart';
+import 'package:jira_watcher/ui/settings.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
+import 'package:jira_watcher/ui/utils/widgets/github_button.dart';
 import 'package:jira_watcher/utils/%F0%9F%AA%B5.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:media_kit/media_kit.dart';
@@ -131,9 +133,8 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> with UiLoggy {
   late Listenable listener;
 
   Future<void> _saveCredentials(BuildContext context) async {
-    
     loggy.info('Saving credentials...');
-loggy.info('Verifying before saving credentials...');
+    loggy.info('Verifying before saving credentials...');
     final settings = SettingsModel();
     final email = settings.emailController.text.trim();
     final apiKey = settings.apiKeyController.text.trim();
@@ -147,6 +148,7 @@ loggy.info('Verifying before saving credentials...');
       return;
     }
 
+    loggy.info('All credentials are present');
     if (!domain.endsWith('.atlassian.net')) {
       domain += '.atlassian.net';
     }
@@ -164,13 +166,13 @@ loggy.info('Verifying before saving credentials...');
               style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
             ),
             action: SnackBarAction(
+              textColor: Theme.of(context).colorScheme.onErrorContainer,
               label: 'Inspect',
               onPressed: () => AlertDialog(
                 backgroundColor: Theme.of(context).colorScheme.errorContainer,
                 title: Text('Error occured while saving your credentials'),
                 content: SelectableText.rich(
                   TextSpan(
-                    style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
                     children: [
                       TextSpan(
                         text: error.toString(),
@@ -229,166 +231,205 @@ loggy.info('Verifying before saving credentials...');
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    body: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+    body: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Center(
+        SizedBox(height: 24),
+        Expanded(
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: 600),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                spacing: 16,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Row(
-                    children: [
-                      Text('Your Jira Credentials', style: Theme.of(context).textTheme.titleLarge),
-                      Spacer(),
-                      if (checkValidity != null)
-                        FutureBuilder<Response>(
-                          future: checkValidity,
-                          builder: (context, snapshot) {
-                            if (snapshot.hasData) {
-                              var res = snapshot.data!;
-                              if (res.statusCode == 200) {
-                                var data = jsonDecode(res.body);
-                                return Row(
-                                  spacing: 8,
-                                  children: [
-                                    JiraAvatar(url: data['avatarUrls']['48x48']),
-                                    Text(data['displayName'], style: Theme.of(context).textTheme.titleLarge),
-                                  ],
-                                );
-                              }
-                              if (res.statusCode == 404) {
-                                return Tooltip(
-                                  message: "Your Jira domain is likely incorrect.\nError ${res.statusCode}: ${res.body}",
-                                  child: Text('😕', style: Theme.of(context).textTheme.titleLarge),
-                                );
-                              }
-                              if (res.statusCode == 401) {
-                                return Tooltip(
-                                  message: "Your credentials might be incorrect.\nError ${res.statusCode}: ${res.body}",
-                                  child: Text('🤔', style: Theme.of(context).textTheme.titleLarge),
-                                );
-                              }
-                              return Tooltip(
-                                message: "Error ${res.statusCode}: ${res.body}",
-                                child: Text('😵', style: Theme.of(context).textTheme.titleLarge),
-                              );
-                            }
-                            return CircularProgressIndicator();
-                          },
-                        )
-                      else
-                        Tooltip(
-                          message: "I'm not peeking",
-                          child: Text('👀', style: Theme.of(context).textTheme.titleLarge),
-                        ),
-                    ],
-                  ),
-
-                  if (widget.code == 401)
-                    Card(
-                      color: Theme.of(context).colorScheme.errorContainer,
-                      margin: EdgeInsets.zero,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Text.rich(
-                          TextSpan(
-                            style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
-                            children: [
-                              TextSpan(
-                                text: 'Error 401: Unauthorized\n',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              TextSpan(text: 'Your credentials might have expired. Renew your API key if necessary.'),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                  SizedBox(height: 8),
-                  TextFormField(
-                    controller: SettingsModel().domainController,
-                    decoration: InputDecoration(
-                      labelText: 'Jira Domain (e.g. your-site.atlassian.net)',
-                      border: OutlineInputBorder(),
-                      suffix: Text('.atlassian.net'),
-                    ),
-                    validator: (value) {
-                      return (value != null && value.isNotEmpty && RegExp(r'^[a-zA-Z]+$').hasMatch(value)) ? null : 'domain must be one word, with only alphabetical characters (eg. "mycompany")';
-                    },
-                    autovalidateMode: AutovalidateMode.onUnfocus,
-                  ),
-                  TextFormField(
-                    controller: SettingsModel().emailController,
-                    decoration: InputDecoration(
-                      labelText: 'Email Address (for API Auth)',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (value) => (value != null && value.isNotEmpty) ? null : 'email adress must be provided',
-                    autovalidateMode: AutovalidateMode.onUnfocus,
-                  ),
-                  TextFormField(
-                    controller: SettingsModel().apiKeyController,
-                    decoration: InputDecoration(
-                      labelText: 'API Key',
-                      border: OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        onPressed: () {
-                          Clipboard.setData(ClipboardData(text: SettingsModel().apiKeyController.text));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('API Key copied to clipboard')),
-                          );
-                        },
-                        icon: Icon(Icons.copy),
-                      ),
-                    ),
-                    obscureText: true,
-                    validator: (value) => (value != null && value.isNotEmpty) ? null : 'API key must be provided',
-                    autovalidateMode: AutovalidateMode.onUnfocus,
-                  ),
-                  Row(
-                    children: [
-                      TextButton.icon(
-                        icon: Icon(Symbols.help, fill: 1),
-                        onPressed: () async {
-                          const url = 'https://id.atlassian.com/manage-profile/security/api-tokens';
-                          if (await canLaunchUrl(Uri.parse(url))) {
-                            await launchUrl(Uri.parse(url));
-                          }
-                        },
-                        label: Text('Where do I get my Jira API Key?'),
-                      ),
-                      Spacer(),
-                      FutureBuilder(
+            child: Column(
+              spacing: 16,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
+                  children: [
+                    Text('Your Jira Credentials', style: Theme.of(context).textTheme.titleLarge),
+                    Spacer(),
+                    if (checkValidity != null)
+                      FutureBuilder<Response>(
                         future: checkValidity,
                         builder: (context, snapshot) {
-                          if (snapshot.hasData && snapshot.data!.statusCode == 200) {
-                            return ElevatedButton(
-                              onPressed: () {
-                                loggy.info('User clicked on Save and Continue');
-                                _saveCredentials(context);
-                              },
-                              child: Text('Save and continue'),
+                          if (snapshot.hasData) {
+                            var res = snapshot.data!;
+                            if (res.statusCode == 200) {
+                              var data = jsonDecode(res.body);
+                              return Row(
+                                spacing: 8,
+                                children: [
+                                  JiraAvatar(url: data['avatarUrls']['48x48']),
+                                  Text(data['displayName'], style: Theme.of(context).textTheme.titleLarge),
+                                ],
+                              );
+                            }
+                            if (res.statusCode == 404) {
+                              return Tooltip(
+                                message: "Your Jira domain is likely incorrect.\nError ${res.statusCode}: ${res.body}",
+                                child: Text('😕', style: Theme.of(context).textTheme.titleLarge),
+                              );
+                            }
+                            if (res.statusCode == 401) {
+                              return Tooltip(
+                                message: "Your credentials might be incorrect.\nError ${res.statusCode}: ${res.body}",
+                                child: Text('🤔', style: Theme.of(context).textTheme.titleLarge),
+                              );
+                            }
+                            return Tooltip(
+                              message: "Error ${res.statusCode}: ${res.body}",
+                              child: Text('😵', style: Theme.of(context).textTheme.titleLarge),
                             );
                           }
+                          return CircularProgressIndicator();
+                        },
+                      )
+                    else
+                      Tooltip(
+                        message: "I'm not peeking",
+                        child: Text('👀', style: Theme.of(context).textTheme.titleLarge),
+                      ),
+                  ],
+                ),
+                      
+                if (widget.code == 401)
+                  Card(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text.rich(
+                        TextSpan(
+                          style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+                          children: [
+                            TextSpan(
+                              text: 'Error 401: Unauthorized\n',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            TextSpan(text: 'Your credentials might have expired. Renew your API key if necessary.'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                      
+                SizedBox(height: 8),
+                TextFormField(
+                  controller: SettingsModel().domainController,
+                  decoration: InputDecoration(
+                    labelText: 'Jira Domain (e.g. your-site.atlassian.net)',
+                    border: OutlineInputBorder(),
+                    suffix: Text('.atlassian.net'),
+                  ),
+                  validator: (value) {
+                    return (value != null && value.isNotEmpty && RegExp(r'^[a-zA-Z]+$').hasMatch(value)) ? null : 'domain must be one word, with only alphabetical characters (eg. "mycompany")';
+                  },
+                  autovalidateMode: AutovalidateMode.onUnfocus,
+                ),
+                TextFormField(
+                  controller: SettingsModel().emailController,
+                  decoration: InputDecoration(
+                    labelText: 'Email Address (for API Auth)',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (value) => (value != null && value.isNotEmpty) ? null : 'email adress must be provided',
+                  autovalidateMode: AutovalidateMode.onUnfocus,
+                ),
+                TextFormField(
+                  controller: SettingsModel().apiKeyController,
+                  decoration: InputDecoration(
+                    labelText: 'API Key',
+                    border: OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: SettingsModel().apiKeyController.text));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('API Key copied to clipboard')),
+                        );
+                      },
+                      icon: Icon(Icons.copy),
+                    ),
+                  ),
+                  obscureText: true,
+                  validator: (value) => (value != null && value.isNotEmpty) ? null : 'API key must be provided',
+                  autovalidateMode: AutovalidateMode.onUnfocus,
+                ),
+                Row(
+                  children: [
+                    TextButton.icon(
+                      icon: Icon(Symbols.help, fill: 1),
+                      onPressed: () async {
+                        const url = 'https://id.atlassian.com/manage-profile/security/api-tokens';
+                        if (await canLaunchUrl(Uri.parse(url))) {
+                          await launchUrl(Uri.parse(url));
+                        }
+                      },
+                      label: Text('Where do I get my Jira API Key?'),
+                    ),
+                    Spacer(),
+                    FutureBuilder(
+                      future: checkValidity,
+                      builder: (context, snapshot) {
+                        if (snapshot.hasData && snapshot.data!.statusCode == 200) {
                           return ElevatedButton(
-                            onPressed: null,
+                            onPressed: () {
+                              loggy.info('User clicked on Save and Continue');
+                              _saveCredentials(context);
+                            },
                             child: Text('Save and continue'),
                           );
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                        }
+                        return ElevatedButton(
+                          onPressed: null,
+                          child: Text('Save and continue'),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+               
+              ],
             ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 16,right: 8, top: 8, bottom: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: FutureBuilder(
+                  future: SettingsModel().appInfo.version,
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(),
+                      );
+                    }
+                    return SelectableText('Version ${snapshot.data!}', style: TextStyle(color: Theme.of(context).hintColor));
+                  },
+                ),
+              ),
+              Expanded(child: Center(child: OpenInGitHubButton())),
+              Expanded(
+                child: Align(
+                  alignment: .centerEnd,
+                  child: IconButton(
+                    color: Theme.of(context).hintColor,
+                    onPressed: () {
+                      loggy.info('User opens the settings dialog from the login page');
+                      showDialog(
+                        context: context,
+                        builder: (context) => SettingsDialog(
+                          allowConnectionBasedSettings: false,
+                        ),
+                      );
+                    },
+                    icon: Icon(Icons.settings),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
