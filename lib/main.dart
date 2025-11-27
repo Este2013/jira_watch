@@ -131,8 +131,9 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> with UiLoggy {
   late Listenable listener;
 
   Future<void> _saveCredentials(BuildContext context) async {
+    
     loggy.info('Saving credentials...');
-
+loggy.info('Verifying before saving credentials...');
     final settings = SettingsModel();
     final email = settings.emailController.text.trim();
     final apiKey = settings.apiKeyController.text.trim();
@@ -371,6 +372,7 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> with UiLoggy {
                           if (snapshot.hasData && snapshot.data!.statusCode == 200) {
                             return ElevatedButton(
                               onPressed: () {
+                                loggy.info('User clicked on Save and Continue');
                                 _saveCredentials(context);
                               },
                               child: Text('Save and continue'),
