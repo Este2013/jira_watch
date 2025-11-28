@@ -12,17 +12,15 @@ class TodoPagePreLoadView extends StatelessWidget {
   const TodoPagePreLoadView({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: ToDoTasksModel().isReady,
-      builder: (context, asyncSnapshot) {
-        if (!asyncSnapshot.hasData) {
-          return Center(child: CircularProgressIndicator());
-        }
-        return TodoPage();
-      },
-    );
-  }
+  Widget build(BuildContext context) => FutureBuilder(
+    future: ToDoTasksModel().isReady,
+    builder: (context, asyncSnapshot) {
+      if (!asyncSnapshot.hasData) {
+        return Center(child: CircularProgressIndicator());
+      }
+      return TodoPage();
+    },
+  );
 }
 
 class TodoPage extends StatefulWidget {
