@@ -12,6 +12,7 @@ import 'package:jira_watcher/ui/utils/app_changelog.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
+import 'package:jira_watcher/ui/utils/widgets/github_button.dart';
 import 'package:jira_watcher/utils/local_auth.dart';
 import 'package:jira_watcher/utils/string_utils.dart';
 import 'package:loggy/loggy.dart';
@@ -26,9 +27,10 @@ import '../utils/🪵.dart';
 enum SettingsDialogPage { general, connection, projects, advanced }
 
 class SettingsDialog extends StatefulWidget {
-  const SettingsDialog({super.key, this.initialPage = SettingsDialogPage.general});
+  const SettingsDialog({super.key, this.initialPage = SettingsDialogPage.general, this.allowConnectionBasedSettings = true});
 
   final SettingsDialogPage initialPage;
+  final bool allowConnectionBasedSettings;
 
   @override
   State<SettingsDialog> createState() => _SettingsDialogState();
@@ -73,15 +75,7 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
     actions: [
       Row(
         children: [
-          TextButton.icon(
-            onPressed: () => launchUrl(Uri.parse('https://github.com/Este2013/jira_watch')),
-            icon: SvgPicture.asset(
-              'assets/icons/github-icon.svg',
-              height: 20,
-              colorFilter: ColorFilter.mode(Theme.of(context).colorScheme.primary, BlendMode.srcIn),
-            ),
-            label: Text('GitHub'),
-          ),
+          OpenInGitHubButton(),
           Spacer(),
           TextButton.icon(
             onPressed: () async {
@@ -124,8 +118,8 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
                   controller: _tabController,
                   children: [
                     GeneralSettingsPage(),
-                    ConnectionSettingsPage(),
-                    ProjectsSettingsPage(),
+                    if (widget.allowConnectionBasedSettings) ConnectionSettingsPage() else Center(child: Text('Please connect first to view this page.')),
+                    if (widget.allowConnectionBasedSettings) ProjectsSettingsPage() else Center(child: Text('Please connect first to view this page.')),
                     AdvancedSettingsPage(),
                   ],
                 ),

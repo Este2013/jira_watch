@@ -11,8 +11,11 @@ import 'package:url_launcher/url_launcher.dart';
 class WorkItemSearchDialog extends StatefulWidget {
   const WorkItemSearchDialog({
     super.key,
+    this.selectionMode = false,
+    this.canSelectMultiple = false,
   });
-
+  final bool selectionMode;
+  final bool canSelectMultiple;
   @override
   State<WorkItemSearchDialog> createState() => _WorkItemSearchDialogState();
 }
@@ -20,6 +23,8 @@ class WorkItemSearchDialog extends StatefulWidget {
 class _WorkItemSearchDialogState extends State<WorkItemSearchDialog> {
   late String searchName;
   TextEditingController searchController = TextEditingController();
+
+  Set<String?> selectedKeys = {};
 
   Future<String> get myOwnRecentEdits async {
     var data = await DataModel().jiraApi.myself().then((value) => jsonDecode(value.body)['displayName']);
