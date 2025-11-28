@@ -827,9 +827,11 @@ class IssueLinkSection extends StatelessWidget {
 }
 
 class IssueLinkTile extends StatelessWidget {
-  const IssueLinkTile(this.issueLinkData, {super.key});
+  const IssueLinkTile(this.issueLinkData, {super.key, this.onSelect, this.trailing});
 
   final Map issueLinkData;
+  final void Function(String issueKey)? onSelect;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) => ListTile(
@@ -886,18 +888,22 @@ class IssueLinkTile extends StatelessWidget {
           ),
       ],
     ),
-    trailing: IconButton(
-      onPressed: () => launchUrl(Uri.parse('https://${SettingsModel().domainController.text}.atlassian.net/browse/${issueLinkData['key']}')),
-      icon: Icon(Icons.open_in_new),
-      tooltip: 'Open in browser',
-    ),
-    onTap: () => showDialog(
-      context: context,
-      builder: (_) => SingleJiraWorkItemDialog(
-        JiraWorkItemData.fromJson({'data': issueLinkData}),
-        initialTab: JiraWorkItemTab.details,
-      ),
-    ),
+    trailing:
+        trailing ??
+        IconButton(
+          onPressed: () => launchUrl(Uri.parse('https://${SettingsModel().domainController.text}.atlassian.net/browse/${issueLinkData['key']}')),
+          icon: Icon(Icons.open_in_new),
+          tooltip: 'Open in browser',
+        ),
+    onTap: onSelect != null
+        ? () => onSelect!.call(issueLinkData['key'])
+        : () => showDialog(
+            context: context,
+            builder: (_) => SingleJiraWorkItemDialog(
+              JiraWorkItemData.fromJson({'data': issueLinkData}),
+              initialTab: JiraWorkItemTab.details,
+            ),
+          ),
   );
 }
 

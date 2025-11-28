@@ -5,6 +5,7 @@ import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/to_do_tasks_models.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
+import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_work_item_search.dart';
 import 'package:jira_watcher/ui/utils/widgets/morphing_buttons.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -108,7 +109,22 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                       ),
                     Padding(
                       padding: const EdgeInsets.only(top: 16),
-                      child: Text('Linked work items', style: Theme.of(context).textTheme.titleMedium),
+                      child: Row(
+                        spacing: 8,
+                        children: [
+                          Text('Linked work items', style: Theme.of(context).textTheme.titleMedium),
+                          TextButton.icon(
+                            icon: Icon(Symbols.add),
+                            label: Text('Add'),
+                            onPressed: () => showDialog(context: context, builder: (context) => WorkItemSearchDialog(selectionMode: true)).then(
+                              (value) {
+                                if (value == null) return;
+                                widget.taskController.linkedWorkItems.add(value);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     AnimatedBuilder(
                       animation: widget.taskController.linkedWorkItems,
@@ -121,7 +137,17 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                               future: DataModel().jiraApi.getWorkItem(tkt, expand: ['changelog']),
                               builder: (context, asyncSnapshot) {
                                 if (asyncSnapshot.hasData) {
-                                  return IssueLinkTile(jsonDecode(asyncSnapshot.data!.body));
+                                  var issueData = jsonDecode(asyncSnapshot.data!.body);
+                                  return IssueLinkTile(
+                                    issueData,
+                                    trailing: IconButton(
+                                      onPressed: () => widget.taskController.linkedWorkItems.remove(issueData['key']),
+                                      icon: Icon(
+                                        Icons.close,
+                                        size: 20,
+                                      ),
+                                    ),
+                                  );
                                 }
                                 if (asyncSnapshot.hasError) {
                                   return ListTile(

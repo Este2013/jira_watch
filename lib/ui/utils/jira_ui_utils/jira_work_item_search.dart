@@ -12,10 +12,11 @@ class WorkItemSearchDialog extends StatefulWidget {
   const WorkItemSearchDialog({
     super.key,
     this.selectionMode = false,
-    this.canSelectMultiple = false,
   });
   final bool selectionMode;
-  final bool canSelectMultiple;
+  // TODO unimplemented
+  final bool canSelectMultiple = false;
+
   @override
   State<WorkItemSearchDialog> createState() => _WorkItemSearchDialogState();
 }
@@ -24,7 +25,7 @@ class _WorkItemSearchDialogState extends State<WorkItemSearchDialog> {
   late String searchName;
   TextEditingController searchController = TextEditingController();
 
-  Set<String?> selectedKeys = {};
+  Set<String> selectedKeys = {};
 
   Future<String> get myOwnRecentEdits async {
     var data = await DataModel().jiraApi.myself().then((value) => jsonDecode(value.body)['displayName']);
@@ -99,7 +100,7 @@ class _WorkItemSearchDialogState extends State<WorkItemSearchDialog> {
         children: [
           Padding(
             padding: const EdgeInsets.only(left: 16),
-            child: Text(searchName, style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.start),
+            child: Text('${widget.selectionMode ? 'Select from: ' : ''}$searchName', style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.start),
           ),
           if (searchName == 'Search results')
             FutureBuilder(
@@ -141,7 +142,24 @@ class _WorkItemSearchDialogState extends State<WorkItemSearchDialog> {
                       height: 500,
                       child: SingleChildScrollView(
                         child: Column(
-                          children: [for (var i in workItems) IssueLinkTile(i)],
+                          children: [
+                            for (var i in workItems)
+                              IssueLinkTile(
+                                i,
+                                onSelect: widget.selectionMode
+                                    ? (issueKey) => setState(() {
+                                        if (selectedKeys.contains(issueKey)) {
+                                          selectedKeys.remove(issueKey);
+                                        } else {
+                                          selectedKeys.add(issueKey);
+                                        }
+                                        if (!widget.canSelectMultiple) {
+                                          Navigator.of(context).pop(issueKey);
+                                        }
+                                      })
+                                    : null,
+                              ),
+                          ],
                         ),
                       ),
                     ),
@@ -174,7 +192,24 @@ class _WorkItemSearchDialogState extends State<WorkItemSearchDialog> {
                       height: 500,
                       child: SingleChildScrollView(
                         child: Column(
-                          children: [for (var i in workItems) IssueLinkTile(i)],
+                          children: [
+                            for (var i in workItems)
+                              IssueLinkTile(
+                                i,
+                                onSelect: widget.selectionMode
+                                    ? (issueKey) => setState(() {
+                                        if (selectedKeys.contains(issueKey)) {
+                                          selectedKeys.remove(issueKey);
+                                        } else {
+                                          selectedKeys.add(issueKey);
+                                        }
+                                        if (!widget.canSelectMultiple) {
+                                          Navigator.of(context).pop(issueKey);
+                                        }
+                                      })
+                                    : null,
+                              ),
+                          ],
                         ),
                       ),
                     ),
@@ -185,29 +220,30 @@ class _WorkItemSearchDialogState extends State<WorkItemSearchDialog> {
             ),
 
           // "GO TO ALL" SECTION
-          Row(
-            spacing: 16,
-            children: [
-              Row(
-                spacing: 8,
-                children: [
-                  SizedBox(),
-                  Transform.rotate(angle: pi / 4, child: Icon(Symbols.navigation)),
-                  Text('Go to all:'),
-                ],
-              ),
-              ActionChip(label: Text('Boards'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/boards?page=1&sortKey=name&sortOrder=ASC'))),
-              ActionChip(label: Text('Projects'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/projects?page=1&sortKey=name&sortOrder=ASC'))),
-              ActionChip(label: Text('Filters'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/filters?Search=Search&filterView=search&name='))),
-              ActionChip(label: Text('Plans'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/plans'))),
-              ActionChip(
-                label: Text('Teams'),
-                onPressed: () => launchUrl(
-                  Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/people'),
+          if (!widget.selectionMode)
+            Row(
+              spacing: 16,
+              children: [
+                Row(
+                  spacing: 8,
+                  children: [
+                    SizedBox(),
+                    Transform.rotate(angle: pi / 4, child: Icon(Symbols.navigation)),
+                    Text('Go to all:'),
+                  ],
                 ),
-              ),
-            ],
-          ),
+                ActionChip(label: Text('Boards'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/boards?page=1&sortKey=name&sortOrder=ASC'))),
+                ActionChip(label: Text('Projects'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/projects?page=1&sortKey=name&sortOrder=ASC'))),
+                ActionChip(label: Text('Filters'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/filters?Search=Search&filterView=search&name='))),
+                ActionChip(label: Text('Plans'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/plans'))),
+                ActionChip(
+                  label: Text('Teams'),
+                  onPressed: () => launchUrl(
+                    Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/people'),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     ),
