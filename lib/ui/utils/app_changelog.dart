@@ -8,7 +8,9 @@ List<Widget> _versionsData = [
   ChangeLogCard(
     '1.6.0',
     sections: [
-      ChangeLogSection.features([]),
+      ChangeLogSection.features([
+        ChangeLogItem('You can now link/unlink work items from notes view'),
+      ]),
       ChangeLogSection.bugFixes([
         ChangeLogItem('Restored functionality of TO DO Task category filters'),
       ]),

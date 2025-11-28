@@ -22,11 +22,12 @@ class SingleTaskView extends StatefulWidget {
 }
 
 class _SingleTaskViewState extends State<SingleTaskView> {
-  late bool takingNotes;
+  late bool takingNotes, linkingItems;
 
   @override
   void initState() {
     takingNotes = widget.taskController.notes.text.trim().isNotEmpty;
+    linkingItems = widget.taskController.linkedWorkItems.isNotEmpty;
     super.initState();
   }
 
@@ -86,6 +87,35 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                         ),
                       ],
                     ),
+                    Row(
+                      spacing: 8,
+                      children: [
+                        if (!takingNotes)
+                          ActionChip(
+                            avatar: Icon(Symbols.contract_edit),
+                            label: Text('Start taking notes'),
+                            onPressed: () => setState(() {
+                              takingNotes = true;
+                            }),
+                          ),
+                        if (!linkingItems)
+                          ActionChip(
+                            avatar: Icon(Symbols.add_link),
+                            label: Text('Link work items'),
+                            onPressed: () {
+                              setState(() {
+                                linkingItems = true;
+                              });
+                              showDialog(context: context, builder: (context) => WorkItemSearchDialog(selectionMode: true)).then(
+                                (value) {
+                                  if (value == null) return;
+                                  widget.taskController.linkedWorkItems.add(value);
+                                },
+                              );
+                            },
+                          ),
+                      ],
+                    ),
                     if (takingNotes)
                       TextField(
                         controller: widget.taskController.notes,
@@ -95,82 +125,74 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                         ),
                         minLines: 6,
                         maxLines: null,
-                      )
-                    else
-                      Align(
-                        alignment: AlignmentGeometry.centerLeft,
-                        child: ActionChip(
-                          avatar: Icon(Symbols.contract_edit),
-                          label: Text('Start taking notes'),
-                          onPressed: () => setState(() {
-                            takingNotes = true;
-                          }),
+                      ),
+
+                    if (linkingItems)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Row(
+                          spacing: 8,
+                          children: [
+                            Text('Linked work items', style: Theme.of(context).textTheme.titleMedium),
+                            TextButton.icon(
+                              icon: Icon(Symbols.add),
+                              label: Text('Add'),
+                              onPressed: () => showDialog(context: context, builder: (context) => WorkItemSearchDialog(selectionMode: true)).then(
+                                (value) {
+                                  if (value == null) return;
+                                  widget.taskController.linkedWorkItems.add(value);
+                                },
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16),
-                      child: Row(
-                        spacing: 8,
-                        children: [
-                          Text('Linked work items', style: Theme.of(context).textTheme.titleMedium),
-                          TextButton.icon(
-                            icon: Icon(Symbols.add),
-                            label: Text('Add'),
-                            onPressed: () => showDialog(context: context, builder: (context) => WorkItemSearchDialog(selectionMode: true)).then(
-                              (value) {
-                                if (value == null) return;
-                                widget.taskController.linkedWorkItems.add(value);
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    AnimatedBuilder(
-                      animation: widget.taskController.linkedWorkItems,
-                      builder: (context, child) => Column(
-                        children: [
-                          if (widget.taskController.linkedWorkItems.list.isEmpty) Text('No linked work items'),
-                          for (var tkt in widget.taskController.linkedWorkItems.list)
-                            FutureBuilder(
-                              key: Key('Work item $tkt linked to task ${widget.taskController.id}'),
-                              future: DataModel().jiraApi.getWorkItem(tkt, expand: ['changelog']),
-                              builder: (context, asyncSnapshot) {
-                                if (asyncSnapshot.hasData) {
-                                  var issueData = jsonDecode(asyncSnapshot.data!.body);
-                                  return IssueLinkTile(
-                                    issueData,
-                                    trailing: IconButton(
-                                      onPressed: () => widget.taskController.linkedWorkItems.remove(issueData['key']),
-                                      icon: Icon(
-                                        Icons.close,
-                                        size: 20,
+                    if (linkingItems)
+                      AnimatedBuilder(
+                        animation: widget.taskController.linkedWorkItems,
+                        builder: (context, child) => Column(
+                          children: [
+                            if (widget.taskController.linkedWorkItems.list.isEmpty) Text('No linked work items'),
+                            for (var tkt in widget.taskController.linkedWorkItems.list)
+                              FutureBuilder(
+                                key: Key('Work item $tkt linked to task ${widget.taskController.id}'),
+                                future: DataModel().jiraApi.getWorkItem(tkt, expand: ['changelog']),
+                                builder: (context, asyncSnapshot) {
+                                  if (asyncSnapshot.hasData) {
+                                    var issueData = jsonDecode(asyncSnapshot.data!.body);
+                                    return IssueLinkTile(
+                                      issueData,
+                                      trailing: IconButton(
+                                        onPressed: () => widget.taskController.linkedWorkItems.remove(issueData['key']),
+                                        icon: Icon(
+                                          Icons.close,
+                                          size: 20,
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                }
-                                if (asyncSnapshot.hasError) {
-                                  return ListTile(
-                                    tileColor: Colors.red.withAlpha(100),
-                                    leading: Icon(Icons.error),
+                                    );
+                                  }
+                                  if (asyncSnapshot.hasError) {
+                                    return ListTile(
+                                      tileColor: Colors.red.withAlpha(100),
+                                      leading: Icon(Icons.error),
 
+                                      title: Text(tkt),
+                                      subtitle: Text(asyncSnapshot.error.toString()),
+                                      trailing: IconButton(
+                                        onPressed: () => Clipboard.setData(ClipboardData(text: asyncSnapshot.error.toString())),
+                                        icon: Icon(Icons.copy),
+                                      ),
+                                    );
+                                  }
+                                  return ListTile(
+                                    leading: CircularProgressIndicator(),
                                     title: Text(tkt),
-                                    subtitle: Text(asyncSnapshot.error.toString()),
-                                    trailing: IconButton(
-                                      onPressed: () => Clipboard.setData(ClipboardData(text: asyncSnapshot.error.toString())),
-                                      icon: Icon(Icons.copy),
-                                    ),
                                   );
-                                }
-                                return ListTile(
-                                  leading: CircularProgressIndicator(),
-                                  title: Text(tkt),
-                                );
-                              },
-                            ),
-                        ],
+                                },
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
                   ]
                   .expand(
                     (w) => [
