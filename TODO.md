@@ -5,10 +5,6 @@
 
 
 NOTES:
- - Collapse notes when none
- - Make category into a dropdown
- - Only make notes textfield as big as the notes inside
- - Add linked work items
  - Timeline
 
 ## PRIORIZATION

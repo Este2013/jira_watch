@@ -66,8 +66,13 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                               // default icons
                               DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == widget.taskController.category.value, orElse: () => DefaultTaskCategory.forLater);
                               return IconButton(
-                                tooltip: cat.displayName,
-                                icon: Icon(cat.icon, color: cat.color, fill: 1),
+                                icon: Row(
+                                  spacing: 8,
+                                  children: [
+                                    Icon(cat.icon, color: cat.color, fill: 1),
+                                    Text(cat.displayName, style: Theme.of(context).textTheme.titleMedium),
+                                  ],
+                                ),
                                 onPressed: () =>
                                     showDialog<int>(
                                       context: context,
@@ -103,13 +108,13 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                             avatar: Icon(Symbols.add_link),
                             label: Text('Link work items'),
                             onPressed: () {
-                              setState(() {
-                                linkingItems = true;
-                              });
                               showDialog(context: context, builder: (context) => WorkItemSearchDialog(selectionMode: true)).then(
                                 (value) {
                                   if (value == null) return;
                                   widget.taskController.linkedWorkItems.add(value);
+                                  setState(() {
+                                    linkingItems = true;
+                                  });
                                 },
                               );
                             },
@@ -140,6 +145,7 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                               onPressed: () => showDialog(context: context, builder: (context) => WorkItemSearchDialog(selectionMode: true)).then(
                                 (value) {
                                   if (value == null) return;
+
                                   widget.taskController.linkedWorkItems.add(value);
                                 },
                               ),
