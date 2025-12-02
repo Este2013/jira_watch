@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/models/data_model.dart';
@@ -9,6 +10,7 @@ import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_work_item_search.dart';
 import 'package:jira_watcher/ui/utils/widgets/dialog_widgets.dart/action_buttons.dart';
 import 'package:jira_watcher/ui/utils/widgets/morphing_buttons.dart';
 import 'package:jira_watcher/utils/color_utils.dart';
+import 'package:material_symbols_icons/get.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 class SingleTaskView extends StatefulWidget {
@@ -249,7 +251,9 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                             if (widget.taskController.events.list.isEmpty) Text('No events were recorded'),
                             for (var (id, event) in widget.taskController.events.list.indexed.toList()..sort((a, b) => b.$2.date.compareTo(a.$2.date)))
                               ListTile(
+                                tileColor: ToDoEventColorPalette.reds.lighter,
                                 key: Key('TodoTaskEvent $id linked to task ${widget.taskController.id}'),
+                                leading: Transform.rotate(angle: pi / 2, child: Icon(Symbols.commit)), // TODO add custom icon from symbols library
                                 title: Text(event.title),
                                 trailing: DateDisplay(null, date: event.date),
                               ),
@@ -361,4 +365,20 @@ class _CreateTimeLineEventDialogState extends State<_CreateTimeLineEventDialog> 
       ),
     ],
   );
+}
+
+enum ToDoEventColorPalette {
+  reds(Color(0xFF8d2c35), Color.fromARGB(255, 255, 109, 109)),
+  oranges(Color(0xFF9c3a2a), Color(0xFFff7844)),
+  yellows(Color(0xFFa9802d), Color(0xFFffda44)),
+  greens(Color(0xFF547431), Color(0xFFb8ff6b)),
+  teals(Color(0xFF206f5b), Color(0xFF49ffd0)),
+  blues(Color(0xFF30598f), Color.fromARGB(255, 113, 154, 250)),
+  purples(Color(0xFF614f8f), Color(0xFFbb8cff)),
+  pinks(Color(0xFF89486e), Color(0xFFff86cc)),
+  ;
+
+  final Color darker, lighter;
+
+  const ToDoEventColorPalette(this.darker, this.lighter);
 }
