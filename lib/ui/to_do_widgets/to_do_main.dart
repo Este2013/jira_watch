@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/to_do_tasks_models.dart';
+import 'package:jira_watcher/ui/utils/widgets/dialog_widgets.dart/action_buttons.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -439,7 +440,7 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
       ),
     ),
     actions: [
-      TextButton(onPressed: Navigator.of(context).pop, child: Text('Cancel')),
+      CancelButton(),
       FilledButton(
         onPressed: () {
           if (tabCtrl.index == 0) {

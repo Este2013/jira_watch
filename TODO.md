@@ -2,10 +2,9 @@
 
 ## UNSORTED
 
-
-
 NOTES:
  - Timeline
+ - Nested tasks
 
 ## PRIORIZATION
 

@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/settings_model.dart';
+import 'package:jira_watcher/utils/color_utils.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:observable_datasets/observable_list.dart';
@@ -32,14 +33,16 @@ class ToDoTasksModel with GlobalLoggy {
   // ignore: unused_field
   Timer? _saveTimer;
 
-  final Future<File> _toDoDataFile =SettingsModel().settingsFolder.then((value) =>  File(
-    path
-        .join(
-          value.path,
-          'to_do.json',
-        )
-        .replaceFirst(RegExp(r'^\\?/?'), ''),
-  ));
+  final Future<File> _toDoDataFile = SettingsModel().settingsFolder.then(
+    (value) => File(
+      path
+          .join(
+            value.path,
+            'to_do.json',
+          )
+          .replaceFirst(RegExp(r'^\\?/?'), ''),
+    ),
+  );
 
   final List<int> _deletedTodoIds = [];
   // late final ObservableList<ToDoTask>? toDoTasksCache;
@@ -47,8 +50,9 @@ class ToDoTasksModel with GlobalLoggy {
 
   late Future<bool> isReady;
   Future<bool> _getReady() async {
-    loggy.info('Getting cache ready');var file = await _toDoDataFile;
-    if (! await file.exists()) {
+    loggy.info('Getting cache ready');
+    var file = await _toDoDataFile;
+    if (!await file.exists()) {
       loggy.warning('_toDoDataFile does not exist. Initializing cache to []');
       // toDoTasksCache = ObservableList();
       toDoTasksControllers = ObservableList();
@@ -71,6 +75,7 @@ class ToDoTasksModel with GlobalLoggy {
     String? notes,
     List<String>? workItemKeys,
     int categoryID = -1,
+    List<ToDoTaskEvent>? events,
   }) async {
     loggy.info('Creating a new task');
     var cacheIsReady = await isReady;
@@ -80,14 +85,7 @@ class ToDoTasksModel with GlobalLoggy {
     }
     // int validId = toDoTasksCache!.list.fold(0, (v, t) => v = max(v, t.id)) + 1;
     int validId = toDoTasksControllers.list.fold(0, (v, t) => v = max(v, t.id)) + 1;
-    var task = ToDoTask(
-      id: validId,
-      title: title,
-      notes: notes,
-      linkedWorkItems: workItemKeys ?? [],
-      category: categoryID,
-      dateAdded: DateTime.now(),
-    );
+    var task = ToDoTask(id: validId, title: title, notes: notes, linkedWorkItems: workItemKeys ?? [], category: categoryID, dateAdded: DateTime.now(), events: events ?? []);
     _deletedTodoIds.remove(validId);
     var toDoTaskEditingController = ToDoTaskEditingController.fromToDoTask(task);
     toDoTaskEditingController.addListener(saveToDoTasksCache);
@@ -176,10 +174,10 @@ class ToDoTasksModel with GlobalLoggy {
     if (!cacheIsReady) {
       loggy.error('Cache is not ready???');
       throw Exception('Cache is not ready???');
-    }var file = 
-(await _toDoDataFile);
+    }
+    var file = (await _toDoDataFile);
     if (!await file.exists()) {
-      loggy.warning('_toDoDataFile does not exist. Creating the file at:\n${file.  path}');
+      loggy.warning('_toDoDataFile does not exist. Creating the file at:\n${file.path}');
       await file.create(recursive: true);
     }
     return file.writeAsString(
@@ -198,6 +196,7 @@ class ToDoTaskEditingController extends ChangeNotifier {
   late final ValueNotifier<bool> isComplete;
   late final ValueNotifier<DateTime?> toDoBefore;
   late final ObservableList<String> linkedWorkItems;
+  late final ObservableList<ToDoTaskEvent> events;
 
   ToDoTaskEditingController({
     required this.id,
@@ -208,6 +207,7 @@ class ToDoTaskEditingController extends ChangeNotifier {
     required this.dateAdded,
     required this.isComplete,
     required this.category,
+    required this.events,
   }) {
     title.addListener(notifyListeners);
     notes.addListener(notifyListeners);
@@ -215,29 +215,30 @@ class ToDoTaskEditingController extends ChangeNotifier {
     isComplete.addListener(notifyListeners);
     toDoBefore.addListener(notifyListeners);
     linkedWorkItems.addListener(notifyListeners);
+    events.addListener(notifyListeners);
   }
 
-  factory ToDoTaskEditingController.fromToDoTask(ToDoTask task) {
-    return ToDoTaskEditingController(
-      id: task.id,
-      dateAdded: task.dateAdded,
-      title: TextEditingController(text: task.title),
-      notes: TextEditingController(text: task.notes),
-      linkedWorkItems: ObservableList.from(task.linkedWorkItems),
-      toDoBefore: ValueNotifier(task.toDoBefore),
-      isComplete: ValueNotifier(task.isComplete),
-      category: ValueNotifier(task.category),
-    );
-  }
+  factory ToDoTaskEditingController.fromToDoTask(ToDoTask task) => ToDoTaskEditingController(
+    id: task.id,
+    dateAdded: task.dateAdded,
+    title: TextEditingController(text: task.title),
+    notes: TextEditingController(text: task.notes),
+    linkedWorkItems: ObservableList.from(task.linkedWorkItems),
+    toDoBefore: ValueNotifier(task.toDoBefore),
+    isComplete: ValueNotifier(task.isComplete),
+    category: ValueNotifier(task.category),
+    events: ObservableList.from(task.events),
+  );
   ToDoTask toToDoTask() => ToDoTask(
     id: id,
     dateAdded: dateAdded,
     title: title.text.trim().isEmpty ? null : title.text.trim(),
     notes: notes.text.trim().isEmpty ? null : notes.text.trim(),
-    linkedWorkItems: linkedWorkItems.list,
+    linkedWorkItems: List.from(linkedWorkItems.list),
     toDoBefore: toDoBefore.value,
     isComplete: isComplete.value,
     category: category.value,
+    events: List.from(events.list),
   );
 
   void modify(ToDoTask newTaskData) {
@@ -248,6 +249,8 @@ class ToDoTaskEditingController extends ChangeNotifier {
     toDoBefore.value = newTaskData.toDoBefore;
     linkedWorkItems.reset();
     linkedWorkItems.addAll(newTaskData.linkedWorkItems);
+    events.reset();
+    events.addAll(newTaskData.events);
   }
 }
 
@@ -258,6 +261,7 @@ class ToDoTask {
 
   /// List of relevant workItems
   List<String> linkedWorkItems;
+  List<ToDoTaskEvent> events;
   String? title, notes;
 
   bool isComplete;
@@ -275,6 +279,7 @@ class ToDoTask {
     required this.dateAdded,
     this.isComplete = false,
     this.category = -1,
+    required this.events,
   });
 
   Map<String, dynamic> toJson() => {
@@ -286,7 +291,9 @@ class ToDoTask {
     'creationDate': dateAdded.toIso8601String(),
     'isComplete': isComplete,
     'category': category,
+    'events': events.map((e) => e.toJson()).toList(),
   };
+
   factory ToDoTask.fromJson(Map<String, dynamic> json) {
     final creationDateValue = json['creationDate'] ?? json['added'];
     final added = creationDateValue != null ? DateTime.parse(creationDateValue.toString()) : DateTime.now();
@@ -306,6 +313,7 @@ class ToDoTask {
       dateAdded: added,
       isComplete: json['isComplete'] ?? false,
       category: json['category'] ?? -1,
+      events: (json['events'] as List?)?.map((e) => ToDoTaskEvent.fromJson(e)).toList() ?? [],
     );
   }
 
@@ -322,6 +330,35 @@ class ToDoTask {
       );
     }
     throw UnimplementedError(); // TODO custom categories
+  }
+}
+
+class ToDoTaskEvent {
+  String? icon;
+  String title;
+  DateTime date;
+  Color? color;
+
+  ToDoTaskEvent(this.title, {this.icon, required this.date, this.color});
+
+  Map<String, dynamic> toJson() => {
+    'title': title,
+    'iconName': icon,
+    'date': date.toIso8601String(),
+    'color': color?.toHex(),
+  };
+
+  factory ToDoTaskEvent.fromJson(Map<String, dynamic> json) {
+    final dateValue = json['date'];
+    assert(dateValue != null);
+    final toDoBefore = DateTime.parse(dateValue.toString());
+
+    return ToDoTaskEvent(
+      json['title'],
+      date: toDoBefore,
+      icon: json['iconName'],
+      color: json['color'] != null ? HexColor.fromHex(json['color']!) : null,
+    );
   }
 }
 

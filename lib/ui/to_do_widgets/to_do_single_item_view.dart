@@ -6,7 +6,9 @@ import 'package:jira_watcher/models/to_do_tasks_models.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_work_item_search.dart';
+import 'package:jira_watcher/ui/utils/widgets/dialog_widgets.dart/action_buttons.dart';
 import 'package:jira_watcher/ui/utils/widgets/morphing_buttons.dart';
+import 'package:jira_watcher/utils/color_utils.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 class SingleTaskView extends StatefulWidget {
@@ -22,12 +24,13 @@ class SingleTaskView extends StatefulWidget {
 }
 
 class _SingleTaskViewState extends State<SingleTaskView> {
-  late bool takingNotes, linkingItems;
+  late bool takingNotes, linkingItems, usingTimeline;
 
   @override
   void initState() {
     takingNotes = widget.taskController.notes.text.trim().isNotEmpty;
     linkingItems = widget.taskController.linkedWorkItems.isNotEmpty;
+    usingTimeline = widget.taskController.events.isNotEmpty;
     super.initState();
   }
 
@@ -45,6 +48,7 @@ class _SingleTaskViewState extends State<SingleTaskView> {
           children:
               [
                     SizedBox.shrink(),
+                    // title and category
                     Row(
                       spacing: 8,
                       children: [
@@ -92,6 +96,7 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                         ),
                       ],
                     ),
+                    // starter kit
                     Row(
                       spacing: 8,
                       children: [
@@ -119,6 +124,22 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                               );
                             },
                           ),
+                        if (!usingTimeline)
+                          ActionChip(
+                            avatar: Icon(Symbols.commit),
+                            label: Text('Add an event'),
+                            onPressed: () {
+                              showDialog(context: context, builder: (context) => _CreateTimeLineEventDialog()).then(
+                                (value) {
+                                  if (value == null) return;
+                                  widget.taskController.events.add(value);
+                                  setState(() {
+                                    usingTimeline = true;
+                                  });
+                                },
+                              );
+                            },
+                          ),
                       ],
                     ),
                     if (takingNotes)
@@ -131,17 +152,17 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                         minLines: 6,
                         maxLines: null,
                       ),
-
-                    if (linkingItems)
+                    if (linkingItems) ...[
                       Padding(
                         padding: const EdgeInsets.only(top: 16),
                         child: Row(
                           spacing: 8,
                           children: [
                             Text('Linked work items', style: Theme.of(context).textTheme.titleMedium),
+                            Spacer(),
                             TextButton.icon(
-                              icon: Icon(Symbols.add),
-                              label: Text('Add'),
+                              icon: Icon(Symbols.add_link),
+                              label: Text('Add a link'),
                               onPressed: () => showDialog(context: context, builder: (context) => WorkItemSearchDialog(selectionMode: true)).then(
                                 (value) {
                                   if (value == null) return;
@@ -153,7 +174,7 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                           ],
                         ),
                       ),
-                    if (linkingItems)
+
                       AnimatedBuilder(
                         animation: widget.taskController.linkedWorkItems,
                         builder: (context, child) => Column(
@@ -199,6 +220,44 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                           ],
                         ),
                       ),
+                    ],
+                    if (usingTimeline) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Row(
+                          spacing: 8,
+                          children: [
+                            Text('Timeline', style: Theme.of(context).textTheme.titleMedium),
+                            Spacer(),
+                            TextButton.icon(
+                              icon: Icon(Symbols.commit),
+                              label: Text('Add an event'),
+                              onPressed: () => showDialog(context: context, builder: (context) => _CreateTimeLineEventDialog()).then(
+                                (value) {
+                                  if (value == null) return;
+                                  widget.taskController.events.add(value);
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      AnimatedBuilder(
+                        animation: widget.taskController.events,
+                        builder: (context, child) => Column(
+                          children: [
+                            if (widget.taskController.events.list.isEmpty) Text('No events were recorded'),
+                            for (var (id, event) in widget.taskController.events.list.indexed.toList()..sort((a, b) => b.$2.date.compareTo(a.$2.date)))
+                              ListTile(
+                                key: Key('TodoTaskEvent $id linked to task ${widget.taskController.id}'),
+                                title: Text(event.title),
+                                trailing: DateDisplay(null, date: event.date),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    DateDisplay('Created', date: widget.taskController.dateAdded),
                   ]
                   .expand(
                     (w) => [
@@ -252,6 +311,53 @@ class _SingleTaskViewState extends State<SingleTaskView> {
         style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
         icon: Icon(Icons.delete_forever),
         label: Text('Delete'),
+      ),
+    ],
+  );
+}
+
+class _CreateTimeLineEventDialog extends StatefulWidget {
+  const _CreateTimeLineEventDialog({super.key});
+
+  @override
+  State<_CreateTimeLineEventDialog> createState() => _CreateTimeLineEventDialogState();
+}
+
+class _CreateTimeLineEventDialogState extends State<_CreateTimeLineEventDialog> {
+  String? iconName, color;
+  late TextEditingController titleController;
+
+  @override
+  void initState() {
+    titleController = TextEditingController();
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text('Create event'),
+    constraints: BoxConstraints(maxWidth: 650, minWidth: 650),
+
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: titleController,
+        ),
+      ],
+    ),
+    actions: [
+      CancelButton(),
+      FilledButton(
+        onPressed: () => Navigator.of(context).pop(
+          ToDoTaskEvent(
+            titleController.text,
+            date: DateTime.now(),
+            color: color == null ? null : HexColor.fromHex(color!),
+            icon: iconName,
+          ),
+        ),
+        child: Text('Save'),
       ),
     ],
   );

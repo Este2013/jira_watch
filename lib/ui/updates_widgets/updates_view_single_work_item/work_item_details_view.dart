@@ -94,11 +94,11 @@ class JiraWorkItemDetailsView extends StatelessWidget {
           if (workItem.fields!['attachment'] != null && (workItem.fields!['attachment'] as List).isNotEmpty) AttachmentsField(attachmentsData: workItem.fields!['attachment']),
           if (workItem.fields?['issuelinks'] != null && workItem.fields!['issuelinks'].isNotEmpty) IssueLinksField(issueLinksData: (workItem.fields!['issuelinks']! as List).cast()),
 
-          DateDisplay('Created${workItem.fields!['creator']?['displayName'] != null ? " by ${workItem.fields!['creator']['displayName']}" : ''}', date: workItem.fields!['created']),
-          if (workItem.fields?['updated'] != null) DateDisplay('Updated', date: workItem.fields!['updated']),
-          if (workItem.fields?['resolutiondate'] != null) DateDisplay('Resolution date', date: workItem.fields!['resolutiondate']),
-          if (workItem.fields?['statuscategorychangedate'] != null) DateDisplay('Last status category change', date: workItem.fields!['statuscategorychangedate']),
-          if (workItem.fields?['lastViewed'] != null) DateDisplay('Last viewed', date: workItem.fields!['lastViewed']),
+          DateDisplay('Created${workItem.fields!['creator']?['displayName'] != null ? " by ${workItem.fields!['creator']['displayName']}" : ''}', dateString: workItem.fields!['created']),
+          if (workItem.fields?['updated'] != null) DateDisplay('Updated', dateString: workItem.fields!['updated']),
+          if (workItem.fields?['resolutiondate'] != null) DateDisplay('Resolution date', dateString: workItem.fields!['resolutiondate']),
+          if (workItem.fields?['statuscategorychangedate'] != null) DateDisplay('Last status category change', dateString: workItem.fields!['statuscategorychangedate']),
+          if (workItem.fields?['lastViewed'] != null) DateDisplay('Last viewed', dateString: workItem.fields!['lastViewed']),
         ].expand((w) => [w, SizedBox(height: 8)]).toList(),
       ),
     );
@@ -1011,32 +1011,43 @@ class VersionsField extends StatelessWidget {
 }
 
 class DateDisplay extends StatelessWidget {
-  const DateDisplay(this.title, {super.key, required this.date});
-  final String title, date;
+  const DateDisplay(this.title, {super.key, this.dateString, this.date}) : assert((dateString == null) != (date == null), 'Exactly one of dateString or date must be provided.');
+  final String? title;
+  final String? dateString;
+  final DateTime? date;
+
   @override
-  Widget build(BuildContext context) => Text(
-    '$title: ${formatDateString(date)}',
+  Widget build(BuildContext context) => Text.rich(
+    TextSpan(
+      children: [
+        if (title != null) TextSpan(text: '$title: '),
+        TextSpan(text: formatDateString()),
+      ],
+    ),
     style: TextStyle(
       color: Theme.of(context).hintColor,
     ),
   );
 
-  String formatDateString(String input) {
-    try {
-      // Parse the input string — note that the timezone offset format (+0100)
-      // isn't ISO 8601-compliant, so we insert a colon for Dart's parser.
-      final normalized = input.replaceFirstMapped(
-        RegExp(r'([+-]\d{2})(\d{2})$'),
-        (match) => '${match[1]}:${match[2]}',
-      );
+  String formatDateString() {
+    DateTime time;
+    if (date != null) {
+      time = date!;
+    } else {
+      try {
+        // Parse the input string — note that the timezone offset format (+0100)
+        // isn't ISO 8601-compliant, so we insert a colon for Dart's parser.
+        final normalized = dateString!.replaceFirstMapped(
+          RegExp(r'([+-]\d{2})(\d{2})$'),
+          (match) => '${match[1]}:${match[2]}',
+        );
 
-      final dateTime = DateTime.parse(normalized);
-
-      // Example: "December 6, 2024 at 10:32 AM"
-      final formatted = DateFormat("MMMM d, y 'at' h:mm a").format(dateTime);
-      return formatted;
-    } catch (e) {
-      return 'Invalid date';
-    }
+        time = DateTime.parse(normalized);
+      } catch (e) {
+        return 'Invalid date';
+      }
+    } // Example: "December 6, 2024 at 10:32 AM"
+    final formatted = DateFormat("MMMM d, y 'at' h:mm a").format(time);
+    return formatted;
   }
 }

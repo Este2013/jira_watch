@@ -12,6 +12,7 @@ import 'package:jira_watcher/ui/utils/app_changelog.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
+import 'package:jira_watcher/ui/utils/widgets/dialog_widgets.dart/action_buttons.dart';
 import 'package:jira_watcher/ui/utils/widgets/github_button.dart';
 import 'package:jira_watcher/utils/local_auth.dart';
 import 'package:jira_watcher/utils/string_utils.dart';
@@ -427,62 +428,51 @@ class _ConnectionSettingsPageState extends State<ConnectionSettingsPage> with Ui
         ),
         SizedBox(height: 8),
         OutlinedButton.icon(
-          onPressed: () => showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: Text('🤨 Are you sure?'),
-              content: Text('You are about to view some sensitive information.\nDo you really want to edit your Atlassian connection settings?'),
-              actions: [
-                TextButton(onPressed: Navigator.of(context).pop, child: Text('Cancel')),
-                FilledButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    showDialog<bool>(
-                      context: context,
-                      barrierDismissible: false,
-                      builder: (context) {
-                        // ignore: use_build_context_synchronously
-                        LocalAuthManager().authenticate().then(
-                          (value) {
-                            loggy.info('Authentication result: $value');
-                            if (!value) {
-                              // ignore: use_build_context_synchronously
-                              Navigator.of(context).pop();
-                              return;
-                            }
-                            // ignore: use_build_context_synchronously
-                            Navigator.popUntil(context, ModalRoute.withName('/home'));
-                            // ignore: use_build_context_synchronously
-                            Navigator.of(context).pushReplacementNamed('/apikey');
-                          },
-                        );
-
-                        return AlertDialog(
-                          title: Text('Authenticating'),
-                          constraints: BoxConstraints(maxWidth: 400, maxHeight: 400, minWidth: 300),
-                          content: Column(
-                            spacing: 16,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              LinearProgressIndicator(),
-                              Text('Please sign in through the system prompt.'),
-                            ],
-                          ),
-                        );
-                      },
-                    );
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.errorContainer,
-                    foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
-                  ),
-                  child: Text('I know what I am doing'),
-                ),
-              ],
-            ),
-          ),
           icon: Icon(Symbols.edit, fill: 1),
           label: Text('View and edit credentials'),
+          onPressed: () => requestConfirmation(context, 'You are about to view some sensitive information.\nDo you really want to edit your Atlassian connection settings?').then(
+            (value) {
+              if (value ?? false) {
+                // ignore: use_build_context_synchronously
+                Navigator.of(context).pop();
+                showDialog<bool>(
+                  // ignore: use_build_context_synchronously
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) {
+                    // ignore: use_build_context_synchronously
+                    LocalAuthManager().authenticate().then(
+                      (value) {
+                        loggy.info('Authentication result: $value');
+                        if (!value) {
+                          // ignore: use_build_context_synchronously
+                          Navigator.of(context).pop();
+                          return;
+                        }
+                        // ignore: use_build_context_synchronously
+                        Navigator.popUntil(context, ModalRoute.withName('/home'));
+                        // ignore: use_build_context_synchronously
+                        Navigator.of(context).pushReplacementNamed('/apikey');
+                      },
+                    );
+
+                    return AlertDialog(
+                      title: Text('Authenticating'),
+                      constraints: BoxConstraints(maxWidth: 400, maxHeight: 400, minWidth: 300),
+                      content: Column(
+                        spacing: 16,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          LinearProgressIndicator(),
+                          Text('Please sign in through the system prompt.'),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              }
+            },
+          ),
         ),
       ].map((w) => Padding(padding: EdgeInsetsGeometry.only(bottom: 16), child: w)).toList(),
     ),
