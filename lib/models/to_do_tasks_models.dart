@@ -337,15 +337,15 @@ class ToDoTaskEvent {
   String? icon;
   String title;
   DateTime date;
-  Color? color;
+  ToDoEventColorPalette? colorPalette;
 
-  ToDoTaskEvent(this.title, {this.icon, required this.date, this.color});
+  ToDoTaskEvent(this.title, {this.icon, required this.date, this.colorPalette});
 
   Map<String, dynamic> toJson() => {
     'title': title,
     'iconName': icon,
     'date': date.toIso8601String(),
-    'color': color?.toHex(),
+    'color': colorPalette?.name,
   };
 
   factory ToDoTaskEvent.fromJson(Map<String, dynamic> json) {
@@ -353,11 +353,22 @@ class ToDoTaskEvent {
     assert(dateValue != null);
     final toDoBefore = DateTime.parse(dateValue.toString());
 
+    ToDoEventColorPalette? color;
+    try {
+      color = json['color'] != null
+          ? ToDoEventColorPalette.values.firstWhere(
+              (element) => element.name == json['color'],
+            )
+          : null;
+    } on Exception {
+      color = null;
+    }
+
     return ToDoTaskEvent(
       json['title'],
       date: toDoBefore,
       icon: json['iconName'],
-      color: json['color'] != null ? HexColor.fromHex(json['color']!) : null,
+      colorPalette: color,
     );
   }
 }
@@ -384,4 +395,20 @@ enum DefaultTaskCategory {
     this.icon, {
     this.color,
   });
+}
+
+enum ToDoEventColorPalette {
+  reds(Color(0xFF8d2c35), Color.fromARGB(255, 255, 109, 109)),
+  oranges(Color(0xFF9c3a2a), Color(0xFFff7844)),
+  yellows(Color(0xFFa9802d), Color(0xFFffda44)),
+  greens(Color(0xFF547431), Color.fromARGB(255, 162, 240, 145)),
+  teals(Color(0xFF206f5b), Color(0xFF49ffd0)),
+  blues(Color(0xFF30598f), Color.fromARGB(255, 113, 154, 250)),
+  purples(Color(0xFF614f8f), Color(0xFFbb8cff)),
+  pinks(Color(0xFF89486e), Color(0xFFff86cc)),
+  ;
+
+  final Color darker, lighter;
+
+  const ToDoEventColorPalette(this.darker, this.lighter);
 }
