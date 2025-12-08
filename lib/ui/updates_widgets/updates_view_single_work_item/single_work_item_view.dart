@@ -95,7 +95,7 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
                       style: Theme.of(context).textTheme.bodyMedium ?? TextStyle(),
                       child: Row(
                         children: [
-                          IssueLinkWithParentsRow(workItem),
+                          WorkItemLinkWithParentsRow(workItem),
 
                           JiraWorkItemStatusIndicator(issue: workItem),
                         ],

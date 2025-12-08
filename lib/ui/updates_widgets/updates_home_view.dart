@@ -641,7 +641,7 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                   children: [
                     Row(
                       children: [
-                        IssueLinkWithParentsRow(widget.workItem, compact: showAsCompact),
+                        WorkItemLinkWithParentsRow(widget.workItem, compact: showAsCompact),
                         if (!showAsCompact)
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 8),
