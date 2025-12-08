@@ -283,7 +283,7 @@ class PopupIconButton extends StatefulWidget {
     this.constraints,
     this.color,
     this.disabledColor,
-    required this.popupColor,
+    this.popupColor,
   });
 
   /// The icon shown in the button.

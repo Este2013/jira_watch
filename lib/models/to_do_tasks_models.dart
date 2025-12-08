@@ -398,17 +398,17 @@ enum DefaultTaskCategory {
 }
 
 enum ToDoEventColorPalette {
-  reds(Color(0xFF8d2c35), Color.fromARGB(255, 255, 109, 109)),
-  oranges(Color(0xFF9c3a2a), Color(0xFFff7844)),
-  yellows(Color(0xFFa9802d), Color(0xFFffda44)),
-  greens(Color(0xFF547431), Color.fromARGB(255, 162, 240, 145)),
-  teals(Color(0xFF206f5b), Color(0xFF49ffd0)),
-  blues(Color(0xFF30598f), Color.fromARGB(255, 113, 154, 250)),
-  purples(Color(0xFF614f8f), Color(0xFFbb8cff)),
-  pinks(Color(0xFF89486e), Color(0xFFff86cc)),
+  reds(base: Colors.red, darker: Color(0xFF8d2c35), lighter: Color.fromARGB(255, 255, 109, 109)),
+  oranges(base: Colors.orange, darker: Color(0xFF9c3a2a), lighter: Color(0xFFff7844)),
+  yellows(base: Colors.yellow, darker: Color(0xFFa9802d), lighter: Color(0xFFffda44)),
+  greens(base: Colors.green, darker: Color(0xFF547431), lighter: Color.fromARGB(255, 162, 240, 145)),
+  teals(base: Colors.teal, darker: Color(0xFF206f5b), lighter: Color(0xFF49ffd0)),
+  blues(base: Colors.blue, darker: Color(0xFF30598f), lighter: Color.fromARGB(255, 113, 154, 250)),
+  purples(base: Colors.purple, darker: Color(0xFF614f8f), lighter: Color(0xFFbb8cff)),
+  pinks(base: Colors.pink, darker: Color(0xFF89486e), lighter: Color(0xFFff86cc)),
   ;
 
-  final Color darker, lighter;
+  final Color base, darker, lighter;
 
-  const ToDoEventColorPalette(this.darker, this.lighter);
+  const ToDoEventColorPalette({required this.base, required this.darker, required this.lighter});
 }

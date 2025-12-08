@@ -382,7 +382,6 @@ class _EditTimeLineEventDialogState extends State<_EditTimeLineEventDialog> {
               child: TextField(controller: titleController),
             ),
             PopupIconButton(
-              popupColor: Theme.of(context).colorScheme.inverseSurface,
               popupBuilder: (context, dismiss) => Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Column(
@@ -406,7 +405,7 @@ class _EditTimeLineEventDialogState extends State<_EditTimeLineEventDialog> {
                                 height: 32,
                                 width: 32,
                                 decoration: BoxDecoration(
-                                  color: c.resolve(context),
+                                  color: c.base,
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                               ),
@@ -417,7 +416,6 @@ class _EditTimeLineEventDialogState extends State<_EditTimeLineEventDialog> {
                       onPressed: () => setState(() {
                         color = null;
                       }),
-                      style: OutlinedButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.inversePrimary),
                       child: Text('No color'),
                     ),
                   ],
@@ -427,7 +425,7 @@ class _EditTimeLineEventDialogState extends State<_EditTimeLineEventDialog> {
                 height: 24,
                 width: 24,
                 decoration: BoxDecoration(
-                  color: color.resolve(context),
+                  color: color?.base,
                   borderRadius: color != color ? BorderRadius.circular(16) : BorderRadius.circular(8),
                   border: Border.all(color: Theme.of(context).hintColor, width: 1.5),
                 ),
