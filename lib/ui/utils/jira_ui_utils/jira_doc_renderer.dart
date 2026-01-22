@@ -13,7 +13,6 @@ import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/ui/utils/spanning_table.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
 import 'package:loggy/loggy.dart';
-import 'package:path/path.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../updates_widgets/issue_ui_elements.dart';
@@ -222,6 +221,8 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         return _buildParagraph(context, node);
       case 'table':
         return _buildTable(context, node);
+      case 'taskList':
+        return _buildTaskList(context, node, indentLevel);
       case 'text':
         return Text(
           _textOf(node).trim(),
@@ -551,7 +552,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     final spans = <InlineSpan>[];
     for (final node in content) {
       if (node['type'] == 'text') {
-        final text = _textOf(node).trim();
+        final text = _textOf(node);
         final marks = _asList(node['marks']);
         style ??= _defaultTextStyle(context);
         GestureRecognizer? recognizer;
@@ -857,6 +858,44 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       );
     }
     return table;
+  }
+
+  Widget _buildTaskList(BuildContext context, Map<String, dynamic> node, int indent) {
+    List content = node['content'];
+    List<InlineSpan> spans = [];
+    for (var e in content) {
+      if (e['type'] == 'taskItem') {
+        spans.add(
+          WidgetSpan(
+            alignment: .top,
+            child: Padding(
+              padding: EdgeInsets.only(left: indent * 24.0),
+              child: SizedBox.square(
+                // to remove checkbox padding
+                dimension: 24,
+                child: Checkbox(
+                  value: e['attrs']['state'] != 'TODO',
+                  onChanged: null,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ),
+          ),
+        );
+        spans.add(
+          WidgetSpan(
+            alignment: .top,
+            child: _buildParagraph(context, e),
+          ),
+        );
+      } else if (e['type'] == 'taskList') {
+        spans.add(WidgetSpan(child: _buildTaskList(context, e, indent + 1)));
+      }
+      spans.add(TextSpan(text: '\n'));
+    }
+    spans.removeLast();
+    return RichText(text: TextSpan(children: spans));
   }
 
   static List<Map<String, dynamic>> _asList(dynamic v) {
