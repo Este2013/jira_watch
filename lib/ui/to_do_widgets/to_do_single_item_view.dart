@@ -371,7 +371,6 @@ class _EditTimeLineEventDialogState extends State<_EditTimeLineEventDialog> {
   Widget build(BuildContext context) => AlertDialog(
     title: Text('${widget.edited == null ? "Create" : "Edit"} event'),
     constraints: BoxConstraints(maxWidth: 650, minWidth: 650),
-
     content: Column(
       mainAxisSize: MainAxisSize.min,
       children: [

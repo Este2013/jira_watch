@@ -1,5 +1,8 @@
 # TODO 
 
+ - ✅ add blockCard to the ADF parser
+ - add checkbox to the ADF parser
+
 ## UNSORTED
 
 NOTES:

@@ -15,7 +15,11 @@ List<Widget> _versionsData = [
             ChangeLogItem('You can now link/unlink work items from notes view'),
           ],
         ),
+        ChangeLogItem(
+          'Added blockCard and checkbox elements to the document renderer',
+        ),
       ]),
+
       ChangeLogSection.bugFixes([
         ChangeLogItem('Restored functionality of TO DO Task category filters'),
       ]),
