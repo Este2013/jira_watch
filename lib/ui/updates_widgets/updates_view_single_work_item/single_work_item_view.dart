@@ -101,7 +101,7 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
                         ],
                       ),
                     ),
-                    Text(workItem['fields']['summary'] ?? 'null'),
+                    SelectableText(workItem['fields']['summary'] ?? 'null'),
                   ],
                 ),
                 bottom: TabBar(tabs: tabs, controller: tabController),
