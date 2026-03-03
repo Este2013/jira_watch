@@ -138,33 +138,34 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
               ),
               VerticalDivider(width: 1),
               Expanded(
-                child: Scaffold(
-                  appBar: AppBar(
-                    title: Row(
-                      children: [
-                        Expanded(child: Text(_currentPage)),
-                        Expanded(
-                          child: Center(
-                            child: Text(
-                              currentPageSubtitle(_currentPage),
-                              style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+                child: IndexedStack(
+                  index: _selectedIndex,
+                  children: [
+                    // Updates page
+                    Scaffold(
+                      appBar: AppBar(
+                        title: Row(
+                          children: [
+                            Expanded(child: Text(_currentPage)),
+                            Expanded(
+                              child: Center(
+                                child: Text(
+                                  currentPageSubtitle(_currentPage),
+                                  style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+                                ),
+                              ),
                             ),
-                          ),
+                            Spacer(),
+                          ],
                         ),
-                        Spacer(),
-                      ],
-                    ),
 
-                    actions: [],
-                  ),
-                  body: IndexedStack(
-                    index: _selectedIndex,
-                    children: const [
-                      UpdatesPage(),
-                      UnderConstructionNotice(),
-                      TodoPagePreLoadView(),
-                    ],
-                  ),
+                        actions: [],
+                      ),
+                      body: UpdatesPage(),
+                    ),
+                    UnderConstructionNotice(),
+                    TodoPagePreLoadView(),
+                  ],
                 ),
               ),
             ],
