@@ -13,6 +13,7 @@ List<Widget> _versionsData = [
           'General todo list improvements',
           subItems: [
             ChangeLogItem('You can now link/unlink work items from notes view'),
+            ChangeLogItem('Task selector now can be collapsed'),
           ],
         ),
         ChangeLogItem(
