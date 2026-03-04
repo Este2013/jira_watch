@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:math' as math;
 
 import 'package:calendar_date_picker2/calendar_date_picker2.dart';
 import 'package:flutter/gestures.dart';
@@ -93,14 +94,14 @@ class _UpdatesPageState extends State<UpdatesPage> {
   void _setStateResetAndFetchFirstPage() => setState(() {
     _resetAndFetchFirstPage();
   });
-  void _resetAndFetchFirstPage() {
+  Future _resetAndFetchFirstPage() {
     pageShown = 0;
     hasMore = true;
     isLoading = false;
     totalAvailable = null;
     nextPageToken = null;
     allLoadedWorkItems.clear();
-    startFetchingNewPage();
+    return startFetchingNewPage();
   }
 
   Future<void> startFetchingNewPage() {
@@ -295,11 +296,12 @@ class _UpdatesPageState extends State<UpdatesPage> {
                               _resetAndFetchFirstPage();
                             },
                           ),
-                          IconButton(
-                            onPressed: _resetAndFetchFirstPage,
-                            icon: Icon(Icons.refresh),
-                            tooltip: 'Refresh',
-                          ),
+                          RefreshFutureIconButton(tooltip: 'Refresh', onRefresh: _resetAndFetchFirstPage),
+                          // IconButton(
+                          //   onPressed: _resetAndFetchFirstPage,
+                          //   icon: Icon(Icons.refresh),
+                          //   tooltip: 'Refresh',
+                          // ),
                         ],
                       ),
                     ),
@@ -994,4 +996,122 @@ class _TimeFilterDropdownState extends State<TimeFilterDropdown> {
       _saveFilters();
     },
   );
+}
+
+class RefreshFutureIconButton extends StatefulWidget {
+  const RefreshFutureIconButton({
+    super.key,
+    required this.onRefresh,
+    this.iconSize,
+    this.tooltip,
+    this.accelDuration = const Duration(milliseconds: 220),
+    this.decelMinDuration = const Duration(milliseconds: 180),
+    this.decelMaxDuration = const Duration(milliseconds: 650),
+    this.fastSpinPeriod = const Duration(milliseconds: 320), // fast!
+  });
+
+  /// The work to perform. Animation runs until this Future completes.
+  final Future<void> Function() onRefresh;
+
+  final double? iconSize;
+  final String? tooltip;
+
+  /// Ease-in time (ramp up).
+  final Duration accelDuration;
+
+  /// Ease-out time range (scaled based on how much of the current turn remains).
+  final Duration decelMinDuration;
+  final Duration decelMaxDuration;
+
+  /// How long one full rotation takes while "running".
+  final Duration fastSpinPeriod;
+
+  @override
+  State<RefreshFutureIconButton> createState() => _RefreshFutureIconButtonState();
+}
+
+class _RefreshFutureIconButtonState extends State<RefreshFutureIconButton> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  bool _running = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // We'll change duration dynamically (accel/fast/decel),
+    // so initial duration is just a placeholder.
+    _ctrl = AnimationController(vsync: this, duration: widget.fastSpinPeriod);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _start() async {
+    if (_running) return;
+    setState(() => _running = true);
+
+    // Ease-in into motion: animate a partial turn with curve.
+    // (We keep it simple: start from 0 each time.)
+    _ctrl
+      ..stop()
+      ..value = 0.0
+      ..duration = widget.accelDuration;
+
+    // Ramp up a bit (e.g. to 1/3 turn) with ease-in.
+    await _ctrl.animateTo(0.33, curve: Curves.easeIn);
+
+    if (!mounted) return;
+
+    // Fast constant spinning while the Future runs.
+    _ctrl.duration = widget.fastSpinPeriod;
+    _ctrl.repeat();
+
+    try {
+      await widget.onRefresh();
+    } finally {
+      if (!mounted) return;
+
+      // Ease-out to a clean stop: finish the current revolution smoothly.
+      _ctrl.stop();
+
+      final current = _ctrl.value; // 0..1
+      final remaining = 1.0 - current; // 0..1
+
+      int lerpInt(int a, int b, double t) => a + ((b - a) * t).round();
+
+      final minMs = widget.decelMinDuration.inMilliseconds;
+      final maxMs = widget.decelMaxDuration.inMilliseconds;
+
+      // Longer decel if more distance remains; always eased-out.
+      final decelMs = lerpInt(minMs, maxMs, remaining);
+      _ctrl.duration = Duration(milliseconds: decelMs);
+
+      await _ctrl.animateTo(1.0, curve: Curves.easeOutCubic);
+      _ctrl.value = 0.0;
+
+      if (mounted) setState(() => _running = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: widget.tooltip,
+      onPressed: _start,
+      iconSize: widget.iconSize,
+      icon: AnimatedBuilder(
+        animation: _ctrl,
+        child: const Icon(Icons.refresh),
+        builder: (context, child) {
+          return Transform.rotate(
+            angle: _ctrl.value * 2 * math.pi,
+            child: child,
+          );
+        },
+      ),
+    );
+  }
 }

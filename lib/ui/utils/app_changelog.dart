@@ -19,6 +19,9 @@ List<Widget> _versionsData = [
         ChangeLogItem(
           'Added blockCard and checkbox elements to the document renderer',
         ),
+        ChangeLogItem(
+          'Added whimsy :)',
+        ),
       ]),
 
       ChangeLogSection.bugFixes([

@@ -1,3 +1,5 @@
+import 'dart:ffi';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
@@ -33,18 +35,37 @@ class TodoPage extends StatefulWidget {
   State<TodoPage> createState() => _TodoPageState();
 }
 
-class _TodoPageState extends State<TodoPage> {
+class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin {
   int? selectedTaskID;
 
   bool filterOutCompletedTasks = true;
   int? showCategory;
   late CollapsibleSidePaneController collapsibleSidePaneController;
+  late AnimationController _menuController;
 
   @override
   void initState() {
     super.initState();
     selectedTaskID = DataModel().todoTasks.toDoTasksControllers.list.firstOrNull?.id;
     collapsibleSidePaneController = CollapsibleSidePaneController();
+    _menuController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+      value: collapsibleSidePaneController.state ? 1 : 0,
+    );
+    collapsibleSidePaneController.addListener(() {
+      if (collapsibleSidePaneController.state) {
+        _menuController.reverse(); // menu -> arrow
+      } else {
+        _menuController.forward(); // arrow -> menu
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _menuController.dispose();
+    super.dispose();
   }
 
   @override
@@ -271,7 +292,13 @@ class _TodoPageState extends State<TodoPage> {
                 return ClipRect(
                   child: Scaffold(
                     appBar: AppBar(
-                      leading: IconButton(onPressed: () => collapsibleSidePaneController.toggle(), icon: Icon(Symbols.menu)),
+                      leading: IconButton(
+                        onPressed: collapsibleSidePaneController.toggle,
+                        icon: AnimatedIcon(
+                          icon: AnimatedIcons.arrow_menu,
+                          progress: _menuController,
+                        ),
+                      ),
                       title: Row(
                         children: [
                           Expanded(child: Text('To do')),
