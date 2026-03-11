@@ -9,6 +9,7 @@ List<Widget> _versionsData = [
     '1.6.0',
     sections: [
       ChangeLogSection.features([
+        ChangeLogItem('Added context menu to work items in update view'),
         ChangeLogItem(
           'General todo list improvements',
           subItems: [
@@ -16,12 +17,8 @@ List<Widget> _versionsData = [
             ChangeLogItem('Task selector now can be collapsed'),
           ],
         ),
-        ChangeLogItem(
-          'Added blockCard and checkbox elements to the document renderer',
-        ),
-        ChangeLogItem(
-          'Added whimsy :)',
-        ),
+        ChangeLogItem('Added blockCard and checkbox elements to the document renderer'),
+        ChangeLogItem('Added whimsy :)'),
       ]),
 
       ChangeLogSection.bugFixes([

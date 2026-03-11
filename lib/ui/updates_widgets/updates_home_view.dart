@@ -6,7 +6,10 @@ import 'package:calendar_date_picker2/calendar_date_picker2.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_context_menu/flutter_context_menu.dart';
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/models/to_do_tasks_models.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
@@ -14,6 +17,7 @@ import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
 import 'package:jira_watcher/ui/settings.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'issue_ui_elements.dart';
@@ -562,59 +566,19 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
               onTap: (value) {
                 // Mark as (un)reads
                 if (value == 0) {
-                  if (widget.workItem.key == null) return;
-                  var updatedTime = DateTime.parse(updated);
-
-                  DataModel().markAsRead(widget.workItem.key!, updatedTime, isRead: !isRead);
-                  setState(() {
-                    lastReadTime = !isRead ? updatedTime : null;
-                  });
+                  markAsReadOrUnread(updated, isRead);
                 }
                 // Keep for later
                 else if (value == 1) {
-                  DataModel().todoTasks
-                      .createNewTask(
-                        title: '${widget.workItem.key} — ${widget.workItem.fields?['summary']}',
-                        workItemKeys: [widget.workItem.key!],
-                      )
-                      .whenComplete(
-                        // ignore: use_build_context_synchronously
-                        () => ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Saved in your "To do" queue as "${widget.workItem.key}"'),
-                          ),
-                        ),
-                      );
+                  keepForLater(context);
                 }
                 // Add to tasks
                 else if (value == 2) {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AddIssueToDoDialog(widget.workItem),
-                  );
+                  addToTasks(context);
                 }
                 // View on website
                 else if (value == 3) {
-                  String? getWorkItemUrl(dynamic workItemKey) {
-                    final domain = APIDao().domain;
-                    if (domain != null && workItemKey != null) {
-                      return 'https://$domain/browse/$workItemKey';
-                    }
-                    return null;
-                  }
-
-                  var workItemURL = getWorkItemUrl(widget.workItem.key);
-                  if (workItemURL != null) {
-                    launchUrl(Uri.parse(workItemURL));
-                  } else {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text('Something went wrong'),
-                        content: Text('The given workItemURL is null?\nFor workItem key: ${widget.workItem.key}, domain ${APIDao().domain}'),
-                      ),
-                    );
-                  }
+                  viewInBrowser(context);
                 }
               },
             ),
@@ -736,11 +700,106 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                 }
                 widget.updateView?.call(widget.workItem);
               },
+              onSecondaryTapDown: (details) => showContextMenu(
+                context,
+                onItemSelected: (value) {},
+                contextMenu: ContextMenu(
+                  position: details.globalPosition,
+                  entries: <ContextMenuEntry>[
+                    MenuItem(
+                      label: Text('Mark as ${isRead ? "un" : ""}read'),
+                      icon: const Icon(Symbols.mark_as_unread, fill: 1),
+                      onSelected: (value) => markAsReadOrUnread(updated, isRead),
+                    ),
+                    MenuItem(
+                      label: Text('Keep for later'),
+                      icon: Transform.rotate(angle: pi / 4, child: const Icon(Symbols.keep, fill: 1)),
+                      onSelected: (value) => keepForLater(context),
+                    ),
+                    MenuItem(
+                      label: Text('Add to tasks'),
+                      icon: const Icon(Symbols.assignment_add, fill: 1),
+                      onSelected: (value) => addToTasks(context),
+                    ),
+                    MenuItem(
+                      label: Text('View on website'),
+                      icon: const Icon(Symbols.open_in_browser, fill: 1),
+                      onSelected: (value) => viewInBrowser(context),
+                    ),
+                    const MenuDivider(),
+                    MenuItem(
+                      label: const Text('Copy identifier'),
+                      icon: const Icon(Symbols.content_copy),
+                      onSelected: (value) => widget.workItem.key != null ? Clipboard.setData(ClipboardData(text: widget.workItem.key!)) : null,
+                    ),
+
+                    MenuItem(
+                      label: const Text('Copy link'),
+                      icon: const Icon(Symbols.link, fill: 1),
+                      onSelected: (value) => widget.workItem.key != null ? Clipboard.setData(ClipboardData(text: widget.workItem.key!)) : null,
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         );
       },
     );
+  }
+
+  void markAsReadOrUnread(String updated, bool isRead) {
+    if (widget.workItem.key == null) return;
+    var updatedTime = DateTime.parse(updated);
+
+    DataModel().markAsRead(widget.workItem.key!, updatedTime, isRead: !isRead);
+    setState(() {
+      lastReadTime = !isRead ? updatedTime : null;
+    });
+  }
+
+  Future<ToDoTask> keepForLater(BuildContext context) => DataModel().todoTasks
+      .createNewTask(
+        title: '${widget.workItem.key} — ${widget.workItem.fields?['summary']}',
+        workItemKeys: [widget.workItem.key!],
+      )
+      .whenComplete(
+        // ignore: use_build_context_synchronously
+        () => ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saved in your "To do" queue as "${widget.workItem.key}"'),
+          ),
+        ),
+      );
+
+  void addToTasks(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AddIssueToDoDialog(widget.workItem),
+    );
+  }
+
+  void viewInBrowser(BuildContext context) {
+    String? getWorkItemUrl(dynamic workItemKey) {
+      final domain = APIDao().domain;
+      if (domain != null && workItemKey != null) {
+        return 'https://$domain/browse/$workItemKey';
+      }
+      return null;
+    }
+
+    var workItemURL = getWorkItemUrl(widget.workItem.key);
+    if (workItemURL != null) {
+      launchUrl(Uri.parse(workItemURL));
+    } else {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Something went wrong'),
+          content: Text('The given workItemURL is null?\nFor workItem key: ${widget.workItem.key}, domain ${APIDao().domain}'),
+        ),
+      );
+    }
   }
 
   Map<String, Color> _workItemColors(BuildContext context, JiraWorkItemData workItem) {
