@@ -707,6 +707,14 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                   position: details.globalPosition,
                   entries: <ContextMenuEntry>[
                     MenuItem(
+                      label: Center(
+                        child: Text(widget.workItem.key ?? 'unknown key'),
+                      ),
+                      // icon: const Icon(Symbols.mark_as_unread, fill: 1),
+                      enabled: false,
+                    ),
+                    const MenuDivider(),
+                    MenuItem(
                       label: Text('Mark as ${isRead ? "un" : ""}read'),
                       icon: const Icon(Symbols.mark_as_unread, fill: 1),
                       onSelected: (value) => markAsReadOrUnread(updated, isRead),

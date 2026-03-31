@@ -21,7 +21,7 @@ import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart';
 import 'package:url_launcher/url_launcher.dart';
-
+import 'package:flutter_markdown/flutter_markdown.dart';
 import '../issue_ui_elements.dart';
 import 'single_work_item_view.dart';
 
@@ -463,8 +463,13 @@ class AttachmentPreview extends StatelessWidget {
               String filetype = a['mimeType'];
 
               if (filetype == 'text/plain') {
+                if (a['filename']?.endsWith('.md') ?? false) {
+                  return Center(
+                    child: Icon(Symbols.markdown, size: 48),
+                  );
+                }
                 return Center(
-                  child: Icon(Icons.text_fields, size: 48),
+                  child: Icon(Symbols.text_fields, size: 48),
                 );
               }
               if (filetype == 'application/json') {
@@ -474,12 +479,12 @@ class AttachmentPreview extends StatelessWidget {
               }
               if (filetype.startsWith('video')) {
                 return Center(
-                  child: Icon(Icons.movie, size: 48),
+                  child: Icon(Symbols.movie, size: 48),
                 );
               }
               if (['zip', '7z'].any(filetype.endsWith)) {
                 return Center(
-                  child: Icon(Icons.folder_zip, size: 48),
+                  child: Icon(Symbols.folder_zip, size: 48),
                 );
               }
               if (a['thumbnail'] != null) {
@@ -493,7 +498,7 @@ class AttachmentPreview extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     SizedBox(height: 12),
-                    Icon(Icons.file_present_rounded, size: 48),
+                    Icon(Symbols.file_present_rounded, size: 48),
                     Text(a['mimeType'], style: TextStyle(color: Theme.of(context).hintColor)),
                   ],
                 ),
@@ -621,10 +626,17 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
                   child: SingleChildScrollView(
                     child: Padding(
                       padding: const EdgeInsets.only(right: 16.0),
-                      child: SelectableText(
-                        asyncSnapshot.data!,
-                        style: TextStyle(fontFamily: 'RobotoMono'),
-                      ),
+
+                      child: (attachment['filename']?.endsWith('.md') ?? false)
+                          ? MarkdownBody(
+                              data: asyncSnapshot.data!,
+                              selectable: true,
+                              styleSheet: MarkdownStyleSheet(code: const TextStyle(fontFamily: 'RobotoMono')),
+                            )
+                          : SelectableText(
+                              asyncSnapshot.data!,
+                              style: const TextStyle(fontFamily: 'RobotoMono'),
+                            ),
                     ),
                   ),
                 ),

@@ -9,7 +9,13 @@ List<Widget> _versionsData = [
     '1.6.0',
     sections: [
       ChangeLogSection.features([
-        ChangeLogItem('Added context menu to work items in update view'),
+        ChangeLogItem(
+          'General updates list improvements',
+          subItems: [
+            ChangeLogItem('Added context menu to work items in update view'),
+            ChangeLogItem('Added markdown attachment reader'),
+          ],
+        ),
         ChangeLogItem(
           'General todo list improvements',
           subItems: [
