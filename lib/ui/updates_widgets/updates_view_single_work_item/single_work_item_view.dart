@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/models/to_do_tasks_models.dart';
+import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
 import 'package:jira_watcher/ui/updates_widgets/issue_ui_elements.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_history_view.dart';
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
@@ -104,6 +107,34 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
                     SelectableText(workItem['fields']['summary'] ?? 'null'),
                   ],
                 ),
+                actionsPadding: EdgeInsets.only(right: 8),
+                actions: [
+                  MenuAnchor(
+                    menuChildren: [
+                      MenuItemButton(
+                        onPressed: () => keepForLater(context),
+                        leadingIcon: Transform.rotate(
+                          angle: pi / 4,
+                          child: const Icon(Symbols.keep, fill: 1),
+                        ),
+                        child: const Text('Keep for later'),
+                      ),
+                      MenuItemButton(
+                        onPressed: () => addToTasks(context),
+                        leadingIcon: const Icon(Symbols.assignment_add, fill: 1),
+                        child: const Text('Add to tasks'),
+                      ),
+                    ],
+                    builder: (context, controller, child) {
+                      return IconButton(
+                        icon: const Icon(Icons.more_vert),
+                        onPressed: () {
+                          controller.isOpen ? controller.close() : controller.open();
+                        },
+                      );
+                    },
+                  ),
+                ],
                 bottom: TabBar(tabs: tabs, controller: tabController),
               ),
               body: TabBarView(
@@ -121,6 +152,26 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
         }
         return Center(child: CircularProgressIndicator());
       },
+    );
+  }
+
+  Future<ToDoTask> keepForLater(BuildContext context) => DataModel().todoTasks
+      .createNewTask(
+        title: '${widget.workItem.key} — ${widget.workItem.fields?['summary']}',
+        workItemKeys: [widget.workItem.key!],
+      )
+      .whenComplete(
+        // ignore: use_build_context_synchronously
+        () => ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saved in your "To do" queue as "${widget.workItem.key}"'),
+          ),
+        ),
+      );
+  void addToTasks(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AddIssueToDoDialog(widget.workItem),
     );
   }
 }

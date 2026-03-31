@@ -9,10 +9,13 @@ import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/ui/utils/spanning_table.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
 import 'package:loggy/loggy.dart';
+import 'package:material_symbols_icons/material_symbols_metadata.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../updates_widgets/issue_ui_elements.dart';
@@ -31,6 +34,7 @@ class AdfRenderer extends StatelessWidget {
     this.paragraphSpacing = 8.0,
     this.listIndent = 16.0,
     this.bulletGap = 8.0,
+    required this.attachments,
   });
 
   /// Parsed ADF JSON map (root document object).
@@ -53,6 +57,9 @@ class AdfRenderer extends StatelessWidget {
   final double listIndent;
   final double bulletGap;
 
+  // List of attached files for the work item; some rendering blocks like media or mediaInline require access to those, to match ids to the actual file url.
+  final List? attachments;
+
   @override
   Widget build(BuildContext context) => SelectionArea(
     child: _AdfRenderer(
@@ -64,6 +71,7 @@ class AdfRenderer extends StatelessWidget {
       mediaBuilder: mediaBuilder,
       paragraphSpacing: paragraphSpacing,
       textStyle: textStyle,
+      attachments: attachments,
     ),
   );
 
@@ -134,6 +142,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     this.paragraphSpacing = 8.0,
     this.listIndent = 16.0,
     this.bulletGap = 8.0,
+    this.attachments,
   });
 
   /// Parsed ADF JSON map (root document object).
@@ -155,6 +164,8 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
   final double paragraphSpacing;
   final double listIndent;
   final double bulletGap;
+
+  final List? attachments;
 
   @override
   Widget build(BuildContext context) {
@@ -213,6 +224,9 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         return _buildMedia(context, node, 200);
       case 'mediaSingle':
         return _buildMediaSingle(context, node, indentLevel);
+
+      case 'mediaInline':
+        return _buildMediaInline(context, node, indentLevel);
       case 'mention':
         return _buildMention(context, node);
       case 'panel':
@@ -306,7 +320,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                       Row(
                         spacing: 8,
                         children: [
-                          JiraAvatar(url: workItem.fields?['issuetype']['iconUrl'], size: 20),
+                          if (workItem.fields?['issuetype']['iconUrl'] != null) JiraAvatar(url: workItem.fields!['issuetype']['iconUrl'], size: 20) else Icon(Symbols.broken_image),
                           Expanded(
                             child: Text(
                               '${workItem.key}: ${workItem.fields?['summary']}',
@@ -322,7 +336,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                         child: Row(
                           spacing: 8,
                           children: [
-                            JiraAvatar(url: workItem.fields?['assignee']?['avatarUrls']?['16x16'], size: 24),
+                            if (workItem.fields?['assignee']['avatarUrls'] != null) JiraAvatar(url: workItem.fields!['assignee']?['avatarUrls']?['16x16'], size: 24) else Icon(Symbols.broken_image),
                             Expanded(
                               child: Text.rich(
                                 TextSpan(
@@ -341,7 +355,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                                       alignment: PlaceholderAlignment.middle,
                                       child: Padding(
                                         padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                                        child: JiraAvatar(url: workItem.fields?['priority']?['iconUrl'], size: 16),
+                                        child: (workItem.fields?['priority']['iconUrl'] != null) ? JiraAvatar(url: workItem.fields?['priority']?['iconUrl'], size: 16) : Icon(Symbols.broken_image),
                                       ),
                                     ),
                                     TextSpan(text: ' ${workItem.fields?['priority']?['name'] ?? ''}'),
@@ -737,6 +751,31 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     );
   }
 
+  Widget? _buildMediaInline(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    final attrs = (node['attrs'] ?? const <String, dynamic>{}) as Map<String, dynamic>;
+    if (attrs['type'] == 'file') {
+      // match ID with attachment
+      String id = attrs['id'];
+
+      return FutureBuilder(
+        future: mediaIdToAttachment(id, attachments ?? []),
+        builder: (context, snapshot) {
+          return snapshot.hasData
+              ? ActionChip(
+                  avatar: Icon(Symbols.attach_file),
+                  label: Text((snapshot.data?['filename']).toString()),
+                  onPressed: snapshot.hasData ? () => showDialog(context: context, builder: (context) => AttachmentsDialog([snapshot.data!])) : null,
+                )
+              : CircularProgressIndicator();
+        },
+      );
+
+      // return JiraAvatar(url: attachment['content']);
+    } else {
+      throw Exception('Media node of type: ${node['type']} is not handled');
+    }
+  }
+
   Widget? _buildMention(BuildContext context, Map<String, dynamic> node) {
     var t = Theme.of(context).colorScheme;
     String userIdMentionned = node['attrs']['id'];
@@ -970,7 +1009,10 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
   }
 
   /// Takes in an ADF document's root node, and mashes all its nodes within to text as possible, with no formatting.
-  String toPlainText(Map document) => (document['content'] as List).map((c) => _buildPlainTextNode(c, 0)).join('\n');
+  String toPlainText(Map? document) {
+    if (document == null) return 'null';
+    return (document['content'] as List).map((c) => _buildPlainTextNode(c, 0)).join('\n');
+  }
 }
 
 class BulletListBulletSpan extends WidgetSpan {
@@ -1054,6 +1096,60 @@ Future<Map<String, String>> mediaIdToContentUrl(
   }
 
   return result;
+}
+
+Future<dynamic> mediaIdToAttachment(
+  String mediaId,
+  List<dynamic> attachments,
+) async {
+  final client = HttpClient()..autoUncompress = false;
+
+  try {
+    for (final a in attachments) {
+      final contentUrl = (a['content'] as String?)?.trim();
+      if (contentUrl == null || contentUrl.isEmpty) continue;
+
+      final uri = Uri.parse(contentUrl);
+      final req = await client.getUrl(uri);
+
+      // Auth + do NOT follow the redirect
+      req.followRedirects = false;
+      req.headers.set(HttpHeaders.authorizationHeader, APIDao().authHeader);
+      // (optional) be explicit about what we want
+      req.headers.set(HttpHeaders.acceptHeader, '*/*');
+
+      final res = await req.close();
+
+      // We expect 303 with a Location header to api.media.atlassian.com
+      final loc = res.headers.value(HttpHeaders.locationHeader);
+
+      if (loc == null || loc.isEmpty) {
+        // Some proxies/CDNs may reply 302/307/308 as well; still check location.
+        // If missing, skip gracefully.
+        await res.drain();
+        continue;
+      }
+
+      // Extract UUID from .../file/<uuid>/binary
+      final match = RegExp(
+        r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
+      ).firstMatch(loc);
+
+      if (match != null) {
+        final attachmentMediaId = match.group(0)!;
+        if (attachmentMediaId == mediaId) {
+          await res.drain();
+          return a;
+        }
+      }
+
+      await res.drain();
+    }
+  } finally {
+    client.close(force: true);
+  }
+
+  return null;
 }
 
 extension on List {

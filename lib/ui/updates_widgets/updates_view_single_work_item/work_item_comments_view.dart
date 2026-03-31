@@ -146,6 +146,7 @@ class CommentListEntry extends StatelessWidget {
               AdfRenderer(
                 adf: comment.body,
                 mediaBuilder: (context, node, size) => AdfRenderer.defaultMediaBuilder(node, context, (workItem.fields!['attachment'] as List), size),
+                attachments: workItem.fields!['attachment'] as List,
               ),
 
             if (kDebugMode)

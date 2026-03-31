@@ -405,6 +405,7 @@ class DescriptionLikeField extends StatelessWidget {
     content: AdfRenderer(
       adf: contentData,
       mediaBuilder: (context, node, size) => AdfRenderer.defaultMediaBuilder(node, context, attachments ?? [], size),
+      attachments: attachments,
     ),
   );
 }

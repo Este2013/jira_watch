@@ -216,7 +216,7 @@ class JiraWorkItemStatusIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String colorName = issue.fields?['statusCategory']['colorName'];
+    String colorName = issue.fields?['statusCategory']['colorName'] ?? 'unknown';
 
     return Container(
       decoration: BoxDecoration(
@@ -225,7 +225,7 @@ class JiraWorkItemStatusIndicator extends StatelessWidget {
       ),
       padding: EdgeInsets.symmetric(horizontal: 4),
       child: Text(
-        issue.fields?['status']['name'],
+        issue.fields?['status']['name'] ?? 'unknown status',
         style: TextStyle(color: onColor(context, colorName)),
       ),
     );
