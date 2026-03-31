@@ -285,6 +285,15 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       loggy.error('There is a blockCard node without a provided URL? Dev did not expect that:\n${node.toString()}');
       return ErrorWidget('There is a blockCard node without a provided URL? Dev did not expect that.');
     }
+    if (targetUrl.startsWith('https://${APIDao().domain}/wiki')) {
+      // TODO Confluence link
+      return ActionChip(
+        avatar: Icon(Symbols.book_2),
+        label: Text(targetUrl.split('/').last.split('+').join(' ')),
+        tooltip: 'Confluence wiki link\n$targetUrl',
+        onPressed: () => launchUrl(Uri.parse(targetUrl)),
+      );
+    }
     if (targetUrl.startsWith('https://${APIDao().domain}')) {
       return Card(
         clipBehavior: .hardEdge,
@@ -484,6 +493,15 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
   Widget? _buildInlineCard(BuildContext context, Map<String, dynamic> node) {
     var url = node['attrs']['url'];
     if (url == null) return null;
+    if (url.startsWith('https://${APIDao().domain}/wiki')) {
+      // TODO Confluence link
+      return ActionChip(
+        avatar: Icon(Symbols.book_2),
+        label: Text(url.split('/').last.split('+').join(' ')),
+        tooltip: 'Confluence wiki link\n$url',
+        onPressed: () => launchUrl(Uri.parse(url)),
+      );
+    }
     if ((url as String).startsWith('https://${SettingsModel().domainController.text}.atlassian.net/browse')) {
       // Jira workItem card
       var issueKey = url
@@ -502,16 +520,14 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         builder: (context, asyncSnapshot) {
           var t = Theme.of(context).colorScheme;
           if (asyncSnapshot.hasError) {
-            return Tooltip(
-              message: 'Error while looking up $url as a Jira inlineCard:\n\n${asyncSnapshot.error}',
-              child: ActionChip(
-                label: Text(
-                  'Error',
-                  style: TextStyle(color: t.onErrorContainer),
-                ),
-                backgroundColor: t.errorContainer,
-                onPressed: () => launchUrl(Uri.parse(url)),
+            return ActionChip(
+              tooltip: 'Error while looking up $url as a Jira inlineCard:\n\n${asyncSnapshot.error}',
+              label: Text(
+                'Error',
+                style: TextStyle(color: t.onErrorContainer),
               ),
+              backgroundColor: t.errorContainer,
+              onPressed: () => launchUrl(Uri.parse(url)),
             );
           }
           if (asyncSnapshot.hasData) {

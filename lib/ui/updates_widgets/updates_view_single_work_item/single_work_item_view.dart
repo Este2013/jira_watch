@@ -303,6 +303,11 @@ class _JsonWorkItemViewState extends State<JsonWorkItemView> {
             selectedIcon: Icon(Icons.block),
             isSelected: filterEmpties,
           ),
+          IconButton(
+            tooltip: 'Copy all json data',
+            onPressed: () => Clipboard.setData(ClipboardData(text: JsonEncoder.withIndent('    ').convert(widget.workItem.data))),
+            icon: Icon(Symbols.copy_all),
+          ),
         ],
       ),
       Expanded(
