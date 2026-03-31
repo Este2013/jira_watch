@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_context_menu/flutter_context_menu.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/to_do_tasks_models.dart';
@@ -12,6 +13,7 @@ import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/wo
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // ignore: unused_import
 import '../../utils/under_constuction_notice.dart';
@@ -124,6 +126,11 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
                         leadingIcon: const Icon(Symbols.assignment_add, fill: 1),
                         child: const Text('Add to tasks'),
                       ),
+                      MenuItemButton(
+                        onPressed: () => viewInBrowser(context),
+                        leadingIcon: const Icon(Symbols.open_in_browser, fill: 1),
+                        child: const Text('View in browser'),
+                      ),
                     ],
                     builder: (context, controller, child) {
                       return IconButton(
@@ -173,6 +180,29 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
       context: context,
       builder: (context) => AddIssueToDoDialog(widget.workItem),
     );
+  }
+
+  void viewInBrowser(BuildContext context) {
+    String? getWorkItemUrl(dynamic workItemKey) {
+      final domain = APIDao().domain;
+      if (domain != null && workItemKey != null) {
+        return 'https://$domain/browse/$workItemKey';
+      }
+      return null;
+    }
+
+    var workItemURL = getWorkItemUrl(widget.workItem.key);
+    if (workItemURL != null) {
+      launchUrl(Uri.parse(workItemURL));
+    } else {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Something went wrong'),
+          content: Text('The given workItemURL is null?\nFor workItem key: ${widget.workItem.key}, domain ${APIDao().domain}'),
+        ),
+      );
+    }
   }
 }
 
