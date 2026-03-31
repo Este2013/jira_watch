@@ -14,6 +14,7 @@ List<Widget> _versionsData = [
           subItems: [
             ChangeLogItem('Added context menu to work items in update view'),
             ChangeLogItem('Added markdown attachment reader'),
+            ChangeLogItem('Added support for mediaInline chips in ADF renderer'),
           ],
         ),
         ChangeLogItem(
