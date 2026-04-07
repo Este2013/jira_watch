@@ -239,7 +239,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         return _buildTaskList(context, node, indentLevel);
       case 'text':
         return Text(
-          _textOf(node).trim(),
+          _textOf(node),
           style: _defaultCodeStyle(context).merge(transferStyle),
           selectionColor: selectionColor,
         );
@@ -277,7 +277,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     return base;
   }
 
-  String _textOf(Map<String, dynamic> node) => ((node['text'] ?? '') as String).trim();
+  String _textOf(Map<String, dynamic> node) => ((node['text'] ?? '') as String);
 
   Widget _buildBlockCard(BuildContext context, Map<String, dynamic> node) {
     var targetUrl = node['attrs']['url'] as String?;
@@ -494,7 +494,6 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     var url = node['attrs']['url'];
     if (url == null) return null;
     if (url.startsWith('https://${APIDao().domain}/wiki')) {
-      // TODO Confluence link
       return ActionChip(
         avatar: Icon(Symbols.book_2),
         label: Text(url.split('/').last.split('+').join(' ')),
@@ -668,7 +667,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     final bulletLine = paragraphs.isNotEmpty ? _buildParagraph(context, paragraphs.first) : const SizedBox.shrink();
 
     final bulletRow = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .center,
       children: [
         SizedBox(width: indentLevel * listIndent),
         RichText(text: BulletListBulletSpan(indent: 1)),
@@ -987,7 +986,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         return node['attrs']['url'];
       case 'bulletList':
         final items = _asList(node['content']).map((c) => _buildPlainTextNode(c, indentLevel)).whereType<Widget>().toList();
-        return ' ･ ' + items.join('\n ･ ');
+        return ' • ${items.join('\n • ')}';
       // case 'codeBlock':
       //   return _buildCodeBlock(context, node);
       // case 'emoji':
@@ -1032,7 +1031,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
 }
 
 class BulletListBulletSpan extends WidgetSpan {
-  BulletListBulletSpan({this.indent = 1}) : super(child: Text('•'));
+  BulletListBulletSpan({this.indent = 1}) : super(child: Text('•'), alignment: .middle);
 
   final int indent;
 
