@@ -5,7 +5,6 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/settings_model.dart';
-import 'package:jira_watcher/utils/color_utils.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:observable_datasets/observable_list.dart';
@@ -381,8 +380,7 @@ enum DefaultTaskCategory {
   toReview(-5, 'To review', Symbols.mystery),
   waitingForInput(-6, 'Waiting for input', Symbols.pending),
   missingScoping(-7, 'Missing scoping', Symbols.filter_center_focus),
-  critical(-8, 'Critical', Symbols.dangerous, color: Colors.red)
-  ;
+  critical(-8, 'Critical', Symbols.dangerous, color: Colors.red);
 
   final int id;
   final String displayName;

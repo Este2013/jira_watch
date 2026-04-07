@@ -14,7 +14,6 @@ import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/ui/utils/spanning_table.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
 import 'package:loggy/loggy.dart';
-import 'package:material_symbols_icons/material_symbols_metadata.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 
