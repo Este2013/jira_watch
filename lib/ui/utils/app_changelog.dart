@@ -6,31 +6,15 @@ import 'package:url_launcher/url_launcher.dart';
 
 List<Widget> _versionsData = [
   ChangeLogCard(
-    '1.6.0',
+    '1.7.0',
     sections: [
       ChangeLogSection.features([
-        ChangeLogItem(
-          'General updates list improvements',
-          subItems: [
-            ChangeLogItem('Added context menu to work items in update view'),
-            ChangeLogItem('Added markdown attachment reader'),
-            ChangeLogItem('Added support for mediaInline chips in ADF renderer'),
-            ChangeLogItem('Confluence inlineCards and blockCards now show a basic Chip instead of failing to render'),
-          ],
-        ),
-        ChangeLogItem(
-          'General todo list improvements',
-          subItems: [
-            ChangeLogItem('You can now link/unlink work items from notes view'),
-            ChangeLogItem('Task selector now can be collapsed'),
-          ],
-        ),
-        ChangeLogItem('Added blockCard and checkbox elements to the document renderer'),
-        ChangeLogItem('Added whimsy :)'),
+        ChangeLogItem(''),
       ]),
 
       ChangeLogSection.bugFixes([
-        ChangeLogItem('Restored functionality of TO DO Task category filters'),
+        ChangeLogItem('Fixed wrong spacing between style nodes in ADF renderer'),
+        ChangeLogItem('Fixed wrong alignment in bullet list when items were not plain text'),
       ]),
       ChangeLogSection.chores([
         ChangeLogItem('Bumped version number.'),
@@ -39,6 +23,38 @@ List<Widget> _versionsData = [
   ),
 
   ...[
+    ChangeLogCard(
+      '1.6.0',
+      sections: [
+        ChangeLogSection.features([
+          ChangeLogItem(
+            'General updates list improvements',
+            subItems: [
+              ChangeLogItem('Added context menu to work items in update view'),
+              ChangeLogItem('Added markdown attachment reader'),
+              ChangeLogItem('Added support for mediaInline chips in ADF renderer'),
+              ChangeLogItem('Confluence inlineCards and blockCards now show a basic Chip instead of failing to render'),
+            ],
+          ),
+          ChangeLogItem(
+            'General todo list improvements',
+            subItems: [
+              ChangeLogItem('You can now link/unlink work items from notes view'),
+              ChangeLogItem('Task selector now can be collapsed'),
+            ],
+          ),
+          ChangeLogItem('Added blockCard and checkbox elements to the document renderer'),
+          ChangeLogItem('Added whimsy :)'),
+        ]),
+
+        ChangeLogSection.bugFixes([
+          ChangeLogItem('Restored functionality of TO DO Task category filters'),
+        ]),
+        ChangeLogSection.chores([
+          ChangeLogItem('Bumped version number.'),
+        ]),
+      ],
+    ),
     ChangeLogCard(
       '1.5.0',
       sections: [

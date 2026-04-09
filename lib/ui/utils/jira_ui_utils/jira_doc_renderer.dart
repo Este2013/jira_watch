@@ -67,7 +67,7 @@ class AdfRenderer extends StatelessWidget {
       codeStyle: codeStyle,
       linkHandler: linkHandler,
       listIndent: listIndent,
-      mediaBuilder: mediaBuilder,
+      mediaBuilder: mediaBuilder ?? (context, node, size) => AdfRenderer.defaultMediaBuilder(node, context, attachments ?? [], size),
       paragraphSpacing: paragraphSpacing,
       textStyle: textStyle,
       attachments: attachments,

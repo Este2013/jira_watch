@@ -9,6 +9,7 @@ import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/to_do_tasks_models.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
 import 'package:jira_watcher/ui/updates_widgets/issue_ui_elements.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_home_view.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_history_view.dart';
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
 import 'package:loggy/loggy.dart';
@@ -124,7 +125,7 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
                       MenuItemButton(
                         onPressed: () => addToTasks(context),
                         leadingIcon: const Icon(Symbols.assignment_add, fill: 1),
-                        child: const Text('Add to tasks'),
+                        child: AddToTasksLabel(workItem: widget.workItem),
                       ),
                       MenuItemButton(
                         onPressed: () => viewInBrowser(context),

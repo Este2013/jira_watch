@@ -545,41 +545,41 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
         String useCompactMode = SettingsModel().useCompactJiraWorkItemDisplay.value;
         DateTime? updatedTime = DateTime.parse(updated);
         bool isRead = lastReadTime != null ? lastReadTime!.isAfter(updatedTime) || lastReadTime!.isAtSameMomentAs(updatedTime) : false;
+
         var optionsWhenSelected = Padding(
           padding: const EdgeInsets.only(top: 8.0, bottom: 2),
           child: ClipRRect(
             borderRadius: BorderRadiusGeometry.circular(4),
-            child: BottomNavigationBar(
-              key: ValueKey(isRead),
-              type: BottomNavigationBarType.fixed,
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              items: [
-                BottomNavigationBarItem(icon: Icon(Icons.mark_as_unread), label: isRead ? 'Mark as unread' : 'Mark as read'),
-                BottomNavigationBarItem(
-                  icon: Transform.rotate(angle: pi / 4, child: Icon(Icons.push_pin)),
-                  label: 'Keep for later',
-                ),
-                BottomNavigationBarItem(icon: Icon(Icons.assignment_add), label: 'Add to tasks'),
-                BottomNavigationBarItem(icon: Icon(Icons.open_in_browser), label: 'View on website'),
-              ],
-              onTap: (value) {
-                // Mark as (un)reads
-                if (value == 0) {
-                  markAsReadOrUnread(updated, isRead);
-                }
-                // Keep for later
-                else if (value == 1) {
-                  keepForLater(context);
-                }
-                // Add to tasks
-                else if (value == 2) {
-                  addToTasks(context);
-                }
-                // View on website
-                else if (value == 3) {
-                  viewInBrowser(context);
-                }
+            child: AnimatedBuilder(
+              animation: ToDoTasksModel().toDoTasksControllers,
+              builder: (context, _) {
+                return BottomNavigationBar(
+                  key: ValueKey(isRead),
+                  type: BottomNavigationBarType.fixed,
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  items: [
+                    BottomNavigationBarItem(icon: Icon(Icons.mark_as_unread), label: isRead ? 'Mark as unread' : 'Mark as read'),
+                    BottomNavigationBarItem(
+                      icon: Transform.rotate(angle: pi / 4, child: Icon(Icons.push_pin)),
+                      label: 'Keep for later',
+                    ),
+                    BottomNavigationBarItem(icon: Icon(Icons.assignment_add), label: AddToTasksLabel.createLabelFor(widget.workItem)),
+                    BottomNavigationBarItem(icon: Icon(Icons.open_in_browser), label: 'View on website'),
+                  ],
+                  onTap: (value) {
+                    // Mark as (un)reads
+                    if (value == 0) {
+                      markAsReadOrUnread(updated, isRead);
+                    } else if (value == 1) {
+                      keepForLater(context);
+                    } else if (value == 2) {
+                      addToTasks(context);
+                    } else if (value == 3) {
+                      viewInBrowser(context);
+                    }
+                  },
+                );
               },
             ),
           ),
@@ -725,7 +725,7 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                       onSelected: (value) => keepForLater(context),
                     ),
                     MenuItem(
-                      label: Text('Add to tasks'),
+                      label: AddToTasksLabel(workItem: widget.workItem),
                       icon: const Icon(Symbols.assignment_add, fill: 1),
                       onSelected: (value) => addToTasks(context),
                     ),
@@ -842,6 +842,37 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
         };
     }
   }
+}
+
+class AddToTasksLabel extends StatelessWidget {
+  const AddToTasksLabel({
+    super.key,
+    required this.workItem,
+  });
+
+  final JiraWorkItemData workItem;
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: DataModel().todoTasks.toDoTasksControllers,
+    builder: (context, child) => Text(createLabelFor(workItem)),
+  );
+
+  static String createLabelFor(JiraWorkItemData workItem) {
+    int taskCount = taskCountOfWorkItem(workItem);
+    return 'Add to tasks${taskCount > 0 ? " ($taskCount)" : ""}';
+  }
+
+  static int taskCountOfWorkItem(JiraWorkItemData workItem) => workItem.key == null
+      ? 0
+      : DataModel().todoTasks.toDoTasksControllers.list
+            .where(
+              (task) => task.linkedWorkItems.list.any(
+                (link) => link.contains(workItem.key!),
+              ),
+            )
+            .toList()
+            .length;
 }
 
 class OnError400TestForProjects extends StatefulWidget {
