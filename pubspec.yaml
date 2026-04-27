@@ -1,7 +1,8 @@
 name: jira_watcher
-description: "A Jira client, built to easily overview recent updates, and keep tabs on your work items."
+description: "A Jira client, built to easily overview recent updates, and keep
+  tabs on your work items."
 publish_to: "none"
-version: 1.6.1
+version: 1.6.2
 
 environment:
   sdk: ^3.11.0-93.1.beta
@@ -66,6 +67,7 @@ flutter:
           weight: 700
         - asset: assets/fonts/Roboto_Mono/static/RobotoMono-Italic.ttf
           style: italic
+
 # msix_config:
 #   display_name: Jira Watcher
 #   publisher_display_name: github@Este2013

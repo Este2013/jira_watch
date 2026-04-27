@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
@@ -32,6 +34,8 @@ class WorkItemBadge extends StatefulWidget {
 class _WorkItemBadgeState extends State<WorkItemBadge> {
   bool _hovering = false;
   bool _hoveringCopy = false;
+  bool _hoveringLink = false;
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -86,28 +90,47 @@ class _WorkItemBadgeState extends State<WorkItemBadge> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               const SizedBox(width: 4),
-                              AnimatedOpacity(
-                                duration: const Duration(milliseconds: 150),
-                                opacity: 1,
-                                child: MouseRegion(
-                                  onEnter: (_) => setState(() => _hoveringCopy = true),
-                                  onExit: (_) => setState(() => _hoveringCopy = false),
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      Clipboard.setData(
-                                        ClipboardData(text: widget.label),
-                                      );
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Copied ${widget.label}')),
-                                      );
-                                    },
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                              MouseRegion(
+                                onEnter: (_) => setState(() => _hoveringLink = true),
+                                onExit: (_) => setState(() => _hoveringLink = false),
+                                child: GestureDetector(
+                                  onTap: () {
+                                    Clipboard.setData(ClipboardData(text: widget.url!));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Copied ${widget.url}')),
+                                    );
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                                    child: Transform.rotate(
+                                      angle: -pi / 4,
                                       child: Icon(
-                                        Icons.copy,
+                                        Icons.link,
                                         size: 16,
-                                        color: _hoveringCopy ? Theme.of(context).hintColor : Theme.of(context).iconTheme.color,
+                                        color: _hoveringLink ? Theme.of(context).hintColor : Theme.of(context).iconTheme.color,
                                       ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              MouseRegion(
+                                onEnter: (_) => setState(() => _hoveringCopy = true),
+                                onExit: (_) => setState(() => _hoveringCopy = false),
+                                child: GestureDetector(
+                                  onTap: () {
+                                    Clipboard.setData(
+                                      ClipboardData(text: widget.label),
+                                    );
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Copied ${widget.label}')),
+                                    );
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                                    child: Icon(
+                                      Icons.copy,
+                                      size: 16,
+                                      color: _hoveringCopy ? Theme.of(context).hintColor : Theme.of(context).iconTheme.color,
                                     ),
                                   ),
                                 ),

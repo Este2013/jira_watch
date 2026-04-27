@@ -9,7 +9,8 @@ List<Widget> _versionsData = [
     '1.7.0',
     sections: [
       ChangeLogSection.features([
-        ChangeLogItem(''),
+        ChangeLogItem('All "Add to tasks" buttons now show how many tasks already reference the work item'),
+        ChangeLogItem('Can now copy link to work item instead as well as just the key'),
       ]),
 
       ChangeLogSection.bugFixes([
