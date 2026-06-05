@@ -10,6 +10,7 @@ import 'package:jira_watcher/ui/settings.dart';
 import 'package:jira_watcher/ui/utils/app_changelog.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_work_item_search.dart';
 import 'package:loggy/loggy.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import 'utils/under_constuction_notice.dart';
 
@@ -115,15 +116,24 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
 
                 destinations: [
                   NavigationRailDestination(
-                    icon: Icon(Icons.dashboard),
+                    icon: IconFilledOnSelection(
+                      icon: Icon(Symbols.dashboard),
+                      isSelected: _selectedIndex == 0,
+                    ),
                     label: Text('Updates'),
                   ),
                   NavigationRailDestination(
-                    icon: Icon(Icons.bug_report),
+                    icon: IconFilledOnSelection(
+                      icon: Icon(Symbols.bug_report),
+                      isSelected: _selectedIndex == 1,
+                    ),
                     label: Text('Work items'),
                   ),
                   NavigationRailDestination(
-                    icon: Icon(Icons.assignment),
+                    icon: IconFilledOnSelection(
+                      icon: Icon(Symbols.assessment),
+                      isSelected: _selectedIndex == 2,
+                    ),
                     label: Text('To do'),
                   ),
                 ],
@@ -202,6 +212,7 @@ class _SettingsButtonState extends State<SettingsButton> with TickerProviderStat
   late final Animation<double> _crankTurns;
 
   late final AnimationController _spinCtrl;
+  late final AnimationController _fillCtrl;
 
   @override
   void initState() {
@@ -209,7 +220,7 @@ class _SettingsButtonState extends State<SettingsButton> with TickerProviderStat
 
     _crankCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 180),
+      duration: Durations.medium1,
     );
 
     // "Crank back a bit": negative turns means rotate counter-clockwise.
@@ -221,6 +232,14 @@ class _SettingsButtonState extends State<SettingsButton> with TickerProviderStat
     _spinCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
+    );
+
+    _fillCtrl = AnimationController(
+      vsync: this,
+      duration: Durations.medium1,
+      value: 0,
+      lowerBound: 0,
+      upperBound: 1,
     );
   }
 
@@ -234,6 +253,8 @@ class _SettingsButtonState extends State<SettingsButton> with TickerProviderStat
   Future<void> _openSettingsDialog() async {
     // 1) Crank back quickly
     await _crankCtrl.forward();
+
+    _fillCtrl.forward();
 
     // 2) Start spinning while dialog is open
     _spinCtrl.repeat();
@@ -266,27 +287,42 @@ class _SettingsButtonState extends State<SettingsButton> with TickerProviderStat
     // reset spin back to 0 so next open starts clean
     _spinCtrl.value = 0.0;
 
+    _fillCtrl.animateTo(0);
     // 5) Settle: return crank to neutral
     await _crankCtrl.reverse();
   }
 
   @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      onPressed: _openSettingsDialog,
-      icon: AnimatedBuilder(
-        animation: Listenable.merge([_crankCtrl, _spinCtrl]),
-        builder: (context, child) {
-          // Total turns = crank offset + spinning turns
-          final turns = _crankTurns.value + _spinCtrl.value;
+  Widget build(BuildContext context) => IconButton(
+    onPressed: _openSettingsDialog,
+    icon: AnimatedBuilder(
+      animation: Listenable.merge([_crankCtrl, _spinCtrl, _fillCtrl]),
+      builder: (context, child) {
+        // Total turns = crank offset + spinning turns
+        final turns = _crankTurns.value + _spinCtrl.value;
 
-          return Transform.rotate(
-            angle: turns * 2 * math.pi,
-            child: child,
-          );
-        },
-        child: const Icon(Icons.settings),
-      ),
-    );
-  }
+        return Transform.rotate(
+          angle: turns * 2 * math.pi,
+          child: Icon(Symbols.settings, fill: _fillCtrl.value),
+        );
+      },
+    ),
+  );
+}
+
+class IconFilledOnSelection extends StatelessWidget {
+  const IconFilledOnSelection({super.key, required this.isSelected, required this.icon});
+
+  final bool isSelected;
+  final Widget icon;
+
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: isSelected ? 0 : 1, end: isSelected ? 1 : 0),
+    duration: Durations.medium1,
+    builder: (context, fill, child) => IconTheme(
+      data: Theme.of(context).iconTheme.copyWith(fill: fill),
+      child: icon,
+    ),
+  );
 }
