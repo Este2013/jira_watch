@@ -31,19 +31,29 @@ class APIDao with GlobalLoggy {
   }
 
   Future<void> updateCredentials({String? email, String? apiKey, String? domain}) async {
+    loggy.info('Updating credentials...');
+
     final prefs = await SharedPreferences.getInstance();
+
+    loggy.info('Updating credentials: setting preferences...');
     if (email != null) {
       this.email = email;
+      loggy.info('Updating credentials: jira_email');
       await prefs.setString('jira_email', email);
     }
     if (apiKey != null) {
       this.apiKey = apiKey;
-      await prefs.setString('encrypted_jira_api_key', await EncryptionService.encrypt(apiKey));
+      loggy.info('Updating credentials: encrypting key');
+      var encryptedKey = await EncryptionService.encrypt(apiKey);
+      loggy.info('Updating credentials: encrypted_jira_api_key');
+      await prefs.setString('encrypted_jira_api_key', encryptedKey);
     }
     if (domain != null) {
       this.domain = domain;
+      loggy.info('Updating credentials: jira_domain');
       await prefs.setString('jira_domain', domain);
     }
+    loggy.info('Credentials updated!');
   }
 
   bool get isReady => email != null && email!.isNotEmpty && apiKey != null && apiKey!.isNotEmpty && domain != null && domain!.isNotEmpty;

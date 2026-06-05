@@ -1,18 +1,23 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:math' as math;
 
 import 'package:calendar_date_picker2/calendar_date_picker2.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_context_menu/flutter_context_menu.dart';
 import 'package:jira_watcher/models/data_model.dart';
-import 'package:jira_watcher/ui/to_do_widgets/to_do_page.dart';
+import 'package:jira_watcher/models/to_do_tasks_models.dart';
+import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
 import 'package:jira_watcher/ui/settings.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'issue_ui_elements.dart';
@@ -93,14 +98,14 @@ class _UpdatesPageState extends State<UpdatesPage> {
   void _setStateResetAndFetchFirstPage() => setState(() {
     _resetAndFetchFirstPage();
   });
-  void _resetAndFetchFirstPage() {
+  Future _resetAndFetchFirstPage() {
     pageShown = 0;
     hasMore = true;
     isLoading = false;
     totalAvailable = null;
     nextPageToken = null;
     allLoadedWorkItems.clear();
-    startFetchingNewPage();
+    return startFetchingNewPage();
   }
 
   Future<void> startFetchingNewPage() {
@@ -295,11 +300,12 @@ class _UpdatesPageState extends State<UpdatesPage> {
                               _resetAndFetchFirstPage();
                             },
                           ),
-                          IconButton(
-                            onPressed: _resetAndFetchFirstPage,
-                            icon: Icon(Icons.refresh),
-                            tooltip: 'Refresh',
-                          ),
+                          RefreshFutureIconButton(tooltip: 'Refresh', onRefresh: _resetAndFetchFirstPage),
+                          // IconButton(
+                          //   onPressed: _resetAndFetchFirstPage,
+                          //   icon: Icon(Icons.refresh),
+                          //   tooltip: 'Refresh',
+                          // ),
                         ],
                       ),
                     ),
@@ -539,81 +545,41 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
         String useCompactMode = SettingsModel().useCompactJiraWorkItemDisplay.value;
         DateTime? updatedTime = DateTime.parse(updated);
         bool isRead = lastReadTime != null ? lastReadTime!.isAfter(updatedTime) || lastReadTime!.isAtSameMomentAs(updatedTime) : false;
+
         var optionsWhenSelected = Padding(
           padding: const EdgeInsets.only(top: 8.0, bottom: 2),
           child: ClipRRect(
             borderRadius: BorderRadiusGeometry.circular(4),
-            child: BottomNavigationBar(
-              key: ValueKey(isRead),
-              type: BottomNavigationBarType.fixed,
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              items: [
-                BottomNavigationBarItem(icon: Icon(Icons.mark_as_unread), label: isRead ? 'Mark as unread' : 'Mark as read'),
-                BottomNavigationBarItem(
-                  icon: Transform.rotate(angle: pi / 4, child: Icon(Icons.push_pin)),
-                  label: 'Keep for later',
-                ),
-                BottomNavigationBarItem(icon: Icon(Icons.assignment_add), label: 'Add to tasks'),
-                BottomNavigationBarItem(icon: Icon(Icons.open_in_browser), label: 'View on website'),
-              ],
-              onTap: (value) {
-                // Mark as (un)reads
-                if (value == 0) {
-                  if (widget.workItem.key == null) return;
-                  var updatedTime = DateTime.parse(updated);
-
-                  DataModel().markAsRead(widget.workItem.key!, updatedTime, isRead: !isRead);
-                  setState(() {
-                    lastReadTime = !isRead ? updatedTime : null;
-                  });
-                }
-                // Keep for later
-                else if (value == 1) {
-                  DataModel().todoTasks
-                      .createNewTask(
-                        title: '${widget.workItem.key} — ${widget.workItem.fields?['summary']}',
-                        workItemKeys: [widget.workItem.key!],
-                      )
-                      .whenComplete(
-                        // ignore: use_build_context_synchronously
-                        () => ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Saved in your "To do" queue as "${widget.workItem.key}"'),
-                          ),
-                        ),
-                      );
-                }
-                // Add to tasks
-                else if (value == 2) {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AddIssueToDoDialog(widget.workItem),
-                  );
-                }
-                // View on website
-                else if (value == 3) {
-                  String? getWorkItemUrl(dynamic workItemKey) {
-                    final domain = APIDao().domain;
-                    if (domain != null && workItemKey != null) {
-                      return 'https://$domain/browse/$workItemKey';
+            child: AnimatedBuilder(
+              animation: ToDoTasksModel().toDoTasksControllers,
+              builder: (context, _) {
+                return BottomNavigationBar(
+                  key: ValueKey(isRead),
+                  type: BottomNavigationBarType.fixed,
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  items: [
+                    BottomNavigationBarItem(icon: Icon(Icons.mark_as_unread), label: isRead ? 'Mark as unread' : 'Mark as read'),
+                    BottomNavigationBarItem(
+                      icon: Transform.rotate(angle: pi / 4, child: Icon(Icons.push_pin)),
+                      label: 'Keep for later',
+                    ),
+                    BottomNavigationBarItem(icon: Icon(Icons.assignment_add), label: AddToTasksLabel.createLabelFor(widget.workItem)),
+                    BottomNavigationBarItem(icon: Icon(Icons.open_in_browser), label: 'View on website'),
+                  ],
+                  onTap: (value) {
+                    // Mark as (un)reads
+                    if (value == 0) {
+                      markAsReadOrUnread(updated, isRead);
+                    } else if (value == 1) {
+                      keepForLater(context);
+                    } else if (value == 2) {
+                      addToTasks(context);
+                    } else if (value == 3) {
+                      viewInBrowser(context);
                     }
-                    return null;
-                  }
-
-                  var workItemURL = getWorkItemUrl(widget.workItem.key);
-                  if (workItemURL != null) {
-                    launchUrl(Uri.parse(workItemURL));
-                  } else {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text('Something went wrong'),
-                        content: Text('The given workItemURL is null?\nFor workItem key: ${widget.workItem.key}, domain ${APIDao().domain}'),
-                      ),
-                    );
-                  }
-                }
+                  },
+                );
               },
             ),
           ),
@@ -641,7 +607,7 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                   children: [
                     Row(
                       children: [
-                        IssueLinkWithParentsRow(widget.workItem, compact: showAsCompact),
+                        WorkItemLinkWithParentsRow(widget.workItem, compact: showAsCompact),
                         if (!showAsCompact)
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -734,11 +700,114 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                 }
                 widget.updateView?.call(widget.workItem);
               },
+              onSecondaryTapDown: (details) => showContextMenu(
+                context,
+                onItemSelected: (value) {},
+                contextMenu: ContextMenu(
+                  position: details.globalPosition,
+                  entries: <ContextMenuEntry>[
+                    MenuItem(
+                      label: Center(
+                        child: Text(widget.workItem.key ?? 'unknown key'),
+                      ),
+                      // icon: const Icon(Symbols.mark_as_unread, fill: 1),
+                      enabled: false,
+                    ),
+                    const MenuDivider(),
+                    MenuItem(
+                      label: Text('Mark as ${isRead ? "un" : ""}read'),
+                      icon: const Icon(Symbols.mark_as_unread, fill: 1),
+                      onSelected: (value) => markAsReadOrUnread(updated, isRead),
+                    ),
+                    MenuItem(
+                      label: Text('Keep for later'),
+                      icon: Transform.rotate(angle: pi / 4, child: const Icon(Symbols.keep, fill: 1)),
+                      onSelected: (value) => keepForLater(context),
+                    ),
+                    MenuItem(
+                      label: AddToTasksLabel(workItem: widget.workItem),
+                      icon: const Icon(Symbols.assignment_add, fill: 1),
+                      onSelected: (value) => addToTasks(context),
+                    ),
+                    MenuItem(
+                      label: Text('View on website'),
+                      icon: const Icon(Symbols.open_in_browser, fill: 1),
+                      onSelected: (value) => viewInBrowser(context),
+                    ),
+                    const MenuDivider(),
+                    MenuItem(
+                      label: const Text('Copy identifier'),
+                      icon: const Icon(Symbols.content_copy),
+                      onSelected: (value) => widget.workItem.key != null ? Clipboard.setData(ClipboardData(text: widget.workItem.key!)) : null,
+                    ),
+
+                    MenuItem(
+                      label: const Text('Copy link'),
+                      icon: const Icon(Symbols.link, fill: 1),
+                      onSelected: (value) => widget.workItem.key != null ? Clipboard.setData(ClipboardData(text: widget.workItem.key!)) : null,
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         );
       },
     );
+  }
+
+  void markAsReadOrUnread(String updated, bool isRead) {
+    if (widget.workItem.key == null) return;
+    var updatedTime = DateTime.parse(updated);
+
+    DataModel().markAsRead(widget.workItem.key!, updatedTime, isRead: !isRead);
+    setState(() {
+      lastReadTime = !isRead ? updatedTime : null;
+    });
+  }
+
+  Future<ToDoTask> keepForLater(BuildContext context) => DataModel().todoTasks
+      .createNewTask(
+        title: '${widget.workItem.key} — ${widget.workItem.fields?['summary']}',
+        workItemKeys: [widget.workItem.key!],
+      )
+      .whenComplete(
+        // ignore: use_build_context_synchronously
+        () => ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saved in your "To do" queue as "${widget.workItem.key}"'),
+          ),
+        ),
+      );
+
+  void addToTasks(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AddIssueToDoDialog(widget.workItem),
+    );
+  }
+
+  void viewInBrowser(BuildContext context) {
+    String? getWorkItemUrl(dynamic workItemKey) {
+      final domain = APIDao().domain;
+      if (domain != null && workItemKey != null) {
+        return 'https://$domain/browse/$workItemKey';
+      }
+      return null;
+    }
+
+    var workItemURL = getWorkItemUrl(widget.workItem.key);
+    if (workItemURL != null) {
+      launchUrl(Uri.parse(workItemURL));
+    } else {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Something went wrong'),
+          content: Text('The given workItemURL is null?\nFor workItem key: ${widget.workItem.key}, domain ${APIDao().domain}'),
+        ),
+      );
+    }
   }
 
   Map<String, Color> _workItemColors(BuildContext context, JiraWorkItemData workItem) {
@@ -773,6 +842,37 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
         };
     }
   }
+}
+
+class AddToTasksLabel extends StatelessWidget {
+  const AddToTasksLabel({
+    super.key,
+    required this.workItem,
+  });
+
+  final JiraWorkItemData workItem;
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: DataModel().todoTasks.toDoTasksControllers,
+    builder: (context, child) => Text(createLabelFor(workItem)),
+  );
+
+  static String createLabelFor(JiraWorkItemData workItem) {
+    int taskCount = taskCountOfWorkItem(workItem);
+    return 'Add to tasks${taskCount > 0 ? " ($taskCount)" : ""}';
+  }
+
+  static int taskCountOfWorkItem(JiraWorkItemData workItem) => workItem.key == null
+      ? 0
+      : DataModel().todoTasks.toDoTasksControllers.list
+            .where(
+              (task) => task.linkedWorkItems.list.any(
+                (link) => link.contains(workItem.key!),
+              ),
+            )
+            .toList()
+            .length;
 }
 
 class OnError400TestForProjects extends StatefulWidget {
@@ -994,4 +1094,122 @@ class _TimeFilterDropdownState extends State<TimeFilterDropdown> {
       _saveFilters();
     },
   );
+}
+
+class RefreshFutureIconButton extends StatefulWidget {
+  const RefreshFutureIconButton({
+    super.key,
+    required this.onRefresh,
+    this.iconSize,
+    this.tooltip,
+    this.accelDuration = const Duration(milliseconds: 220),
+    this.decelMinDuration = const Duration(milliseconds: 180),
+    this.decelMaxDuration = const Duration(milliseconds: 650),
+    this.fastSpinPeriod = const Duration(milliseconds: 320), // fast!
+  });
+
+  /// The work to perform. Animation runs until this Future completes.
+  final Future<void> Function() onRefresh;
+
+  final double? iconSize;
+  final String? tooltip;
+
+  /// Ease-in time (ramp up).
+  final Duration accelDuration;
+
+  /// Ease-out time range (scaled based on how much of the current turn remains).
+  final Duration decelMinDuration;
+  final Duration decelMaxDuration;
+
+  /// How long one full rotation takes while "running".
+  final Duration fastSpinPeriod;
+
+  @override
+  State<RefreshFutureIconButton> createState() => _RefreshFutureIconButtonState();
+}
+
+class _RefreshFutureIconButtonState extends State<RefreshFutureIconButton> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  bool _running = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // We'll change duration dynamically (accel/fast/decel),
+    // so initial duration is just a placeholder.
+    _ctrl = AnimationController(vsync: this, duration: widget.fastSpinPeriod);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _start() async {
+    if (_running) return;
+    setState(() => _running = true);
+
+    // Ease-in into motion: animate a partial turn with curve.
+    // (We keep it simple: start from 0 each time.)
+    _ctrl
+      ..stop()
+      ..value = 0.0
+      ..duration = widget.accelDuration;
+
+    // Ramp up a bit (e.g. to 1/3 turn) with ease-in.
+    await _ctrl.animateTo(0.33, curve: Curves.easeIn);
+
+    if (!mounted) return;
+
+    // Fast constant spinning while the Future runs.
+    _ctrl.duration = widget.fastSpinPeriod;
+    _ctrl.repeat();
+
+    try {
+      await widget.onRefresh();
+    } finally {
+      if (!mounted) return;
+
+      // Ease-out to a clean stop: finish the current revolution smoothly.
+      _ctrl.stop();
+
+      final current = _ctrl.value; // 0..1
+      final remaining = 1.0 - current; // 0..1
+
+      int lerpInt(int a, int b, double t) => a + ((b - a) * t).round();
+
+      final minMs = widget.decelMinDuration.inMilliseconds;
+      final maxMs = widget.decelMaxDuration.inMilliseconds;
+
+      // Longer decel if more distance remains; always eased-out.
+      final decelMs = lerpInt(minMs, maxMs, remaining);
+      _ctrl.duration = Duration(milliseconds: decelMs);
+
+      await _ctrl.animateTo(1.0, curve: Curves.easeOutCubic);
+      _ctrl.value = 0.0;
+
+      if (mounted) setState(() => _running = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: widget.tooltip,
+      onPressed: _start,
+      iconSize: widget.iconSize,
+      icon: AnimatedBuilder(
+        animation: _ctrl,
+        child: const Icon(Icons.refresh),
+        builder: (context, child) {
+          return Transform.rotate(
+            angle: _ctrl.value * 2 * math.pi,
+            child: child,
+          );
+        },
+      ),
+    );
+  }
 }

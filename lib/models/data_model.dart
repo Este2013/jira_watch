@@ -105,20 +105,21 @@ class DataModel with GlobalLoggy {
   ///  - last workitem update time that was marked as read.
   /// If a workitem update is more recent than a cache value stored here, then its unread.
   Map<String, DateTime>? syncWorkItemMarkedAsReadTimeCache;
-  final Future<File> _workItemMarkedAsReadTimeDataFile =(SettingsModel().settingsFolder).then((value) =>File(
-    path
-        .join(
-           value.path,
-          'issue_read_status.csv',
-        )
-        .replaceFirst(RegExp(r'^\\?/?'), ''),
-  ) ,
-  ) ;
+  final Future<File> _workItemMarkedAsReadTimeDataFile = (SettingsModel().settingsFolder).then(
+    (value) => File(
+      path
+          .join(
+            value.path,
+            'issue_read_status.csv',
+          )
+          .replaceFirst(RegExp(r'^\\?/?'), ''),
+    ),
+  );
 
   Future initWorkItemMarkedAsReadCache() async {
     if (syncWorkItemMarkedAsReadTimeCache == null) {
       loggy.info('initializing syncWorkItemMarkedAsReadTimeCache');
-File file =      (await _workItemMarkedAsReadTimeDataFile);
+      File file = (await _workItemMarkedAsReadTimeDataFile);
       if (!await file.exists()) {
         loggy.warning('_workItemMarkedAsReadTimeDataFile does not exist. creating it at: ${file.path}');
         try {
@@ -129,8 +130,11 @@ File file =      (await _workItemMarkedAsReadTimeDataFile);
       }
       syncWorkItemMarkedAsReadTimeCache ??= await file.readAsString().then(
         (strData) {
-          var csv = const CsvToListConverter().convert(strData);
-          return {for (var line in csv) line.first: DateTime.parse(line.last)};
+          final rows = csv.decode(strData);
+          return {
+            for (final row in rows)
+              if (row.length >= 2) row.first.toString(): DateTime.parse(row.last.toString()),
+          };
         },
       );
     }
@@ -154,11 +158,12 @@ File file =      (await _workItemMarkedAsReadTimeDataFile);
       }
     }
 
-    String csv = const ListToCsvConverter().convert([
-      for (var e in syncWorkItemMarkedAsReadTimeCache!.entries) [e.key, e.value.toIso8601String()],
+    final String csvString = csv.encode([
+      for (final e in syncWorkItemMarkedAsReadTimeCache!.entries) [e.key, e.value.toIso8601String()],
     ]);
+
     try {
-      await (await _workItemMarkedAsReadTimeDataFile).writeAsString(csv);
+      await (await _workItemMarkedAsReadTimeDataFile).writeAsString(csvString);
     } on Exception catch (e) {
       loggy.error('_workItemMarkedAsReadTimeDataFile could not be written to!\n${e.toString()}');
     }

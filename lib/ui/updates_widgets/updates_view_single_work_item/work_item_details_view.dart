@@ -21,7 +21,7 @@ import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart';
 import 'package:url_launcher/url_launcher.dart';
-
+import 'package:flutter_markdown/flutter_markdown.dart';
 import '../issue_ui_elements.dart';
 import 'single_work_item_view.dart';
 
@@ -94,11 +94,11 @@ class JiraWorkItemDetailsView extends StatelessWidget {
           if (workItem.fields!['attachment'] != null && (workItem.fields!['attachment'] as List).isNotEmpty) AttachmentsField(attachmentsData: workItem.fields!['attachment']),
           if (workItem.fields?['issuelinks'] != null && workItem.fields!['issuelinks'].isNotEmpty) IssueLinksField(issueLinksData: (workItem.fields!['issuelinks']! as List).cast()),
 
-          DateDisplay('Created${workItem.fields!['creator']?['displayName'] != null ? " by ${workItem.fields!['creator']['displayName']}" : ''}', date: workItem.fields!['created']),
-          if (workItem.fields?['updated'] != null) DateDisplay('Updated', date: workItem.fields!['updated']),
-          if (workItem.fields?['resolutiondate'] != null) DateDisplay('Resolution date', date: workItem.fields!['resolutiondate']),
-          if (workItem.fields?['statuscategorychangedate'] != null) DateDisplay('Last status category change', date: workItem.fields!['statuscategorychangedate']),
-          if (workItem.fields?['lastViewed'] != null) DateDisplay('Last viewed', date: workItem.fields!['lastViewed']),
+          DateDisplay('Created${workItem.fields!['creator']?['displayName'] != null ? " by ${workItem.fields!['creator']['displayName']}" : ''}', dateString: workItem.fields!['created']),
+          if (workItem.fields?['updated'] != null) DateDisplay('Updated', dateString: workItem.fields!['updated']),
+          if (workItem.fields?['resolutiondate'] != null) DateDisplay('Resolution date', dateString: workItem.fields!['resolutiondate']),
+          if (workItem.fields?['statuscategorychangedate'] != null) DateDisplay('Last status category change', dateString: workItem.fields!['statuscategorychangedate']),
+          if (workItem.fields?['lastViewed'] != null) DateDisplay('Last viewed', dateString: workItem.fields!['lastViewed']),
         ].expand((w) => [w, SizedBox(height: 8)]).toList(),
       ),
     );
@@ -404,7 +404,7 @@ class DescriptionLikeField extends StatelessWidget {
     name,
     content: AdfRenderer(
       adf: contentData,
-      mediaBuilder: (context, node, size) => AdfRenderer.defaultMediaBuilder(node, context, attachments ?? [], size),
+      attachments: attachments,
     ),
   );
 }
@@ -463,8 +463,13 @@ class AttachmentPreview extends StatelessWidget {
               String filetype = a['mimeType'];
 
               if (filetype == 'text/plain') {
+                if (a['filename']?.endsWith('.md') ?? false) {
+                  return Center(
+                    child: Icon(Symbols.markdown, size: 48),
+                  );
+                }
                 return Center(
-                  child: Icon(Icons.text_fields, size: 48),
+                  child: Icon(Symbols.text_fields, size: 48),
                 );
               }
               if (filetype == 'application/json') {
@@ -474,12 +479,12 @@ class AttachmentPreview extends StatelessWidget {
               }
               if (filetype.startsWith('video')) {
                 return Center(
-                  child: Icon(Icons.movie, size: 48),
+                  child: Icon(Symbols.movie, size: 48),
                 );
               }
               if (['zip', '7z'].any(filetype.endsWith)) {
                 return Center(
-                  child: Icon(Icons.folder_zip, size: 48),
+                  child: Icon(Symbols.folder_zip, size: 48),
                 );
               }
               if (a['thumbnail'] != null) {
@@ -493,7 +498,7 @@ class AttachmentPreview extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     SizedBox(height: 12),
-                    Icon(Icons.file_present_rounded, size: 48),
+                    Icon(Symbols.file_present_rounded, size: 48),
                     Text(a['mimeType'], style: TextStyle(color: Theme.of(context).hintColor)),
                   ],
                 ),
@@ -621,10 +626,17 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
                   child: SingleChildScrollView(
                     child: Padding(
                       padding: const EdgeInsets.only(right: 16.0),
-                      child: SelectableText(
-                        asyncSnapshot.data!,
-                        style: TextStyle(fontFamily: 'RobotoMono'),
-                      ),
+
+                      child: (attachment['filename']?.endsWith('.md') ?? false)
+                          ? MarkdownBody(
+                              data: asyncSnapshot.data!,
+                              selectable: true,
+                              styleSheet: MarkdownStyleSheet(code: const TextStyle(fontFamily: 'RobotoMono')),
+                            )
+                          : SelectableText(
+                              asyncSnapshot.data!,
+                              style: const TextStyle(fontFamily: 'RobotoMono'),
+                            ),
                     ),
                   ),
                 ),
@@ -827,9 +839,11 @@ class IssueLinkSection extends StatelessWidget {
 }
 
 class IssueLinkTile extends StatelessWidget {
-  const IssueLinkTile(this.issueLinkData, {super.key});
+  const IssueLinkTile(this.issueLinkData, {super.key, this.onSelect, this.trailing});
 
   final Map issueLinkData;
+  final void Function(String issueKey)? onSelect;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) => ListTile(
@@ -886,18 +900,22 @@ class IssueLinkTile extends StatelessWidget {
           ),
       ],
     ),
-    trailing: IconButton(
-      onPressed: () => launchUrl(Uri.parse('https://${SettingsModel().domainController.text}.atlassian.net/browse/${issueLinkData['key']}')),
-      icon: Icon(Icons.open_in_new),
-      tooltip: 'Open in browser',
-    ),
-    onTap: () => showDialog(
-      context: context,
-      builder: (_) => SingleJiraWorkItemDialog(
-        JiraWorkItemData.fromJson({'data': issueLinkData}),
-        initialTab: JiraWorkItemTab.details,
-      ),
-    ),
+    trailing:
+        trailing ??
+        IconButton(
+          onPressed: () => launchUrl(Uri.parse('https://${SettingsModel().domainController.text}.atlassian.net/browse/${issueLinkData['key']}')),
+          icon: Icon(Icons.open_in_new),
+          tooltip: 'Open in browser',
+        ),
+    onTap: onSelect != null
+        ? () => onSelect!.call(issueLinkData['key'])
+        : () => showDialog(
+            context: context,
+            builder: (_) => SingleJiraWorkItemDialog(
+              JiraWorkItemData.fromJson({'data': issueLinkData}),
+              initialTab: JiraWorkItemTab.details,
+            ),
+          ),
   );
 }
 
@@ -1005,32 +1023,43 @@ class VersionsField extends StatelessWidget {
 }
 
 class DateDisplay extends StatelessWidget {
-  const DateDisplay(this.title, {super.key, required this.date});
-  final String title, date;
+  const DateDisplay(this.title, {super.key, this.dateString, this.date}) : assert((dateString == null) != (date == null), 'Exactly one of dateString or date must be provided.');
+  final String? title;
+  final String? dateString;
+  final DateTime? date;
+
   @override
-  Widget build(BuildContext context) => Text(
-    '$title: ${formatDateString(date)}',
+  Widget build(BuildContext context) => Text.rich(
+    TextSpan(
+      children: [
+        if (title != null) TextSpan(text: '$title: '),
+        TextSpan(text: formatDateString()),
+      ],
+    ),
     style: TextStyle(
       color: Theme.of(context).hintColor,
     ),
   );
 
-  String formatDateString(String input) {
-    try {
-      // Parse the input string — note that the timezone offset format (+0100)
-      // isn't ISO 8601-compliant, so we insert a colon for Dart's parser.
-      final normalized = input.replaceFirstMapped(
-        RegExp(r'([+-]\d{2})(\d{2})$'),
-        (match) => '${match[1]}:${match[2]}',
-      );
+  String formatDateString() {
+    DateTime time;
+    if (date != null) {
+      time = date!;
+    } else {
+      try {
+        // Parse the input string — note that the timezone offset format (+0100)
+        // isn't ISO 8601-compliant, so we insert a colon for Dart's parser.
+        final normalized = dateString!.replaceFirstMapped(
+          RegExp(r'([+-]\d{2})(\d{2})$'),
+          (match) => '${match[1]}:${match[2]}',
+        );
 
-      final dateTime = DateTime.parse(normalized);
-
-      // Example: "December 6, 2024 at 10:32 AM"
-      final formatted = DateFormat("MMMM d, y 'at' h:mm a").format(dateTime);
-      return formatted;
-    } catch (e) {
-      return 'Invalid date';
-    }
+        time = DateTime.parse(normalized);
+      } catch (e) {
+        return 'Invalid date';
+      }
+    } // Example: "December 6, 2024 at 10:32 AM"
+    final formatted = DateFormat("MMMM d, y 'at' h:mm a").format(time);
+    return formatted;
   }
 }

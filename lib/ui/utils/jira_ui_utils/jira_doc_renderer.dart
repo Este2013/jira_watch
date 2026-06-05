@@ -9,9 +9,12 @@ import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/ui/utils/spanning_table.dart';
+import 'package:jira_watcher/ui/utils/time_utils.dart';
 import 'package:loggy/loggy.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../updates_widgets/issue_ui_elements.dart';
@@ -30,6 +33,7 @@ class AdfRenderer extends StatelessWidget {
     this.paragraphSpacing = 8.0,
     this.listIndent = 16.0,
     this.bulletGap = 8.0,
+    required this.attachments,
   });
 
   /// Parsed ADF JSON map (root document object).
@@ -52,6 +56,9 @@ class AdfRenderer extends StatelessWidget {
   final double listIndent;
   final double bulletGap;
 
+  // List of attached files for the work item; some rendering blocks like media or mediaInline require access to those, to match ids to the actual file url.
+  final List? attachments;
+
   @override
   Widget build(BuildContext context) => SelectionArea(
     child: _AdfRenderer(
@@ -60,9 +67,10 @@ class AdfRenderer extends StatelessWidget {
       codeStyle: codeStyle,
       linkHandler: linkHandler,
       listIndent: listIndent,
-      mediaBuilder: mediaBuilder,
+      mediaBuilder: mediaBuilder ?? (context, node, size) => AdfRenderer.defaultMediaBuilder(node, context, attachments ?? [], size),
       paragraphSpacing: paragraphSpacing,
       textStyle: textStyle,
+      attachments: attachments,
     ),
   );
 
@@ -133,6 +141,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     this.paragraphSpacing = 8.0,
     this.listIndent = 16.0,
     this.bulletGap = 8.0,
+    this.attachments,
   });
 
   /// Parsed ADF JSON map (root document object).
@@ -154,6 +163,8 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
   final double paragraphSpacing;
   final double listIndent;
   final double bulletGap;
+
+  final List? attachments;
 
   @override
   Widget build(BuildContext context) {
@@ -194,6 +205,8 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     if (node == null) return null;
     final type = node['type'] as String?;
     switch (type) {
+      case 'blockCard':
+        return _buildBlockCard(context, node);
       case 'bulletList':
         return _buildBulletList(context, node, indentLevel);
       case 'codeBlock':
@@ -210,6 +223,9 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         return _buildMedia(context, node, 200);
       case 'mediaSingle':
         return _buildMediaSingle(context, node, indentLevel);
+
+      case 'mediaInline':
+        return _buildMediaInline(context, node, indentLevel);
       case 'mention':
         return _buildMention(context, node);
       case 'panel':
@@ -218,9 +234,11 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         return _buildParagraph(context, node);
       case 'table':
         return _buildTable(context, node);
+      case 'taskList':
+        return _buildTaskList(context, node, indentLevel);
       case 'text':
         return Text(
-          _textOf(node).trim(),
+          _textOf(node),
           style: _defaultCodeStyle(context).merge(transferStyle),
           selectionColor: selectionColor,
         );
@@ -258,7 +276,138 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     return base;
   }
 
-  String _textOf(Map<String, dynamic> node) => ((node['text'] ?? '') as String).trim();
+  String _textOf(Map<String, dynamic> node) => ((node['text'] ?? '') as String);
+
+  Widget _buildBlockCard(BuildContext context, Map<String, dynamic> node) {
+    var targetUrl = node['attrs']['url'] as String?;
+    if (targetUrl == null) {
+      loggy.error('There is a blockCard node without a provided URL? Dev did not expect that:\n${node.toString()}');
+      return ErrorWidget('There is a blockCard node without a provided URL? Dev did not expect that.');
+    }
+    if (targetUrl.startsWith('https://${APIDao().domain}/wiki')) {
+      // TODO Confluence link
+      return ActionChip(
+        avatar: Icon(Symbols.book_2),
+        label: Text(targetUrl.split('/').last.split('+').join(' ')),
+        tooltip: 'Confluence wiki link\n$targetUrl',
+        onPressed: () => launchUrl(Uri.parse(targetUrl)),
+      );
+    }
+    if (targetUrl.startsWith('https://${APIDao().domain}')) {
+      return Card(
+        clipBehavior: .hardEdge,
+        color: Theme.of(context).colorScheme.surfaceContainerHigh,
+        child: FutureBuilder(
+          future: DataModel().jiraApi.getWorkItem(targetUrl.split('/').last),
+          builder: (context, asyncSnapshot) {
+            if (asyncSnapshot.hasError) return ErrorWidget('Error while fetching blockCard with URL: $targetUrl\n${asyncSnapshot.error}');
+            if (!asyncSnapshot.hasData) {
+              return LinearProgressIndicator();
+            }
+            var workItem = JiraWorkItemData.fromJson({'data': jsonDecode(asyncSnapshot.data!.body)});
+            return InkWell(
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => SingleJiraWorkItemDialog(workItem, initialTab: JiraWorkItemTab.details),
+                );
+              },
+              child: LimitedBox(
+                maxWidth: 600,
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Theme.of(context).dividerColor,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    spacing: 8,
+                    children: [
+                      Row(
+                        spacing: 8,
+                        children: [
+                          if (workItem.fields?['issuetype']['iconUrl'] != null) JiraAvatar(url: workItem.fields!['issuetype']['iconUrl'], size: 20) else Icon(Symbols.broken_image),
+                          Expanded(
+                            child: Text(
+                              '${workItem.key}: ${workItem.fields?['summary']}',
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                          ),
+                          JiraWorkItemStatusIndicator(issue: workItem),
+                        ],
+                      ),
+                      DefaultTextStyle(
+                        style: TextStyle(color: Theme.of(context).hintColor),
+                        child: Row(
+                          spacing: 8,
+                          children: [
+                            if (workItem.fields?['assignee']['avatarUrls'] != null) JiraAvatar(url: workItem.fields!['assignee']?['avatarUrls']?['16x16'], size: 24) else Icon(Symbols.broken_image),
+                            Expanded(
+                              child: Text.rich(
+                                TextSpan(
+                                  children: [
+                                    TextSpan(text: "Assigned to ${workItem.fields?['assignee']?['displayName'].toString() ?? 'null'}"),
+                                    TextSpan(
+                                      text: ' ･ ',
+                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                    TextSpan(text: "Updated ${timeAgo(timeStr: workItem.fields?['updated'])}"),
+                                    TextSpan(
+                                      text: ' ･ ',
+                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                    WidgetSpan(
+                                      alignment: PlaceholderAlignment.middle,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                                        child: (workItem.fields?['priority']['iconUrl'] != null) ? JiraAvatar(url: workItem.fields?['priority']?['iconUrl'], size: 16) : Icon(Symbols.broken_image),
+                                      ),
+                                    ),
+                                    TextSpan(text: ' ${workItem.fields?['priority']?['name'] ?? ''}'),
+                                  ],
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        toPlainText(workItem.fields?['description']),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 3,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    } else {
+      GestureRecognizer recognizer;
+      recognizer = TapGestureRecognizer()
+        ..onTap = () {
+          if (targetUrl.isEmpty) return;
+          defaultLinkHandler(targetUrl);
+        };
+      return RichText(
+        text: TextSpan(
+          text: targetUrl,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.primary,
+            decoration: TextDecoration.underline,
+          ),
+          recognizer: recognizer,
+        ),
+      );
+    }
+  }
 
   Widget _buildBulletList(BuildContext context, Map<String, dynamic> node, int indentLevel) {
     final items = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
@@ -343,6 +492,14 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
   Widget? _buildInlineCard(BuildContext context, Map<String, dynamic> node) {
     var url = node['attrs']['url'];
     if (url == null) return null;
+    if (url.startsWith('https://${APIDao().domain}/wiki')) {
+      return ActionChip(
+        avatar: Icon(Symbols.book_2),
+        label: Text(url.split('/').last.split('+').join(' ')),
+        tooltip: 'Confluence wiki link\n$url',
+        onPressed: () => launchUrl(Uri.parse(url)),
+      );
+    }
     if ((url as String).startsWith('https://${SettingsModel().domainController.text}.atlassian.net/browse')) {
       // Jira workItem card
       var issueKey = url
@@ -361,16 +518,14 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         builder: (context, asyncSnapshot) {
           var t = Theme.of(context).colorScheme;
           if (asyncSnapshot.hasError) {
-            return Tooltip(
-              message: 'Error while looking up $url as a Jira inlineCard:\n\n${asyncSnapshot.error}',
-              child: ActionChip(
-                label: Text(
-                  'Error',
-                  style: TextStyle(color: t.onErrorContainer),
-                ),
-                backgroundColor: t.errorContainer,
-                onPressed: () => launchUrl(Uri.parse(url)),
+            return ActionChip(
+              tooltip: 'Error while looking up $url as a Jira inlineCard:\n\n${asyncSnapshot.error}',
+              label: Text(
+                'Error',
+                style: TextStyle(color: t.onErrorContainer),
               ),
+              backgroundColor: t.errorContainer,
+              onPressed: () => launchUrl(Uri.parse(url)),
             );
           }
           if (asyncSnapshot.hasData) {
@@ -425,7 +580,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     final spans = <InlineSpan>[];
     for (final node in content) {
       if (node['type'] == 'text') {
-        final text = _textOf(node).trim();
+        final text = _textOf(node);
         final marks = _asList(node['marks']);
         style ??= _defaultTextStyle(context);
         GestureRecognizer? recognizer;
@@ -511,7 +666,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     final bulletLine = paragraphs.isNotEmpty ? _buildParagraph(context, paragraphs.first) : const SizedBox.shrink();
 
     final bulletRow = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .center,
       children: [
         SizedBox(width: indentLevel * listIndent),
         RichText(text: BulletListBulletSpan(indent: 1)),
@@ -608,6 +763,31 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       // color: Colors.amber,
       child: child,
     );
+  }
+
+  Widget? _buildMediaInline(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    final attrs = (node['attrs'] ?? const <String, dynamic>{}) as Map<String, dynamic>;
+    if (attrs['type'] == 'file') {
+      // match ID with attachment
+      String id = attrs['id'];
+
+      return FutureBuilder(
+        future: mediaIdToAttachment(id, attachments ?? []),
+        builder: (context, snapshot) {
+          return snapshot.hasData
+              ? ActionChip(
+                  avatar: Icon(Symbols.attach_file),
+                  label: Text((snapshot.data?['filename']).toString()),
+                  onPressed: snapshot.hasData ? () => showDialog(context: context, builder: (context) => AttachmentsDialog([snapshot.data!])) : null,
+                )
+              : CircularProgressIndicator();
+        },
+      );
+
+      // return JiraAvatar(url: attachment['content']);
+    } else {
+      throw Exception('Media node of type: ${node['type']} is not handled');
+    }
   }
 
   Widget? _buildMention(BuildContext context, Map<String, dynamic> node) {
@@ -733,6 +913,44 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     return table;
   }
 
+  Widget _buildTaskList(BuildContext context, Map<String, dynamic> node, int indent) {
+    List content = node['content'];
+    List<InlineSpan> spans = [];
+    for (var e in content) {
+      if (e['type'] == 'taskItem') {
+        spans.add(
+          WidgetSpan(
+            alignment: .top,
+            child: Padding(
+              padding: EdgeInsets.only(left: indent * 24.0),
+              child: SizedBox.square(
+                // to remove checkbox padding
+                dimension: 24,
+                child: Checkbox(
+                  value: e['attrs']['state'] != 'TODO',
+                  onChanged: null,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ),
+          ),
+        );
+        spans.add(
+          WidgetSpan(
+            alignment: .top,
+            child: _buildParagraph(context, e),
+          ),
+        );
+      } else if (e['type'] == 'taskList') {
+        spans.add(WidgetSpan(child: _buildTaskList(context, e, indent + 1)));
+      }
+      spans.add(TextSpan(text: '\n'));
+    }
+    spans.removeLast();
+    return RichText(text: TextSpan(children: spans));
+  }
+
   static List<Map<String, dynamic>> _asList(dynamic v) {
     if (v is List) {
       return v.whereType<Map<String, dynamic>>().toList();
@@ -741,10 +959,78 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
   }
 
   void defaultLinkHandler(String url) => launchUrl(Uri.parse(url));
+
+  List<String> _buildPlainTextInlineSpans(List<Map<String, dynamic>> content, {TextStyle? style}) {
+    final spans = <String>[];
+    for (final node in content) {
+      if (node['type'] == 'text') {
+        spans.add(_textOf(node).trim());
+      } else if (node['type'] == 'hardBreak') {
+        spans.add('\n');
+      } else {
+        var nodeRender = _buildPlainTextNode(node, 0);
+        if (nodeRender != null) {
+          spans.add(nodeRender);
+        }
+      }
+    }
+    return spans;
+  }
+
+  String? _buildPlainTextNode(Map<String, dynamic>? node, int indentLevel, {TextStyle? transferStyle}) {
+    if (node == null) return null;
+    final type = node['type'] as String?;
+    switch (type) {
+      case 'blockCard':
+        return node['attrs']['url'];
+      case 'bulletList':
+        final items = _asList(node['content']).map((c) => _buildPlainTextNode(c, indentLevel)).whereType<Widget>().toList();
+        return ' • ${items.join('\n • ')}';
+      // case 'codeBlock':
+      //   return _buildCodeBlock(context, node);
+      // case 'emoji':
+      //   return _buildEmoji(context, node);
+      // case 'heading':
+      //   return _buildHeading(context, node);
+      // case 'inlineCard':
+      //   return _buildInlineCard(context, node);
+      // case 'listItem':
+      //   return _buildListItem(context, node, indentLevel);
+      // case 'media':
+      //   return _buildMedia(context, node, 200);
+      // case 'mediaSingle':
+      //   return _buildMediaSingle(context, node, indentLevel);
+      // case 'mention':
+      //   return _buildMention(context, node);
+      // case 'panel':
+      //   return _buildPanel(context, node);
+      case 'paragraph':
+        final spans = _buildPlainTextInlineSpans(_asList(node['content']));
+        if (spans.isEmpty) {
+          return "";
+        }
+        return spans.join(' ');
+      // case 'table':
+      //   return ;
+      case 'text':
+        return _textOf(node);
+      default:
+        // Unknown node: render its children (best-effort) to avoid data loss.
+        final children = _asList(node['content']).map((c) => _buildPlainTextNode(c, indentLevel)).toList();
+        if (children.isEmpty) return "";
+        return children.join('\n');
+    }
+  }
+
+  /// Takes in an ADF document's root node, and mashes all its nodes within to text as possible, with no formatting.
+  String toPlainText(Map? document) {
+    if (document == null) return 'null';
+    return (document['content'] as List).map((c) => _buildPlainTextNode(c, 0)).join('\n');
+  }
 }
 
 class BulletListBulletSpan extends WidgetSpan {
-  BulletListBulletSpan({this.indent = 1}) : super(child: Text('•'));
+  BulletListBulletSpan({this.indent = 1}) : super(child: Text('•'), alignment: .middle);
 
   final int indent;
 
@@ -824,6 +1110,60 @@ Future<Map<String, String>> mediaIdToContentUrl(
   }
 
   return result;
+}
+
+Future<dynamic> mediaIdToAttachment(
+  String mediaId,
+  List<dynamic> attachments,
+) async {
+  final client = HttpClient()..autoUncompress = false;
+
+  try {
+    for (final a in attachments) {
+      final contentUrl = (a['content'] as String?)?.trim();
+      if (contentUrl == null || contentUrl.isEmpty) continue;
+
+      final uri = Uri.parse(contentUrl);
+      final req = await client.getUrl(uri);
+
+      // Auth + do NOT follow the redirect
+      req.followRedirects = false;
+      req.headers.set(HttpHeaders.authorizationHeader, APIDao().authHeader);
+      // (optional) be explicit about what we want
+      req.headers.set(HttpHeaders.acceptHeader, '*/*');
+
+      final res = await req.close();
+
+      // We expect 303 with a Location header to api.media.atlassian.com
+      final loc = res.headers.value(HttpHeaders.locationHeader);
+
+      if (loc == null || loc.isEmpty) {
+        // Some proxies/CDNs may reply 302/307/308 as well; still check location.
+        // If missing, skip gracefully.
+        await res.drain();
+        continue;
+      }
+
+      // Extract UUID from .../file/<uuid>/binary
+      final match = RegExp(
+        r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
+      ).firstMatch(loc);
+
+      if (match != null) {
+        final attachmentMediaId = match.group(0)!;
+        if (attachmentMediaId == mediaId) {
+          await res.drain();
+          return a;
+        }
+      }
+
+      await res.drain();
+    }
+  } finally {
+    client.close(force: true);
+  }
+
+  return null;
 }
 
 extension on List {

@@ -32,14 +32,16 @@ class ToDoTasksModel with GlobalLoggy {
   // ignore: unused_field
   Timer? _saveTimer;
 
-  final Future<File> _toDoDataFile =SettingsModel().settingsFolder.then((value) =>  File(
-    path
-        .join(
-          value.path,
-          'to_do.json',
-        )
-        .replaceFirst(RegExp(r'^\\?/?'), ''),
-  ));
+  final Future<File> _toDoDataFile = SettingsModel().settingsFolder.then(
+    (value) => File(
+      path
+          .join(
+            value.path,
+            'to_do.json',
+          )
+          .replaceFirst(RegExp(r'^\\?/?'), ''),
+    ),
+  );
 
   final List<int> _deletedTodoIds = [];
   // late final ObservableList<ToDoTask>? toDoTasksCache;
@@ -47,8 +49,9 @@ class ToDoTasksModel with GlobalLoggy {
 
   late Future<bool> isReady;
   Future<bool> _getReady() async {
-    loggy.info('Getting cache ready');var file = await _toDoDataFile;
-    if (! await file.exists()) {
+    loggy.info('Getting cache ready');
+    var file = await _toDoDataFile;
+    if (!await file.exists()) {
       loggy.warning('_toDoDataFile does not exist. Initializing cache to []');
       // toDoTasksCache = ObservableList();
       toDoTasksControllers = ObservableList();
@@ -71,6 +74,7 @@ class ToDoTasksModel with GlobalLoggy {
     String? notes,
     List<String>? workItemKeys,
     int categoryID = -1,
+    List<ToDoTaskEvent>? events,
   }) async {
     loggy.info('Creating a new task');
     var cacheIsReady = await isReady;
@@ -80,14 +84,7 @@ class ToDoTasksModel with GlobalLoggy {
     }
     // int validId = toDoTasksCache!.list.fold(0, (v, t) => v = max(v, t.id)) + 1;
     int validId = toDoTasksControllers.list.fold(0, (v, t) => v = max(v, t.id)) + 1;
-    var task = ToDoTask(
-      id: validId,
-      title: title,
-      notes: notes,
-      linkedWorkItems: workItemKeys ?? [],
-      category: categoryID,
-      dateAdded: DateTime.now(),
-    );
+    var task = ToDoTask(id: validId, title: title, notes: notes, linkedWorkItems: workItemKeys ?? [], category: categoryID, dateAdded: DateTime.now(), events: events ?? []);
     _deletedTodoIds.remove(validId);
     var toDoTaskEditingController = ToDoTaskEditingController.fromToDoTask(task);
     toDoTaskEditingController.addListener(saveToDoTasksCache);
@@ -176,10 +173,10 @@ class ToDoTasksModel with GlobalLoggy {
     if (!cacheIsReady) {
       loggy.error('Cache is not ready???');
       throw Exception('Cache is not ready???');
-    }var file = 
-(await _toDoDataFile);
+    }
+    var file = (await _toDoDataFile);
     if (!await file.exists()) {
-      loggy.warning('_toDoDataFile does not exist. Creating the file at:\n${file.  path}');
+      loggy.warning('_toDoDataFile does not exist. Creating the file at:\n${file.path}');
       await file.create(recursive: true);
     }
     return file.writeAsString(
@@ -198,6 +195,7 @@ class ToDoTaskEditingController extends ChangeNotifier {
   late final ValueNotifier<bool> isComplete;
   late final ValueNotifier<DateTime?> toDoBefore;
   late final ObservableList<String> linkedWorkItems;
+  late final ObservableList<ToDoTaskEvent> events;
 
   ToDoTaskEditingController({
     required this.id,
@@ -208,6 +206,7 @@ class ToDoTaskEditingController extends ChangeNotifier {
     required this.dateAdded,
     required this.isComplete,
     required this.category,
+    required this.events,
   }) {
     title.addListener(notifyListeners);
     notes.addListener(notifyListeners);
@@ -215,29 +214,30 @@ class ToDoTaskEditingController extends ChangeNotifier {
     isComplete.addListener(notifyListeners);
     toDoBefore.addListener(notifyListeners);
     linkedWorkItems.addListener(notifyListeners);
+    events.addListener(notifyListeners);
   }
 
-  factory ToDoTaskEditingController.fromToDoTask(ToDoTask task) {
-    return ToDoTaskEditingController(
-      id: task.id,
-      dateAdded: task.dateAdded,
-      title: TextEditingController(text: task.title),
-      notes: TextEditingController(text: task.notes),
-      linkedWorkItems: ObservableList.from(task.linkedWorkItems),
-      toDoBefore: ValueNotifier(task.toDoBefore),
-      isComplete: ValueNotifier(task.isComplete),
-      category: ValueNotifier(task.category),
-    );
-  }
+  factory ToDoTaskEditingController.fromToDoTask(ToDoTask task) => ToDoTaskEditingController(
+    id: task.id,
+    dateAdded: task.dateAdded,
+    title: TextEditingController(text: task.title),
+    notes: TextEditingController(text: task.notes),
+    linkedWorkItems: ObservableList.from(task.linkedWorkItems),
+    toDoBefore: ValueNotifier(task.toDoBefore),
+    isComplete: ValueNotifier(task.isComplete),
+    category: ValueNotifier(task.category),
+    events: ObservableList.from(task.events),
+  );
   ToDoTask toToDoTask() => ToDoTask(
     id: id,
     dateAdded: dateAdded,
     title: title.text.trim().isEmpty ? null : title.text.trim(),
     notes: notes.text.trim().isEmpty ? null : notes.text.trim(),
-    linkedWorkItems: linkedWorkItems.list,
+    linkedWorkItems: List.from(linkedWorkItems.list),
     toDoBefore: toDoBefore.value,
     isComplete: isComplete.value,
     category: category.value,
+    events: List.from(events.list),
   );
 
   void modify(ToDoTask newTaskData) {
@@ -248,6 +248,8 @@ class ToDoTaskEditingController extends ChangeNotifier {
     toDoBefore.value = newTaskData.toDoBefore;
     linkedWorkItems.reset();
     linkedWorkItems.addAll(newTaskData.linkedWorkItems);
+    events.reset();
+    events.addAll(newTaskData.events);
   }
 }
 
@@ -258,6 +260,7 @@ class ToDoTask {
 
   /// List of relevant workItems
   List<String> linkedWorkItems;
+  List<ToDoTaskEvent> events;
   String? title, notes;
 
   bool isComplete;
@@ -275,6 +278,7 @@ class ToDoTask {
     required this.dateAdded,
     this.isComplete = false,
     this.category = -1,
+    required this.events,
   });
 
   Map<String, dynamic> toJson() => {
@@ -286,7 +290,9 @@ class ToDoTask {
     'creationDate': dateAdded.toIso8601String(),
     'isComplete': isComplete,
     'category': category,
+    'events': events.map((e) => e.toJson()).toList(),
   };
+
   factory ToDoTask.fromJson(Map<String, dynamic> json) {
     final creationDateValue = json['creationDate'] ?? json['added'];
     final added = creationDateValue != null ? DateTime.parse(creationDateValue.toString()) : DateTime.now();
@@ -306,6 +312,7 @@ class ToDoTask {
       dateAdded: added,
       isComplete: json['isComplete'] ?? false,
       category: json['category'] ?? -1,
+      events: (json['events'] as List?)?.map((e) => ToDoTaskEvent.fromJson(e)).toList() ?? [],
     );
   }
 
@@ -325,6 +332,46 @@ class ToDoTask {
   }
 }
 
+class ToDoTaskEvent {
+  String? icon;
+  String title;
+  DateTime date;
+  ToDoEventColorPalette? colorPalette;
+
+  ToDoTaskEvent(this.title, {this.icon, required this.date, this.colorPalette});
+
+  Map<String, dynamic> toJson() => {
+    'title': title,
+    'iconName': icon,
+    'date': date.toIso8601String(),
+    'color': colorPalette?.name,
+  };
+
+  factory ToDoTaskEvent.fromJson(Map<String, dynamic> json) {
+    final dateValue = json['date'];
+    assert(dateValue != null);
+    final toDoBefore = DateTime.parse(dateValue.toString());
+
+    ToDoEventColorPalette? color;
+    try {
+      color = json['color'] != null
+          ? ToDoEventColorPalette.values.firstWhere(
+              (element) => element.name == json['color'],
+            )
+          : null;
+    } on Exception {
+      color = null;
+    }
+
+    return ToDoTaskEvent(
+      json['title'],
+      date: toDoBefore,
+      icon: json['iconName'],
+      colorPalette: color,
+    );
+  }
+}
+
 enum DefaultTaskCategory {
   forLater(-1, 'For later', Symbols.push_pin),
   forNextMeeting(-2, 'For next meeting', Symbols.groups),
@@ -333,8 +380,7 @@ enum DefaultTaskCategory {
   toReview(-5, 'To review', Symbols.mystery),
   waitingForInput(-6, 'Waiting for input', Symbols.pending),
   missingScoping(-7, 'Missing scoping', Symbols.filter_center_focus),
-  critical(-8, 'Critical', Symbols.dangerous, color: Colors.red)
-  ;
+  critical(-8, 'Critical', Symbols.dangerous, color: Colors.red);
 
   final int id;
   final String displayName;
@@ -347,4 +393,20 @@ enum DefaultTaskCategory {
     this.icon, {
     this.color,
   });
+}
+
+enum ToDoEventColorPalette {
+  reds(base: Colors.red, darker: Color(0xFF8d2c35), lighter: Color.fromARGB(255, 255, 109, 109)),
+  oranges(base: Colors.orange, darker: Color(0xFF9c3a2a), lighter: Color(0xFFff7844)),
+  yellows(base: Colors.yellow, darker: Color(0xFFa9802d), lighter: Color(0xFFffda44)),
+  greens(base: Colors.green, darker: Color(0xFF547431), lighter: Color.fromARGB(255, 162, 240, 145)),
+  teals(base: Colors.teal, darker: Color(0xFF206f5b), lighter: Color(0xFF49ffd0)),
+  blues(base: Colors.blue, darker: Color(0xFF30598f), lighter: Color.fromARGB(255, 113, 154, 250)),
+  purples(base: Colors.purple, darker: Color(0xFF614f8f), lighter: Color(0xFFbb8cff)),
+  pinks(base: Colors.pink, darker: Color(0xFF89486e), lighter: Color(0xFFff86cc)),
+  ;
+
+  final Color base, darker, lighter;
+
+  const ToDoEventColorPalette({required this.base, required this.darker, required this.lighter});
 }
