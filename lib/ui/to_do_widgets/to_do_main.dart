@@ -1,5 +1,3 @@
-import 'dart:ffi';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
@@ -9,7 +7,6 @@ import 'package:jira_watcher/ui/utils/collapsible_pane.dart';
 import 'package:jira_watcher/ui/utils/widgets/dialog_widgets.dart/action_buttons.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:media_kit_video/media_kit_video_controls/src/controls/methods/video_state.dart';
 
 import 'to_do_single_item_view.dart';
 
@@ -375,7 +372,7 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
 
   @override
   void initState() {
-    tabCtrl = TabController(length: 2, vsync: this);
+    tabCtrl = TabController(length: 2, vsync: this, initialIndex: 1);
     titleController = TextEditingController(text: '${widget.workItem.key} — ${widget.workItem.fields?['summary']}');
     notesController = TextEditingController();
     super.initState();
@@ -469,7 +466,8 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
                       if (asyncSnapshot.hasData) {
                         var list = DataModel().todoTasks.toDoTasksControllers.list.where((t) => !t.isComplete.value).toList()
                           ..sort(
-                            (a, b) => a.dateAdded.compareTo(b.dateAdded),
+                            // reversed to show most recent (thus relevant) tasks first
+                            (a, b) => b.dateAdded.compareTo(a.dateAdded),
                           );
                         return ListView.builder(
                           itemCount: list.length,
