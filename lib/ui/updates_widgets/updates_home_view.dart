@@ -47,6 +47,13 @@ class _UpdatesPageState extends State<UpdatesPage> {
 
   JiraWorkItemData? selectedWorkItem;
 
+  /// Multi-selection (independent from [selectedWorkItem], which only drives the
+  /// right-side preview). Stores work item keys so it survives list rebuilds.
+  final Set<String> multiSelectedKeys = {};
+
+  /// Anchor index for Ctrl+Shift range selection.
+  int? selectionAnchorIndex;
+
   final ScrollController scrollController = ScrollController(keepScrollOffset: true);
 
   final List<JiraWorkItemData> allLoadedWorkItems = [];
@@ -268,10 +275,21 @@ class _UpdatesPageState extends State<UpdatesPage> {
             }),
           );
         }
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
+        return Focus(
+          // Observe bubbled key events (e.g. Escape) without stealing focus from
+          // the filter fields or list.
+          skipTraversal: true,
+          onKeyEvent: (node, event) {
+            if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape && multiSelectedKeys.isNotEmpty) {
+              clearMultiSelection();
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
               Expanded(
                 child: Column(
                   children: [
@@ -311,7 +329,9 @@ class _UpdatesPageState extends State<UpdatesPage> {
                     ),
                     // list
                     Expanded(
-                      child: EdgeOverscrollListener(
+                      child: Stack(
+                        children: [
+                          EdgeOverscrollListener(
                         childScrollCtrl: scrollController,
                         onOverscrollAtBottom: () {
                           if (!isLoading && hasMore) {
@@ -338,11 +358,20 @@ class _UpdatesPageState extends State<UpdatesPage> {
                                 itemBuilder: (context, index) {
                                   if (index < allLoadedWorkItems.length) {
                                     final t = allLoadedWorkItems[index];
+                                    final isMultiSelected = t.key != null && multiSelectedKeys.contains(t.key);
+                                    final prevSelected = _isOutlinedAt(index - 1);
+                                    final nextSelected = _isOutlinedAt(index + 1);
                                     return JiraWorkItemPreviewItem(
                                       key: Key(t.key ?? ''),
                                       workItem: t,
+                                      index: index,
                                       updateView: selectWorkItem,
                                       isSelected: selectedWorkItem != null && selectedWorkItem?.key == t.key,
+                                      isMultiSelected: isMultiSelected,
+                                      groupTop: !prevSelected,
+                                      groupBottom: !nextSelected,
+                                      onToggleMultiSelect: _toggleMultiSelect,
+                                      onRangeMultiSelect: _rangeMultiSelect,
                                       changedSize: loadMoreIfNoScrollPossible,
                                     );
                                   }
@@ -373,6 +402,22 @@ class _UpdatesPageState extends State<UpdatesPage> {
                           ),
                         ),
                       ),
+                          if (multiSelectedKeys.length >= 2)
+                            Positioned(
+                              right: 16,
+                              bottom: 16,
+                              child: SelectionFabMenu(
+                                count: multiSelectedKeys.length,
+                                onMarkAllRead: () => _markAllAsRead(read: true),
+                                onMarkAllUnread: () => _markAllAsRead(read: false),
+                                onKeepForLater: _keepAllForLater,
+                                onAddToTask: _addAllToTask,
+                                onOpenAll: _openAllInBrowser,
+                                onClear: clearMultiSelection,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -392,6 +437,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
                 ),
             ],
           ),
+          ),
         );
       },
     );
@@ -399,9 +445,110 @@ class _UpdatesPageState extends State<UpdatesPage> {
 
   void selectWorkItem(JiraWorkItemData tkt) {
     setState(() {
+      // A plain click clears any multi-selection and previews the item.
+      multiSelectedKeys.clear();
+      selectionAnchorIndex = null;
       selectedWorkItem = tkt;
       isAllowedToShowIssueDialog = true;
     });
+  }
+
+  void _toggleMultiSelect(int index) {
+    final key = allLoadedWorkItems[index].key;
+    if (key == null) return;
+    setState(() {
+      if (!multiSelectedKeys.remove(key)) {
+        multiSelectedKeys.add(key);
+      }
+      selectionAnchorIndex = index;
+    });
+  }
+
+  void _rangeMultiSelect(int index) {
+    final anchor = selectionAnchorIndex ?? index;
+    final start = min(anchor, index);
+    final end = max(anchor, index);
+    setState(() {
+      for (var i = start; i <= end && i < allLoadedWorkItems.length; i++) {
+        final key = allLoadedWorkItems[i].key;
+        if (key != null) multiSelectedKeys.add(key);
+      }
+      selectionAnchorIndex = index;
+    });
+  }
+
+  void clearMultiSelection() => setState(() {
+    multiSelectedKeys.clear();
+    selectionAnchorIndex = null;
+  });
+
+  List<JiraWorkItemData> get _selectedItems => allLoadedWorkItems.where((w) => w.key != null && multiSelectedKeys.contains(w.key)).toList();
+
+  /// Whether the item at [i] is visually outlined — either multi-selected or the
+  /// currently previewed item. Used to group adjacent outlines together (the
+  /// previewed item is separate for *actions*, but joins the group visually).
+  bool _isOutlinedAt(int i) {
+    if (i < 0 || i >= allLoadedWorkItems.length) return false;
+    final key = allLoadedWorkItems[i].key;
+    if (key == null) return false;
+    return multiSelectedKeys.contains(key) || selectedWorkItem?.key == key;
+  }
+
+  Future<void> _markAllAsRead({required bool read}) async {
+    for (final w in _selectedItems) {
+      final updated = w.fields?['updated'] as String?;
+      if (w.key != null && updated != null) {
+        await DataModel().markAsRead(w.key!, DateTime.parse(updated), isRead: read);
+      }
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _keepAllForLater() {
+    final keys = _selectedItems.map((w) => w.key!).toList();
+    if (keys.isEmpty) return;
+    final title = keys.length <= 3 ? keys.join(', ') : '${keys.length} work items';
+    DataModel().todoTasks.createNewTask(title: title, workItemKeys: keys).whenComplete(() {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved ${keys.length} work items in your "To do" queue')),
+      );
+      clearMultiSelection();
+    });
+  }
+
+  void _addAllToTask() {
+    showDialog(
+      context: context,
+      builder: (context) => AddIssuesToDoDialog(_selectedItems),
+    ).whenComplete(() {
+      if (mounted) clearMultiSelection();
+    });
+  }
+
+  Future<void> _openAllInBrowser() async {
+    final items = _selectedItems;
+    final domain = APIDao().domain;
+    if (domain == null) return;
+    if (items.length > 10) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Open many tabs?'),
+          content: Text('This will open ${items.length} browser tabs.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Open all')),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+    for (final w in items) {
+      if (w.key != null) {
+        launchUrl(Uri.parse('https://$domain/browse/${w.key}'));
+      }
+    }
   }
 
   @override
@@ -503,24 +650,49 @@ class ProjectFilteringButton extends StatelessWidget {
 
 class JiraWorkItemPreviewItem extends StatefulWidget {
   final JiraWorkItemData workItem;
+  final int index;
   final Function(JiraWorkItemData workItem)? updateView;
   final Function()? changedSize;
+
+  /// Whether this item is the one shown in the right-side preview.
   final bool isSelected;
 
-  const JiraWorkItemPreviewItem({super.key, required this.workItem, this.updateView, required this.changedSize, required this.isSelected});
+  /// Whether this item is part of the multi-selection (Ctrl / Ctrl+Shift click).
+  final bool isMultiSelected;
+
+  /// True when the multi-selected item directly above is not selected (start of a
+  /// visual group) — used to round the top of the group outline.
+  final bool groupTop;
+
+  /// True when the multi-selected item directly below is not selected (end of a
+  /// visual group) — used to round the bottom of the group outline.
+  final bool groupBottom;
+
+  final void Function(int index)? onToggleMultiSelect;
+  final void Function(int index)? onRangeMultiSelect;
+
+  const JiraWorkItemPreviewItem({
+    super.key,
+    required this.workItem,
+    required this.index,
+    this.updateView,
+    required this.changedSize,
+    required this.isSelected,
+    this.isMultiSelected = false,
+    this.groupTop = true,
+    this.groupBottom = true,
+    this.onToggleMultiSelect,
+    this.onRangeMultiSelect,
+  });
 
   @override
   State<JiraWorkItemPreviewItem> createState() => _JiraWorkItemPreviewItemState();
 }
 
 class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
-  late DateTime? lastReadTime;
-
-  @override
-  void initState() {
-    lastReadTime = DataModel().syncWorkItemMarkedAsReadTimeCache?[widget.workItem.key];
-    super.initState();
-  }
+  /// Read state is derived from the shared cache on every build so that bulk
+  /// "mark as read/unread" actions are reflected without recreating the item.
+  DateTime? get lastReadTime => DataModel().syncWorkItemMarkedAsReadTimeCache?[widget.workItem.key];
 
   @override
   Widget build(BuildContext context) {
@@ -586,16 +758,36 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
         );
         var showAsCompact = (useCompactMode == 'Always' || (useCompactMode == 'When issue was read' && !widget.isSelected && isRead));
 
-        return Card(
+        // Outline color that auto-adapts to the theme: near-white in dark mode,
+        // near-black in light mode.
+        final selectionColor = Theme.of(context).colorScheme.onSurface;
+
+        // The previewed (single-click) item is outlined too, and joins the
+        // visual group when it sits next to multi-selected items. Group flags are
+        // computed by the parent over the combined (multi-select + preview) set.
+        final showOutline = widget.isMultiSelected || widget.isSelected;
+        final outlineTop = widget.groupTop;
+        final outlineBottom = widget.groupBottom;
+        // Spacing between items is preserved; the painter bridges this gap.
+        const double cardGap = 8; // 4px bottom margin + 4px top margin
+
+        Widget card = Card(
           clipBehavior: Clip.hardEdge,
           color: colors['bg']?.withAlpha(Theme.brightnessOf(context) == Brightness.light ? 255 : 50),
-          shape: isRead
+          shape: showOutline
+              ? RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(outlineTop ? 8 : 0),
+                    bottom: Radius.circular(outlineBottom ? 8 : 0),
+                  ),
+                )
+              : isRead
               ? null
               : RoundedRectangleBorder(
                   side: BorderSide(color: colors['border']!, width: 2),
                   borderRadius: BorderRadius.circular(8),
                 ),
-          margin: EdgeInsets.all(4),
+          margin: EdgeInsets.zero,
           child: AnimatedSize(
             duration: Durations.medium1,
             onEnd: widget.changedSize,
@@ -691,12 +883,23 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                 ),
               ),
               onTap: () async {
+                final keyboard = HardwareKeyboard.instance;
+                final ctrl = keyboard.isControlPressed || keyboard.isMetaPressed;
+                final shift = keyboard.isShiftPressed;
+                // Ctrl+Shift click: range select. Ctrl click: toggle. Both are
+                // independent from the right-side preview.
+                if (ctrl && shift) {
+                  widget.onRangeMultiSelect?.call(widget.index);
+                  return;
+                } else if (ctrl) {
+                  widget.onToggleMultiSelect?.call(widget.index);
+                  return;
+                }
+                // Plain click: open in preview (and optionally mark as read).
                 if (shouldMarkAsReadOnOpen && widget.workItem.key != null) {
                   var updatedTime = DateTime.parse(updated);
-                  DataModel().markAsRead(widget.workItem.key!, updatedTime);
-                  setState(() {
-                    lastReadTime = updatedTime;
-                  });
+                  await DataModel().markAsRead(widget.workItem.key!, updatedTime);
+                  if (mounted) setState(() {});
                 }
                 widget.updateView?.call(widget.workItem);
               },
@@ -752,18 +955,30 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
             ),
           ),
         );
+        if (showOutline) {
+          card = CustomPaint(
+            foregroundPainter: _SelectionOutlinePainter(
+              color: selectionColor,
+              top: outlineTop,
+              bottom: outlineBottom,
+              radius: 8,
+              strokeWidth: 2,
+              gap: cardGap,
+            ),
+            child: card,
+          );
+        }
+        return Padding(padding: const EdgeInsets.all(4), child: card);
       },
     );
   }
 
-  void markAsReadOrUnread(String updated, bool isRead) {
+  Future<void> markAsReadOrUnread(String updated, bool isRead) async {
     if (widget.workItem.key == null) return;
     var updatedTime = DateTime.parse(updated);
 
-    DataModel().markAsRead(widget.workItem.key!, updatedTime, isRead: !isRead);
-    setState(() {
-      lastReadTime = !isRead ? updatedTime : null;
-    });
+    await DataModel().markAsRead(widget.workItem.key!, updatedTime, isRead: !isRead);
+    if (mounted) setState(() {});
   }
 
   Future<ToDoTask> keepForLater(BuildContext context) => DataModel().todoTasks
@@ -1210,6 +1425,182 @@ class _RefreshFutureIconButtonState extends State<RefreshFutureIconButton> with 
           );
         },
       ),
+    );
+  }
+}
+
+/// Paints a continuous outline around a (group of) multi-selected item(s).
+///
+/// Only the outer corners of a contiguous group are rounded: [top]/[bottom]
+/// control whether the respective edge is closed (rounded) or left open so the
+/// side lines of consecutive selected items meet seamlessly.
+class _SelectionOutlinePainter extends CustomPainter {
+  _SelectionOutlinePainter({
+    required this.color,
+    required this.top,
+    required this.bottom,
+    required this.radius,
+    required this.strokeWidth,
+    this.gap = 0,
+  });
+
+  final Color color;
+  final bool top;
+  final bool bottom;
+  final double radius;
+  final double strokeWidth;
+
+  /// How far an open edge extends past the card bounds into the inter-card gap
+  /// so the side rails of consecutive selected items join across the spacing.
+  final double gap;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+
+    final inset = strokeWidth / 2;
+    final left = inset;
+    final right = size.width - inset;
+    final topY = inset;
+    final botY = size.height - inset;
+    final r = radius;
+
+    // Vertical sides. When an edge is open (no rounding) the line bridges into
+    // the gap to meet the neighbouring selected item, keeping the spacing.
+    final startY = top ? topY + r : -gap;
+    final endY = bottom ? botY - r : size.height + gap;
+    canvas.drawLine(Offset(left, startY), Offset(left, endY), paint);
+    canvas.drawLine(Offset(right, startY), Offset(right, endY), paint);
+
+    if (top) {
+      final p = Path()
+        ..moveTo(left, topY + r)
+        ..arcToPoint(Offset(left + r, topY), radius: Radius.circular(r), clockwise: true)
+        ..lineTo(right - r, topY)
+        ..arcToPoint(Offset(right, topY + r), radius: Radius.circular(r), clockwise: true);
+      canvas.drawPath(p, paint);
+    }
+    if (bottom) {
+      final p = Path()
+        ..moveTo(left, botY - r)
+        ..arcToPoint(Offset(left + r, botY), radius: Radius.circular(r), clockwise: false)
+        ..lineTo(right - r, botY)
+        ..arcToPoint(Offset(right, botY - r), radius: Radius.circular(r), clockwise: false);
+      canvas.drawPath(p, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SelectionOutlinePainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.top != top || oldDelegate.bottom != bottom || oldDelegate.radius != radius || oldDelegate.strokeWidth != strokeWidth || oldDelegate.gap != gap;
+}
+
+/// Material 3 style FAB menu shown at the bottom-right of the Updates list when
+/// two or more items are multi-selected. Offers bulk actions on the selection.
+class SelectionFabMenu extends StatefulWidget {
+  const SelectionFabMenu({
+    super.key,
+    required this.count,
+    required this.onMarkAllRead,
+    required this.onMarkAllUnread,
+    required this.onKeepForLater,
+    required this.onAddToTask,
+    required this.onOpenAll,
+    required this.onClear,
+  });
+
+  final int count;
+  final VoidCallback onMarkAllRead;
+  final VoidCallback onMarkAllUnread;
+  final VoidCallback onKeepForLater;
+  final VoidCallback onAddToTask;
+  final VoidCallback onOpenAll;
+  final VoidCallback onClear;
+
+  @override
+  State<SelectionFabMenu> createState() => _SelectionFabMenuState();
+}
+
+class _SelectionFabMenuState extends State<SelectionFabMenu> {
+  bool _open = false;
+
+  void _run(VoidCallback action) {
+    setState(() => _open = false);
+    action();
+  }
+
+  Widget _menuItem(IconData icon, String label, VoidCallback onTap, {Color? color}) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Material(
+            color: colorScheme.surfaceContainerHighest,
+            elevation: 2,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Text(label, style: Theme.of(context).textTheme.labelLarge),
+            ),
+          ),
+          const SizedBox(width: 12),
+          FloatingActionButton.small(
+            heroTag: 'selection_fab_$label',
+            backgroundColor: color,
+            onPressed: () => _run(onTap),
+            child: Icon(icon, color: color == null ? null : colorScheme.onError),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        AnimatedSize(
+          duration: Durations.short3,
+          alignment: Alignment.bottomRight,
+          curve: Curves.easeOut,
+          child: _open
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    _menuItem(Icons.mark_email_read_outlined, 'Mark all as read', widget.onMarkAllRead),
+                    _menuItem(Icons.mark_as_unread_outlined, 'Mark all as unread', widget.onMarkAllUnread),
+                    _menuItem(Icons.push_pin_outlined, 'Keep for later', widget.onKeepForLater),
+                    _menuItem(Icons.assignment_add, 'Add all to a task', widget.onAddToTask),
+                    _menuItem(Icons.open_in_browser, 'Open all on website', widget.onOpenAll),
+                  ],
+                )
+              : const SizedBox.shrink(),
+        ),
+        FloatingActionButton.extended(
+          heroTag: 'selection_fab_main',
+          onPressed: () => setState(() => _open = !_open),
+          icon: Icon(_open ? Icons.close : Icons.checklist),
+          label: Text(_open ? 'Close' : '${widget.count} selected'),
+        ),
+        // A subtle "clear selection" affordance below the main FAB when closed.
+        if (!_open)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: TextButton.icon(
+              onPressed: widget.onClear,
+              icon: const Icon(Icons.clear, size: 18),
+              label: const Text('Clear'),
+            ),
+          ),
+      ],
     );
   }
 }

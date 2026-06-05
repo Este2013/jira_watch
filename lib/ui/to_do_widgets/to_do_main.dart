@@ -570,6 +570,228 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
   }
 }
 
+/// Like [AddIssueToDoDialog] but operates on several work items at once,
+/// linking them all to one (new or existing) task.
+class AddIssuesToDoDialog extends StatefulWidget {
+  const AddIssuesToDoDialog(this.workItems, {super.key});
+
+  final List<JiraWorkItemData> workItems;
+
+  @override
+  State<AddIssuesToDoDialog> createState() => _AddIssuesToDoDialogState();
+}
+
+class _AddIssuesToDoDialogState extends State<AddIssuesToDoDialog> with TickerProviderStateMixin, UiLoggy {
+  late TabController tabCtrl;
+
+  late TextEditingController titleController, notesController;
+  int categoryID = -1;
+
+  List<int> addLinkTo = [], removeLinkFrom = [];
+
+  List<String> get _keys => widget.workItems.map((w) => w.key).whereType<String>().toList();
+
+  String get _defaultTitle => '${_keys.length} work items';
+
+  @override
+  void initState() {
+    tabCtrl = TabController(length: 2, vsync: this, initialIndex: 1);
+    titleController = TextEditingController(text: _defaultTitle);
+    notesController = TextEditingController();
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    tabCtrl.dispose();
+    titleController.dispose();
+    notesController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text('Add ${_keys.length} work items to a task'),
+    content: SizedBox(
+      width: 600,
+      height: 700,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TabBar(
+            controller: tabCtrl,
+            tabs: [
+              Tab(icon: Icon(Icons.add_circle), child: Text('New task')),
+              Tab(icon: Icon(Icons.assignment_add), child: Text('Existing tasks')),
+            ],
+          ),
+          Flexible(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TabBarView(
+                controller: tabCtrl,
+                children: [
+                  // New task
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 16,
+                    children: [
+                      const SizedBox.shrink(),
+                      Row(
+                        spacing: 8,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: titleController,
+                              decoration: InputDecoration(
+                                border: const OutlineInputBorder(),
+                                label: const Text('Title'),
+                                hintText: _defaultTitle,
+                              ),
+                            ),
+                          ),
+                          Builder(
+                            builder: (context) {
+                              DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == categoryID, orElse: () => DefaultTaskCategory.forLater);
+                              return IconButton(
+                                tooltip: cat.displayName,
+                                icon: Icon(cat.icon, color: cat.color, fill: 1),
+                                onPressed: () => showDialog<int>(
+                                  context: context,
+                                  builder: (context) => EditToDoTaskCategoryDialog(),
+                                ).then((value) {
+                                  if (value == null) return;
+                                  setState(() => categoryID = value);
+                                }),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                      Flexible(
+                        child: TextField(
+                          textCapitalization: TextCapitalization.sentences,
+                          controller: notesController,
+                          decoration: const InputDecoration(border: OutlineInputBorder(), label: Text('Notes')),
+                          maxLines: null,
+                          minLines: 6,
+                          keyboardType: TextInputType.multiline,
+                        ),
+                      ),
+                      // Show which items will be linked.
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Will link: ${_keys.join(', ')}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Existing tasks
+                  FutureBuilder(
+                    future: ToDoTasksModel().isReady,
+                    builder: (context, asyncSnapshot) {
+                      if (asyncSnapshot.hasData) {
+                        var list = DataModel().todoTasks.toDoTasksControllers.list.where((t) => !t.isComplete.value).toList()
+                          ..sort((a, b) => b.dateAdded.compareTo(a.dateAdded));
+                        return ListView.builder(
+                          itemCount: list.length,
+                          itemBuilder: (context, index) {
+                            var taskItem = list[index].toToDoTask();
+                            var categoryData = taskItem.categoryData;
+                            return ListTile(
+                              leading: Tooltip(
+                                message: categoryData.$1,
+                                child: Icon(categoryData.$2, color: categoryData.$3, fill: 1),
+                              ),
+                              title: Text(taskItem.title ?? 'No title found'),
+                              subtitle: taskItem.notes == null ? null : Text(taskItem.notes!, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              onTap: () => setState(() => toggleSelection(taskItem)),
+                              trailing: Checkbox(
+                                value: isItemSelected(taskItem),
+                                onChanged: (value) => setState(() => toggleSelection(taskItem)),
+                              ),
+                            );
+                          },
+                        );
+                      }
+                      return const Center(child: CircularProgressIndicator());
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+    actions: [
+      CancelButton(),
+      FilledButton(
+        onPressed: () {
+          if (tabCtrl.index == 0) {
+            String title = titleController.text.trim();
+            if (title.isEmpty) title = _defaultTitle;
+            String notes = notesController.text.trim();
+            ToDoTasksModel()
+                .createNewTask(
+                  title: title,
+                  notes: notes.isEmpty ? null : notes,
+                  workItemKeys: _keys,
+                  categoryID: categoryID,
+                )
+                .whenComplete(Navigator.of(context).pop);
+            return;
+          } else if (tabCtrl.index == 1) {
+            ToDoTasksModel().isReady.then((value) {
+              var list = DataModel().todoTasks.toDoTasksControllers.list;
+              List<int> editedIds = [...addLinkTo, ...removeLinkFrom];
+              Iterable<ToDoTaskEditingController> edits = list.where((t) => editedIds.contains(t.id));
+
+              for (var t in edits) {
+                if (isItemSelected(t.toToDoTask())) {
+                  for (final k in _keys) {
+                    t.linkedWorkItems.add(k);
+                  }
+                } else {
+                  for (final k in _keys) {
+                    t.linkedWorkItems.remove(k);
+                  }
+                }
+              }
+              // ignore: use_build_context_synchronously
+              Navigator.of(context).pop();
+            });
+            return;
+          }
+          loggy.error('Unimplemented: save mechanism for selected tab #${tabCtrl.index}');
+          throw UnimplementedError();
+        },
+        child: const Text('Save'),
+      ),
+    ],
+  );
+
+  /// A task counts as selected when it already links every selected work item
+  /// (or has been ticked), and hasn't been unticked.
+  bool isItemSelected(ToDoTask task) {
+    bool ogTaskHasAll = _keys.isNotEmpty && _keys.every((k) => task.linkedWorkItems.contains(k));
+    return (ogTaskHasAll || addLinkTo.contains(task.id)) && !removeLinkFrom.contains(task.id);
+  }
+
+  void toggleSelection(ToDoTask task) {
+    bool ogTaskHasAll = _keys.isNotEmpty && _keys.every((k) => task.linkedWorkItems.contains(k));
+    if (ogTaskHasAll) {
+      if (!removeLinkFrom.remove(task.id)) removeLinkFrom.add(task.id);
+    } else {
+      if (!addLinkTo.remove(task.id)) addLinkTo.add(task.id);
+    }
+  }
+}
+
 class EditToDoTaskCategoryDialog extends StatelessWidget {
   const EditToDoTaskCategoryDialog({
     super.key,
