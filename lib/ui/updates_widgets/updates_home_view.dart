@@ -812,86 +812,144 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      spacing: 12,
                       children: [
-                        WorkItemLinkWithParentsRow(widget.workItem, compact: showAsCompact),
-                        if (!showAsCompact)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: JiraWorkItemStatusIndicator(issue: widget.workItem),
-                          ),
-                        if (showAsCompact)
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(left: 8.0),
-                              child: Text(
-                                summary,
-                                style: Theme.of(context).textTheme.titleMedium,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          )
-                        else
-                          Spacer(),
-
-                        if (!showAsCompact) TimeAgoDisplay(timeStr: updated),
-                        if (!showAsCompact)
-                          Text(
-                            ', by ',
-                            style: TextStyle(fontSize: 12, color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300]),
-                          ),
-                        SizedBox.square(
-                          dimension: 24,
-                          child: Builder(
-                            builder: (context) {
-                              var updatorData = lastEditWasAComment
-                                  ? widget.workItem.fields!['comment']['comments'].last['author']
-                                  : lastUpdateData == null
-                                  ? fields['creator']
-                                  : lastUpdateData['author'];
-                              return ClipRRect(
-                                borderRadius: BorderRadiusGeometry.circular(10000),
+                        // Current assignee avatar at the lead of every entry.
+                        Builder(
+                          builder: (context) {
+                            final assignee = fields['assignee'];
+                            final avatarUrl = assignee?['avatarUrls']?['24x24'];
+                            return SizedBox.square(
+                              dimension: 24,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(10000),
                                 child: Tooltip(
-                                  message: showAsCompact
-                                      ? '${updatorData['displayName']}\n${(lastUpdateData == null && !lastEditWasAComment)
-                                            ? 'Created this issue'
-                                            : (lastEditWasAComment)
-                                            ? 'Commented'
-                                            : 'Changed ${((lastUpdateData['items'] as List).firstOrNull?['field'])}'}'
-                                      : updatorData['displayName'],
-                                  child: JiraAvatar(key: Key(widget.workItem['id']), url: updatorData['avatarUrls']['32x32']),
+                                  message: assignee != null ? 'Assigned to ${assignee['displayName']}' : 'Unassigned',
+                                  child: avatarUrl != null ? JiraAvatar(key: Key('assignee-${widget.workItem['id']}'), url: avatarUrl) : Icon(Icons.person_off_outlined, size: 18, color: Theme.of(context).disabledColor),
                                 ),
-                              );
-                            },
+                              ),
+                            );
+                          },
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  WorkItemLinkWithParentsRow(widget.workItem, compact: showAsCompact),
+                                  const SizedBox(width: 8),
+                                  // Middle region. The status chip slides between the left
+                                  // edge (expanded) and the right edge (compact) of this
+                                  // region. An invisible placeholder reserves the chip's
+                                  // resting spot so the overlaid chip never overlaps text.
+                                  Expanded(
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        Row(
+                                          children: showAsCompact
+                                              ? [
+                                                  Expanded(
+                                                    child: Text(
+                                                      summary,
+                                                      style: Theme.of(context).textTheme.titleMedium,
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Visibility(
+                                                    visible: false,
+                                                    maintainSize: true,
+                                                    maintainAnimation: true,
+                                                    maintainState: true,
+                                                    child: JiraWorkItemStatusIndicator(issue: widget.workItem),
+                                                  ),
+                                                ]
+                                              : [
+                                                  Visibility(
+                                                    visible: false,
+                                                    maintainSize: true,
+                                                    maintainAnimation: true,
+                                                    maintainState: true,
+                                                    child: JiraWorkItemStatusIndicator(issue: widget.workItem),
+                                                  ),
+                                                  const Spacer(),
+                                                  TimeAgoDisplay(timeStr: updated),
+                                                  Text(
+                                                    ', by ',
+                                                    style: TextStyle(fontSize: 12, color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300]),
+                                                  ),
+                                                ],
+                                        ),
+                                        AnimatedAlign(
+                                          duration: Durations.medium1,
+                                          curve: Curves.easeInOut,
+                                          alignment: showAsCompact ? Alignment.centerRight : Alignment.centerLeft,
+                                          child: JiraWorkItemStatusIndicator(issue: widget.workItem),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  SizedBox.square(
+                                    dimension: 24,
+                                    child: Builder(
+                                      builder: (context) {
+                                        var updatorData = lastEditWasAComment
+                                            ? widget.workItem.fields!['comment']['comments'].last['author']
+                                            : lastUpdateData == null
+                                            ? fields['creator']
+                                            : lastUpdateData['author'];
+                                        return ClipRRect(
+                                          borderRadius: BorderRadiusGeometry.circular(10000),
+                                          child: Tooltip(
+                                            message: showAsCompact
+                                                ? '${updatorData['displayName']}\n${(lastUpdateData == null && !lastEditWasAComment)
+                                                      ? 'Created this issue'
+                                                      : (lastEditWasAComment)
+                                                      ? 'Commented'
+                                                      : 'Changed ${((lastUpdateData['items'] as List).firstOrNull?['field'])}'}\n${timeAgo(timeStr: updated)}'
+                                                : updatorData['displayName'],
+                                            child: JiraAvatar(key: Key(widget.workItem['id']), url: updatorData['avatarUrls']['32x32']),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (!showAsCompact)
+                                Row(
+                                  spacing: 16,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        summary,
+                                        style: Theme.of(context).textTheme.titleMedium,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    Text(
+                                      (lastUpdateData == null && !lastEditWasAComment)
+                                          ? 'Created this issue'
+                                          : (!lastEditWasAComment)
+                                          ? 'Changed ${((lastUpdateData['items'] as List).firstOrNull?['field'])}'
+                                          : 'Commented',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                    if (!showAsCompact)
-                      Row(
-                        spacing: 16,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              summary,
-                              style: Theme.of(context).textTheme.titleMedium,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Text(
-                            (lastUpdateData == null && !lastEditWasAComment)
-                                ? 'Created this issue'
-                                : (!lastEditWasAComment)
-                                ? 'Changed ${((lastUpdateData['items'] as List).firstOrNull?['field'])}'
-                                : 'Commented',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300],
-                            ),
-                          ),
-                        ],
-                      ),
                     if (widget.isSelected) optionsWhenSelected,
                   ],
                 ),
