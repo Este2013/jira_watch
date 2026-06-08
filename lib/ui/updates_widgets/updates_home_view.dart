@@ -290,164 +290,169 @@ class _UpdatesPageState extends State<UpdatesPage> {
             padding: const EdgeInsets.all(16.0),
             child: Row(
               children: [
-              Expanded(
-                child: Column(
-                  children: [
-                    // filters
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8.0),
-                      child: Row(
-                        spacing: 8,
-                        children: [
-                          // per project filtering
-                          Expanded(
-                            child: ProjectFilteringRow(
-                              activeProjectFilters: activeProjectFilters,
-                              toggleProjectCode: (code) => setState(() {
-                                activeProjectFilters.toggle(code);
-                                _resetAndFetchFirstPage();
-                                _saveFilters();
-                              }),
-                            ),
-                          ),
-                          TimeFilterDropdown(
-                            init: timeFilter ?? 'all time',
-                            save: (data) {
-                              setState(() => timeFilter = data);
-                              _saveFilters();
-                              _resetAndFetchFirstPage();
-                            },
-                          ),
-                          RefreshFutureIconButton(tooltip: 'Refresh', onRefresh: _resetAndFetchFirstPage),
-                          // IconButton(
-                          //   onPressed: _resetAndFetchFirstPage,
-                          //   icon: Icon(Icons.refresh),
-                          //   tooltip: 'Refresh',
-                          // ),
-                        ],
-                      ),
-                    ),
-                    // list
-                    Expanded(
-                      child: Stack(
-                        children: [
-                          EdgeOverscrollListener(
-                        childScrollCtrl: scrollController,
-                        onOverscrollAtBottom: () {
-                          if (!isLoading && hasMore) {
-                            // If user overscrolls past the bottom, kick off next page too
-                            startFetchingNewPage();
-                          }
-                        },
-                        onOverscrollAtTop: null,
-                        child: NotificationListener<OverscrollNotification>(
-                          // keep your overscroll prints if you like
-                          onNotification: (overscroll) {
-                            if (overscroll.overscroll > 0 && !isLoading && hasMore) {
-                              // If user overscrolls past the bottom, kick off next page too
-                              startFetchingNewPage();
-                            }
-                            return false;
-                          },
-                          child: FutureBuilder(
-                            future: DataModel().workItemMarkedAsReadTime(),
-                            builder: (_, _) {
-                              return ListView.builder(
-                                controller: scrollController,
-                                itemCount: allLoadedWorkItems.length + (isLoading || hasMore ? 1 : 0), // +1 for footer
-                                itemBuilder: (context, index) {
-                                  if (index < allLoadedWorkItems.length) {
-                                    final t = allLoadedWorkItems[index];
-                                    final isMultiSelected = t.key != null && multiSelectedKeys.contains(t.key);
-                                    final prevSelected = _isOutlinedAt(index - 1);
-                                    final nextSelected = _isOutlinedAt(index + 1);
-                                    return JiraWorkItemPreviewItem(
-                                      key: Key(t.key ?? ''),
-                                      workItem: t,
-                                      index: index,
-                                      updateView: selectWorkItem,
-                                      isSelected: selectedWorkItem != null && selectedWorkItem?.key == t.key,
-                                      isMultiSelected: isMultiSelected,
-                                      groupTop: !prevSelected,
-                                      groupBottom: !nextSelected,
-                                      onToggleMultiSelect: _toggleMultiSelect,
-                                      onRangeMultiSelect: _rangeMultiSelect,
-                                      changedSize: loadMoreIfNoScrollPossible,
-                                    );
-                                  }
-
-                                  // Footer row: show a loader while fetching; when finished and !hasMore, show a subtle end cap.
-                                  return Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 16.0),
-                                    child: Center(
-                                      child: isLoading
-                                          ? const SizedBox(
-                                              height: 24,
-                                              width: 24,
-                                              child: CircularProgressIndicator(strokeWidth: 2),
-                                            )
-                                          : FilledButton(
-                                              onPressed: () => startFetchingNewPage().whenComplete(
-                                                () => SchedulerBinding.instance.addPostFrameCallback((timeStamp) {
-                                                  loadMoreIfNoScrollPossible;
-                                                }),
-                                              ),
-                                              child: Text('Load more'),
-                                            ),
-                                    ),
-                                  );
-                                },
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                          if (multiSelectedKeys.length >= 2)
-                            Positioned(
-                              right: 16,
-                              bottom: 16,
-                              child: SelectionFabMenu(
-                                count: multiSelectedKeys.length,
-                                onMarkAllRead: () => _markAllAsRead(read: true),
-                                onMarkAllUnread: () => _markAllAsRead(read: false),
-                                onKeepForLater: _keepAllForLater,
-                                onAddToTask: _addAllToTask,
-                                onOpenAll: _openAllInBrowser,
-                                onClear: clearMultiSelection,
+                Expanded(
+                  child: Column(
+                    children: [
+                      // filters
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Row(
+                          spacing: 8,
+                          children: [
+                            // per project filtering
+                            Expanded(
+                              child: ProjectFilteringRow(
+                                activeProjectFilters: activeProjectFilters,
+                                toggleProjectCode: (code) => setState(() {
+                                  activeProjectFilters.toggle(code);
+                                  _resetAndFetchFirstPage();
+                                  _saveFilters();
+                                }),
                               ),
                             ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (minSizeForLargeView < constraints.maxWidth) VerticalDivider(),
-              if (minSizeForLargeView < constraints.maxWidth)
-                Expanded(
-                  child: selectedWorkItem == null
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: Center(child: Text('← Select a work item in the list to your left to view its recent changes')),
-                        )
-                      : SingleJiraWorkItemView(
-                          selectedWorkItem!,
-                          key: Key(selectedWorkItem!.data['key']),
+                            TimeFilterDropdown(
+                              init: timeFilter ?? 'all time',
+                              save: (data) {
+                                setState(() => timeFilter = data);
+                                _saveFilters();
+                                _resetAndFetchFirstPage();
+                              },
+                            ),
+                            RefreshFutureIconButton(tooltip: 'Refresh', onRefresh: _resetAndFetchFirstPage),
+                            // IconButton(
+                            //   onPressed: _resetAndFetchFirstPage,
+                            //   icon: Icon(Icons.refresh),
+                            //   tooltip: 'Refresh',
+                            // ),
+                          ],
                         ),
+                      ),
+                      // list
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            EdgeOverscrollListener(
+                              childScrollCtrl: scrollController,
+                              onOverscrollAtBottom: () {
+                                if (!isLoading && hasMore) {
+                                  // If user overscrolls past the bottom, kick off next page too
+                                  startFetchingNewPage();
+                                }
+                              },
+                              onOverscrollAtTop: null,
+                              child: NotificationListener<OverscrollNotification>(
+                                // keep your overscroll prints if you like
+                                onNotification: (overscroll) {
+                                  if (overscroll.overscroll > 0 && !isLoading && hasMore) {
+                                    // If user overscrolls past the bottom, kick off next page too
+                                    startFetchingNewPage();
+                                  }
+                                  return false;
+                                },
+                                child: FutureBuilder(
+                                  future: DataModel().workItemMarkedAsReadTime(),
+                                  builder: (_, _) {
+                                    return ListView.builder(
+                                      controller: scrollController,
+                                      itemCount: allLoadedWorkItems.length + (isLoading || hasMore ? 1 : 0), // +1 for footer
+                                      itemBuilder: (context, index) {
+                                        if (index < allLoadedWorkItems.length) {
+                                          final t = allLoadedWorkItems[index];
+                                          final isMultiSelected = t.key != null && multiSelectedKeys.contains(t.key);
+                                          final prevSelected = _isOutlinedAt(index - 1);
+                                          final nextSelected = _isOutlinedAt(index + 1);
+                                          return JiraWorkItemPreviewItem(
+                                            key: Key(t.key ?? ''),
+                                            workItem: t,
+                                            index: index,
+                                            updateView: selectWorkItem,
+                                            isSelected: selectedWorkItem != null && selectedWorkItem?.key == t.key,
+                                            isMultiSelected: isMultiSelected,
+                                            groupTop: !prevSelected,
+                                            groupBottom: !nextSelected,
+                                            onToggleMultiSelect: _toggleMultiSelect,
+                                            onRangeMultiSelect: _rangeMultiSelect,
+                                            changedSize: loadMoreIfNoScrollPossible,
+                                          );
+                                        }
+
+                                        // Footer row: show a loader while fetching; when finished and !hasMore, show a subtle end cap.
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 16.0),
+                                          child: Center(
+                                            child: isLoading
+                                                ? const SizedBox(
+                                                    height: 24,
+                                                    width: 24,
+                                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                                  )
+                                                : FilledButton(
+                                                    onPressed: () => startFetchingNewPage().whenComplete(
+                                                      () => SchedulerBinding.instance.addPostFrameCallback((timeStamp) {
+                                                        loadMoreIfNoScrollPossible;
+                                                      }),
+                                                    ),
+                                                    child: Text('Load more'),
+                                                  ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                            if (multiSelectedKeys.length >= 2)
+                              Positioned(
+                                right: 16,
+                                bottom: 16,
+                                child: SelectionFabMenu(
+                                  count: multiSelectedKeys.length,
+                                  allRead: _allSelectedRead,
+                                  onMarkAllRead: () => _markAllAsRead(read: true),
+                                  onMarkAllUnread: () => _markAllAsRead(read: false),
+                                  onKeepForLater: _keepAllForLater,
+                                  onAddToTask: _addAllToTask,
+                                  onOpenAll: _openAllInBrowser,
+                                  onClear: clearMultiSelection,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-            ],
-          ),
+                if (minSizeForLargeView < constraints.maxWidth) VerticalDivider(),
+                if (minSizeForLargeView < constraints.maxWidth)
+                  Expanded(
+                    child: selectedWorkItem == null
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Center(child: Text('← Select a work item in the list to your left to view its recent changes')),
+                          )
+                        : SingleJiraWorkItemView(
+                            selectedWorkItem!,
+                            key: Key(selectedWorkItem!.data['key']),
+                          ),
+                  ),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  void selectWorkItem(JiraWorkItemData tkt) {
+  void selectWorkItem(int index) {
+    final tkt = allLoadedWorkItems[index];
     setState(() {
-      // A plain click clears any multi-selection and previews the item.
+      // A plain click selects exactly this item (like a normal list selection),
+      // becoming both the lone member of the selection and the anchor for any
+      // following Ctrl+Shift range select, and previews it on the right.
       multiSelectedKeys.clear();
-      selectionAnchorIndex = null;
+      if (tkt.key != null) multiSelectedKeys.add(tkt.key!);
+      selectionAnchorIndex = index;
       selectedWorkItem = tkt;
       isAllowedToShowIssueDialog = true;
     });
@@ -484,14 +489,24 @@ class _UpdatesPageState extends State<UpdatesPage> {
 
   List<JiraWorkItemData> get _selectedItems => allLoadedWorkItems.where((w) => w.key != null && multiSelectedKeys.contains(w.key)).toList();
 
-  /// Whether the item at [i] is visually outlined — either multi-selected or the
-  /// currently previewed item. Used to group adjacent outlines together (the
-  /// previewed item is separate for *actions*, but joins the group visually).
+  /// True when every selected item has already been read. Drives whether the FAB
+  /// menu offers "Mark all as read" (default) or "Mark all as unread".
+  bool get _allSelectedRead => _selectedItems.every((w) {
+    final updated = w.fields?['updated'] as String?;
+    if (updated == null) return true;
+    final readTime = DataModel().syncWorkItemMarkedAsReadTimeCache?[w.key];
+    if (readTime == null) return false;
+    final updatedTime = DateTime.parse(updated);
+    return readTime.isAfter(updatedTime) || readTime.isAtSameMomentAs(updatedTime);
+  });
+
+  /// Whether the item at [i] is selected (and thus outlined). The previewed item
+  /// is a normal member of [multiSelectedKeys], so this is the single source of
+  /// truth for both outlining and grouping.
   bool _isOutlinedAt(int i) {
     if (i < 0 || i >= allLoadedWorkItems.length) return false;
     final key = allLoadedWorkItems[i].key;
-    if (key == null) return false;
-    return multiSelectedKeys.contains(key) || selectedWorkItem?.key == key;
+    return key != null && multiSelectedKeys.contains(key);
   }
 
   Future<void> _markAllAsRead({required bool read}) async {
@@ -651,7 +666,7 @@ class ProjectFilteringButton extends StatelessWidget {
 class JiraWorkItemPreviewItem extends StatefulWidget {
   final JiraWorkItemData workItem;
   final int index;
-  final Function(JiraWorkItemData workItem)? updateView;
+  final void Function(int index)? updateView;
   final Function()? changedSize;
 
   /// Whether this item is the one shown in the right-side preview.
@@ -762,10 +777,9 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
         // near-black in light mode.
         final selectionColor = Theme.of(context).colorScheme.onSurface;
 
-        // The previewed (single-click) item is outlined too, and joins the
-        // visual group when it sits next to multi-selected items. Group flags are
-        // computed by the parent over the combined (multi-select + preview) set.
-        final showOutline = widget.isMultiSelected || widget.isSelected;
+        // Outline every selected item. The previewed item is a normal member of
+        // the selection, so this is driven purely by the multi-selection state.
+        final showOutline = widget.isMultiSelected;
         final outlineTop = widget.groupTop;
         final outlineBottom = widget.groupBottom;
         // Spacing between items is preserved; the painter bridges this gap.
@@ -901,7 +915,7 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                   await DataModel().markAsRead(widget.workItem.key!, updatedTime);
                   if (mounted) setState(() {});
                 }
-                widget.updateView?.call(widget.workItem);
+                widget.updateView?.call(widget.index);
               },
               onSecondaryTapDown: (details) => showContextMenu(
                 context,
@@ -955,19 +969,23 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
             ),
           ),
         );
-        if (showOutline) {
-          card = CustomPaint(
-            foregroundPainter: _SelectionOutlinePainter(
-              color: selectionColor,
-              top: outlineTop,
-              bottom: outlineBottom,
-              radius: 8,
-              strokeWidth: 2,
-              gap: cardGap,
-            ),
-            child: card,
-          );
-        }
+        // Always wrap in CustomPaint (null painter when not outlined) so the
+        // widget tree structure stays stable across selection changes. A
+        // conditional wrapper would re-parent the Card and reset the AnimatedSize
+        // state, killing the expand/collapse animation.
+        card = CustomPaint(
+          foregroundPainter: showOutline
+              ? _SelectionOutlinePainter(
+                  color: selectionColor,
+                  top: outlineTop,
+                  bottom: outlineBottom,
+                  radius: 8,
+                  strokeWidth: 2,
+                  gap: cardGap,
+                )
+              : null,
+          child: card,
+        );
         return Padding(padding: const EdgeInsets.all(4), child: card);
       },
     );
@@ -1494,8 +1512,7 @@ class _SelectionOutlinePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_SelectionOutlinePainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.top != top || oldDelegate.bottom != bottom || oldDelegate.radius != radius || oldDelegate.strokeWidth != strokeWidth || oldDelegate.gap != gap;
+  bool shouldRepaint(_SelectionOutlinePainter oldDelegate) => oldDelegate.color != color || oldDelegate.top != top || oldDelegate.bottom != bottom || oldDelegate.radius != radius || oldDelegate.strokeWidth != strokeWidth || oldDelegate.gap != gap;
 }
 
 /// Material 3 style FAB menu shown at the bottom-right of the Updates list when
@@ -1504,6 +1521,7 @@ class SelectionFabMenu extends StatefulWidget {
   const SelectionFabMenu({
     super.key,
     required this.count,
+    required this.allRead,
     required this.onMarkAllRead,
     required this.onMarkAllUnread,
     required this.onKeepForLater,
@@ -1513,6 +1531,7 @@ class SelectionFabMenu extends StatefulWidget {
   });
 
   final int count;
+  final bool allRead;
   final VoidCallback onMarkAllRead;
   final VoidCallback onMarkAllUnread;
   final VoidCallback onKeepForLater;
@@ -1532,75 +1551,85 @@ class _SelectionFabMenuState extends State<SelectionFabMenu> {
     action();
   }
 
+  /// A single extended-FAB-styled button with the label first and the icon
+  /// after it (no built-in FAB supports this order, so it's hand-rolled).
   Widget _menuItem(IconData icon, String label, VoidCallback onTap, {Color? color}) {
     final colorScheme = Theme.of(context).colorScheme;
+    final background = color ?? colorScheme.primaryContainer;
+    final foreground = color != null ? colorScheme.onError : colorScheme.onPrimaryContainer;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Material(
-            color: colorScheme.surfaceContainerHighest,
-            elevation: 2,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Text(label, style: Theme.of(context).textTheme.labelLarge),
+      child: Material(
+        color: background,
+        elevation: 3,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _run(onTap),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: foreground)),
+                const SizedBox(width: 12),
+                Icon(icon, color: foreground, size: 20),
+              ],
             ),
           ),
-          const SizedBox(width: 12),
-          FloatingActionButton.small(
-            heroTag: 'selection_fab_$label',
-            backgroundColor: color,
-            onPressed: () => _run(onTap),
-            child: Icon(icon, color: color == null ? null : colorScheme.onError),
-          ),
-        ],
+        ),
       ),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        AnimatedSize(
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.end,
+    children: [
+      AnimatedSize(
+        duration: Durations.short3,
+        alignment: Alignment.bottomRight,
+        curve: Curves.easeOut,
+        child: _open
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // Only offer "unread" once everything is read; otherwise the
+                  // sensible bulk action is to mark the unread ones as read.
+                  if (widget.allRead) _menuItem(Icons.mark_as_unread_outlined, 'Mark all as unread', widget.onMarkAllUnread) else _menuItem(Icons.mark_email_read_outlined, 'Mark all as read', widget.onMarkAllRead),
+                  _menuItem(Icons.push_pin_outlined, 'Keep for later', widget.onKeepForLater),
+                  _menuItem(Icons.assignment_add, 'Add all to a task', widget.onAddToTask),
+                  _menuItem(Icons.open_in_browser, 'Open all on website', widget.onOpenAll),
+                ],
+              )
+            : const SizedBox.shrink(),
+      ),
+      FloatingActionButton.extended(
+        heroTag: 'selection_fab_main',
+        onPressed: () => setState(() => _open = !_open),
+        icon: Icon(_open ? Icons.arrow_back : Icons.checklist),
+        label: AnimatedSize(
           duration: Durations.short3,
-          alignment: Alignment.bottomRight,
-          curve: Curves.easeOut,
-          child: _open
-              ? Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    _menuItem(Icons.mark_email_read_outlined, 'Mark all as read', widget.onMarkAllRead),
-                    _menuItem(Icons.mark_as_unread_outlined, 'Mark all as unread', widget.onMarkAllUnread),
-                    _menuItem(Icons.push_pin_outlined, 'Keep for later', widget.onKeepForLater),
-                    _menuItem(Icons.assignment_add, 'Add all to a task', widget.onAddToTask),
-                    _menuItem(Icons.open_in_browser, 'Open all on website', widget.onOpenAll),
-                  ],
-                )
-              : const SizedBox.shrink(),
-        ),
-        FloatingActionButton.extended(
-          heroTag: 'selection_fab_main',
-          onPressed: () => setState(() => _open = !_open),
-          icon: Icon(_open ? Icons.close : Icons.checklist),
-          label: Text(_open ? 'Close' : '${widget.count} selected'),
-        ),
-        // A subtle "clear selection" affordance below the main FAB when closed.
-        if (!_open)
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: TextButton.icon(
-              onPressed: widget.onClear,
-              icon: const Icon(Icons.clear, size: 18),
-              label: const Text('Clear'),
-            ),
+          child: Row(
+            spacing: 8,
+            children: [
+              Text(_open ? 'Close' : '${widget.count} selected'),
+              IconButton(
+                onPressed: widget.onClear,
+                icon: const Icon(Symbols.clear),
+                tooltip: 'Clear selection',
+                visualDensity: .compact,
+                iconSize: 20,
+              ),
+            ],
           ),
-      ],
-    );
-  }
+        ),
+        extendedPadding: EdgeInsetsDirectional.only(start: 16.0, end: 8.0),
+      ),
+
+      // A subtle "clear selection" affordance below the main FAB when closed.
+    ],
+  );
 }
