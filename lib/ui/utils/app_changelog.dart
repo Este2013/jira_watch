@@ -11,6 +11,8 @@ List<Widget> _versionsData = [
       ChangeLogSection.features([
         ChangeLogItem('All "Add to tasks" buttons now show how many tasks already reference the work item'),
         ChangeLogItem('Can now copy link to work item instead as well as just the key'),
+        ChangeLogItem('Added multi-select options in updates view'),
+        ChangeLogItem('Assignee is now shown at the start of update view items'),
       ]),
 
       ChangeLogSection.bugFixes([
