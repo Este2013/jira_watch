@@ -97,7 +97,7 @@ class AdfRenderer extends StatelessWidget {
                         children: [
                           Text(node.toString()),
                           Spacer(),
-                          // IconButton(onPressed: () => launchUrl(Uri.parse(contentURL)), icon: Icon(Icons.download)),
+                          // IconButton(onPressed: () => launchUrl(Uri.parse(contentURL)), icon: Icon(Symbols.download)),
                         ],
                       ),
                       content: InteractiveViewer(
@@ -443,15 +443,15 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     // TODO emotes are not supported in jira API. feature will not happen for atlassian-custom emotes.
     String id = node['attrs']['id'], text = node['attrs']['text'], shortName = node['attrs']['shortName'];
     Widget? byId = {
-      'atlassian-check_mark': Icon(Icons.check_circle, color: Colors.green),
+      'atlassian-check_mark': Icon(Symbols.check_circle, color: Colors.green),
       'atlassian-cross_mark': Transform.rotate(
         angle: pi / 4,
-        child: Icon(Icons.add_circle, color: Colors.red),
+        child: Icon(Symbols.add_circle, color: Colors.red),
       ),
     }[id];
     if (byId != null) return Tooltip(message: shortName, child: byId);
     Widget? byName = {
-      ':windows:': Icon(Icons.window),
+      ':windows:': Icon(Symbols.window),
       ':macos:': Icon(Icons.apple),
     }[shortName.toLowerCase()];
     if (byName != null) return Tooltip(message: shortName, child: byName);
@@ -823,24 +823,24 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     switch (type) {
       case 'note':
         back = isLightMode ? Color(0xFFf8eefe) : Color(0xFF35243f);
-        icon = Icon(Icons.note, color: Colors.purpleAccent);
+        icon = Icon(Symbols.note, color: Colors.purpleAccent);
         break;
       case 'warning':
         back = isLightMode ? Color(0xFFfef7c8) : Color(0xFF332e1b);
-        icon = Icon(Icons.warning_rounded, color: Colors.amber);
+        icon = Icon(Symbols.warning_rounded, color: Colors.amber);
         break;
       case 'success':
         back = isLightMode ? Color(0xFFdcfff1) : Color(0xFF1c3329);
-        icon = Icon(Icons.check_circle, color: Colors.green);
+        icon = Icon(Symbols.check_circle, color: Colors.green);
         break;
       case 'error':
         back = isLightMode ? Color(0xFFffeceb) : Color(0xFF42221f);
-        icon = Icon(Icons.error, color: Colors.red);
+        icon = Icon(Symbols.error, color: Colors.red);
         break;
       case 'info':
       default:
         back = isLightMode ? Color(0xFFe9f2fe) : Color(0xFF1c2b42);
-        icon = Icon(Icons.info, color: Colors.lightBlue);
+        icon = Icon(Symbols.info, color: Colors.lightBlue);
         break;
     }
     return Card(

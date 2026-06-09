@@ -193,7 +193,7 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                                       trailing: IconButton(
                                         onPressed: () => widget.taskController.linkedWorkItems.remove(issueData['key']),
                                         icon: Icon(
-                                          Icons.close,
+                                          Symbols.close,
                                           size: 20,
                                         ),
                                       ),
@@ -202,13 +202,13 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                                   if (asyncSnapshot.hasError) {
                                     return ListTile(
                                       tileColor: Colors.red.withAlpha(100),
-                                      leading: Icon(Icons.error),
+                                      leading: Icon(Symbols.error),
 
                                       title: Text(tkt),
                                       subtitle: Text(asyncSnapshot.error.toString()),
                                       trailing: IconButton(
                                         onPressed: () => Clipboard.setData(ClipboardData(text: asyncSnapshot.error.toString())),
-                                        icon: Icon(Icons.copy),
+                                        icon: Icon(Symbols.content_copy),
                                       ),
                                     );
                                   }
@@ -259,7 +259,7 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                                   spacing: 8,
                                   children: [
                                     DateDisplay(null, date: event.date),
-                                    IconButton(onPressed: () => widget.taskController.events.removeAt(id), iconSize: 20, icon: Icon(Icons.close)),
+                                    IconButton(onPressed: () => widget.taskController.events.removeAt(id), iconSize: 20, icon: Icon(Symbols.close)),
                                   ],
                                 ),
                                 onTap: () =>
@@ -322,14 +322,14 @@ class _SingleTaskViewState extends State<SingleTaskView> {
 
                   Navigator.of(context).pop();
                 },
-                icon: Icon(Icons.delete_forever),
+                icon: Icon(Symbols.delete_forever),
                 label: Text('DELETE IT.'),
               ),
             ],
           ),
         ),
         style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-        icon: Icon(Icons.delete_forever),
+        icon: Icon(Symbols.delete_forever),
         label: Text('Delete'),
       ),
     ],
@@ -346,7 +346,7 @@ extension on ToDoEventColorPalette? {
 }
 
 class _EditTimeLineEventDialog extends StatefulWidget {
-  const _EditTimeLineEventDialog({super.key, this.edited});
+  const _EditTimeLineEventDialog({this.edited});
 
   final ToDoTaskEvent? edited;
 

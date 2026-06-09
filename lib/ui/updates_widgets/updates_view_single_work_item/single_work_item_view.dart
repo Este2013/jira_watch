@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_context_menu/flutter_context_menu.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/to_do_tasks_models.dart';
@@ -118,24 +117,24 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
                         onPressed: () => keepForLater(context),
                         leadingIcon: Transform.rotate(
                           angle: pi / 4,
-                          child: const Icon(Symbols.keep, fill: 1),
+                          child: const Icon(Symbols.keep),
                         ),
                         child: const Text('Keep for later'),
                       ),
                       MenuItemButton(
                         onPressed: () => addToTasks(context),
-                        leadingIcon: const Icon(Symbols.assignment_add, fill: 1),
+                        leadingIcon: const Icon(Symbols.assignment_add),
                         child: AddToTasksLabel(workItem: widget.workItem),
                       ),
                       MenuItemButton(
                         onPressed: () => viewInBrowser(context),
-                        leadingIcon: const Icon(Symbols.open_in_browser, fill: 1),
+                        leadingIcon: const Icon(Symbols.open_in_browser),
                         child: const Text('View in browser'),
                       ),
                     ],
                     builder: (context, controller, child) {
                       return IconButton(
-                        icon: const Icon(Icons.more_vert),
+                        icon: const Icon(Symbols.more_vert),
                         onPressed: () {
                           controller.isOpen ? controller.close() : controller.open();
                         },
@@ -292,7 +291,7 @@ class _JsonWorkItemViewState extends State<JsonWorkItemView> {
           Expanded(
             child: TextField(
               controller: search,
-              decoration: InputDecoration(border: OutlineInputBorder(), icon: Icon(Icons.search)),
+              decoration: InputDecoration(border: OutlineInputBorder(), icon: Icon(Symbols.search)),
             ),
           ),
           IconButton(
@@ -300,8 +299,8 @@ class _JsonWorkItemViewState extends State<JsonWorkItemView> {
             onPressed: () => setState(() {
               filterEmpties = !filterEmpties;
             }),
-            icon: Icon(Icons.circle_outlined),
-            selectedIcon: Icon(Icons.block),
+            icon: Icon(Symbols.circle),
+            selectedIcon: Icon(Symbols.block),
             isSelected: filterEmpties,
           ),
           IconButton(
@@ -355,7 +354,7 @@ class _FieldsTableState extends State<FieldsTable> {
               controller: searchController,
               decoration: InputDecoration(
                 border: OutlineInputBorder(),
-                icon: Icon(Icons.search),
+                icon: Icon(Symbols.search),
               ),
             ),
           ),
@@ -364,8 +363,8 @@ class _FieldsTableState extends State<FieldsTable> {
               onlyNonHandled = !onlyNonHandled;
             }),
             tooltip: 'Hide fields that are handled in Details view: ${onlyNonHandled ? 'ON' : 'OFF'}',
-            icon: Icon(Icons.filter_alt_off),
-            selectedIcon: Icon(Icons.filter_alt),
+            icon: Icon(Symbols.filter_alt_off),
+            selectedIcon: Icon(Symbols.filter_alt),
             isSelected: onlyNonHandled,
           ),
         ],
@@ -433,12 +432,12 @@ class _FieldsTableState extends State<FieldsTable> {
                                 children: [
                                   IconButton(
                                     onPressed: () => Clipboard.setData(ClipboardData(text: field.key)),
-                                    icon: Icon(Icons.key),
+                                    icon: Icon(Symbols.key),
                                     tooltip: 'Copy key',
                                   ),
                                   IconButton(
                                     onPressed: () => Clipboard.setData(ClipboardData(text: JsonEncoder.withIndent('    ').convert(field.value))),
-                                    icon: Icon(Icons.data_object),
+                                    icon: Icon(Symbols.data_object),
                                     tooltip: 'Copy value',
                                   ),
                                 ],

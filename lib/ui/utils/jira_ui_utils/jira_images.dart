@@ -5,6 +5,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:mime/mime.dart';
 import 'dart:convert';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -71,7 +72,7 @@ class JiraProjectAvatar extends StatelessWidget {
         }
         final url = snapshot.data;
         if (url == null) {
-          return Icon(Icons.folder, size: size);
+          return Icon(Symbols.folder, size: size);
         }
         return JiraAvatar(url: url, size: size);
       },
@@ -162,7 +163,7 @@ class _JiraAvatarState extends State<JiraAvatar> {
       }
       if (snapshot.hasError) {
         return IconButton(
-          icon: const Icon(Icons.error),
+          icon: const Icon(Symbols.error),
           color: Colors.red,
           tooltip: '${snapshot.error}\n${widget.url}',
           onPressed: () => Clipboard.setData(
@@ -259,7 +260,7 @@ class _JiraImageState extends State<JiraImage> {
       }
       if (snapshot.hasError) {
         return IconButton(
-          icon: const Icon(Icons.error),
+          icon: const Icon(Symbols.error),
           color: Colors.red,
           tooltip: '${snapshot.error}\n${widget.url}',
           onPressed: () => Clipboard.setData(

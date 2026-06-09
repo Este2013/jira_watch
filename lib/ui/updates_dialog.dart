@@ -114,7 +114,7 @@ class _UpToDateDialog extends StatelessWidget {
       title: Row(
         spacing: 8,
         children: [
-          Icon(Icons.check_circle, color: Colors.green),
+          Icon(Symbols.check_circle, color: Colors.green),
           Text('You are up to date'),
         ],
       ),
@@ -139,7 +139,7 @@ class _AheadOfReleaseDialog extends StatelessWidget {
       title: Row(
         spacing: 8,
         children: [
-          Icon(Icons.check_circle, color: Colors.green),
+          Icon(Symbols.check_circle, color: Colors.green),
           Text('Now wait a second 🤨'),
         ],
       ),

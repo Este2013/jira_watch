@@ -49,7 +49,7 @@ class _WorkItemSearchDialogState extends State<WorkItemSearchDialog> {
             controller: searchController,
             decoration: InputDecoration(
               border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.search),
+              prefixIcon: Icon(Symbols.search),
               suffix: IconButton(
                 onPressed: () => searchController.text = '',
                 icon: Icon(Symbols.close),

@@ -64,7 +64,7 @@ class JiraWorkItemDetailsView extends StatelessWidget {
                   Expanded(
                     child: ListingTypeField(
                       'Labels',
-                      icon: Icon(Icons.label),
+                      icon: Icon(Symbols.label),
                       itemList: workItem.fields?['labels'],
                     ),
                   ),
@@ -72,7 +72,7 @@ class JiraWorkItemDetailsView extends StatelessWidget {
                   Expanded(
                     child: ListingTypeField(
                       'Components',
-                      icon: Icon(Icons.extension),
+                      icon: Icon(Symbols.extension),
                       itemList: workItem.fields?['components'],
                       itemToString: (item) => (item as Map)['name']!,
                     ),
@@ -82,10 +82,10 @@ class JiraWorkItemDetailsView extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: VersionsField('Affected version', workItem: workItem, property: 'versions', icon: Icon(Icons.bug_report)),
+                child: VersionsField('Affected version', workItem: workItem, property: 'versions', icon: Icon(Symbols.bug_report)),
               ),
               Expanded(
-                child: VersionsField('Fix version', workItem: workItem, property: 'fixVersions', icon: Icon(Icons.auto_awesome)),
+                child: VersionsField('Fix version', workItem: workItem, property: 'fixVersions', icon: Icon(Symbols.auto_awesome)),
               ),
             ],
           ),
@@ -134,7 +134,7 @@ class PersonField extends StatelessWidget {
           borderColor: (asyncSnapshot.data ?? false) ? null : Theme.of(context).colorScheme.outlineVariant,
           prefixIcon: Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 4, left: 8),
-            child: hasPerson ? ClipOval(child: JiraAvatar(url: workItem.fields?[field]['avatarUrls']['48x48'])) : Icon(Icons.account_circle_outlined),
+            child: hasPerson ? ClipOval(child: JiraAvatar(url: workItem.fields?[field]['avatarUrls']['48x48'])) : Icon(Symbols.account_circle),
           ),
           popupBuilder: hasPerson
               ? (context, dismiss, controller) => Padding(
@@ -162,7 +162,7 @@ class PersonField extends StatelessWidget {
                                   alignment: AlignmentGeometry.centerEnd,
                                   child: IconButton(
                                     onPressed: () => Clipboard.setData(ClipboardData(text: workItem.fields?[field]['displayName'])),
-                                    icon: Icon(Icons.copy),
+                                    icon: Icon(Symbols.content_copy),
                                     visualDensity: VisualDensity.compact,
                                     iconSize: 16,
                                   ),
@@ -176,11 +176,11 @@ class PersonField extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.center,
                               spacing: 8,
                               children: [
-                                Icon(Icons.email),
+                                Icon(Symbols.email),
                                 Text(workItem.fields?[field]['emailAddress']),
                                 IconButton(
                                   onPressed: () => Clipboard.setData(ClipboardData(text: workItem.fields?[field]['emailAddress'])),
-                                  icon: Icon(Icons.copy),
+                                  icon: Icon(Symbols.content_copy),
                                   visualDensity: VisualDensity.compact,
                                   iconSize: 16,
                                 ),
@@ -191,7 +191,7 @@ class PersonField extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.center,
                               spacing: 8,
                               children: [
-                                Icon(Icons.schedule),
+                                Icon(Symbols.schedule),
                                 Text(workItem.fields?[field]['timeZone']),
                               ],
                             ),
@@ -214,7 +214,7 @@ class PersonField extends StatelessWidget {
                               ),
                               IconButton(
                                 onPressed: () => Clipboard.setData(ClipboardData(text: workItem.fields?[field]['accountId'])),
-                                icon: Icon(Icons.copy),
+                                icon: Icon(Symbols.content_copy),
                                 visualDensity: VisualDensity.compact,
                                 iconSize: 16,
                               ),
@@ -252,7 +252,7 @@ class PriorityField extends StatelessWidget {
       borderColor: Theme.of(context).colorScheme.outlineVariant,
       prefixIcon: Padding(
         padding: const EdgeInsets.only(top: 8, bottom: 8, left: 8),
-        child: hasField ? ClipOval(child: JiraAvatar(url: workItem.fields?[field]['iconUrl'])) : Icon(Icons.block),
+        child: hasField ? ClipOval(child: JiraAvatar(url: workItem.fields?[field]['iconUrl'])) : Icon(Symbols.block),
       ),
       popupBuilder: (context, dismiss, controller) => Padding(
         padding: const EdgeInsets.all(8.0),
@@ -316,7 +316,7 @@ class _WatchedByFieldState extends State<WatchedByField> with UiLoggy {
       borderColor: isCurrentlyWatching ? null : Theme.of(context).colorScheme.outlineVariant,
       prefixIcon: Padding(
         padding: const EdgeInsets.only(top: 8, bottom: 8, left: 10),
-        child: hasField ? ClipOval(child: Icon(isCurrentlyWatching ? Icons.visibility : Icons.visibility_off)) : Icon(Icons.block),
+        child: hasField ? ClipOval(child: Icon(isCurrentlyWatching ? Symbols.visibility : Symbols.visibility_off)) : Icon(Symbols.block),
       ),
 
       popupBuilder: (context, dismiss, controller) {
@@ -570,14 +570,14 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
             TextButton.icon(
               onPressed: () => setState(() => previewAsText = true),
               label: Text('View as text'),
-              icon: Icon(Icons.text_fields),
+              icon: Icon(Symbols.text_fields),
             ),
             FilledButton.icon(
               onPressed: () {
                 launchUrl(Uri.parse(contentURL));
               },
               label: Text('Download'),
-              icon: Icon(Icons.download),
+              icon: Icon(Symbols.download),
             ),
           ],
         ),
@@ -604,7 +604,7 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
         errorBuilder: (context, error, stack) => Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.broken_image_outlined),
+            Icon(Symbols.broken_image),
             const SizedBox(height: 8),
             Text('Failed to load image\n$error', textAlign: TextAlign.center),
           ],
@@ -704,7 +704,7 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
         children: [
           Text(attachment['filename']),
           Spacer(),
-          IconButton(onPressed: () => launchUrl(Uri.parse(contentURL)), icon: Icon(Icons.download)),
+          IconButton(onPressed: () => launchUrl(Uri.parse(contentURL)), icon: Icon(Symbols.download)),
         ],
       ),
       content: Row(
@@ -895,7 +895,7 @@ class IssueLinkTile extends StatelessWidget {
               ),
             ),
             tooltip: 'Debug: inspect json',
-            icon: Icon(Icons.code),
+            icon: Icon(Symbols.code),
             color: Colors.amber.shade900,
           ),
       ],
@@ -904,7 +904,7 @@ class IssueLinkTile extends StatelessWidget {
         trailing ??
         IconButton(
           onPressed: () => launchUrl(Uri.parse('https://${SettingsModel().domainController.text}.atlassian.net/browse/${issueLinkData['key']}')),
-          icon: Icon(Icons.open_in_new),
+          icon: Icon(Symbols.open_in_new),
           tooltip: 'Open in browser',
         ),
     onTap: onSelect != null

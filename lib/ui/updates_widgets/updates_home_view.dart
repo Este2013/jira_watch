@@ -321,7 +321,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
                             RefreshFutureIconButton(tooltip: 'Refresh', onRefresh: _resetAndFetchFirstPage),
                             // IconButton(
                             //   onPressed: _resetAndFetchFirstPage,
-                            //   icon: Icon(Icons.refresh),
+                            //   icon: Icon(Symbols.refresh),
                             //   tooltip: 'Refresh',
                             // ),
                           ],
@@ -610,7 +610,7 @@ class ProjectFilteringRow extends StatelessWidget {
                       builder: (context) => SettingsDialog(initialPage: SettingsDialogPage.projects),
                     );
                   },
-                  icon: Icon(Icons.add),
+                  icon: Icon(Symbols.add),
                 ),
               ),
       ),
@@ -741,13 +741,13 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                   backgroundColor: Colors.transparent,
                   elevation: 0,
                   items: [
-                    BottomNavigationBarItem(icon: Icon(Icons.mark_as_unread), label: isRead ? 'Mark as unread' : 'Mark as read'),
+                    BottomNavigationBarItem(icon: Icon(isRead ? Symbols.mark_email_unread : Symbols.mark_email_read), label: isRead ? 'Mark as unread' : 'Mark as read'),
                     BottomNavigationBarItem(
-                      icon: Transform.rotate(angle: pi / 4, child: Icon(Icons.push_pin)),
+                      icon: Transform.rotate(angle: pi / 4, child: Icon(Symbols.push_pin)),
                       label: 'Keep for later',
                     ),
-                    BottomNavigationBarItem(icon: Icon(Icons.assignment_add), label: AddToTasksLabel.createLabelFor(widget.workItem)),
-                    BottomNavigationBarItem(icon: Icon(Icons.open_in_browser), label: 'View on website'),
+                    BottomNavigationBarItem(icon: Icon(Symbols.assignment_add), label: AddToTasksLabel.createLabelFor(widget.workItem)),
+                    BottomNavigationBarItem(icon: Icon(Symbols.open_in_browser), label: 'View on website'),
                   ],
                   onTap: (value) {
                     // Mark as (un)reads
@@ -820,7 +820,7 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                                 borderRadius: BorderRadius.circular(10000),
                                 child: Tooltip(
                                   message: assignee != null ? 'Assigned to ${assignee['displayName']}' : 'Unassigned',
-                                  child: avatarUrl != null ? JiraAvatar(key: Key('assignee-${widget.workItem['id']}'), url: avatarUrl) : Icon(Icons.person_off_outlined, size: 18, color: Theme.of(context).disabledColor),
+                                  child: avatarUrl != null ? JiraAvatar(key: Key('assignee-${widget.workItem['id']}'), url: avatarUrl) : Icon(Symbols.person_off, size: 18, color: Theme.of(context).disabledColor),
                                 ),
                               ),
                             );
@@ -980,13 +980,12 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                       label: Center(
                         child: Text(widget.workItem.key ?? 'unknown key'),
                       ),
-                      // icon: const Icon(Symbols.mark_as_unread, fill: 1),
                       enabled: false,
                     ),
                     const MenuDivider(),
                     MenuItem(
                       label: Text('Mark as ${isRead ? "un" : ""}read'),
-                      icon: const Icon(Symbols.mark_as_unread, fill: 1),
+                      icon: Icon(isRead ? Symbols.mark_email_unread : Symbols.mark_email_read, fill: 1),
                       onSelected: (value) => markAsReadOrUnread(updated, isRead),
                     ),
                     MenuItem(
@@ -1219,10 +1218,10 @@ class _OnError400TestForProjectsState extends State<OnError400TestForProjects> {
                       return ListTile(
                         title: Text('Project ${SettingsModel().starredProjects.value?[index] ?? ''}'),
                         subtitle: Text('Status: Error 400 - Project may have been deleted or is inaccessible.'),
-                        leading: Icon(Icons.error, color: Colors.red),
+                        leading: Icon(Symbols.error, color: Colors.red),
                         trailing: IconButton(
                           onPressed: () => SettingsModel().starredProjects.value = List.from(SettingsModel().starredProjects.value?.where((p) => p != SettingsModel().starredProjects.value?[index]) ?? []),
-                          icon: Icon(Icons.delete_forever),
+                          icon: Icon(Symbols.delete_forever),
                           tooltip: 'Remove from my starred projects',
                         ),
                       );
@@ -1230,13 +1229,13 @@ class _OnError400TestForProjectsState extends State<OnError400TestForProjects> {
                     return ListTile(
                       title: Text('Project ${SettingsModel().starredProjects.value?[index] ?? ''}'),
                       subtitle: Text('Status: ${snapshot.error}'),
-                      leading: Icon(Icons.error_outline, color: Colors.orange),
+                      leading: Icon(Symbols.error_outline, color: Colors.orange),
                     );
                   }
                   return ListTile(
                     title: Text('Project ${SettingsModel().starredProjects.value?[index] ?? ''}'),
                     subtitle: Text('Status: OK'),
-                    leading: Icon(Icons.check_circle, color: Colors.green),
+                    leading: Icon(Symbols.check_circle, color: Colors.green),
                   );
                 },
               );
@@ -1334,7 +1333,7 @@ class _TimeFilterDropdownState extends State<TimeFilterDropdown> {
   @override
   Widget build(BuildContext context) => DropdownMenu<String>(
     enableSearch: false,
-    leadingIcon: const Icon(Icons.calendar_today),
+    leadingIcon: const Icon(Symbols.calendar_today),
     initialSelection: _dropdownSelection,
     dropdownMenuEntries: const [
       DropdownMenuEntry(value: 'all time', label: 'All time'),
@@ -1488,7 +1487,7 @@ class _RefreshFutureIconButtonState extends State<RefreshFutureIconButton> with 
       iconSize: widget.iconSize,
       icon: AnimatedBuilder(
         animation: _ctrl,
-        child: const Icon(Icons.refresh),
+        child: const Icon(Symbols.refresh),
         builder: (context, child) {
           return Transform.rotate(
             angle: _ctrl.value * 2 * math.pi,
@@ -1651,10 +1650,10 @@ class _SelectionFabMenuState extends State<SelectionFabMenu> {
                 children: [
                   // Only offer "unread" once everything is read; otherwise the
                   // sensible bulk action is to mark the unread ones as read.
-                  if (widget.allRead) _menuItem(Icons.mark_as_unread_outlined, 'Mark all as unread', widget.onMarkAllUnread) else _menuItem(Icons.mark_email_read_outlined, 'Mark all as read', widget.onMarkAllRead),
-                  _menuItem(Icons.push_pin_outlined, 'Keep for later', widget.onKeepForLater),
-                  _menuItem(Icons.assignment_add, 'Add all to a task', widget.onAddToTask),
-                  _menuItem(Icons.open_in_browser, 'Open all on website', widget.onOpenAll),
+                  if (widget.allRead) _menuItem(Symbols.mark_email_unread, 'Mark all as unread', widget.onMarkAllUnread) else _menuItem(Symbols.mark_email_read, 'Mark all as read', widget.onMarkAllRead),
+                  _menuItem(Symbols.push_pin, 'Keep for later', widget.onKeepForLater),
+                  _menuItem(Symbols.assignment_add, 'Add all to a task', widget.onAddToTask),
+                  _menuItem(Symbols.open_in_browser, 'Open all on website', widget.onOpenAll),
                 ],
               )
             : const SizedBox.shrink(),
@@ -1662,7 +1661,7 @@ class _SelectionFabMenuState extends State<SelectionFabMenu> {
       FloatingActionButton.extended(
         heroTag: 'selection_fab_main',
         onPressed: () => setState(() => _open = !_open),
-        icon: Icon(_open ? Icons.arrow_back : Icons.checklist),
+        icon: Icon(_open ? Symbols.arrow_back : Symbols.checklist),
         label: AnimatedSize(
           duration: Durations.short3,
           child: Row(

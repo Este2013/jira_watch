@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class CollapsibleSidePaneController extends ChangeNotifier {
   CollapsibleSidePaneController({state = true}) {
@@ -48,7 +49,7 @@ class CollapsibleSidePane extends StatefulWidget {
     this.breakpoint = 900,
     this.animationDuration = const Duration(milliseconds: 250),
     this.animationCurve = Curves.easeInOut,
-    this.fabIcon = Icons.menu,
+    this.fabIcon = Symbols.menu,
     this.fabTooltip = 'Open panel',
   });
 

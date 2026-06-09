@@ -8,6 +8,7 @@ import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_doc_renderer.dart';
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 /// Model for a Comment entry
 class CommentEntry {
@@ -226,7 +227,7 @@ class CommentDebugDialog extends StatelessWidget {
                                         iconSize: 16,
                                         visualDensity: VisualDensity.compact,
                                         onPressed: () => Clipboard.setData(ClipboardData(text: e.value.toString())),
-                                        icon: Icon(Icons.copy),
+                                        icon: Icon(Symbols.content_copy),
                                       ),
                                     ],
                                   ),
@@ -285,7 +286,7 @@ class CommentDebugDialog extends StatelessWidget {
                                     iconSize: 16,
                                     visualDensity: VisualDensity.compact,
                                     onPressed: () => Clipboard.setData(ClipboardData(text: e.value.toString())),
-                                    icon: Icon(Icons.copy),
+                                    icon: Icon(Symbols.content_copy),
                                   ),
                                 ],
                               ),

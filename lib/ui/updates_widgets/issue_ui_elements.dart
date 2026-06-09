@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Shows a work item's icon and key, formatting appropriately for links and adding a copy button if requested.
@@ -105,7 +106,7 @@ class _WorkItemBadgeState extends State<WorkItemBadge> {
                                     child: Transform.rotate(
                                       angle: -pi / 4,
                                       child: Icon(
-                                        Icons.link,
+                                        Symbols.link,
                                         size: 16,
                                         color: _hoveringLink ? Theme.of(context).hintColor : Theme.of(context).iconTheme.color,
                                       ),
@@ -128,7 +129,7 @@ class _WorkItemBadgeState extends State<WorkItemBadge> {
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 4.0),
                                     child: Icon(
-                                      Icons.copy,
+                                      Symbols.content_copy,
                                       size: 16,
                                       color: _hoveringCopy ? Theme.of(context).hintColor : Theme.of(context).iconTheme.color,
                                     ),

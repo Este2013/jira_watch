@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class ExpandablePanel extends StatefulWidget {
   const ExpandablePanel(this.name, {super.key, required this.content, this.isInitiallyExpanded = true});
@@ -39,7 +40,7 @@ class _ExpandablePanelState extends State<ExpandablePanel> {
                     turns: isExpanded ? 0.0 : -0.25,
                     duration: Durations.medium1,
                     curve: Curves.easeInOut,
-                    child: const Icon(Icons.expand_more),
+                    child: const Icon(Symbols.expand_more),
                   ),
                   visualDensity: VisualDensity.compact,
                 ),

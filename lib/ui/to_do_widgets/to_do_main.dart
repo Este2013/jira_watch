@@ -10,6 +10,17 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import 'to_do_single_item_view.dart';
 
+enum _TodoPageSortMode {
+  creationNewer(Symbols.clock_arrow_down, 'Newer first'),
+  creationOlder(Symbols.clock_arrow_up, 'Older first'),
+  linkedWorkItemsMore(Symbols.edit_arrow_down, 'More work items first'),
+  linkedWorkItemsLess(Symbols.edit_arrow_up, 'Less work items first');
+
+  final IconData icondata;
+  final String displayName;
+  const _TodoPageSortMode(this.icondata, this.displayName);
+}
+
 class TodoPagePreLoadView extends StatelessWidget {
   const TodoPagePreLoadView({super.key});
 
@@ -39,6 +50,9 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
   int? showCategory;
   late CollapsibleSidePaneController collapsibleSidePaneController;
   late AnimationController _menuController;
+
+  _TodoPageSortMode sortMode = .creationNewer;
+  bool reverseSortMode = false;
 
   @override
   void initState() {
@@ -82,14 +96,14 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                 TextButton.icon(
                   onPressed: createNewTask,
                   label: Text('New task'),
-                  icon: Icon(Icons.add),
+                  icon: Icon(Symbols.add),
                 ),
                 Spacer(),
                 PopupMenuButton<String>(
                   icon: Badge(
                     label: Text('1'),
                     isLabelVisible: showCategory != null,
-                    child: Icon(Icons.filter_alt),
+                    child: Icon(Symbols.filter_alt),
                   ),
                   tooltip: 'Filter by category',
                   itemBuilder: (context) => <PopupMenuEntry<String>>[
@@ -99,7 +113,7 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                         spacing: 16,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.hide_source),
+                          Icon(Symbols.hide_source),
                           Text('All categories'),
                         ],
                       ),
@@ -116,7 +130,7 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                           spacing: 16,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(c.icon, color: c.color, fill: 1),
+                            Icon(c.icon, color: c.color),
                             Text(c.displayName),
                           ],
                         ),
@@ -131,14 +145,37 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                     }
                   }),
                 ),
+                PopupMenuButton<_TodoPageSortMode>(
+                  icon: Icon(sortMode.icondata),
+                  tooltip: 'Sort (${sortMode.displayName})',
+                  initialValue: sortMode,
+                  itemBuilder: (context) => <PopupMenuEntry<_TodoPageSortMode>>[
+                    for (var v in _TodoPageSortMode.values)
+                      PopupMenuItem(
+                        value: v,
+                        child: Row(
+                          spacing: 16,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(v.icondata),
+                            Text(v.displayName),
+                          ],
+                        ),
+                      ),
+                  ],
+
+                  onSelected: (value) => setState(() {
+                    sortMode = value;
+                  }),
+                ),
                 IconButton(
                   tooltip: 'Show${filterOutCompletedTasks ? '' : 'ing'} completed tasks',
                   onPressed: () => setState(() {
                     filterOutCompletedTasks = !filterOutCompletedTasks;
                   }),
                   isSelected: !filterOutCompletedTasks,
-                  selectedIcon: Icon(Icons.verified, fill: 1),
-                  icon: Icon(Symbols.verified_off, fill: 1),
+                  selectedIcon: Icon(Symbols.verified),
+                  icon: Icon(Symbols.verified_off),
                 ),
               ],
             ),
@@ -167,14 +204,14 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                             FilledButton.icon(
                               onPressed: createNewTask,
                               label: Text('New task'),
-                              icon: Icon(Icons.add),
+                              icon: Icon(Symbols.add),
                             ),
                           ],
                         ),
                       ],
                     )
                   : Builder(
-                      key: Key('list filters: {cat:$showCategory, filtercompleted:$filterOutCompletedTasks}'),
+                      key: Key('list filters: {cat:$showCategory, filtercompleted:$filterOutCompletedTasks, sort:$sortMode}'),
                       builder: (context) {
                         var list = DataModel().todoTasks.toDoTasksControllers.list
                             .where(
@@ -184,6 +221,23 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                               (t) => showCategory == null || t.category.value == showCategory,
                             )
                             .toList();
+                        list.sort(
+                          (a, b) {
+                            if (sortMode == .creationNewer) {
+                              return b.dateAdded.compareTo(a.dateAdded);
+                            }
+                            if (sortMode == .creationOlder) {
+                              return a.dateAdded.compareTo(b.dateAdded);
+                            }
+                            if (sortMode == .linkedWorkItemsLess) {
+                              return a.linkedWorkItems.length.compareTo(b.linkedWorkItems.length);
+                            }
+                            if (sortMode == .linkedWorkItemsMore) {
+                              return b.linkedWorkItems.length.compareTo(a.linkedWorkItems.length);
+                            }
+                            return 0;
+                          },
+                        );
                         return ListView.builder(
                           itemCount: list.length,
                           itemBuilder: (context, index) {
@@ -200,11 +254,14 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                                     overflow: TextOverflow.ellipsis,
                                     style: taskController.isComplete.value ? TextStyle(decoration: TextDecoration.lineThrough) : null,
                                   ),
-                                  subtitle: SingleChildScrollView(
-                                    child: Text(taskController.linkedWorkItems.isEmpty ? 'No linked work items' : taskController.linkedWorkItems.list.join(', ')),
-                                  ),
+                                  // subtitle: SingleChildScrollView(
+                                  //   child: Text(
+                                  //     taskController.linkedWorkItems.isEmpty ? 'No linked work items' : taskController.linkedWorkItems.list.join(', '),
+                                  //     overflow: .ellipsis,
+                                  //   ),
+                                  // ),
                                   leading: IconButton(
-                                    icon: Icon(categoryData.$2, fill: 1),
+                                    icon: Icon(categoryData.$2),
                                     color: categoryData.$3,
                                     tooltip: categoryData.$1,
                                     onPressed: () {
@@ -227,13 +284,13 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                                     },
                                   ),
                                   trailing: PopupMenuButton(
-                                    icon: Icon(Icons.more_vert),
+                                    icon: Icon(Symbols.more_vert),
                                     itemBuilder: (_) => [
                                       PopupMenuItem(
                                         child: Row(
                                           spacing: 8,
                                           children: [
-                                            Icon(taskController.isComplete.value ? Symbols.verified_off : Symbols.verified, fill: 1),
+                                            Icon(taskController.isComplete.value ? Symbols.verified_off : Symbols.verified),
                                             Text(taskController.isComplete.value ? 'Reopen this issue' : 'Mark as complete'),
                                           ],
                                         ),
@@ -390,8 +447,8 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
           TabBar(
             controller: tabCtrl,
             tabs: [
-              Tab(icon: Icon(Icons.add_circle), child: Text('New task')),
-              Tab(icon: Icon(Icons.assignment_add), child: Text('Existing tasks')),
+              Tab(icon: Icon(Symbols.add_circle), child: Text('New task')),
+              Tab(icon: Icon(Symbols.assignment_add), child: Text('Existing tasks')),
             ],
           ),
           Flexible(
@@ -426,7 +483,7 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
                                 DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == categoryID, orElse: () => DefaultTaskCategory.forLater);
                                 return IconButton(
                                   tooltip: cat.displayName,
-                                  icon: Icon(cat.icon, color: cat.color, fill: 1),
+                                  icon: Icon(cat.icon, color: cat.color),
                                   onPressed: () =>
                                       showDialog<int>(
                                         context: context,
@@ -477,7 +534,7 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
                             return ListTile(
                               leading: Tooltip(
                                 message: categoryData.$1,
-                                child: Icon(categoryData.$2, color: categoryData.$3, fill: 1),
+                                child: Icon(categoryData.$2, color: categoryData.$3),
                               ),
                               title: Text(taskItem.title ?? 'No title found'),
                               subtitle: taskItem.notes == null ? null : Text(taskItem.notes!, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -621,8 +678,8 @@ class _AddIssuesToDoDialogState extends State<AddIssuesToDoDialog> with TickerPr
           TabBar(
             controller: tabCtrl,
             tabs: [
-              Tab(icon: Icon(Icons.add_circle), child: Text('New task')),
-              Tab(icon: Icon(Icons.assignment_add), child: Text('Existing tasks')),
+              Tab(icon: Icon(Symbols.add_circle), child: Text('New task')),
+              Tab(icon: Icon(Symbols.assignment_add), child: Text('Existing tasks')),
             ],
           ),
           Flexible(
@@ -655,14 +712,15 @@ class _AddIssuesToDoDialogState extends State<AddIssuesToDoDialog> with TickerPr
                               DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == categoryID, orElse: () => DefaultTaskCategory.forLater);
                               return IconButton(
                                 tooltip: cat.displayName,
-                                icon: Icon(cat.icon, color: cat.color, fill: 1),
-                                onPressed: () => showDialog<int>(
-                                  context: context,
-                                  builder: (context) => EditToDoTaskCategoryDialog(),
-                                ).then((value) {
-                                  if (value == null) return;
-                                  setState(() => categoryID = value);
-                                }),
+                                icon: Icon(cat.icon, color: cat.color),
+                                onPressed: () =>
+                                    showDialog<int>(
+                                      context: context,
+                                      builder: (context) => EditToDoTaskCategoryDialog(),
+                                    ).then((value) {
+                                      if (value == null) return;
+                                      setState(() => categoryID = value);
+                                    }),
                               );
                             },
                           ),
@@ -695,8 +753,7 @@ class _AddIssuesToDoDialogState extends State<AddIssuesToDoDialog> with TickerPr
                     future: ToDoTasksModel().isReady,
                     builder: (context, asyncSnapshot) {
                       if (asyncSnapshot.hasData) {
-                        var list = DataModel().todoTasks.toDoTasksControllers.list.where((t) => !t.isComplete.value).toList()
-                          ..sort((a, b) => b.dateAdded.compareTo(a.dateAdded));
+                        var list = DataModel().todoTasks.toDoTasksControllers.list.where((t) => !t.isComplete.value).toList()..sort((a, b) => b.dateAdded.compareTo(a.dateAdded));
                         return ListView.builder(
                           itemCount: list.length,
                           itemBuilder: (context, index) {
@@ -705,7 +762,7 @@ class _AddIssuesToDoDialogState extends State<AddIssuesToDoDialog> with TickerPr
                             return ListTile(
                               leading: Tooltip(
                                 message: categoryData.$1,
-                                child: Icon(categoryData.$2, color: categoryData.$3, fill: 1),
+                                child: Icon(categoryData.$2, color: categoryData.$3),
                               ),
                               title: Text(taskItem.title ?? 'No title found'),
                               subtitle: taskItem.notes == null ? null : Text(taskItem.notes!, maxLines: 1, overflow: TextOverflow.ellipsis),

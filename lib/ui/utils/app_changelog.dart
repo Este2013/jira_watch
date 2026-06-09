@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/settings_model.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 List<Widget> _versionsData = [
@@ -10,9 +11,10 @@ List<Widget> _versionsData = [
     sections: [
       ChangeLogSection.features([
         ChangeLogItem('All "Add to tasks" buttons now show how many tasks already reference the work item'),
-        ChangeLogItem('Can now copy link to work item instead as well as just the key'),
+        ChangeLogItem('Can now copy link to work item as well as just the key'),
         ChangeLogItem('Added multi-select options in updates view'),
         ChangeLogItem('Assignee is now shown at the start of update view items'),
+        ChangeLogItem('Can now sort To Do Tasks'),
       ]),
 
       ChangeLogSection.bugFixes([
@@ -343,12 +345,12 @@ class ChangeLogsDialog extends StatelessWidget {
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   onPressed: () => ctrl.previousPage(duration: Durations.short4, curve: Curves.bounceIn),
-                  icon: Icon(Icons.navigate_before),
+                  icon: Icon(Symbols.navigate_before),
                 ),
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   onPressed: () => ctrl.nextPage(duration: Durations.short4, curve: Curves.bounceIn),
-                  icon: Icon(Icons.navigate_next),
+                  icon: Icon(Symbols.navigate_next),
                 ),
               ],
             ),
