@@ -739,6 +739,7 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                   key: ValueKey(isRead),
                   type: BottomNavigationBarType.fixed,
                   backgroundColor: Colors.transparent,
+                  unselectedItemColor: Theme.of(context).colorScheme.primary,
                   elevation: 0,
                   items: [
                     BottomNavigationBarItem(icon: Icon(isRead ? Symbols.mark_email_unread : Symbols.mark_email_read), label: isRead ? 'Mark as unread' : 'Mark as read'),
