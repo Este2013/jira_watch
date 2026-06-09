@@ -13,6 +13,7 @@ import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'utils/under_constuction_notice.dart';
+import 'utils/widgets/animated_icons.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -111,27 +112,27 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
                     context: context,
                     builder: (context) => WorkItemSearchDialog(),
                   ),
-                  icon: Icon(Icons.search),
+                  icon: Icon(Symbols.search),
                 ),
 
                 destinations: [
                   NavigationRailDestination(
                     icon: IconFilledOnSelection(
-                      icon: Icon(Symbols.dashboard),
+                      Icon(Symbols.dashboard),
                       isSelected: _selectedIndex == 0,
                     ),
                     label: Text('Updates'),
                   ),
                   NavigationRailDestination(
                     icon: IconFilledOnSelection(
-                      icon: Icon(Symbols.bug_report),
+                      Icon(Symbols.bug_report),
                       isSelected: _selectedIndex == 1,
                     ),
                     label: Text('Work items'),
                   ),
                   NavigationRailDestination(
                     icon: IconFilledOnSelection(
-                      icon: Icon(Symbols.assessment),
+                      Icon(Symbols.assessment),
                       isSelected: _selectedIndex == 2,
                     ),
                     label: Text('To do'),
@@ -306,23 +307,6 @@ class _SettingsButtonState extends State<SettingsButton> with TickerProviderStat
           child: Icon(Symbols.settings, fill: _fillCtrl.value),
         );
       },
-    ),
-  );
-}
-
-class IconFilledOnSelection extends StatelessWidget {
-  const IconFilledOnSelection({super.key, required this.isSelected, required this.icon});
-
-  final bool isSelected;
-  final Widget icon;
-
-  @override
-  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
-    tween: Tween(begin: isSelected ? 0 : 1, end: isSelected ? 1 : 0),
-    duration: Durations.medium1,
-    builder: (context, fill, child) => IconTheme(
-      data: Theme.of(context).iconTheme.copyWith(fill: fill),
-      child: icon,
     ),
   );
 }

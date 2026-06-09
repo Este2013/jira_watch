@@ -6,14 +6,19 @@ Future<bool?> requestConfirmation(BuildContext context, String message) => showD
     title: Text('🤨 Are you sure?'),
     content: Text(message),
     actions: [
-      TextButton(onPressed: Navigator.of(context).pop, child: Text('Cancel')),
-      FilledButton(
-        onPressed: () => Navigator.of(context).pop(true),
-        style: FilledButton.styleFrom(
-          backgroundColor: Theme.of(context).colorScheme.errorContainer,
-          foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
-        ),
-        child: Text('I know what I am doing'),
+      Row(
+        children: [
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onError,
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: Text('I know what I\'m doing'),
+          ),
+          Spacer(),
+          FilledButton(onPressed: Navigator.of(context).pop, child: Text('Cancel')),
+        ],
       ),
     ],
   ),

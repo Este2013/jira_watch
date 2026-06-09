@@ -145,19 +145,25 @@ class DataModel with GlobalLoggy {
     return syncWorkItemMarkedAsReadTimeCache!;
   }
 
-  Future<void> markAsRead(String workItemKey, DateTime time, {bool isRead = true}) async {
-    loggy.debug('Marking $workItemKey as ${isRead ? '' : 'un'}read');
+  Future<void> markAsRead(String workItemKey, DateTime time, {bool isRead = true}) => markAllAsRead([(workItemKey, time)], isRead: isRead);
+
+  /// Writes all changes to the file in one single write operation.
+  Future<void> markAllAsRead(Iterable<(String, DateTime)> workItemKeys, {bool isRead = true}) async {
+    loggy.debug('Marking [${workItemKeys.join(',')}] (${workItemKeys.length}) as ${isRead ? '' : 'un'}read');
     await initWorkItemMarkedAsReadCache();
     if (isRead) {
       if (syncWorkItemMarkedAsReadTimeCache != null) {
-        syncWorkItemMarkedAsReadTimeCache![workItemKey] = time;
+        for (var keyAndTime in workItemKeys) {
+          syncWorkItemMarkedAsReadTimeCache![keyAndTime.$1] = keyAndTime.$2;
+        }
       }
     } else {
       if (syncWorkItemMarkedAsReadTimeCache != null) {
-        syncWorkItemMarkedAsReadTimeCache!.remove(workItemKey);
+        workItemKeys.map((e) => e.$1).forEach(syncWorkItemMarkedAsReadTimeCache!.remove);
       }
     }
 
+    // save file
     final String csvString = csv.encode([
       for (final e in syncWorkItemMarkedAsReadTimeCache!.entries) [e.key, e.value.toIso8601String()],
     ]);

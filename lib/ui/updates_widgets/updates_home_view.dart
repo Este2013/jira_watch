@@ -510,12 +510,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
   }
 
   Future<void> _markAllAsRead({required bool read}) async {
-    for (final w in _selectedItems) {
-      final updated = w.fields?['updated'] as String?;
-      if (w.key != null && updated != null) {
-        await DataModel().markAsRead(w.key!, DateTime.parse(updated), isRead: read);
-      }
-    }
+    await DataModel().markAllAsRead(_selectedItems.map((e) => (e.key!, DateTime.parse(e.fields?['updated'] as String? ?? e.fields?['created']))), isRead: read);
     if (mounted) setState(() {});
   }
 

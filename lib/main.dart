@@ -290,7 +290,7 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> with UiLoggy {
                       ),
                   ],
                 ),
-                      
+
                 if (widget.code == 401)
                   Card(
                     color: Theme.of(context).colorScheme.errorContainer,
@@ -311,7 +311,7 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> with UiLoggy {
                       ),
                     ),
                   ),
-                      
+
                 SizedBox(height: 8),
                 TextFormField(
                   controller: SettingsModel().domainController,
@@ -347,7 +347,7 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> with UiLoggy {
                           SnackBar(content: Text('API Key copied to clipboard')),
                         );
                       },
-                      icon: Icon(Icons.copy),
+                      icon: Icon(Symbols.content_copy),
                     ),
                   ),
                   obscureText: true,
@@ -387,13 +387,12 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> with UiLoggy {
                     ),
                   ],
                 ),
-               
               ],
             ),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.only(left: 16,right: 8, top: 8, bottom: 8),
+          padding: const EdgeInsets.only(left: 16, right: 8, top: 8, bottom: 8),
           child: Row(
             children: [
               Expanded(
@@ -414,18 +413,11 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> with UiLoggy {
               Expanded(
                 child: Align(
                   alignment: .centerEnd,
-                  child: IconButton(
-                    color: Theme.of(context).hintColor,
-                    onPressed: () {
-                      loggy.info('User opens the settings dialog from the login page');
-                      showDialog(
-                        context: context,
-                        builder: (context) => SettingsDialog(
-                          allowConnectionBasedSettings: false,
-                        ),
-                      );
+                  child: SettingsButton(
+                    childDialogBuilder: (context) {
+                      loggy.info('User opens the settings dialog from navigation rail');
+                      return SettingsDialog(allowConnectionBasedSettings: false);
                     },
-                    icon: Icon(Icons.settings),
                   ),
                 ),
               ),

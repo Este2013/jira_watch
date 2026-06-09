@@ -24,6 +24,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 
 import '../utils/🪵.dart';
+import 'utils/widgets/animated_icons.dart';
 
 enum SettingsDialogPage { general, connection, projects, advanced }
 
@@ -40,30 +41,11 @@ class SettingsDialog extends StatefulWidget {
 class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  final tabs = [
-    Tab(
-      text: 'General',
-      icon: Icon(Icons.settings),
-    ),
-    Tab(
-      text: 'Connection',
-      icon: Icon(Icons.account_circle),
-    ),
-    Tab(
-      text: 'Projects',
-      icon: Icon(Symbols.ad),
-    ),
-    Tab(
-      text: 'Advanced',
-      icon: Icon(Symbols.settings_applications),
-    ),
-  ];
-
   @override
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: tabs.length,
+      length: widget.allowConnectionBasedSettings ? 4 : 2,
       initialIndex: SettingsDialogPage.values.indexed.firstWhere((t) => t.$2 == widget.initialPage).$1,
       vsync: this,
     );
@@ -109,7 +91,34 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TabBar(controller: _tabController, tabs: tabs),
+          AnimatedBuilder(
+            animation: _tabController,
+            builder: (context, _) {
+              return TabBar(
+                controller: _tabController,
+                tabs: [
+                  Tab(
+                    text: 'General',
+                    icon: IconFilledOnSelection(Icon(Symbols.settings), isSelected: _tabController.index == 0),
+                  ),
+                  if (widget.allowConnectionBasedSettings)
+                    Tab(
+                      text: 'Connection',
+                      icon: IconFilledOnSelection(Icon(Symbols.account_circle), isSelected: _tabController.index == 1),
+                    ),
+                  if (widget.allowConnectionBasedSettings)
+                    Tab(
+                      text: 'Projects',
+                      icon: IconFilledOnSelection(Icon(Symbols.amp_stories), isSelected: _tabController.index == 2),
+                    ),
+                  Tab(
+                    text: 'Advanced',
+                    icon: IconFilledOnSelection(Icon(Symbols.settings_applications), isSelected: _tabController.index == 3),
+                  ),
+                ],
+              );
+            },
+          ),
           Expanded(
             child: SizedBox(
               width: 450,
@@ -119,8 +128,8 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
                   controller: _tabController,
                   children: [
                     GeneralSettingsPage(),
-                    if (widget.allowConnectionBasedSettings) ConnectionSettingsPage() else Center(child: Text('Please connect first to view this page.')),
-                    if (widget.allowConnectionBasedSettings) ProjectsSettingsPage() else Center(child: Text('Please connect first to view this page.')),
+                    if (widget.allowConnectionBasedSettings) ConnectionSettingsPage(),
+                    if (widget.allowConnectionBasedSettings) ProjectsSettingsPage(),
                     AdvancedSettingsPage(),
                   ],
                 ),
@@ -181,7 +190,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                             visualDensity: VisualDensity.compact,
                             onPressed: () => Clipboard.setData(ClipboardData(text: snapshot.data!)),
                             tooltip: "Copy version",
-                            icon: Icon(Icons.copy),
+                            icon: Icon(Symbols.content_copy),
                             iconSize: 16,
                           ),
                           IconButton(
@@ -191,14 +200,14 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                               builder: (context) => ChangeLogsDialog(),
                             ),
                             tooltip: "See what's new",
-                            icon: Icon(Icons.new_releases),
+                            icon: Icon(Symbols.new_releases),
                             iconSize: 16,
                           ),
                           IconButton(
                             visualDensity: VisualDensity.compact,
                             onPressed: () => fetchNewUpdateDataAndShowResults(context, snapshot.data!),
                             tooltip: "Check for updates",
-                            icon: Icon(Icons.update),
+                            icon: Icon(Symbols.update),
                             iconSize: 16,
                           ),
                         ],
@@ -222,15 +231,21 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                         );
                       }
                       return SegmentedButton<UpdateTrack>(
-                        segments: const [
+                        segments: [
                           ButtonSegment(
                             value: UpdateTrack.main,
-                            icon: Icon(Symbols.home, size: 16, fill: 1),
+                            icon: IconFilledOnSelection(
+                              Icon(Symbols.home, size: 16),
+                              isSelected: SettingsModel().updateTrack.value == .main,
+                            ),
                             label: Text('Stable'),
                           ),
                           ButtonSegment(
                             value: UpdateTrack.beta,
-                            icon: Icon(Symbols.experiment, size: 16, fill: 1),
+                            icon: IconFilledOnSelection(
+                              Icon(Symbols.experiment, size: 16),
+                              isSelected: SettingsModel().updateTrack.value == .beta,
+                            ),
                             label: Text('Beta'),
                           ),
                         ],
@@ -257,20 +272,30 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                   Text('Theme'),
                   Spacer(),
                   SegmentedButton<String>(
-                    segments: const [
+                    segments: [
                       ButtonSegment(
                         value: 'system',
-                        icon: Icon(Icons.computer, size: 16),
+                        icon: IconFilledOnSelection(
+                          Icon(Symbols.computer, size: 16),
+                          isSelected: SettingsModel().theme.value == 'system',
+                        ),
                         label: Text('System'),
                       ),
                       ButtonSegment(
                         value: 'light',
-                        icon: Icon(Icons.light_mode, size: 16),
+                        icon: IconFilledOnSelection(
+                          Icon(Symbols.light_mode, size: 16),
+                          isSelected: SettingsModel().theme.value == 'light',
+                        ),
                         label: Text('Light'),
                       ),
                       ButtonSegment(
                         value: 'dark',
-                        icon: Icon(Icons.dark_mode, size: 16),
+                        icon: IconFilledOnSelection(
+                          Icon(Symbols.dark_mode, size: 16),
+
+                          isSelected: SettingsModel().theme.value == 'dark',
+                        ),
                         label: Text('Dark'),
                       ),
                     ],
@@ -550,7 +575,7 @@ class _ProjectsSettingsPageState extends State<ProjectsSettingsPage> {
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      prefixIcon: Icon(Icons.search),
+                      prefixIcon: Icon(Symbols.search),
                       labelText: 'Search',
                     ),
                     onChanged: (_) => setState(() {}), // just rebuild the list
@@ -641,7 +666,7 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
 
                       TextButton.icon(
                         onPressed: () => SettingsModel().settingsFolderUri.then(launchUrl),
-                        icon: Icon(Icons.folder),
+                        icon: Icon(Symbols.folder),
                         label: Text("View data files in folder"),
                       ),
                     ],
@@ -689,11 +714,11 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                     spacing: 8,
                     children: [
                       TextButton.icon(
-                        icon: Icon(Icons.menu_book),
+                        icon: Icon(Symbols.menu_book),
                         onPressed: () => showDialog(context: context, builder: (context) => _LogsDialog()),
                         label: Text("Read the logs"),
                       ),
-                      if (Platform.isWindows) TextButton.icon(icon: Icon(Icons.folder), onPressed: () => SettingsModel().settingsFolderUri.then(launchUrl), label: Text("Open in folder")),
+                      if (Platform.isWindows) TextButton.icon(icon: Icon(Symbols.folder), onPressed: () => SettingsModel().settingsFolderUri.then(launchUrl), label: Text("Open in folder")),
                     ],
                   ),
                 ],
@@ -721,7 +746,7 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                       Text('Test writing to settings folder'),
                       Spacer(),
                       TextButton.icon(
-                        icon: Icon(Icons.settings),
+                        icon: Icon(Symbols.settings),
                         onPressed: () {
                           showDialog(
                             context: context,
@@ -741,7 +766,7 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                       Text('Test fetching new update data'),
                       Spacer(),
                       TextButton.icon(
-                        icon: Icon(Icons.update),
+                        icon: Icon(Symbols.update),
                         onPressed: () {
                           showDialog(
                             context: context,
@@ -851,7 +876,7 @@ class _DiagnosticsDialogState extends State<DiagnosticsDialog> {
             if (snap.hasError) {
               return IconButton(
                 onPressed: () => Clipboard.setData(ClipboardData(text: snap.error.toString())),
-                icon: Icon(Icons.error),
+                icon: Icon(Symbols.error),
                 tooltip: snap.error.toString(),
               );
             }
@@ -1068,7 +1093,7 @@ class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
         children: [
           Text('Logs reader'),
           PopupMenuButton<String>(
-            icon: Icon(Icons.edit),
+            icon: Icon(Symbols.edit),
             tooltip: 'Test writing a message',
 
             itemBuilder: (context) => [
@@ -1160,7 +1185,7 @@ class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
                       child: TextField(
                         controller: searchController,
                         decoration: InputDecoration(
-                          prefixIcon: Icon(Icons.search),
+                          prefixIcon: Icon(Symbols.search),
                         ),
                       ),
                     ),
