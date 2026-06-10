@@ -86,6 +86,11 @@ class _UpdatesPageState extends State<UpdatesPage> {
   bool isAllowedToShowIssueDialog = true;
   bool isIssueDialogShown = false;
 
+  /// Built once and cached so list interactions (hover, selection) never rebuild
+  /// the filter bar — which was reloading the project avatars and flashing
+  /// spinners. The filter bar owns its own state and reports changes back.
+  late final Widget _filterBar;
+
   @override
   void initState() {
     super.initState();
@@ -102,22 +107,19 @@ class _UpdatesPageState extends State<UpdatesPage> {
       timeFilter = timeFilter.map((f) => DateTime.parse(f)).toList();
     }
 
+    _filterBar = UpdatesFilterBar(
+      onFiltersChanged: (projects, tf) {
+        activeProjectFilters = projects;
+        timeFilter = tf;
+        _resetAndFetchFirstPage();
+      },
+      onRefresh: _resetAndFetchFirstPage,
+    );
+
     // initial load
     _resetAndFetchFirstPage();
 
     SettingsModel().starredProjects.addListener(_setStateResetAndFetchFirstPage);
-  }
-
-  void _saveFilters() {
-    var filters = <String, dynamic>{};
-    filters['active_projects'] = activeProjectFilters.toList();
-    if (timeFilter is String?) {
-      filters['time_filter'] = timeFilter;
-    } else {
-      filters['time_filter'] = (timeFilter as List).cast<DateTime>().map<String>((d) => d.toIso8601String()).toList();
-    }
-
-    SettingsModel().filters.value = filters;
   }
 
   void _onScrollNearBottom() {
@@ -321,40 +323,8 @@ class _UpdatesPageState extends State<UpdatesPage> {
                 Expanded(
                   child: Column(
                     children: [
-                      // filters
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: Row(
-                          spacing: 8,
-                          children: [
-                            // per project filtering
-                            Expanded(
-                              child: ProjectFilteringRow(
-                                activeProjectFilters: activeProjectFilters,
-                                toggleProjectCode: (code) => setState(() {
-                                  activeProjectFilters.toggle(code);
-                                  _resetAndFetchFirstPage();
-                                  _saveFilters();
-                                }),
-                              ),
-                            ),
-                            TimeFilterDropdown(
-                              init: timeFilter ?? 'all time',
-                              save: (data) {
-                                setState(() => timeFilter = data);
-                                _saveFilters();
-                                _resetAndFetchFirstPage();
-                              },
-                            ),
-                            RefreshFutureIconButton(tooltip: 'Refresh', onRefresh: _resetAndFetchFirstPage),
-                            // IconButton(
-                            //   onPressed: _resetAndFetchFirstPage,
-                            //   icon: Icon(Symbols.refresh),
-                            //   tooltip: 'Refresh',
-                            // ),
-                          ],
-                        ),
-                      ),
+                      // filters (cached instance — not rebuilt by list interactions)
+                      _filterBar,
                       // list
                       Expanded(
                         child: Stack(
@@ -466,19 +436,22 @@ class _UpdatesPageState extends State<UpdatesPage> {
                               right: 8,
 
                               top: 4 + _hoverBadgeCenterY - _badgeHeight / 2,
-                              child: MouseRegion(
-                                onEnter: (_) => setState(() => _badgeHovered = true),
-                                onExit: (_) => setState(() => _badgeHovered = false),
-                                child: AnimatedOpacity(
-                                  duration: Durations.short3,
-                                  opacity: _badgeVisible ? 1 : 0,
-                                  // When the fade settles, record whether we're now fully
-                                  // hidden so the next appearance snaps instead of travels.
-                                  onEnd: () {
-                                    if (mounted) setState(() => _badgeFullyHidden = !_badgeVisible);
-                                  },
-                                  child: IgnorePointer(
-                                    ignoring: !_badgeVisible,
+                              // IgnorePointer wraps the MouseRegion too, so once the
+                              // badge is hidden its hover region no longer lingers and
+                              // blocks hovering the right side of items.
+                              child: IgnorePointer(
+                                ignoring: !_badgeVisible,
+                                child: MouseRegion(
+                                  onEnter: (_) => setState(() => _badgeHovered = true),
+                                  onExit: (_) => setState(() => _badgeHovered = false),
+                                  child: AnimatedOpacity(
+                                    duration: Durations.short3,
+                                    opacity: _badgeVisible ? 1 : 0,
+                                    // When the fade settles, record whether we're now fully
+                                    // hidden so the next appearance snaps instead of travels.
+                                    onEnd: () {
+                                      if (mounted) setState(() => _badgeFullyHidden = !_badgeVisible);
+                                    },
                                     child: SelectionGroupBadge(
                                       color: Theme.of(context).colorScheme.onSurface,
                                       allRead: _allSelectedRead,
@@ -696,6 +669,90 @@ class _UpdatesPageState extends State<UpdatesPage> {
   }
 }
 
+/// Self-contained filter bar (project filters, time filter, refresh). It owns
+/// its filter state and only reports changes back via [onFiltersChanged], so it
+/// can be cached by the parent and is never rebuilt by list interactions.
+class UpdatesFilterBar extends StatefulWidget {
+  const UpdatesFilterBar({super.key, required this.onFiltersChanged, required this.onRefresh});
+
+  final void Function(Set<String> activeProjects, Object? timeFilter) onFiltersChanged;
+  final Future<void> Function() onRefresh;
+
+  @override
+  State<UpdatesFilterBar> createState() => _UpdatesFilterBarState();
+}
+
+class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
+  Set<String> activeProjectFilters = {};
+  Object? timeFilter;
+
+  @override
+  void initState() {
+    super.initState();
+    final filters = SettingsModel().filters.value;
+    activeProjectFilters = ((filters['active_projects'] ?? []) as List).cast<String>().toSet();
+    timeFilter = filters['time_filter'];
+    if (timeFilter is List) {
+      timeFilter = (timeFilter as List).map((f) => DateTime.parse(f)).toList();
+    }
+    // Rebuild the project buttons (only) when the starred projects change.
+    SettingsModel().starredProjects.addListener(_onStarredChanged);
+  }
+
+  @override
+  void dispose() {
+    SettingsModel().starredProjects.removeListener(_onStarredChanged);
+    super.dispose();
+  }
+
+  void _onStarredChanged() => setState(() {});
+
+  void _saveFilters() {
+    final filters = <String, dynamic>{};
+    filters['active_projects'] = activeProjectFilters.toList();
+    if (timeFilter is String?) {
+      filters['time_filter'] = timeFilter;
+    } else {
+      filters['time_filter'] = (timeFilter as List).cast<DateTime>().map<String>((d) => d.toIso8601String()).toList();
+    }
+    SettingsModel().filters.value = filters;
+  }
+
+  void _toggleProject(String code) {
+    setState(() => activeProjectFilters.toggle(code));
+    _saveFilters();
+    widget.onFiltersChanged(activeProjectFilters, timeFilter);
+  }
+
+  void _setTimeFilter(dynamic data) {
+    setState(() => timeFilter = data);
+    _saveFilters();
+    widget.onFiltersChanged(activeProjectFilters, timeFilter);
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8.0),
+    child: Row(
+      spacing: 8,
+      children: [
+        Expanded(
+          child: ProjectFilteringRow(
+            key: ValueKey(activeProjectFilters.join(' ')),
+            activeProjectFilters: activeProjectFilters,
+            toggleProjectCode: _toggleProject,
+          ),
+        ),
+        TimeFilterDropdown(
+          init: timeFilter ?? 'all time',
+          save: _setTimeFilter,
+        ),
+        RefreshFutureIconButton(tooltip: 'Refresh', onRefresh: widget.onRefresh),
+      ],
+    ),
+  );
+}
+
 class ProjectFilteringRow extends StatelessWidget {
   const ProjectFilteringRow({super.key, required this.activeProjectFilters, required this.toggleProjectCode});
   final void Function(String projectCode) toggleProjectCode;
@@ -892,13 +949,18 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
         // Outline every selected item. The previewed item is a normal member of
         // the selection, so this is driven purely by the multi-selection state.
         final showOutline = widget.isMultiSelected;
-        final outlineTop = widget.groupTop;
-        final outlineBottom = widget.groupBottom;
+        // The previewed item grows back to full width and gets its own fully
+        // rounded outline (all corners) that sits on top of the group outline;
+        // other group members use the shared open-sided group corners.
+        final outlineTop = widget.isSelected ? true : widget.groupTop;
+        final outlineBottom = widget.isSelected ? true : widget.groupBottom;
         // Spacing between items is preserved; the painter bridges this gap.
         const double cardGap = 8; // 4px bottom margin + 4px top margin
 
         Widget card = Card(
           clipBehavior: Clip.hardEdge,
+          // Raise the previewed item so its outline sits above the group's.
+          elevation: widget.isSelected ? 4 : null,
           color: colors['bg']?.withAlpha(Theme.brightnessOf(context) == Brightness.light ? 255 : 50),
           shape: showOutline
               ? RoundedRectangleBorder(
@@ -1155,7 +1217,14 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
               : null,
           child: card,
         );
-        return Padding(padding: const EdgeInsets.all(4), child: card);
+        // Contract every item by 8px horizontally; the previewed item animates
+        // back to full width so it pops out of the row / group.
+        return AnimatedPadding(
+          duration: Durations.medium1,
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.symmetric(horizontal: widget.isSelected ? 0 : 8, vertical: 4),
+          child: card,
+        );
       },
     );
   }
