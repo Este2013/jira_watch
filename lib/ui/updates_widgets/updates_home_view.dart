@@ -54,6 +54,31 @@ class _UpdatesPageState extends State<UpdatesPage> {
   /// Anchor index for Ctrl+Shift range selection.
   int? selectionAnchorIndex;
 
+  // --- Hover-following selection badge ---
+  /// Key of the [Stack] that hosts the list, used to convert item positions into
+  /// the badge's coordinate space.
+  final GlobalKey _listStackKey = GlobalKey();
+
+  /// Stable per-item keys (by work item key) used to measure item positions.
+  final Map<String, GlobalKey> _itemKeys = {};
+
+  /// The selected item currently hovered (drives the badge), or null.
+  String? _hoverBadgeKey;
+
+  /// Whether the pointer is over the badge itself (keeps it visible/clickable).
+  bool _badgeHovered = false;
+
+  /// Vertical center (within the list Stack) of the hovered item; the badge
+  /// slides toward this.
+  double _hoverBadgeCenterY = 0;
+
+  /// True while the badge is fully faded out. Used to make it re-appear in place
+  /// (no visible travel) the next time it fades in, while still sliding between
+  /// items when it stays continuously visible.
+  bool _badgeFullyHidden = true;
+
+  static const double _badgeHeight = 40;
+
   final ScrollController scrollController = ScrollController(keepScrollOffset: true);
 
   final List<JiraWorkItemData> allLoadedWorkItems = [];
@@ -112,6 +137,9 @@ class _UpdatesPageState extends State<UpdatesPage> {
     totalAvailable = null;
     nextPageToken = null;
     allLoadedWorkItems.clear();
+    _itemKeys.clear();
+    _hoverBadgeKey = null;
+    _badgeHovered = false;
     return startFetchingNewPage();
   }
 
@@ -330,6 +358,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
                       // list
                       Expanded(
                         child: Stack(
+                          key: _listStackKey,
                           children: [
                             EdgeOverscrollListener(
                               childScrollCtrl: scrollController,
@@ -361,7 +390,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
                                           final isMultiSelected = t.key != null && multiSelectedKeys.contains(t.key);
                                           final prevSelected = _isOutlinedAt(index - 1);
                                           final nextSelected = _isOutlinedAt(index + 1);
-                                          return JiraWorkItemPreviewItem(
+                                          final item = JiraWorkItemPreviewItem(
                                             key: Key(t.key ?? ''),
                                             workItem: t,
                                             index: index,
@@ -373,6 +402,15 @@ class _UpdatesPageState extends State<UpdatesPage> {
                                             onToggleMultiSelect: _toggleMultiSelect,
                                             onRangeMultiSelect: _rangeMultiSelect,
                                             changedSize: loadMoreIfNoScrollPossible,
+                                          );
+                                          // Track hover so the single floating badge can follow the
+                                          // pointer. KeyedSubtree gives a stable key to measure the item's
+                                          // position within the list Stack.
+                                          final measureKey = t.key == null ? null : _itemKeys.putIfAbsent(t.key!, () => GlobalKey());
+                                          return MouseRegion(
+                                            onEnter: (_) => _onItemHover(t.key, true),
+                                            onExit: (_) => _onItemHover(t.key, false),
+                                            child: measureKey == null ? item : KeyedSubtree(key: measureKey, child: item),
                                           );
                                         }
 
@@ -417,6 +455,44 @@ class _UpdatesPageState extends State<UpdatesPage> {
                                   onClear: clearMultiSelection,
                                 ),
                               ),
+                            // A single badge that follows the hovered selected item:
+                            // it slides (AnimatedPositioned) between items and fades
+                            // (AnimatedOpacity) in/out.
+                            AnimatedPositioned(
+                              // Snap into place when re-appearing from fully hidden,
+                              // but slide while it stays continuously visible.
+                              duration: _badgeFullyHidden ? Duration.zero : Durations.medium2,
+                              curve: Curves.easeOutCubic,
+                              right: 8,
+
+                              top: 4 + _hoverBadgeCenterY - _badgeHeight / 2,
+                              child: MouseRegion(
+                                onEnter: (_) => setState(() => _badgeHovered = true),
+                                onExit: (_) => setState(() => _badgeHovered = false),
+                                child: AnimatedOpacity(
+                                  duration: Durations.short3,
+                                  opacity: _badgeVisible ? 1 : 0,
+                                  // When the fade settles, record whether we're now fully
+                                  // hidden so the next appearance snaps instead of travels.
+                                  onEnd: () {
+                                    if (mounted) setState(() => _badgeFullyHidden = !_badgeVisible);
+                                  },
+                                  child: IgnorePointer(
+                                    ignoring: !_badgeVisible,
+                                    child: SelectionGroupBadge(
+                                      color: Theme.of(context).colorScheme.onSurface,
+                                      allRead: _allSelectedRead,
+                                      onMarkAllRead: () => _markAllAsRead(read: true),
+                                      onMarkAllUnread: () => _markAllAsRead(read: false),
+                                      onKeepForLater: _keepAllForLater,
+                                      onAddToTask: _addAllToTask,
+                                      onOpenAll: _openAllInBrowser,
+                                      onClear: clearMultiSelection,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -467,6 +543,9 @@ class _UpdatesPageState extends State<UpdatesPage> {
       }
       selectionAnchorIndex = index;
     });
+    // The pointer is already over this item, so no hover event will fire even
+    // though eligibility just changed — re-evaluate the badge for it.
+    _refreshHoverBadgeFor(key);
   }
 
   void _rangeMultiSelect(int index) {
@@ -479,6 +558,16 @@ class _UpdatesPageState extends State<UpdatesPage> {
         if (key != null) multiSelectedKeys.add(key);
       }
       selectionAnchorIndex = index;
+    });
+    _refreshHoverBadgeFor(allLoadedWorkItems[index].key);
+  }
+
+  /// Re-evaluates the hover badge for the item under the pointer after a
+  /// selection change. Runs post-frame so the item position reflects the new
+  /// layout (outline/margins).
+  void _refreshHoverBadgeFor(String? key) {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _onItemHover(key, true);
     });
   }
 
@@ -507,6 +596,33 @@ class _UpdatesPageState extends State<UpdatesPage> {
     if (i < 0 || i >= allLoadedWorkItems.length) return false;
     final key = allLoadedWorkItems[i].key;
     return key != null && multiSelectedKeys.contains(key);
+  }
+
+  /// Whether the hover-following badge should be shown/interactive right now.
+  bool get _badgeVisible => multiSelectedKeys.length >= 2 && ((_hoverBadgeKey != null && multiSelectedKeys.contains(_hoverBadgeKey)) || _badgeHovered);
+
+  /// Called when the pointer enters/leaves a list item. When entering a selected
+  /// item (with 2+ selected), positions the badge at that item's vertical center.
+  void _onItemHover(String? key, bool entering) {
+    if (!entering) {
+      // Only clear if we're leaving the item that currently owns the badge; the
+      // matching enter (next item / the badge) runs in the same frame and wins.
+      if (_hoverBadgeKey == key) setState(() => _hoverBadgeKey = null);
+      return;
+    }
+    if (key == null || multiSelectedKeys.length < 2 || !multiSelectedKeys.contains(key)) {
+      if (_hoverBadgeKey != null) setState(() => _hoverBadgeKey = null);
+      return;
+    }
+    final stackBox = _listStackKey.currentContext?.findRenderObject() as RenderBox?;
+    final itemBox = _itemKeys[key]?.currentContext?.findRenderObject() as RenderBox?;
+    setState(() {
+      _hoverBadgeKey = key;
+      if (stackBox != null && itemBox != null && itemBox.hasSize) {
+        final topInStack = stackBox.globalToLocal(itemBox.localToGlobal(Offset.zero)).dy;
+        _hoverBadgeCenterY = topInStack + itemBox.size.height / 2;
+      }
+    });
   }
 
   Future<void> _markAllAsRead({required bool read}) async {
@@ -1608,26 +1724,30 @@ class _SelectionFabMenuState extends State<SelectionFabMenu> {
   /// after it (no built-in FAB supports this order, so it's hand-rolled).
   Widget _menuItem(IconData icon, String label, VoidCallback onTap, {Color? color}) {
     final colorScheme = Theme.of(context).colorScheme;
-    final background = color ?? colorScheme.primaryContainer;
-    final foreground = color != null ? colorScheme.onError : colorScheme.onPrimaryContainer;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: background,
-        elevation: 3,
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => _run(onTap),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(label, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: foreground)),
-                const SizedBox(width: 12),
-                Icon(icon, color: foreground, size: 20),
-              ],
+    final background = color ?? Theme.of(context).colorScheme.inverseSurface;
+    final foreground = color != null ? colorScheme.onError : Theme.of(context).colorScheme.surface;
+    return MouseRegion(
+      opaque: true,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Material(
+          color: background,
+          elevation: 3,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => _run(onTap),
+            hoverColor: Theme.of(context).colorScheme.onSurface,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(label, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: foreground)),
+                  const SizedBox(width: 12),
+                  Icon(icon, color: foreground, size: 20),
+                ],
+              ),
             ),
           ),
         ),
@@ -1660,6 +1780,8 @@ class _SelectionFabMenuState extends State<SelectionFabMenu> {
             : const SizedBox.shrink(),
       ),
       FloatingActionButton.extended(
+        backgroundColor: Theme.of(context).colorScheme.onSurface,
+        foregroundColor: Theme.of(context).colorScheme.surface,
         heroTag: 'selection_fab_main',
         onPressed: () => setState(() => _open = !_open),
         icon: Icon(_open ? Symbols.arrow_back : Symbols.checklist),
@@ -1668,7 +1790,9 @@ class _SelectionFabMenuState extends State<SelectionFabMenu> {
           child: Row(
             spacing: 8,
             children: [
-              Text(_open ? 'Close' : '${widget.count} selected'),
+              Text(
+                _open ? 'Close' : '${widget.count} selected',
+              ),
               IconButton(
                 onPressed: widget.onClear,
                 icon: const Icon(Symbols.clear),
@@ -1685,4 +1809,92 @@ class _SelectionFabMenuState extends State<SelectionFabMenu> {
       // A subtle "clear selection" affordance below the main FAB when closed.
     ],
   );
+}
+
+/// A small pill that floats at the top-right of a selected group. Painted in the
+/// same color as the selection outline, it exposes the bulk actions (via a menu)
+/// and a quick "clear selection" button.
+class SelectionGroupBadge extends StatelessWidget {
+  const SelectionGroupBadge({
+    super.key,
+    required this.color,
+    required this.allRead,
+    required this.onMarkAllRead,
+    required this.onMarkAllUnread,
+    required this.onKeepForLater,
+    required this.onAddToTask,
+    required this.onOpenAll,
+    required this.onClear,
+  });
+
+  final Color color;
+  final bool allRead;
+  final VoidCallback onMarkAllRead;
+  final VoidCallback onMarkAllUnread;
+  final VoidCallback onKeepForLater;
+  final VoidCallback onAddToTask;
+  final VoidCallback onOpenAll;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    // Contrast against the outline color (onSurface) -> use the matching surface.
+    final foreground = Theme.of(context).colorScheme.surface;
+    return Material(
+      color: color,
+      elevation: 3,
+      borderRadius: BorderRadius.circular(10000),
+      clipBehavior: Clip.antiAlias,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          MenuAnchor(
+            builder: (context, controller, child) => IconButton(
+              tooltip: 'Selection actions',
+              onPressed: () => controller.isOpen ? controller.close() : controller.open(),
+              icon: Icon(Symbols.more_horiz, color: foreground),
+              iconSize: 16,
+              visualDensity: VisualDensity.compact,
+            ),
+            menuChildren: [
+              if (allRead)
+                MenuItemButton(
+                  leadingIcon: const Icon(Symbols.mark_email_unread),
+                  onPressed: onMarkAllUnread,
+                  child: const Text('Mark all as unread'),
+                )
+              else
+                MenuItemButton(
+                  leadingIcon: const Icon(Symbols.mark_email_read),
+                  onPressed: onMarkAllRead,
+                  child: const Text('Mark all as read'),
+                ),
+              MenuItemButton(
+                leadingIcon: Transform.rotate(angle: pi / 4, child: const Icon(Symbols.keep)),
+                onPressed: onKeepForLater,
+                child: const Text('Keep for later'),
+              ),
+              MenuItemButton(
+                leadingIcon: const Icon(Symbols.assignment_add),
+                onPressed: onAddToTask,
+                child: const Text('Add all to a task'),
+              ),
+              MenuItemButton(
+                leadingIcon: const Icon(Symbols.open_in_browser),
+                onPressed: onOpenAll,
+                child: const Text('Open all on website'),
+              ),
+            ],
+          ),
+          IconButton(
+            tooltip: 'Clear selection',
+            onPressed: onClear,
+            icon: Icon(Symbols.clear, color: foreground),
+            iconSize: 16,
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
+    );
+  }
 }

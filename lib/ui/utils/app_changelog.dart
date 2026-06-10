@@ -5,10 +5,10 @@ import 'package:jira_watcher/models/settings_model.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-List<Widget> _versionsData = [
-  ChangeLogCard(
+List<(String, List<ChangeLogSection>)> _versionsDataRaw = [
+  (
     '1.7.0',
-    sections: [
+    [
       ChangeLogSection.features([
         ChangeLogItem('All "Add to tasks" buttons now show how many tasks already reference the work item'),
         ChangeLogItem('Can now copy link to work item as well as just the key'),
@@ -23,14 +23,15 @@ List<Widget> _versionsData = [
       ]),
       ChangeLogSection.chores([
         ChangeLogItem('Bumped version number.'),
+        ChangeLogItem('Updated icon styling'),
       ]),
     ],
   ),
 
   ...[
-    ChangeLogCard(
+    (
       '1.6.0',
-      sections: [
+      [
         ChangeLogSection.features([
           ChangeLogItem(
             'General updates list improvements',
@@ -60,9 +61,9 @@ List<Widget> _versionsData = [
         ]),
       ],
     ),
-    ChangeLogCard(
+    (
       '1.5.0',
-      sections: [
+      [
         ChangeLogSection.features([
           ChangeLogItem('🍎 macOS is now supported!'),
           ChangeLogItem('👤 Improved setting\'s "Connection" page and login page;'),
@@ -104,9 +105,9 @@ List<Widget> _versionsData = [
       ],
     ),
 
-    ChangeLogCard(
+    (
       '1.4.1',
-      sections: [
+      [
         ChangeLogSection.bugFixes([
           ChangeLogItem('Todo tasks can now be edited correctly'),
           ChangeLogItem('Jira link cards now open in an in-app dialog (instead of in browser)'),
@@ -120,9 +121,9 @@ List<Widget> _versionsData = [
       ],
     ),
 
-    ChangeLogCard(
+    (
       '1.4.0',
-      sections: [
+      [
         ChangeLogSection.features([
           ChangeLogItem('🔍 Issue search is now available!'),
           ChangeLogItem('💬 When the window is too small, the issue details section gets shown in a new modal'),
@@ -159,9 +160,9 @@ List<Widget> _versionsData = [
       ],
     ),
 
-    ChangeLogCard(
+    (
       '1.3.0',
-      sections: [
+      [
         ChangeLogSection.features([
           ChangeLogItem('📝 New TO DO system allows to easily set issues aside for later :D'),
           ChangeLogItem(
@@ -200,9 +201,9 @@ List<Widget> _versionsData = [
       ],
     ),
 
-    ChangeLogCard(
+    (
       '1.2.0',
-      sections: [
+      [
         ChangeLogSection.features([
           ChangeLogItem('⚙️ Settings: Added Compact listing mode for Updates view'),
           ChangeLogItem('🕜 Custom time filtering is now available'),
@@ -224,9 +225,9 @@ List<Widget> _versionsData = [
       ],
     ),
 
-    ChangeLogCard(
+    (
       '1.1.1',
-      sections: [
+      [
         ChangeLogSection.features([
           ChangeLogItem('🔑 [BREAKING] API key is encrypted when stored in file system.'),
           ChangeLogItem('ℹ️ Your already saved API key (in plain text) will be encrypted and removed from settings file.'),
@@ -247,9 +248,9 @@ List<Widget> _versionsData = [
       ],
     ),
 
-    ChangeLogCard(
+    (
       '1.1.0',
-      sections: [
+      [
         ChangeLogSection.features([
           ChangeLogItem("Renamed 'Overview' to 'Updates'"),
           ChangeLogItem('📫 Updates can now be marked as Read or Unread'),
@@ -272,9 +273,9 @@ List<Widget> _versionsData = [
       ],
     ),
 
-    ChangeLogCard(
+    (
       '1.0.2',
-      sections: [
+      [
         ChangeLogSection.features([
           ChangeLogItem('🔄️ Adds a manual refresh button'),
           ChangeLogItem('😀 Also I can test if my update mechanic works now :)'),
@@ -282,9 +283,9 @@ List<Widget> _versionsData = [
       ],
     ),
 
-    ChangeLogCard(
+    (
       '0.1.2',
-      sections: [
+      [
         ChangeLogSection.features([
           ChangeLogItem('🔍 Overview filters are now kept through app restarts and page navigation'),
           ChangeLogItem('🔄️ Implemented auto-update mechanic'),
@@ -300,9 +301,9 @@ List<Widget> _versionsData = [
       ],
     ),
 
-    ChangeLogCard(
+    (
       '0.1.1',
-      sections: [
+      [
         ChangeLogSection.features([
           ChangeLogItem('📋 On first boot after installing a new version, a changelog is shown. It is also accessible in Settings > General.'),
           ChangeLogItem('🧑 Better login page, with basic input validation.'),
@@ -319,12 +320,9 @@ List<Widget> _versionsData = [
         ]),
       ],
     ),
-
-    Card(
-      child: Center(child: Text("V0: The app now exist 😎")),
-    ),
   ],
 ];
+List<Widget> get _versionsData => _versionsDataRaw.map<Widget>((e) => ChangeLogCard(e.$1, sections: e.$2)).toList()..add(Card(child: Center(child: Text("V0: The app now exist 😎"))));
 
 class ChangeLogsDialog extends StatelessWidget {
   const ChangeLogsDialog({
@@ -335,22 +333,72 @@ class ChangeLogsDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     var ctrl = PageController(initialPage: _versionsData.length - 1);
     return AlertDialog(
-      title: Text("Your app was updated!"),
+      title: Row(
+        children: [
+          Text("Your app was updated!"),
+          Spacer(),
+          FutureBuilder(
+            future: SettingsModel().appInfo.version,
+            builder: (context, asyncSnapshot) {
+              if (asyncSnapshot.hasData) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: Text(
+                    "Now running: ${asyncSnapshot.data}",
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                );
+              }
+              return SizedBox();
+            },
+          ),
+        ],
+      ),
+
+      content: SizedBox(
+        width: 600,
+        height: 400,
+        child: PageView(
+          controller: ctrl,
+          children: _versionsData.reversed.toList(),
+        ),
+      ),
       actions: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
+              spacing: 4,
               children: [
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => ctrl.previousPage(duration: Durations.short4, curve: Curves.bounceIn),
-                  icon: Icon(Symbols.navigate_before),
+                AnimatedBuilder(
+                  animation: ctrl,
+                  builder: (context, _) => IconButton(
+                    visualDensity: VisualDensity.compact,
+                    onPressed: (ctrl.positions.isEmpty || ctrl.page?.round() == 0) ? null : () => ctrl.previousPage(duration: Durations.short4, curve: Curves.bounceIn),
+                    icon: Icon(Symbols.navigate_before),
+                  ),
                 ),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => ctrl.nextPage(duration: Durations.short4, curve: Curves.bounceIn),
-                  icon: Icon(Symbols.navigate_next),
+                AnimatedBuilder(
+                  animation: ctrl,
+                  builder: (context, _) => DropdownMenu(
+                    initialSelection: ctrl.positions.isEmpty ? 0 : _versionsDataRaw.length - (ctrl.page?.round() ?? _versionsDataRaw.length),
+                    dropdownMenuEntries: [for (var v in _versionsDataRaw.indexed) DropdownMenuEntry(value: v.$1, label: v.$2.$1)],
+                    decorationBuilder: (context, controller) => InputDecoration(
+                      visualDensity: .compact,
+                      border: OutlineInputBorder(borderRadius: .circular(100)),
+                      isDense: true,
+                    ),
+                    onSelected: (value) => ctrl.animateToPage(_versionsDataRaw.length - (value ?? 0), duration: Durations.medium1, curve: Curves.easeIn),
+                  ),
+                ),
+                AnimatedBuilder(
+                  animation: ctrl,
+                  builder: (context, _) => IconButton(
+                    visualDensity: VisualDensity.compact,
+
+                    onPressed: (ctrl.positions.isEmpty || ctrl.page?.round() == _versionsData.length - 1) ? null : () => ctrl.nextPage(duration: Durations.short4, curve: Curves.bounceIn),
+                    icon: Icon(Symbols.navigate_next),
+                  ),
                 ),
               ],
             ),
@@ -359,34 +407,6 @@ class ChangeLogsDialog extends StatelessWidget {
           ],
         ),
       ],
-      content: SizedBox(
-        width: 600,
-        height: 400,
-        child: Column(
-          spacing: 8,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            FutureBuilder(
-              future: SettingsModel().appInfo.version,
-              builder: (context, asyncSnapshot) {
-                if (asyncSnapshot.hasData) {
-                  return Text(
-                    "You are now running version ${asyncSnapshot.data}",
-                    style: Theme.of(context).textTheme.titleMedium,
-                  );
-                }
-                return Center(child: CircularProgressIndicator());
-              },
-            ),
-            Expanded(
-              child: PageView(
-                controller: ctrl,
-                children: _versionsData.reversed.toList(),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
