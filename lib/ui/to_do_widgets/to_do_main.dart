@@ -51,6 +51,8 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
   late CollapsibleSidePaneController collapsibleSidePaneController;
   late AnimationController _menuController;
 
+  late TextEditingController searchController;
+
   _TodoPageSortMode sortMode = .creationNewer;
   bool reverseSortMode = false;
 
@@ -71,6 +73,7 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
         _menuController.forward(); // arrow -> menu
       }
     });
+    searchController = TextEditingController();
   }
 
   @override
@@ -181,6 +184,14 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
             ),
           ),
           Divider(),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              autofocus: true,
+              controller: searchController,
+              decoration: InputDecoration(border: OutlineInputBorder(), icon: Icon(Symbols.search), hint: Text('Search by title, notes, or linked work items')),
+            ),
+          ),
           // Task list
           Expanded(
             child: Center(
@@ -210,12 +221,26 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                         ),
                       ],
                     )
-                  : Builder(
+                  : AnimatedBuilder(
                       key: Key('list filters: {cat:$showCategory, filtercompleted:$filterOutCompletedTasks, sort:$sortMode}'),
-                      builder: (context) {
+                      animation: searchController,
+                      builder: (context, _) {
                         var list = DataModel().todoTasks.toDoTasksControllers.list
                             .where(
                               (t) => !filterOutCompletedTasks || !t.isComplete.value,
+                            )
+                            .where(
+                              (e) {
+                                String search = searchController.text.toLowerCase();
+                                return search.isEmpty ||
+                                    e.title.text.toLowerCase().contains(search) ||
+                                    e.notes.text.toLowerCase().contains(search) ||
+                                    e.linkedWorkItems.list
+                                        .map((e) => e.toLowerCase())
+                                        .any(
+                                          (e2) => e2.contains(search),
+                                        );
+                              },
                             )
                             .where(
                               (t) => showCategory == null || t.category.value == showCategory,
@@ -419,7 +444,7 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
   late TabController tabCtrl;
 
   // Values for the "New task" page
-  late TextEditingController titleController, notesController;
+  late TextEditingController titleController, notesController, searchController;
   DateTime? toDoBefore;
   int categoryID = -1;
 
@@ -432,6 +457,7 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
     tabCtrl = TabController(length: 2, vsync: this, initialIndex: 1);
     titleController = TextEditingController(text: '${widget.workItem.key} — ${widget.workItem.fields?['summary']}');
     notesController = TextEditingController();
+    searchController = TextEditingController();
     super.initState();
   }
 
@@ -521,30 +547,59 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
                     future: ToDoTasksModel().isReady,
                     builder: (context, asyncSnapshot) {
                       if (asyncSnapshot.hasData) {
-                        var list = DataModel().todoTasks.toDoTasksControllers.list.where((t) => !t.isComplete.value).toList()
-                          ..sort(
-                            // reversed to show most recent (thus relevant) tasks first
-                            (a, b) => b.dateAdded.compareTo(a.dateAdded),
-                          );
-                        return ListView.builder(
-                          itemCount: list.length,
-                          itemBuilder: (context, index) {
-                            var taskItem = list[index].toToDoTask();
-                            var categoryData = taskItem.categoryData;
-                            return ListTile(
-                              leading: Tooltip(
-                                message: categoryData.$1,
-                                child: Icon(categoryData.$2, color: categoryData.$3),
+                        return Column(
+                          spacing: 8,
+                          children: [
+                            TextField(
+                              autofocus: true,
+                              controller: searchController,
+                              decoration: InputDecoration(border: OutlineInputBorder(), icon: Icon(Symbols.search), hint: Text('Search by title, notes, or linked work items')),
+                            ),
+                            Expanded(
+                              child: AnimatedBuilder(
+                                animation: searchController,
+                                builder: (context, _) {
+                                  var list =
+                                      DataModel().todoTasks.toDoTasksControllers.list.where((t) => !t.isComplete.value).where(
+                                        (e) {
+                                          String search = searchController.text.toLowerCase();
+                                          return search.isEmpty ||
+                                              e.title.text.toLowerCase().contains(search) ||
+                                              e.notes.text.toLowerCase().contains(search) ||
+                                              e.linkedWorkItems.list
+                                                  .map((e) => e.toLowerCase())
+                                                  .any(
+                                                    (e2) => e2.contains(search),
+                                                  );
+                                        },
+                                      ).toList()..sort(
+                                        // reversed to show most recent (thus relevant) tasks first
+                                        (a, b) => b.dateAdded.compareTo(a.dateAdded),
+                                      );
+                                  return ListView.builder(
+                                    itemCount: list.length,
+                                    itemBuilder: (context, index) {
+                                      var taskItem = list[index].toToDoTask();
+                                      var categoryData = taskItem.categoryData;
+                                      return ListTile(
+                                        leading: Tooltip(
+                                          message: categoryData.$1,
+                                          child: Icon(categoryData.$2, color: categoryData.$3),
+                                        ),
+                                        title: Text(taskItem.title ?? 'No title found'),
+                                        subtitle: taskItem.notes == null ? null : Text(taskItem.notes!, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                        onTap: () => setState(() => toggleSelection(taskItem)),
+                                        trailing: Checkbox(
+                                          value: isItemSelected(taskItem),
+                                          onChanged: (value) => setState(() => toggleSelection(taskItem)),
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
                               ),
-                              title: Text(taskItem.title ?? 'No title found'),
-                              subtitle: taskItem.notes == null ? null : Text(taskItem.notes!, maxLines: 1, overflow: TextOverflow.ellipsis),
-                              onTap: () => setState(() => toggleSelection(taskItem)),
-                              trailing: Checkbox(
-                                value: isItemSelected(taskItem),
-                                onChanged: (value) => setState(() => toggleSelection(taskItem)),
-                              ),
-                            );
-                          },
+                            ),
+                          ],
                         );
                       }
                       return Center(child: CircularProgressIndicator());
@@ -641,7 +696,7 @@ class AddIssuesToDoDialog extends StatefulWidget {
 class _AddIssuesToDoDialogState extends State<AddIssuesToDoDialog> with TickerProviderStateMixin, UiLoggy {
   late TabController tabCtrl;
 
-  late TextEditingController titleController, notesController;
+  late TextEditingController titleController, notesController, searchController;
   int categoryID = -1;
 
   List<int> addLinkTo = [], removeLinkFrom = [];
@@ -655,6 +710,7 @@ class _AddIssuesToDoDialogState extends State<AddIssuesToDoDialog> with TickerPr
     tabCtrl = TabController(length: 2, vsync: this, initialIndex: 1);
     titleController = TextEditingController(text: _defaultTitle);
     notesController = TextEditingController();
+    searchController = TextEditingController();
     super.initState();
   }
 
@@ -748,31 +804,64 @@ class _AddIssuesToDoDialogState extends State<AddIssuesToDoDialog> with TickerPr
                       ),
                     ],
                   ),
+
                   // Existing tasks
                   FutureBuilder(
                     future: ToDoTasksModel().isReady,
                     builder: (context, asyncSnapshot) {
                       if (asyncSnapshot.hasData) {
-                        var list = DataModel().todoTasks.toDoTasksControllers.list.where((t) => !t.isComplete.value).toList()..sort((a, b) => b.dateAdded.compareTo(a.dateAdded));
-                        return ListView.builder(
-                          itemCount: list.length,
-                          itemBuilder: (context, index) {
-                            var taskItem = list[index].toToDoTask();
-                            var categoryData = taskItem.categoryData;
-                            return ListTile(
-                              leading: Tooltip(
-                                message: categoryData.$1,
-                                child: Icon(categoryData.$2, color: categoryData.$3),
+                        return Column(
+                          children: [
+                            TextField(
+                              autofocus: true,
+                              controller: searchController,
+                              decoration: InputDecoration(border: OutlineInputBorder(), icon: Icon(Symbols.search), hint: Text('Search by title, notes, or linked work items')),
+                            ),
+                            Expanded(
+                              child: AnimatedBuilder(
+                                animation: searchController,
+                                builder: (context, _) {
+                                  var list =
+                                      DataModel().todoTasks.toDoTasksControllers.list.where((t) => !t.isComplete.value).where(
+                                        (e) {
+                                          String search = searchController.text.toLowerCase();
+                                          return search.isEmpty ||
+                                              e.title.text.toLowerCase().contains(search) ||
+                                              e.notes.text.toLowerCase().contains(search) ||
+                                              e.linkedWorkItems.list
+                                                  .map((e) => e.toLowerCase())
+                                                  .any(
+                                                    (e2) => e2.contains(search),
+                                                  );
+                                        },
+                                      ).toList()..sort(
+                                        // reversed to show most recent (thus relevant) tasks first
+                                        (a, b) => b.dateAdded.compareTo(a.dateAdded),
+                                      );
+                                  return ListView.builder(
+                                    itemCount: list.length,
+                                    itemBuilder: (context, index) {
+                                      var taskItem = list[index].toToDoTask();
+                                      var categoryData = taskItem.categoryData;
+                                      return ListTile(
+                                        leading: Tooltip(
+                                          message: categoryData.$1,
+                                          child: Icon(categoryData.$2, color: categoryData.$3),
+                                        ),
+                                        title: Text(taskItem.title ?? 'No title found'),
+                                        subtitle: taskItem.notes == null ? null : Text(taskItem.notes!, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                        onTap: () => setState(() => toggleSelection(taskItem)),
+                                        trailing: Checkbox(
+                                          value: isItemSelected(taskItem),
+                                          onChanged: (value) => setState(() => toggleSelection(taskItem)),
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
                               ),
-                              title: Text(taskItem.title ?? 'No title found'),
-                              subtitle: taskItem.notes == null ? null : Text(taskItem.notes!, maxLines: 1, overflow: TextOverflow.ellipsis),
-                              onTap: () => setState(() => toggleSelection(taskItem)),
-                              trailing: Checkbox(
-                                value: isItemSelected(taskItem),
-                                onChanged: (value) => setState(() => toggleSelection(taskItem)),
-                              ),
-                            );
-                          },
+                            ),
+                          ],
                         );
                       }
                       return const Center(child: CircularProgressIndicator());

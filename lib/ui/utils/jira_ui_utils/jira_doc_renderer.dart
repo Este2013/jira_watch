@@ -532,17 +532,22 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
             if (asyncSnapshot.data?.statusCode == 200) {
               var issue = JiraWorkItemData(jsonDecode(asyncSnapshot.data?.body ?? ''), lastCacheUpdate: DateTime.now());
               return ActionChip(
+                visualDensity: .compact,
+                labelPadding: .zero,
+                // avatarBoxConstraints: .tightFor(width: 16, height: 16),
+                padding: .only(right: 4),
                 label: Wrap(
                   spacing: 8,
                   children: [
                     Text(
                       '$issueKey: ${issue.fields?['summary']}',
                       overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(fontSize: Theme.of(context).textTheme.bodyMedium?.fontSize),
                     ),
                     JiraWorkItemStatusIndicator(issue: issue),
                   ],
                 ),
-                avatar: JiraAvatar(url: issue.fields?['issuetype']['iconUrl']),
+                avatar: JiraAvatar(url: issue.fields?['issuetype']['iconUrl'], size: 16),
 
                 onPressed: () {
                   showDialog(
