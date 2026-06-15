@@ -431,10 +431,22 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
   );
 }
 
+/// Dialog to link one or more Jira work items to a (new or existing) to-do task.
+///
+/// Use the default constructor for a single work item, or [AddIssueToDoDialog.multiple]
+/// to link several work items to the same task at once.
 class AddIssueToDoDialog extends StatefulWidget {
-  const AddIssueToDoDialog(this.workItem, {super.key});
+  /// Operates on a single work item.
+  AddIssueToDoDialog(JiraWorkItemData workItem, {super.key}) : workItems = [workItem], isSingle = true;
 
-  final JiraWorkItemData workItem;
+  /// Operates on several work items at once, linking them all to one task.
+  const AddIssueToDoDialog.multiple(this.workItems, {super.key}) : isSingle = false;
+
+  final List<JiraWorkItemData> workItems;
+
+  /// Whether the dialog was opened for a single work item (affects wording and
+  /// the few cosmetic differences between the single- and multi-item layouts).
+  final bool isSingle;
 
   @override
   State<AddIssueToDoDialog> createState() => _AddIssueToDoDialogState();
@@ -445,265 +457,21 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
 
   // Values for the "New task" page
   late TextEditingController titleController, notesController, searchController;
-  DateTime? toDoBefore;
   int categoryID = -1;
 
   // Value for the "Existing tasks" section
-  ToDoTask? editing;
   List<int> addLinkTo = [], removeLinkFrom = [];
 
-  @override
-  void initState() {
-    tabCtrl = TabController(length: 2, vsync: this, initialIndex: 1);
-    titleController = TextEditingController(text: '${widget.workItem.key} — ${widget.workItem.fields?['summary']}');
-    notesController = TextEditingController();
-    searchController = TextEditingController();
-    super.initState();
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text('Add ${widget.workItem.key} to task'),
-    content: SizedBox(
-      width: 600,
-      height: 700,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TabBar(
-            controller: tabCtrl,
-            tabs: [
-              Tab(icon: Icon(Symbols.add_circle), child: Text('New task')),
-              Tab(icon: Icon(Symbols.assignment_add), child: Text('Existing tasks')),
-            ],
-          ),
-          Flexible(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: TabBarView(
-                controller: tabCtrl,
-                children: [
-                  // New task
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 16,
-                    children: [
-                      SizedBox.shrink(),
-                      Row(
-                        spacing: 8,
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: titleController,
-                              decoration: InputDecoration(
-                                border: OutlineInputBorder(),
-                                label: Text('Title'),
-                                hintText: '${widget.workItem.key} — ${widget.workItem.fields?['summary']}',
-                              ),
-                            ),
-                          ),
-                          Builder(
-                            builder: (context) {
-                              if (categoryID < 0) {
-                                // default icons
-                                DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == categoryID, orElse: () => DefaultTaskCategory.forLater);
-                                return IconButton(
-                                  tooltip: cat.displayName,
-                                  icon: Icon(cat.icon, color: cat.color),
-                                  onPressed: () =>
-                                      showDialog<int>(
-                                        context: context,
-                                        builder: (context) => EditToDoTaskCategoryDialog(),
-                                      ).then(
-                                        (value) {
-                                          if (value == null) return;
-                                          setState(() {
-                                            categoryID = value;
-                                          });
-                                        },
-                                      ),
-                                );
-                              }
-                              // TODO custom categories
-                              throw UnimplementedError();
-                            },
-                          ),
-                        ],
-                      ),
-                      Flexible(
-                        child: TextField(
-                          textCapitalization: TextCapitalization.sentences,
-                          controller: notesController,
-                          decoration: InputDecoration(border: OutlineInputBorder(), label: Text('Notes')),
-                          maxLines: null,
-                          minLines: 6,
-                          keyboardType: TextInputType.multiline,
-                        ),
-                      ),
-                    ],
-                  ),
-                  // Existing tasks
-                  FutureBuilder(
-                    future: ToDoTasksModel().isReady,
-                    builder: (context, asyncSnapshot) {
-                      if (asyncSnapshot.hasData) {
-                        return Column(
-                          spacing: 8,
-                          children: [
-                            TextField(
-                              autofocus: true,
-                              controller: searchController,
-                              decoration: InputDecoration(border: OutlineInputBorder(), icon: Icon(Symbols.search), hint: Text('Search by title, notes, or linked work items')),
-                            ),
-                            Expanded(
-                              child: AnimatedBuilder(
-                                animation: searchController,
-                                builder: (context, _) {
-                                  var list =
-                                      DataModel().todoTasks.toDoTasksControllers.list.where((t) => !t.isComplete.value).where(
-                                        (e) {
-                                          String search = searchController.text.toLowerCase();
-                                          return search.isEmpty ||
-                                              e.title.text.toLowerCase().contains(search) ||
-                                              e.notes.text.toLowerCase().contains(search) ||
-                                              e.linkedWorkItems.list
-                                                  .map((e) => e.toLowerCase())
-                                                  .any(
-                                                    (e2) => e2.contains(search),
-                                                  );
-                                        },
-                                      ).toList()..sort(
-                                        // reversed to show most recent (thus relevant) tasks first
-                                        (a, b) => b.dateAdded.compareTo(a.dateAdded),
-                                      );
-                                  return ListView.builder(
-                                    itemCount: list.length,
-                                    itemBuilder: (context, index) {
-                                      var taskItem = list[index].toToDoTask();
-                                      var categoryData = taskItem.categoryData;
-                                      return ListTile(
-                                        leading: Tooltip(
-                                          message: categoryData.$1,
-                                          child: Icon(categoryData.$2, color: categoryData.$3),
-                                        ),
-                                        title: Text(taskItem.title ?? 'No title found'),
-                                        subtitle: taskItem.notes == null ? null : Text(taskItem.notes!, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                        onTap: () => setState(() => toggleSelection(taskItem)),
-                                        trailing: Checkbox(
-                                          value: isItemSelected(taskItem),
-                                          onChanged: (value) => setState(() => toggleSelection(taskItem)),
-                                        ),
-                                      );
-                                    },
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        );
-                      }
-                      return Center(child: CircularProgressIndicator());
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-    actions: [
-      CancelButton(),
-      FilledButton(
-        onPressed: () {
-          if (tabCtrl.index == 0) {
-            // new task
-            String title = titleController.text.trim();
-            if (title.isEmpty) {
-              title = '${widget.workItem.key} — ${widget.workItem.fields?['summary']}';
-            }
-            String notes = notesController.text.trim();
-            ToDoTasksModel()
-                .createNewTask(
-                  title: title,
-                  notes: notes.isEmpty ? null : notes,
-                  workItemKeys: [widget.workItem.key!],
-                  categoryID: categoryID,
-                )
-                .whenComplete(Navigator.of(context).pop);
-            return;
-          } else if (tabCtrl.index == 1) {
-            ToDoTasksModel().isReady.then((value) {
-              var list = DataModel().todoTasks.toDoTasksControllers.list;
-              List<int> editedIds = [...addLinkTo, ...removeLinkFrom];
-
-              Iterable<ToDoTaskEditingController> edits = list.where((t) => editedIds.contains(t.id));
-
-              for (var t in edits) {
-                if (isItemSelected(t.toToDoTask())) {
-                  t.linkedWorkItems.add(widget.workItem.key!);
-                } else {
-                  t.linkedWorkItems.remove(widget.workItem.key!);
-                }
-              }
-              // ignore: use_build_context_synchronously
-              Navigator.of(context).pop();
-            });
-            return;
-          }
-          loggy.error('Unimplemented: save mechanism for selected tab #${tabCtrl.index}');
-          throw UnimplementedError();
-        },
-        child: Text('Save'),
-      ),
-    ],
-  );
-
-  bool isItemSelected(ToDoTask task) {
-    bool ogTaskHasWorkItem = task.linkedWorkItems.contains(widget.workItem.key);
-    return (ogTaskHasWorkItem || addLinkTo.contains(task.id)) && !removeLinkFrom.contains(task.id);
-  }
-
-  void toggleSelection(ToDoTask task) {
-    String? tktKey = widget.workItem.key;
-    if (task.linkedWorkItems.contains(tktKey)) {
-      if (removeLinkFrom.contains(task.id)) {
-        removeLinkFrom.remove(task.id);
-      } else {
-        removeLinkFrom.add(task.id);
-      }
-    } else {
-      if (addLinkTo.contains(task.id)) {
-        addLinkTo.remove(task.id);
-      } else {
-        addLinkTo.add(task.id);
-      }
-    }
-  }
-}
-
-/// Like [AddIssueToDoDialog] but operates on several work items at once,
-/// linking them all to one (new or existing) task.
-class AddIssuesToDoDialog extends StatefulWidget {
-  const AddIssuesToDoDialog(this.workItems, {super.key});
-
-  final List<JiraWorkItemData> workItems;
-
-  @override
-  State<AddIssuesToDoDialog> createState() => _AddIssuesToDoDialogState();
-}
-
-class _AddIssuesToDoDialogState extends State<AddIssuesToDoDialog> with TickerProviderStateMixin, UiLoggy {
-  late TabController tabCtrl;
-
-  late TextEditingController titleController, notesController, searchController;
-  int categoryID = -1;
-
-  List<int> addLinkTo = [], removeLinkFrom = [];
+  bool get _isSingle => widget.isSingle;
 
   List<String> get _keys => widget.workItems.map((w) => w.key).whereType<String>().toList();
 
-  String get _defaultTitle => '${_keys.length} work items';
+  /// The work item used to build the single-item wording.
+  JiraWorkItemData get _firstItem => widget.workItems.first;
+
+  String get _defaultTitle => _isSingle ? '${_firstItem.key} — ${_firstItem.fields?['summary']}' : '${_keys.length} work items';
+
+  String get _dialogTitle => _isSingle ? 'Add ${_firstItem.key} to task' : 'Add ${_keys.length} work items to a task';
 
   @override
   void initState() {
@@ -719,12 +487,13 @@ class _AddIssuesToDoDialogState extends State<AddIssuesToDoDialog> with TickerPr
     tabCtrl.dispose();
     titleController.dispose();
     notesController.dispose();
+    searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text('Add ${_keys.length} work items to a task'),
+    title: Text(_dialogTitle),
     content: SizedBox(
       width: 600,
       height: 700,
@@ -765,19 +534,28 @@ class _AddIssuesToDoDialogState extends State<AddIssuesToDoDialog> with TickerPr
                           ),
                           Builder(
                             builder: (context) {
-                              DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == categoryID, orElse: () => DefaultTaskCategory.forLater);
-                              return IconButton(
-                                tooltip: cat.displayName,
-                                icon: Icon(cat.icon, color: cat.color),
-                                onPressed: () =>
-                                    showDialog<int>(
-                                      context: context,
-                                      builder: (context) => EditToDoTaskCategoryDialog(),
-                                    ).then((value) {
-                                      if (value == null) return;
-                                      setState(() => categoryID = value);
-                                    }),
-                              );
+                              if (categoryID < 0) {
+                                // default icons
+                                DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == categoryID, orElse: () => DefaultTaskCategory.forLater);
+                                return IconButton(
+                                  tooltip: cat.displayName,
+                                  icon: Icon(cat.icon, color: cat.color),
+                                  onPressed: () =>
+                                      showDialog<int>(
+                                        context: context,
+                                        builder: (context) => EditToDoTaskCategoryDialog(),
+                                      ).then(
+                                        (value) {
+                                          if (value == null) return;
+                                          setState(() {
+                                            categoryID = value;
+                                          });
+                                        },
+                                      ),
+                                );
+                              }
+                              // TODO custom categories
+                              throw UnimplementedError();
                             },
                           ),
                         ],
@@ -792,25 +570,26 @@ class _AddIssuesToDoDialogState extends State<AddIssuesToDoDialog> with TickerPr
                           keyboardType: TextInputType.multiline,
                         ),
                       ),
-                      // Show which items will be linked.
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Will link: ${_keys.join(', ')}',
-                          style: Theme.of(context).textTheme.bodySmall,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                      // When linking several items, show which ones will be linked.
+                      if (!_isSingle)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Will link: ${_keys.join(', ')}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
                     ],
                   ),
-
                   // Existing tasks
                   FutureBuilder(
                     future: ToDoTasksModel().isReady,
                     builder: (context, asyncSnapshot) {
                       if (asyncSnapshot.hasData) {
                         return Column(
+                          spacing: 8,
                           children: [
                             TextField(
                               autofocus: true,
@@ -818,47 +597,52 @@ class _AddIssuesToDoDialogState extends State<AddIssuesToDoDialog> with TickerPr
                               decoration: InputDecoration(border: OutlineInputBorder(), icon: Icon(Symbols.search), hint: Text('Search by title, notes, or linked work items')),
                             ),
                             Expanded(
-                              child: AnimatedBuilder(
-                                animation: searchController,
-                                builder: (context, _) {
-                                  var list =
-                                      DataModel().todoTasks.toDoTasksControllers.list.where((t) => !t.isComplete.value).where(
-                                        (e) {
-                                          String search = searchController.text.toLowerCase();
-                                          return search.isEmpty ||
-                                              e.title.text.toLowerCase().contains(search) ||
-                                              e.notes.text.toLowerCase().contains(search) ||
-                                              e.linkedWorkItems.list
-                                                  .map((e) => e.toLowerCase())
-                                                  .any(
-                                                    (e2) => e2.contains(search),
-                                                  );
-                                        },
-                                      ).toList()..sort(
-                                        // reversed to show most recent (thus relevant) tasks first
-                                        (a, b) => b.dateAdded.compareTo(a.dateAdded),
-                                      );
-                                  return ListView.builder(
-                                    itemCount: list.length,
-                                    itemBuilder: (context, index) {
-                                      var taskItem = list[index].toToDoTask();
-                                      var categoryData = taskItem.categoryData;
-                                      return ListTile(
-                                        leading: Tooltip(
-                                          message: categoryData.$1,
-                                          child: Icon(categoryData.$2, color: categoryData.$3),
-                                        ),
-                                        title: Text(taskItem.title ?? 'No title found'),
-                                        subtitle: taskItem.notes == null ? null : Text(taskItem.notes!, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                        onTap: () => setState(() => toggleSelection(taskItem)),
-                                        trailing: Checkbox(
-                                          value: isItemSelected(taskItem),
-                                          onChanged: (value) => setState(() => toggleSelection(taskItem)),
-                                        ),
-                                      );
-                                    },
-                                  );
-                                },
+                              child: Material(
+                                color: Colors.transparent,
+                                child: AnimatedBuilder(
+                                  animation: searchController,
+                                  builder: (context, _) {
+                                    var list =
+                                        DataModel().todoTasks.toDoTasksControllers.list.where((t) => !t.isComplete.value).where(
+                                          (e) {
+                                            String search = searchController.text.toLowerCase();
+                                            return search.isEmpty ||
+                                                e.title.text.toLowerCase().contains(search) ||
+                                                e.notes.text.toLowerCase().contains(search) ||
+                                                e.linkedWorkItems.list
+                                                    .map((e) => e.toLowerCase())
+                                                    .any(
+                                                      (e2) => e2.contains(search),
+                                                    );
+                                          },
+                                        ).toList()..sort(
+                                          // reversed to show most recent (thus relevant) tasks first
+                                          (a, b) => b.dateAdded.compareTo(a.dateAdded),
+                                        );
+                                    return ListView.builder(
+                                      itemCount: list.length,
+                                      itemBuilder: (context, index) {
+                                        var taskItem = list[index].toToDoTask();
+                                        var categoryData = taskItem.categoryData;
+                                        return ListTile(
+                                          leading: Tooltip(
+                                            message: categoryData.$1,
+                                            child: Icon(categoryData.$2, color: categoryData.$3),
+                                          ),
+                                          title: Text(taskItem.title ?? 'No title found'),
+                                          subtitle: taskItem.notes == null ? null : Text(taskItem.notes!, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                          onTap: () => setState(() => toggleSelection(taskItem)),
+                                          trailing: Checkbox(
+                                            value: isItemSelected(taskItem),
+                                            onChanged: (value) => setState(() => toggleSelection(taskItem)),
+                                          ),
+                                          selected: isItemSelected(taskItem),
+                                          selectedTileColor: Theme.of(context).colorScheme.primary.withAlpha(50),
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
                               ),
                             ),
                           ],
@@ -879,6 +663,7 @@ class _AddIssuesToDoDialogState extends State<AddIssuesToDoDialog> with TickerPr
       FilledButton(
         onPressed: () {
           if (tabCtrl.index == 0) {
+            // new task
             String title = titleController.text.trim();
             if (title.isEmpty) title = _defaultTitle;
             String notes = notesController.text.trim();
@@ -916,7 +701,7 @@ class _AddIssuesToDoDialogState extends State<AddIssuesToDoDialog> with TickerPr
           loggy.error('Unimplemented: save mechanism for selected tab #${tabCtrl.index}');
           throw UnimplementedError();
         },
-        child: const Text('Save'),
+        child: Text('Save'),
       ),
     ],
   );

@@ -619,7 +619,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
   void _addAllToTask() {
     showDialog(
       context: context,
-      builder: (context) => AddIssuesToDoDialog(_selectedItems),
+      builder: (context) => AddIssueToDoDialog.multiple(_selectedItems),
     ).whenComplete(() {
       if (mounted) clearMultiSelection();
     });
