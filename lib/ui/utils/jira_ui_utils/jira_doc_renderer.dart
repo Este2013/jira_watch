@@ -237,7 +237,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       case 'taskList':
         return _buildTaskList(context, node, indentLevel);
       case 'text':
-        return Text(
+        return SelectableText(
           _textOf(node),
           style: _defaultCodeStyle(context).merge(transferStyle),
           selectionColor: selectionColor,
@@ -397,6 +397,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
           defaultLinkHandler(targetUrl);
         };
       return RichText(
+        selectionRegistrar: SelectionContainer.maybeOf(context),
         text: TextSpan(
           text: targetUrl,
           style: TextStyle(
@@ -670,14 +671,15 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
 
     final bulletLine = paragraphs.isNotEmpty ? _buildParagraph(context, paragraphs.first) : const SizedBox.shrink();
 
-    final bulletRow = Row(
-      crossAxisAlignment: .center,
-      children: [
-        SizedBox(width: indentLevel * listIndent),
-        RichText(text: BulletListBulletSpan(indent: 1)),
-        SizedBox(width: bulletGap),
-        Expanded(child: bulletLine),
-      ],
+    final bulletRow = RichText(
+      text: TextSpan(
+        children: [
+          WidgetSpan(child: SizedBox(width: indentLevel * listIndent)),
+          BulletListBulletSpan(indent: 1),
+          WidgetSpan(child: SizedBox(width: bulletGap)),
+          WidgetSpan(child: bulletLine),
+        ],
+      ),
     );
 
     final below = <Widget>[];
@@ -953,7 +955,10 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       spans.add(TextSpan(text: '\n'));
     }
     spans.removeLast();
-    return RichText(text: TextSpan(children: spans));
+    return RichText(
+      text: TextSpan(children: spans),
+      selectionRegistrar: SelectionContainer.maybeOf(context),
+    );
   }
 
   static List<Map<String, dynamic>> _asList(dynamic v) {
@@ -1035,7 +1040,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
 }
 
 class BulletListBulletSpan extends WidgetSpan {
-  BulletListBulletSpan({this.indent = 1}) : super(child: Text('•'), alignment: .middle);
+  BulletListBulletSpan({this.indent = 1}) : super(child: SelectableText('•'), alignment: .middle);
 
   final int indent;
 

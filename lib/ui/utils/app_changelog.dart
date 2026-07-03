@@ -20,6 +20,7 @@ List<(String, List<ChangeLogSection>)> _versionsDataRaw = [
       ChangeLogSection.bugFixes([
         ChangeLogItem('Fixed wrong spacing between style nodes in ADF renderer'),
         ChangeLogItem('Fixed wrong alignment in bullet list when items were not plain text'),
+        ChangeLogItem('Fixed some text could not be highlighted in the ADF renders of bullet lists'),
       ]),
       ChangeLogSection.chores([
         ChangeLogItem('Bumped version number.'),
