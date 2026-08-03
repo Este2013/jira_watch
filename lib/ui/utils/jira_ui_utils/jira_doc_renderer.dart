@@ -958,6 +958,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     return RichText(
       text: TextSpan(children: spans),
       selectionRegistrar: SelectionContainer.maybeOf(context),
+      selectionColor: selectionColor,
     );
   }
 
