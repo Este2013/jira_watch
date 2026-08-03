@@ -159,6 +159,97 @@ class GitLabApiModel {
     },
   );
 
+  Future<GitLabPage> commits(
+    int projectId, {
+    String? ref,
+    String? path,
+    int page = 1,
+    int perPage = 30,
+  }) => dao.getJsonPage(
+    '/api/v4/projects/$projectId/repository/commits',
+    page: page,
+    perPage: perPage,
+    queryParameters: {
+      if (ref != null && ref.isNotEmpty) 'ref_name': ref,
+      if (path != null && path.isNotEmpty) 'path': path,
+    },
+  );
+
+  /// The root of the repository tree, used to locate the readme.
+  Future<GitLabPage> repositoryTree(int projectId, {String? ref, String? path, int perPage = 100}) => dao.getJsonPage(
+    '/api/v4/projects/$projectId/repository/tree',
+    perPage: perPage,
+    queryParameters: {
+      if (ref != null && ref.isNotEmpty) 'ref': ref,
+      if (path != null && path.isNotEmpty) 'path': path,
+    },
+  );
+
+  /// Raw file contents. Not JSON, so this bypasses [GitLabDao.getJson].
+  Future<String?> rawFile(int projectId, String filePath, {String? ref}) async {
+    final response = await dao.request(
+      '/api/v4/projects/$projectId/repository/files/$filePath/raw',
+      queryParameters: {if (ref != null && ref.isNotEmpty) 'ref': ref},
+    );
+    if (response.statusCode != 200) return null;
+    return response.body;
+  }
+
+  /// Finds and fetches the project readme.
+  ///
+  /// The name is discovered from the tree rather than guessed, since a project
+  /// may use README.rst, readme.txt or no readme at all.
+  Future<(String name, String content)?> readme(int projectId, {String? ref}) async {
+    final tree = await repositoryTree(projectId, ref: ref);
+    String? name;
+    for (final raw in tree.items) {
+      final entry = (raw as Map).cast<String, dynamic>();
+      if (entry['type'] != 'blob') continue;
+      final candidate = entry['name'] as String? ?? '';
+      if (RegExp(r'^readme(\..+)?$', caseSensitive: false).hasMatch(candidate)) {
+        name = candidate;
+        break;
+      }
+    }
+    if (name == null) return null;
+    final content = await rawFile(projectId, name, ref: ref);
+    return content == null ? null : (name, content);
+  }
+
+  // MERGE REQUESTS ////////////////////////////////////////////////////////////
+
+  Future<GitLabPage> mergeRequests(
+    int projectId, {
+    int page = 1,
+    String state = 'opened',
+    String? targetBranch,
+    String? search,
+  }) => dao.getJsonPage(
+    '/api/v4/projects/$projectId/merge_requests',
+    page: page,
+    queryParameters: {
+      'state': state,
+      'order_by': 'updated_at',
+      'sort': 'desc',
+      if (targetBranch != null && targetBranch.isNotEmpty) 'target_branch': targetBranch,
+      if (search != null && search.isNotEmpty) 'search': search,
+    },
+  );
+
+  // DEPLOY ////////////////////////////////////////////////////////////////////
+
+  Future<GitLabPage> releases(int projectId, {int page = 1}) => dao.getJsonPage(
+    '/api/v4/projects/$projectId/releases',
+    page: page,
+    queryParameters: {'order_by': 'released_at', 'sort': 'desc'},
+  );
+
+  /// Needs at least the Developer role, so this can legitimately 403.
+  Future<GitLabPage> featureFlags(int projectId, {int page = 1}) => dao.getJsonPage(
+    '/api/v4/projects/$projectId/feature_flags',
+    page: page,
+  );
+
   // JOBS //////////////////////////////////////////////////////////////////////
 
   Future<GitLabPage> jobs(int projectId, {int page = 1, List<String>? scope}) => dao.getJsonPage(
