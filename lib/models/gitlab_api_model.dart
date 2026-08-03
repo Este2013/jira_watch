@@ -2,6 +2,21 @@ import 'dart:async';
 
 import 'package:jira_watcher/dao/gitlab_dao.dart';
 
+/// GitLab marks directories inside an artifacts archive with a trailing slash.
+/// Everything that compares, joins or displays those paths goes through these,
+/// so nobody re-derives the convention and gets `AppPackages//`.
+String stripTrailingSlash(String path) => path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+
+String gitlabArtifactPathOf(Map<String, dynamic> entry) => (entry['path'] ?? entry['name'] ?? '').toString();
+
+bool gitlabArtifactIsDirectory(Map<String, dynamic> entry) {
+  final type = entry['type'];
+  if (type == 'directory' || type == 'tree') return true;
+  // Falling back to the trailing slash keeps this correct even if `type` is
+  // absent or spelled differently on an older instance.
+  return gitlabArtifactPathOf(entry).endsWith('/');
+}
+
 /// Endpoint-specific wrapper over [GitLabDao], mirroring how `APIModel` sits over `APIDao`.
 class GitLabApiModel {
   static final GitLabApiModel _instance = GitLabApiModel._internal();
@@ -183,17 +198,73 @@ class GitLabApiModel {
 
   /// Every entry in a job's archive, following pagination to the end.
   ///
-  /// Used by the quick-download rules, which have to regex-match against the
-  /// full file list rather than one page of it.
+  /// Used by the quick-download rules, which have to match against the full file
+  /// list rather than one page of it.
+  ///
+  /// Asks for a server-side recursive listing first, but some instances ignore
+  /// `recursive` and answer with the immediate children only. That is detected
+  /// and the directories are then walked explicitly, so the caller always gets
+  /// the whole tree.
   Future<List<Map<String, dynamic>>> artifactTreeAll(int projectId, int jobId, {String? path}) async {
+    final firstPass = await _artifactTreePages(projectId, jobId, path: path, recursive: true);
+    if (_looksRecursive(firstPass, path)) return firstPass;
+    return _walkArtifactTree(projectId, jobId, seed: firstPass);
+  }
+
+  Future<List<Map<String, dynamic>>> _artifactTreePages(
+    int projectId,
+    int jobId, {
+    String? path,
+    required bool recursive,
+  }) async {
     final all = <Map<String, dynamic>>[];
     int? page = 1;
     while (page != null) {
-      final result = await artifactTree(projectId, jobId, path: path, recursive: true, page: page);
+      final result = await artifactTree(projectId, jobId, path: path, recursive: recursive, page: page);
       all.addAll(result.items.map((e) => (e as Map).cast<String, dynamic>()));
       page = result.nextPage;
       // Guard against a pathological archive pinning the UI.
       if (all.length > 20000) break;
+    }
+    return all;
+  }
+
+  /// Whether [entries] contains anything below the requested level, which is the
+  /// evidence that `recursive` was honoured.
+  static bool _looksRecursive(List<Map<String, dynamic>> entries, String? root) {
+    if (entries.isEmpty) return true;
+    if (!entries.any(gitlabArtifactIsDirectory)) return true;
+
+    final prefix = (root == null || root.isEmpty) ? '' : '${stripTrailingSlash(root)}/';
+    for (final entry in entries) {
+      var path = stripTrailingSlash(gitlabArtifactPathOf(entry));
+      if (prefix.isNotEmpty && path.startsWith(prefix)) path = path.substring(prefix.length);
+      if (path.contains('/')) return true;
+    }
+    return false;
+  }
+
+  Future<List<Map<String, dynamic>>> _walkArtifactTree(
+    int projectId,
+    int jobId, {
+    required List<Map<String, dynamic>> seed,
+  }) async {
+    final all = <Map<String, dynamic>>[...seed];
+    final queue = seed.where(gitlabArtifactIsDirectory).map((e) => stripTrailingSlash(gitlabArtifactPathOf(e))).toList();
+    final visited = <String>{...queue};
+    var requests = 0;
+
+    while (queue.isNotEmpty) {
+      // Caps the walk so a deep archive cannot spin forever.
+      if (all.length > 20000 || requests >= 500) break;
+      final directory = queue.removeAt(0);
+      requests++;
+      final children = await _artifactTreePages(projectId, jobId, path: directory, recursive: false);
+      all.addAll(children);
+      for (final child in children.where(gitlabArtifactIsDirectory)) {
+        final childPath = stripTrailingSlash(gitlabArtifactPathOf(child));
+        if (childPath.isNotEmpty && visited.add(childPath)) queue.add(childPath);
+      }
     }
     return all;
   }

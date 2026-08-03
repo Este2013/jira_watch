@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:jira_watcher/dao/gitlab_dao.dart';
 import 'package:jira_watcher/dao/gitlab_download_service.dart';
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/models/gitlab_api_model.dart';
 import 'package:jira_watcher/models/gitlab_quick_downloads_model.dart';
 import 'package:jira_watcher/models/gitlab_tabs_model.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_download_ui.dart';
@@ -517,7 +518,7 @@ Future<void> runQuickDownload(
     run: (destination, task) => GitLabDownloadService().downloadArtifactFile(
       projectId: tab.projectId,
       jobId: match.jobId,
-      artifactPath: match.path,
+      artifactPath: match.cleanPath,
       destination: destination,
       task: task,
     ),
@@ -527,10 +528,10 @@ Future<void> runQuickDownload(
 /// A rule can point at a folder. GitLab's single-file endpoint cannot serve one,
 /// so every file underneath is fetched into a directory the user chooses.
 Future<void> _downloadMatchedFolder(BuildContext context, GitLabProjectTab tab, GitLabQuickDownloadMatch match) async {
-  final entries = await DataModel().gitlab.artifactTreeAll(tab.projectId, match.jobId, path: match.path);
+  final entries = await DataModel().gitlab.artifactTreeAll(tab.projectId, match.jobId, path: match.cleanPath);
   final files = entries
-      .where((e) => e['type'] != 'directory' && e['type'] != 'tree')
-      .map((e) => e['path'] as String? ?? '')
+      .where((e) => !gitlabArtifactIsDirectory(e))
+      .map(gitlabArtifactPathOf)
       .where((path) => path.isNotEmpty)
       .toList();
 
@@ -563,7 +564,7 @@ Future<void> _downloadMatchedFolder(BuildContext context, GitLabProjectTab tab, 
       files: files,
       run: (path) async {
         // Archive layout is preserved relative to the matched folder.
-        final relative = p.relative(path, from: match.path);
+        final relative = p.posix.relative(path, from: match.cleanPath);
         final destination = File(p.join(directory, relative));
         try {
           await GitLabDownloadService().downloadArtifactFile(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/models/gitlab_api_model.dart';
 import 'package:jira_watcher/models/gitlab_quick_downloads_model.dart';
 import 'package:jira_watcher/models/gitlab_tabs_model.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_suggest_field.dart';
@@ -218,10 +219,9 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> with UiLoggy {
     if (cached != null) return cached;
     try {
       final entries = await DataModel().gitlab.artifactTreeAll(widget.tab.projectId, jobId);
-      final paths = entries
-          .map((e) => '${e['path'] ?? e['name']}${(e['type'] == 'directory' || e['type'] == 'tree') ? '/' : ''}')
-          .where((path) => path.isNotEmpty)
-          .toList();
+      // Inserted verbatim: GitLab already marks directories with a trailing
+      // slash, and adding another would produce a pattern that matches nothing.
+      final paths = entries.map(gitlabArtifactPathOf).where((path) => path.isNotEmpty).toList()..sort();
       _treeCache[jobId] = paths;
       return paths;
     } on Object catch (e) {
@@ -475,7 +475,11 @@ Widget quickDownloadFailureDetail(BuildContext context, Object error) {
       spacing: 8,
       children: [
         Text('Nothing in "${error.jobName}" matched "${error.rule.pathPattern}".', style: const TextStyle(fontWeight: FontWeight.bold)),
-        Text('The archive contains ${error.sampleEntries.length >= 60 ? "these among others" : "these entries"}:'),
+        Text(
+          error.isTruncated
+              ? 'The archive holds ${error.totalEntries} entries; the first ${error.sampleEntries.length} are:'
+              : 'The archive holds ${error.totalEntries} ${error.totalEntries == 1 ? "entry" : "entries"}:',
+        ),
         ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 220),
           child: SingleChildScrollView(

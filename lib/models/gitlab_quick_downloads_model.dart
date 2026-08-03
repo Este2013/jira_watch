@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/models/gitlab_api_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/utils/string_utils.dart';
 import 'package:loggy/loggy.dart';
@@ -106,7 +107,11 @@ class GitLabQuickDownloadMatch {
   final bool isDirectory;
   final int? size;
 
-  String get fileName => p.basename(path);
+  /// Path without the trailing slash GitLab puts on directories, for joining
+  /// and for use as a request parameter.
+  String get cleanPath => stripTrailingSlash(path);
+
+  String get fileName => p.basename(cleanPath);
 }
 
 /// No job in the pipeline matched the rule's job pattern.
@@ -118,10 +123,16 @@ class QuickDownloadNoMatchingJob implements Exception {
 
 /// The job was found, but nothing inside its archive matched the path pattern.
 class QuickDownloadNoMatchingPath implements Exception {
-  QuickDownloadNoMatchingPath(this.rule, this.jobName, this.sampleEntries);
+  QuickDownloadNoMatchingPath(this.rule, this.jobName, this.sampleEntries, this.totalEntries);
   final GitLabQuickDownloadRule rule;
   final String jobName;
   final List<String> sampleEntries;
+
+  /// Full count, which can exceed [sampleEntries] — the dialog says so rather
+  /// than implying the archive is smaller than it is.
+  final int totalEntries;
+
+  bool get isTruncated => totalEntries > sampleEntries.length;
 }
 
 /// The matching job produced no artifacts archive at all.
@@ -267,25 +278,26 @@ class GitLabQuickDownloadsModel with GlobalLoggy {
     final entries = await DataModel().gitlab.artifactTreeAll(projectId, jobId);
     final matches = <GitLabQuickDownloadMatch>[];
     for (final entry in entries) {
-      final path = entry['path'] as String? ?? entry['name'] as String? ?? '';
-      if (path.isEmpty || !rule.matchesPath(path)) continue;
+      final path = gitlabArtifactPathOf(entry);
+      if (path.isEmpty) continue;
+      final isDirectory = gitlabArtifactIsDirectory(entry);
+      // A directory pattern is matched with and without its trailing slash, so a
+      // rule written either way behaves the same.
+      if (!rule.matchesPath(path) && !(isDirectory && rule.matchesPath(stripTrailingSlash(path)))) continue;
       matches.add(
         GitLabQuickDownloadMatch(
           jobId: jobId,
           jobName: jobName,
           path: path,
-          isDirectory: entry['type'] == 'directory' || entry['type'] == 'tree',
+          isDirectory: isDirectory,
           size: (entry['size'] as num?)?.toInt(),
         ),
       );
     }
 
     if (matches.isEmpty) {
-      throw QuickDownloadNoMatchingPath(
-        rule,
-        jobName,
-        entries.map((e) => '${e['path'] ?? e['name']}').take(60).toList(),
-      );
+      final allPaths = entries.map(gitlabArtifactPathOf).toList()..sort();
+      throw QuickDownloadNoMatchingPath(rule, jobName, allPaths.take(300).toList(), allPaths.length);
     }
 
     // Shallowest, then alphabetical — a top-level installer should outrank a

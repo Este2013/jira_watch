@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:jira_watcher/dao/gitlab_dao.dart';
 import 'package:jira_watcher/dao/gitlab_download_service.dart';
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/models/gitlab_api_model.dart';
 import 'package:jira_watcher/models/gitlab_tabs_model.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_download_ui.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_paginated_list.dart';
@@ -189,8 +190,11 @@ class _GitLabArtifactBrowserDialogState extends State<GitLabArtifactBrowserDialo
   );
 
   Widget _entryTile(Map<String, dynamic> entry) {
-    final isDirectory = entry['type'] == 'directory' || entry['type'] == 'tree';
-    final name = entry['name'] as String? ?? p.basename('${entry['path']}');
+    final isDirectory = gitlabArtifactIsDirectory(entry);
+    // GitLab puts a trailing slash on directories, in `name` as well as `path`,
+    // so it is stripped before display or before joining another segment onto it.
+    final path = stripTrailingSlash(gitlabArtifactPathOf(entry));
+    final name = stripTrailingSlash((entry['name'] as String?) ?? p.posix.basename(path));
     final size = (entry['size'] as num?)?.toInt();
 
     return ListTile(
@@ -203,9 +207,9 @@ class _GitLabArtifactBrowserDialogState extends State<GitLabArtifactBrowserDialo
           : IconButton(
               tooltip: 'Download this file',
               icon: const Icon(Symbols.download),
-              onPressed: () => _downloadFile(entry['path'] as String? ?? name, name),
+              onPressed: () => _downloadFile(path, name),
             ),
-      onTap: isDirectory ? () => _enter(name) : () => _downloadFile(entry['path'] as String? ?? name, name),
+      onTap: isDirectory ? () => _enter(name) : () => _downloadFile(path, name),
     );
   }
 
