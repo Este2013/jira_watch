@@ -9,6 +9,7 @@ import 'package:jira_watcher/dao/gitlab_dao.dart';
 import 'package:jira_watcher/dao/updates_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_images.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_logo.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_settings_page.dart';
 import 'package:jira_watcher/ui/updates_dialog.dart';
 import 'package:jira_watcher/ui/utils/app_changelog.dart';
@@ -33,6 +34,7 @@ enum SettingsDialogPage {
   general('General', Symbols.settings),
   connection('Connection', Symbols.account_circle),
   projects('Projects', Symbols.amp_stories),
+  // GitLab draws its own mark instead of [icon]; see [buildIcon].
   gitlab('GitLab', Symbols.fork_right),
   advanced('Advanced', Symbols.settings_applications);
 
@@ -40,6 +42,13 @@ enum SettingsDialogPage {
 
   final String label;
   final IconData icon;
+
+  /// GitLab uses its own brand mark, which fills on selection through a
+  /// different mechanism than a Material Symbol.
+  Widget buildIcon({required bool isSelected}) => switch (this) {
+    SettingsDialogPage.gitlab => GitLabTanukiIcon(isSelected: isSelected),
+    _ => IconFilledOnSelection(Icon(icon), isSelected: isSelected),
+  };
 }
 
 class SettingsDialog extends StatefulWidget {
@@ -135,7 +144,7 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
                   for (final (index, page) in _pages.indexed)
                     Tab(
                       text: page.label,
-                      icon: IconFilledOnSelection(Icon(page.icon), isSelected: _tabController.index == index),
+                      icon: page.buildIcon(isSelected: _tabController.index == index),
                     ),
                 ],
               );

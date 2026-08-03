@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_logo.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_main.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
 import 'package:jira_watcher/ui/updates_dialog.dart';
@@ -20,6 +21,7 @@ enum HomePage {
   updates('Updates', Symbols.dashboard, 'View the latest changes made in projects you work on.'),
   workItems('Work items', Symbols.bug_report, null),
   toDo('To do', Symbols.assessment, 'Locally keep track of your own tasks.'),
+  // GitLab draws its own mark instead of [icon]; see [buildIcon].
   gitlab('GitLab', Symbols.fork_right, 'Browse your GitLab projects, pipelines and releases.');
 
   const HomePage(this.title, this.icon, this.subtitle);
@@ -27,6 +29,13 @@ enum HomePage {
   final String title;
   final IconData icon;
   final String? subtitle;
+
+  /// GitLab uses its own brand mark, which needs a different mechanism to fill on
+  /// selection than a Material Symbol does.
+  Widget buildIcon({required bool isSelected}) => switch (this) {
+    HomePage.gitlab => GitLabTanukiIcon(isSelected: isSelected),
+    _ => IconFilledOnSelection(Icon(icon), isSelected: isSelected),
+  };
 }
 
 class HomeScreen extends StatefulWidget {
@@ -152,10 +161,7 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
                 destinations: [
                   for (final page in HomePage.values)
                     NavigationRailDestination(
-                      icon: IconFilledOnSelection(
-                        Icon(page.icon),
-                        isSelected: _currentPage == page,
-                      ),
+                      icon: page.buildIcon(isSelected: _currentPage == page),
                       label: Text(page.title),
                     ),
                 ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/dao/gitlab_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_logo.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_project_view.dart';
 import 'package:jira_watcher/ui/settings.dart';
 import 'package:loggy/loggy.dart';
@@ -59,7 +60,7 @@ class GitLabConnectCallToAction extends StatelessWidget with UiLoggy {
         mainAxisSize: MainAxisSize.min,
         spacing: 16,
         children: [
-          Text('🦊', style: TextStyle(fontSize: 72)),
+          const GitLabTanukiLogo(size: 84),
           Text(_title, style: const TextStyle(fontSize: 28), textAlign: TextAlign.center),
           Text(
             _subtitle,
