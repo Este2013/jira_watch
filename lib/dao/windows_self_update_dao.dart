@@ -5,8 +5,10 @@ import 'dart:isolate';
 import 'package:archive/archive.dart';
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:jira_watcher/dao/file_download_service.dart';
 import 'package:jira_watcher/dao/updates_dao.dart';
+import 'package:jira_watcher/dao/windows_update_helper.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:loggy/loggy.dart';
 import 'package:path/path.dart' as p;
@@ -60,6 +62,58 @@ class StagedBinarySelfTestFailed implements Exception {
 
   @override
   String toString() => 'The downloaded build would not start (exit code $exitCode), so it was not installed.\n$output';
+}
+
+/// A reason this install cannot replace itself, phrased for the user.
+class UpdateBlocker {
+  const UpdateBlocker(this.id, this.message);
+  final String id;
+  final String message;
+
+  static const unsupportedPlatform = UpdateBlocker(
+    'unsupported-platform',
+    'Installing updates from inside the app is currently Windows-only.',
+  );
+
+  @override
+  String toString() => '$id: $message';
+}
+
+class UpdatePreflight {
+  const UpdatePreflight({required this.blockers});
+  final List<UpdateBlocker> blockers;
+
+  bool get canAutoInstall => blockers.isEmpty;
+
+  /// Only the platform blocker means "hide this entirely"; the rest are worth
+  /// showing so the user knows why the button is unavailable.
+  bool get isUnsupportedPlatform => blockers.any((b) => b.id == UpdateBlocker.unsupportedPlatform.id);
+
+  String get summary => blockers.map((b) => b.message).join('\n\n');
+}
+
+/// What a previous update left behind, discovered at startup.
+class UpdateAftermath {
+  const UpdateAftermath({this.failureReport});
+
+  /// The raw `update_failed.json` contents, when the last attempt did not finish.
+  final String? failureReport;
+
+  bool get hadFailure => failureReport != null;
+}
+
+class _ProbeResult {
+  const _ProbeResult({
+    required this.scriptExecutionWorks,
+    this.instances = 1,
+    this.installFree,
+    this.tempFree,
+  });
+
+  final bool scriptExecutionWorks;
+  final int instances;
+  final int? installFree;
+  final int? tempFree;
 }
 
 enum SelfTestOutcome {
@@ -277,6 +331,308 @@ class WindowsSelfUpdateDao with GlobalLoggy {
       loggy.warning('Staged build exited 0 but did not print the self-test marker. Output: $output');
     }
     return SelfTestOutcome.passed;
+  }
+
+  // PREFLIGHT ///////////////////////////////////////////////////////////////
+
+  /// Whether this install can be replaced in place, and why not if it cannot.
+  ///
+  /// Every blocker carries a sentence for the user. A blocked install is offered
+  /// the manual download instead — never a half-attempt.
+  Future<UpdatePreflight> preflight(NewUpdateData update) async {
+    final blockers = <UpdateBlocker>[];
+
+    if (!Platform.isWindows) {
+      return UpdatePreflight(blockers: [UpdateBlocker.unsupportedPlatform]);
+    }
+
+    final exe = Platform.resolvedExecutable;
+    final install = installDirectory;
+
+    if (kDebugMode || exe.contains(r'\build\windows\')) {
+      blockers.add(
+        UpdateBlocker(
+          'development-build',
+          "You're running a build from the project tree, so installing over it would be undone by the next build.",
+        ),
+      );
+    }
+
+    if (update.windowsSha256 == null) {
+      blockers.add(
+        UpdateBlocker(
+          'no-checksum',
+          "This release doesn't publish a checksum, so the download can't be verified before it replaces your app.",
+        ),
+      );
+    }
+
+    if (!await _isWritable(install)) {
+      blockers.add(
+        UpdateBlocker(
+          'not-writable',
+          'Jira Watcher is installed somewhere this account cannot modify (${install.path}). '
+              'Download the archive and extract it yourself, or move the app to a folder you own.',
+        ),
+      );
+    }
+
+    final probe = await _runPreflightProbe(exe, install);
+    if (!probe.scriptExecutionWorks) {
+      blockers.add(
+        UpdateBlocker(
+          'scripts-blocked',
+          'This machine does not allow the helper script that performs the update to run. '
+              'Download the archive and extract it yourself.',
+        ),
+      );
+    }
+    if (probe.instances > 1) {
+      blockers.add(
+        UpdateBlocker(
+          'multiple-instances',
+          'Another Jira Watcher window is open. Close it before updating, so its files are not in use.',
+        ),
+      );
+    }
+
+    // Two copies of the tree live in the install folder briefly, plus the archive
+    // and the unpacked payload under temp.
+    final needed = (update.windowsSizeBytes ?? 60 * 1024 * 1024) * 3 + 200 * 1024 * 1024;
+    if (probe.installFree != null && probe.installFree! < needed) {
+      blockers.add(
+        UpdateBlocker(
+          'low-disk',
+          'There is not enough free space on ${install.path[0]}: to install safely '
+              '(${_mb(probe.installFree!)} free, about ${_mb(needed)} needed).',
+        ),
+      );
+    }
+
+    if (await _pendingUpdateMarker() case final marker when await marker.exists()) {
+      blockers.add(
+        UpdateBlocker(
+          'update-pending',
+          'An update is already being applied. Restart Jira Watcher and try again if it seems stuck.',
+        ),
+      );
+    }
+
+    return UpdatePreflight(blockers: blockers);
+  }
+
+  static String _mb(int bytes) => '${(bytes / (1024 * 1024)).round()} MB';
+
+  /// Probes by writing, rather than inspecting ACLs: it is the only answer that
+  /// accounts for permissions, read-only volumes and policy at once.
+  Future<bool> _isWritable(Directory directory) async {
+    final probe = File(p.join(directory.path, '.jw_write_probe_${DateTime.now().microsecondsSinceEpoch}'));
+    try {
+      await probe.writeAsString('probe');
+      await probe.delete();
+      return true;
+    } on FileSystemException catch (e) {
+      loggy.info('Install directory is not writable: $e');
+      return false;
+    }
+  }
+
+  Future<_ProbeResult> _runPreflightProbe(String exePath, Directory install) async {
+    try {
+      final temp = await SettingsModel().tempDir;
+      final script = File(p.join((await _helperDir('probe')).path, 'preflight_probe.ps1'));
+      await script.parent.create(recursive: true);
+      await script.writeAsString(preflightProbeScript);
+
+      final result = await Process.run(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          script.path,
+          '-ExePath',
+          exePath,
+          '-InstallDrive',
+          _driveLetter(install.path),
+          '-TempDrive',
+          _driveLetter(temp.path),
+        ],
+        workingDirectory: script.parent.path,
+      );
+
+      final output = '${result.stdout}';
+      if (!output.contains('probe-ok')) {
+        loggy.warning('Preflight probe did not run. exit=${result.exitCode} stderr=${result.stderr}');
+        return const _ProbeResult(scriptExecutionWorks: false);
+      }
+      int? read(String key) {
+        final match = RegExp('$key=(\\d+)').firstMatch(output);
+        return match == null ? null : int.tryParse(match.group(1)!);
+      }
+      return _ProbeResult(
+        scriptExecutionWorks: true,
+        instances: read('instances') ?? 1,
+        installFree: read('installFree'),
+        tempFree: read('tempFree'),
+      );
+    } on Object catch (e) {
+      loggy.warning('Preflight probe failed to launch: $e');
+      return const _ProbeResult(scriptExecutionWorks: false);
+    }
+  }
+
+  static String _driveLetter(String path) => p.rootPrefix(path).replaceAll(RegExp(r'[:\\/]'), '');
+
+  // APPLYING /////////////////////////////////////////////////////////////////
+
+  Future<Directory> _helperDir(String version) async => Directory(p.join((await stagingRoot(version)).path, 'helper'));
+
+  Future<File> _pendingUpdateMarker() async => File(p.join((await SettingsModel().settingsFolder).path, 'pending_update.json'));
+
+  /// Hands the swap to a detached helper and reports whether it started.
+  ///
+  /// The caller must exit promptly afterwards: the helper is waiting for this
+  /// process's executable to become unlocked, and does nothing until it does.
+  Future<void> launchHelper({required String version, required Directory payload}) async {
+    final helperDir = await _helperDir(version);
+    await helperDir.create(recursive: true);
+
+    final script = File(p.join(helperDir.path, 'apply_update.ps1'));
+    await script.writeAsString(applyUpdateScript);
+    final log = File(p.join(helperDir.path, 'apply_update.log'));
+    final markers = await SettingsModel().settingsFolder;
+
+    await (await _pendingUpdateMarker()).writeAsString(
+      '{"version": "$version", "startedAt": "${DateTime.now().toIso8601String()}"}',
+    );
+
+    loggy.info('Launching the update helper for $version');
+    await Process.start(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-WindowStyle',
+        'Hidden',
+        '-File',
+        script.path,
+        '-OldPid',
+        '$pid',
+        '-Install',
+        installDirectory.path,
+        '-Payload',
+        payload.path,
+        '-Version',
+        version,
+        '-Markers',
+        markers.path,
+        '-LogPath',
+        log.path,
+      ],
+      // Must not be the install directory: a detached child inherits the parent's
+      // working directory, and the parent's is the install folder when launched
+      // from Explorer — which would leave PowerShell holding a handle on the very
+      // folder it is trying to replace.
+      workingDirectory: helperDir.path,
+      mode: ProcessStartMode.detached,
+    );
+  }
+
+  // STARTUP BOOKKEEPING //////////////////////////////////////////////////////
+
+  /// Confirms a completed update, tidies up after it, and reports a failed one.
+  ///
+  /// Called early in `main`. Never throws: a problem here must not stop the app
+  /// from starting.
+  Future<UpdateAftermath> finishPendingWork(List<String> args) async {
+    if (!Platform.isWindows) return const UpdateAftermath();
+    try {
+      final markers = await SettingsModel().settingsFolder;
+
+      // Written first and cheaply: the helper is watching for it to decide the
+      // new version came up, and every second counts against its health window.
+      final postUpdateIndex = args.indexOf('--post-update');
+      if (postUpdateIndex >= 0 && postUpdateIndex + 1 < args.length) {
+        final version = args[postUpdateIndex + 1];
+        await File(p.join(markers.path, 'update_ok.$version')).writeAsString(DateTime.now().toIso8601String());
+        loggy.info('Confirmed a successful update to $version');
+      }
+
+      final pendingUpdate = File(p.join(markers.path, 'pending_update.json'));
+      if (await pendingUpdate.exists()) await pendingUpdate.delete();
+
+      String? failure;
+      final failed = File(p.join(markers.path, 'update_failed.json'));
+      if (await failed.exists()) {
+        failure = await failed.readAsString();
+        await failed.delete();
+        loggy.warning('A previous update did not complete: $failure');
+      }
+
+      await _cleanUpAfterUpdate(markers);
+      await _sweepStaleStaging();
+
+      return UpdateAftermath(failureReport: failure);
+    } on Object catch (e, s) {
+      loggy.error('Update bookkeeping failed, continuing startup anyway: $e\n$s');
+      return const UpdateAftermath();
+    }
+  }
+
+  /// Deletes the backup, but only once the new version is confirmed running.
+  ///
+  /// The version check is what makes the backup trustworthy. Deleting it on the
+  /// helper's word alone would turn a recoverable failed update into an
+  /// unrecoverable one, so a mismatch keeps the backup and says so loudly.
+  Future<void> _cleanUpAfterUpdate(Directory markers) async {
+    final pending = File(p.join(markers.path, 'pending_cleanup.json'));
+    if (!await pending.exists()) return;
+
+    final expected = RegExp(r'"newVersion"\s*:\s*"([^"]+)"').firstMatch(await pending.readAsString())?.group(1);
+    final running = await SettingsModel().appInfo.version;
+
+    if (expected == null || expected != running) {
+      loggy.error(
+        'An update to $expected was applied but $running is running. Keeping the backup at '
+        '${p.join(installDirectory.path, '.jw_update', 'backup')} for recovery.',
+      );
+      return;
+    }
+
+    final work = Directory(p.join(installDirectory.path, '.jw_update'));
+    if (await work.exists()) {
+      await work.delete(recursive: true);
+      loggy.info('Removed the update backup after confirming $running');
+    }
+    await pending.delete();
+    await clearStaging(running);
+  }
+
+  /// Removes staging folders left by other versions or by an abandoned attempt.
+  Future<void> _sweepStaleStaging() async {
+    final temp = await SettingsModel().tempDir;
+    final root = Directory(p.join(temp.path, 'update'));
+    if (!await root.exists()) return;
+
+    final current = await SettingsModel().appInfo.version;
+    final cutoff = DateTime.now().subtract(const Duration(days: 7));
+    await for (final entry in root.list()) {
+      if (entry is! Directory) continue;
+      final version = p.basename(entry.path);
+      if (version == current) continue;
+      if ((await entry.stat()).modified.isAfter(cutoff)) continue;
+      try {
+        await entry.delete(recursive: true);
+        loggy.info('Swept stale update staging for $version');
+      } on Object catch (e) {
+        loggy.info('Could not sweep $version staging: $e');
+      }
+    }
   }
 
   Future<void> clearStaging(String version) async {

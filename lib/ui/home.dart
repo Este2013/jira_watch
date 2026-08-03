@@ -3,7 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/updates_dao.dart';
+import 'package:jira_watcher/main.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_logo.dart';
+import 'package:jira_watcher/ui/utils/update_failed_dialog.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_main.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
 import 'package:jira_watcher/ui/updates_dialog.dart';
@@ -111,6 +113,17 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
 
   @override
   void initState() {
+    // A rolled-back update would otherwise be invisible: the app simply reopens
+    // on the old version with no explanation.
+    if (updateAftermath.hadFailure) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => showDialog(
+          context: context,
+          builder: (context) => UpdateFailedDialog(report: updateAftermath.failureReport!),
+        ),
+      );
+    }
+
     var lastVersion = SettingsModel().lastAppVersion;
     SettingsModel().appInfo.version.then((ver) {
       if (isVersionStrictlyAbove(ver, baseline: lastVersion)) {

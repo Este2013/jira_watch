@@ -3,10 +3,13 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/dao/gitlab_download_service.dart';
-import 'package:loggy/loggy.dart';
+import 'package:jira_watcher/ui/utils/reveal_in_file_manager.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart' as p;
-import 'package:url_launcher/url_launcher.dart';
+
+// Moved out of this file so the updater can reach it too; re-exported so the
+// GitLab call sites that import this one keep compiling unchanged.
+export 'package:jira_watcher/ui/utils/reveal_in_file_manager.dart' show revealInFileManager;
 
 typedef GitLabDownloadRunner = Future<File> Function(File destination, GitLabDownloadTask task);
 
@@ -63,24 +66,6 @@ Future<File?> runGitLabDownload(
   return null;
 }
 
-/// Opens the OS file manager with [file] selected.
-Future<void> revealInFileManager(File file) async {
-  try {
-    if (Platform.isWindows) {
-      // The comma form has to be one argument, and explorer exits non-zero even
-      // on success, so its exit code is deliberately ignored.
-      await Process.run('explorer.exe', ['/select,${file.path}']);
-      return;
-    }
-    if (Platform.isMacOS) {
-      await Process.run('open', ['-R', file.path]);
-      return;
-    }
-    await launchUrl(Uri.directory(file.parent.path));
-  } on Object catch (e) {
-    logError('Could not reveal ${file.path} in the file manager: $e');
-  }
-}
 
 class _DownloadProgressDialog extends StatefulWidget {
   const _DownloadProgressDialog({required this.task, required this.run});

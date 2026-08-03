@@ -19,6 +19,10 @@ import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:loggy/loggy.dart';
 import 'package:window_manager/window_manager.dart';
 
+/// What the last update attempt left behind, read once at startup so the home
+/// screen can report a failure the user would otherwise never hear about.
+UpdateAftermath updateAftermath = const UpdateAftermath();
+
 void main(List<String> args) async {
   // Answered before anything else is initialised, so this costs a process start
   // and nothing more. The updater runs a freshly extracted build this way to
@@ -46,6 +50,12 @@ void main(List<String> args) async {
   );
 
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Confirms a completed update and tidies up after it. Runs before the window
+  // appears because the helper is watching for the confirmation marker against a
+  // timeout, and it never throws — a bookkeeping problem must not stop startup.
+  updateAftermath = await WindowsSelfUpdateDao().finishPendingWork(args);
+
   await windowManager.ensureInitialized();
   windowManager.waitUntilReadyToShow(
     WindowOptions(minimumSize: Size(900, 600)),
