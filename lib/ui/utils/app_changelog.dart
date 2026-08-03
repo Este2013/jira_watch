@@ -1,15 +1,13 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 List<(String, List<ChangeLogSection>)> _versionsDataRaw = [
   (
     '1.7.0',
     [
       ChangeLogSection.features([
+        ChangeLogItem('🦊 GitLab integration!'),
         ChangeLogItem('All "Add to tasks" buttons now show how many tasks already reference the work item'),
         ChangeLogItem('Can now copy link to work item as well as just the key'),
         ChangeLogItem('Added multi-select options in updates view'),
@@ -499,70 +497,3 @@ class ChangeLogItem {
   }
 }
 
-class NewUpdateAvailableAlertDialog extends StatelessWidget {
-  const NewUpdateAvailableAlertDialog({
-    super.key,
-    required this.data,
-    required this.version,
-  });
-
-  final (bool, String?, Map?) data;
-  final String version;
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text('A new update is available!'),
-    content: ScrollbarTheme(
-      data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
-      child: SizedBox(
-        width: 400,
-        height: 400,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 16,
-          children: [
-            Row(
-              children: [
-                Expanded(child: Text('Version ${data.$2!}', style: Theme.of(context).textTheme.titleMedium)),
-                Text('(Current: $version)'),
-              ],
-            ),
-            if (data.$3?['changelog'] == null)
-              Expanded(
-                child: SingleChildScrollView(child: Text(data.$3?['changelog'] ?? 'No changelog :(')),
-              )
-            else
-              Expanded(
-                child: Card(
-                  child: Padding(
-                    padding: EdgeInsetsGeometry.all(16),
-                    child: SingleChildScrollView(child: Text(data.$3?['changelog'] ?? 'No changelog :(')),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    ),
-    actions: [
-      Row(
-        spacing: 8,
-        children: [
-          TextButton(onPressed: Navigator.of(context).pop, child: Text('Not now')),
-          Spacer(),
-          TextButton(
-            onPressed: () => launchUrl(Uri.parse('https://github.com/Este2013/jira_watch/releases')),
-            child: Text('Github'),
-          ),
-          FilledButton(
-            onPressed: () {
-              String targetOS = Platform.isWindows ? 'x64' : 'osX';
-              launchUrl(Uri.parse('https://este2013.github.io/jira_watch/${data.$3?[targetOS]}'));
-            },
-            child: Text('Download'),
-          ),
-        ],
-      ),
-    ],
-  );
-}

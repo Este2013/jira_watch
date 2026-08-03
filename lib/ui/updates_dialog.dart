@@ -30,14 +30,14 @@ Future<void> fetchNewUpdateDataAndShowResults(BuildContext context, String curre
                   Text('(Current: $currentVersion)'),
                 ],
               ),
-              if (newUpdate.metadata['changelog'] == null)
-                Expanded(child: Center(child: Text(newUpdate.metadata['changelog'] ?? 'No changelog :(')))
+              if (newUpdate.changelog == null)
+                Expanded(child: Center(child: Text('No changelog :(')))
               else
                 Expanded(
                   child: Card(
                     child: Padding(
                       padding: EdgeInsetsGeometry.all(16),
-                      child: SingleChildScrollView(child: Text(newUpdate.metadata['changelog'] ?? 'No changelog :(')),
+                      child: SingleChildScrollView(child: Text(newUpdate.changelog!)),
                     ),
                   ),
                 ),
@@ -55,13 +55,15 @@ Future<void> fetchNewUpdateDataAndShowResults(BuildContext context, String curre
               onPressed: () => launchUrl(Uri.parse('https://github.com/Este2013/jira_watch/releases')),
               child: Text('GitHub'),
             ),
-            FilledButton.icon(
-              onPressed: () {
-                String targetOS = Platform.isWindows ? 'x64' : 'osX';
-                launchUrl(Uri.parse('https://este2013.github.io/jira_watch/${newUpdate.metadata[targetOS]}'));
+            Builder(
+              builder: (context) {
+                final asset = Platform.isWindows ? newUpdate.windowsAssetUri : newUpdate.macAssetUri;
+                return FilledButton.icon(
+                  onPressed: asset == null ? null : () => launchUrl(asset),
+                  icon: Icon(Symbols.download),
+                  label: Text('Download'),
+                );
               },
-              icon: Icon(Symbols.download),
-              label: Text('Download'),
             ),
           ],
         ),

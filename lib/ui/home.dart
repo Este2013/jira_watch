@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:jira_watcher/dao/updates_dao.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_logo.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_main.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
@@ -112,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
   void initState() {
     var lastVersion = SettingsModel().lastAppVersion;
     SettingsModel().appInfo.version.then((ver) {
-      if (isVersionGreaterThan(ver, lastVersion)) {
+      if (isVersionStrictlyAbove(ver, baseline: lastVersion)) {
         WidgetsBinding.instance.addPostFrameCallback(
           (timeStamp) => showDialog(
             context: context,
@@ -188,17 +189,6 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
       ),
     ),
   );
-
-  bool isVersionGreaterThan(String newVersion, String currentVersion) {
-    List<String> currentV = currentVersion.split(".");
-    List<String> newV = newVersion.split(".");
-    bool a = false;
-    for (var i = 0; i <= 2; i++) {
-      a = int.parse(newV[i]) > int.parse(currentV[i]);
-      if (int.parse(newV[i]) != int.parse(currentV[i])) break;
-    }
-    return a;
-  }
 }
 
 class SettingsButton extends StatefulWidget {
