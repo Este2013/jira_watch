@@ -1,0 +1,216 @@
+name: Release
+
+# Publishes a Windows release: builds it, hashes it, records the metadata the app
+# reads to discover updates, and creates the GitHub Release.
+#
+# The checksum matters more than it looks: the in-app installer refuses to replace
+# the app unless the archive it downloaded matches the hash published here. Both
+# are produced from the same file in the same job, so they cannot disagree.
+
+on:
+  push:
+    # History has both shapes; `v` is the convention going forward.
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+      - '[0-9]+.[0-9]+.[0-9]+*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish, e.g. 1.7.0 (must match pubspec)'
+        required: true
+      track:
+        description: 'Which channel to publish to'
+        type: choice
+        options: [main, beta]
+        default: main
+      dry_run:
+        description: 'Build and verify, but publish nothing'
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version and track
+        id: meta
+        shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            $version = '${{ inputs.version }}'
+            $track   = '${{ inputs.track }}'
+            $dryRun  = '${{ inputs.dry_run }}'
+          } else {
+            # Accepts refs/tags/v1.7.0 and refs/tags/1.7.0 alike.
+            $tag = '${{ github.ref_name }}'
+            $version = $tag -replace '^v', ''
+            $track = if ($tag -match '-beta') { 'beta' } else { 'main' }
+            $dryRun = 'false'
+          }
+
+          # pubspec is the source of truth. A mismatch means someone forgot to
+          # bump it, and silently rewriting it would ship a build whose embedded
+          # VERSIONINFO disagrees with its release — which is exactly what the
+          # installer compares after swapping, so it would look like every update
+          # had failed.
+          $pubspec = (Select-String -Path pubspec.yaml -Pattern '^version:\s*(.+)$').Matches[0].Groups[1].Value.Trim()
+          $pubspecVersion = ($pubspec -split '\+')[0]
+          if ($pubspecVersion -ne $version) {
+            Write-Error "pubspec.yaml says $pubspecVersion but the release is $version. Bump pubspec.yaml (or fix the tag) and try again."
+            exit 1
+          }
+
+          "version=$version"   >> $env:GITHUB_OUTPUT
+          "track=$track"       >> $env:GITHUB_OUTPUT
+          "dry_run=$dryRun"    >> $env:GITHUB_OUTPUT
+          "json=$(if ($track -eq 'beta') { 'latest_beta.json' } else { 'latest.json' })" >> $env:GITHUB_OUTPUT
+          Write-Host "Releasing $version to the $track track (dry run: $dryRun)"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          # pubspec requires an SDK from the beta channel; a stable Flutter will
+          # not resolve `pub get`. Pinned so releases stay reproducible.
+          channel: beta
+          flutter-version: 3.45.0-0.1.pre
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Analyze
+        # Gated on errors only: the repo carries 17 pre-existing warnings and
+        # infos across unrelated files, so a strict gate would never go green.
+        # Worth tightening once those are cleared.
+        run: flutter analyze lib test tool --no-fatal-warnings --no-fatal-infos
+
+      - run: flutter test
+
+      - name: Build
+        # --build-name stamps the exe's VERSIONINFO, which is what
+        # package_info_plus reads and what the installer verifies after a swap.
+        run: flutter build windows --release --build-name=${{ steps.meta.outputs.version }} --build-number=${{ github.run_number }}
+
+      - name: Package
+        id: package
+        shell: pwsh
+        run: |
+          $version = '${{ steps.meta.outputs.version }}'
+          $src = 'build\windows\x64\runner\Release'
+          New-Item -ItemType Directory -Force dist | Out-Null
+
+          # Two names for one archive: the Pages copy keeps the historical
+          # filename because shipped clients build that URL themselves, while
+          # GitHub rewrites spaces in release asset names to dots, so the
+          # Releases copy gets a name that survives it.
+          $pagesZip    = "dist\Binaries (x64).zip"
+          $releasesZip = "dist\jira_watch-$version-windows-x64.zip"
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          # includeBaseDirectory:$false reproduces the loose-at-root layout every
+          # existing release uses, and is far faster than Compress-Archive.
+          [System.IO.Compression.ZipFile]::CreateFromDirectory((Resolve-Path $src), $pagesZip, 'Optimal', $false)
+
+          # A layout regression here would break auto-install for every client,
+          # so assert the shape rather than trusting it.
+          $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $pagesZip))
+          try {
+            $names = $zip.Entries | ForEach-Object { $_.FullName }
+          } finally { $zip.Dispose() }
+          foreach ($required in @('jira_watch.exe', 'flutter_windows.dll', 'data/flutter_assets/AssetManifest.bin')) {
+            if ($names -notcontains $required) {
+              Write-Error "The archive is missing $required at the expected path. Refusing to publish it."
+              exit 1
+            }
+          }
+          Write-Host "Archive contains $($names.Count) entries."
+
+          Copy-Item $pagesZip $releasesZip
+
+          $hash = (Get-FileHash $pagesZip -Algorithm SHA256).Hash.ToLower()
+          $size = (Get-Item $pagesZip).Length
+          "sha256=$hash"             >> $env:GITHUB_OUTPUT
+          "size=$size"               >> $env:GITHUB_OUTPUT
+          "pages_zip=$pagesZip"      >> $env:GITHUB_OUTPUT
+          "releases_zip=$releasesZip" >> $env:GITHUB_OUTPUT
+          Write-Host "sha256 $hash ($size bytes)"
+
+      - name: Check out gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Write release metadata
+        shell: pwsh
+        run: |
+          $version = '${{ steps.meta.outputs.version }}'
+          if (Test-Path "gh-pages/v$version") {
+            Write-Error "gh-pages already has v$version. Delete it or bump the version."
+            exit 1
+          }
+          New-Item -ItemType Directory -Force "gh-pages/v$version" | Out-Null
+          Copy-Item '${{ steps.package.outputs.pages_zip }}' "gh-pages/v$version/Binaries (x64).zip"
+
+          # Dart writes the JSON so the changelog's runic bullets and emoji never
+          # cross a shell boundary, and so newest-first ordering is preserved.
+          dart run tool/release_metadata.dart `
+            --version $version `
+            --asset "v$version/Binaries (x64).zip" `
+            --asset-url "https://github.com/${{ github.repository }}/releases/download/v$version/jira_watch-$version-windows-x64.zip" `
+            --sha256 '${{ steps.package.outputs.sha256 }}' `
+            --size '${{ steps.package.outputs.size }}' `
+            --json "gh-pages/${{ steps.meta.outputs.json }}" `
+            --notes-out release_notes.md
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload artifacts for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ steps.meta.outputs.version }}
+          path: |
+            dist/*.zip
+            release_notes.md
+            gh-pages/${{ steps.meta.outputs.json }}
+
+      - name: Publish to gh-pages
+        if: steps.meta.outputs.dry_run != 'true'
+        shell: pwsh
+        working-directory: gh-pages
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m "Release v${{ steps.meta.outputs.version }}"
+          git push
+
+      - name: Create the GitHub Release
+        if: steps.meta.outputs.dry_run != 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Built as an array so the beta flag can be omitted entirely; passing an
+          # empty string would hand gh a stray empty positional argument.
+          $ghArgs = @(
+            "v${{ steps.meta.outputs.version }}",
+            '--title', "v${{ steps.meta.outputs.version }}",
+            '--notes-file', 'release_notes.md'
+          )
+          if ('${{ steps.meta.outputs.track }}' -eq 'beta') { $ghArgs += '--prerelease' }
+          $ghArgs += '${{ steps.package.outputs.releases_zip }}'
+          gh release create @ghArgs
+
+      - name: Dry run summary
+        if: steps.meta.outputs.dry_run == 'true'
+        shell: pwsh
+        run: |
+          Write-Host 'Dry run: nothing was pushed or released.'
+          Write-Host 'Download the workflow artifact to inspect the archive, the notes and the updated JSON.'
