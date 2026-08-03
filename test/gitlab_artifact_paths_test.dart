@@ -120,6 +120,43 @@ void main() {
     });
   });
 
+  group('literalDirectoryPrefix', () {
+    test('roots a regex pattern at its literal directory part', () {
+      expect(literalDirectoryPrefix(r'AppPackages/Studio_\d+\.\d+\.msix', isRegex: true), 'AppPackages');
+      expect(literalDirectoryPrefix(r'a/b/c/file-\d+\.zip', isRegex: true), 'a/b/c');
+    });
+
+    test('roots a plain pattern at its directory part', () {
+      expect(literalDirectoryPrefix('AppPackages/app.msix', isRegex: false), 'AppPackages');
+      expect(literalDirectoryPrefix('app.msix', isRegex: false), '');
+    });
+
+    test('gives up when the pattern starts with something non-literal', () {
+      // Nothing can be pruned here, so the whole archive has to be considered.
+      expect(literalDirectoryPrefix(r'.*\.msix$', isRegex: true), '');
+      expect(literalDirectoryPrefix(r'(AppPackages|Symbols)/x', isRegex: true), '');
+    });
+
+    test('stops at the metacharacter, not after it', () {
+      // `Sym.*/thing` must not claim the `Sym.*` directory exists.
+      expect(literalDirectoryPrefix(r'Symbols/sub.*/pdb', isRegex: true), 'Symbols');
+    });
+
+    test('ignores a leading slash rather than returning one', () {
+      expect(literalDirectoryPrefix('/app.msix', isRegex: false), '');
+    });
+
+    test('a rule exposes the same prefix as its search root', () {
+      final rule = GitLabQuickDownloadRule(
+        id: 1,
+        label: 'x',
+        jobPattern: 'build',
+        pathPattern: r'AppPackages/Studio_\d+\.msix',
+      );
+      expect(rule.searchRoot, 'AppPackages');
+    });
+  });
+
   group('GitLabQuickDownloadMatch', () {
     test('exposes a slash-free path and file name for a directory match', () {
       const match = GitLabQuickDownloadMatch(

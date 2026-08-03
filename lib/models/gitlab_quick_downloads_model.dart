@@ -89,6 +89,26 @@ class GitLabQuickDownloadRule {
     }
     return path.toLowerCase().contains(pathPattern.toLowerCase());
   }
+
+  /// The directory the pattern is rooted at, so the archive walk can start there
+  /// instead of at the root.
+  String get searchRoot => literalDirectoryPrefix(pathPattern, isRegex: pathIsRegex);
+}
+
+/// The leading directory part of a pattern that is a plain literal.
+///
+/// For `AppPackages/Studio_\d+\.\d+\.msix` this is `AppPackages`, which is what
+/// lets a search skip sibling trees like `Symbols/` entirely. Returns an empty
+/// string when the pattern starts with something non-literal and the whole
+/// archive has to be considered.
+String literalDirectoryPrefix(String pattern, {required bool isRegex}) {
+  var literal = pattern;
+  if (isRegex) {
+    final metacharacter = RegExp(r'[\\^$.|?*+()\[\]{}]').firstMatch(pattern);
+    if (metacharacter != null) literal = pattern.substring(0, metacharacter.start);
+  }
+  final lastSlash = literal.lastIndexOf('/');
+  return lastSlash <= 0 ? '' : literal.substring(0, lastSlash);
 }
 
 /// An artifact entry a rule resolved to.
@@ -275,7 +295,14 @@ class GitLabQuickDownloadsModel with GlobalLoggy {
     final jobId = job['id'] as int;
     final jobName = job['name'] as String? ?? '';
 
-    final entries = await DataModel().gitlab.artifactTreeAll(projectId, jobId);
+    // Rooting the walk at the pattern's literal prefix is the difference between
+    // a handful of requests and hundreds on an archive that also ships symbols.
+    final searchRoot = rule.searchRoot;
+    final entries = await DataModel().gitlab.artifactTreeAll(
+      projectId,
+      jobId,
+      path: searchRoot.isEmpty ? null : searchRoot,
+    );
     final matches = <GitLabQuickDownloadMatch>[];
     for (final entry in entries) {
       final path = gitlabArtifactPathOf(entry);

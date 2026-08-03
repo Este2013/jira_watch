@@ -196,19 +196,34 @@ class GitLabApiModel {
     },
   );
 
-  /// Every entry in a job's archive, following pagination to the end.
+  /// One directory's entries, cached for the session.
   ///
-  /// Used by the quick-download rules, which have to match against the full file
-  /// list rather than one page of it.
+  /// A finished job's artifacts never change, so this is safe to keep and saves
+  /// re-walking the same tree for suggestions and then again for a download.
+  final Map<String, List<Map<String, dynamic>>> _treeCache = {};
+
+  /// Lists a single directory inside a job's archive.
+  Future<List<Map<String, dynamic>>> artifactTreeDirectory(int projectId, int jobId, {String? path}) =>
+      _artifactTreePages(projectId, jobId, path: path, recursive: false);
+
+  /// Every entry in a job's archive at or below [path].
   ///
   /// Asks for a server-side recursive listing first, but some instances ignore
   /// `recursive` and answer with the immediate children only. That is detected
-  /// and the directories are then walked explicitly, so the caller always gets
-  /// the whole tree.
-  Future<List<Map<String, dynamic>>> artifactTreeAll(int projectId, int jobId, {String? path}) async {
+  /// and the directories are then walked explicitly, in parallel.
+  ///
+  /// [path] matters for speed: walking from the root of an archive that carries
+  /// debug symbols means hundreds of requests, whereas starting at the directory
+  /// a pattern actually refers to is usually a handful.
+  Future<List<Map<String, dynamic>>> artifactTreeAll(
+    int projectId,
+    int jobId, {
+    String? path,
+    int maxRequests = 300,
+  }) async {
     final firstPass = await _artifactTreePages(projectId, jobId, path: path, recursive: true);
     if (_looksRecursive(firstPass, path)) return firstPass;
-    return _walkArtifactTree(projectId, jobId, seed: firstPass);
+    return _walkArtifactTree(projectId, jobId, seed: firstPass, maxRequests: maxRequests);
   }
 
   Future<List<Map<String, dynamic>>> _artifactTreePages(
@@ -217,6 +232,10 @@ class GitLabApiModel {
     String? path,
     required bool recursive,
   }) async {
+    final key = '$jobId|${path ?? ''}|$recursive';
+    final cached = _treeCache[key];
+    if (cached != null) return cached;
+
     final all = <Map<String, dynamic>>[];
     int? page = 1;
     while (page != null) {
@@ -226,6 +245,9 @@ class GitLabApiModel {
       // Guard against a pathological archive pinning the UI.
       if (all.length > 20000) break;
     }
+    // Bounded so a long session cannot grow this without limit.
+    if (_treeCache.length > 400) _treeCache.clear();
+    _treeCache[key] = all;
     return all;
   }
 
@@ -244,26 +266,37 @@ class GitLabApiModel {
     return false;
   }
 
+  /// Walks the directories level by level, several at a time.
+  ///
+  /// Sequential walking is what made this unusable: one round-trip per directory
+  /// against an archive with a symbols tree ran for minutes.
   Future<List<Map<String, dynamic>>> _walkArtifactTree(
     int projectId,
     int jobId, {
     required List<Map<String, dynamic>> seed,
+    int maxRequests = 300,
+    int concurrency = 8,
   }) async {
     final all = <Map<String, dynamic>>[...seed];
-    final queue = seed.where(gitlabArtifactIsDirectory).map((e) => stripTrailingSlash(gitlabArtifactPathOf(e))).toList();
-    final visited = <String>{...queue};
+    var frontier = seed.where(gitlabArtifactIsDirectory).map((e) => stripTrailingSlash(gitlabArtifactPathOf(e))).where((p) => p.isNotEmpty).toList();
+    final visited = <String>{...frontier};
     var requests = 0;
 
-    while (queue.isNotEmpty) {
-      // Caps the walk so a deep archive cannot spin forever.
-      if (all.length > 20000 || requests >= 500) break;
-      final directory = queue.removeAt(0);
-      requests++;
-      final children = await _artifactTreePages(projectId, jobId, path: directory, recursive: false);
-      all.addAll(children);
-      for (final child in children.where(gitlabArtifactIsDirectory)) {
-        final childPath = stripTrailingSlash(gitlabArtifactPathOf(child));
-        if (childPath.isNotEmpty && visited.add(childPath)) queue.add(childPath);
+    while (frontier.isNotEmpty && requests < maxRequests && all.length < 20000) {
+      final batch = frontier.take(concurrency).toList();
+      frontier = frontier.skip(concurrency).toList();
+      requests += batch.length;
+
+      final results = await Future.wait(
+        batch.map((directory) => _artifactTreePages(projectId, jobId, path: directory, recursive: false)),
+      );
+
+      for (final children in results) {
+        all.addAll(children);
+        for (final child in children.where(gitlabArtifactIsDirectory)) {
+          final childPath = stripTrailingSlash(gitlabArtifactPathOf(child));
+          if (childPath.isNotEmpty && visited.add(childPath)) frontier.add(childPath);
+        }
       }
     }
     return all;

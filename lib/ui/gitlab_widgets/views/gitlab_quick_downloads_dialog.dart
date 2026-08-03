@@ -11,12 +11,16 @@ import 'package:material_symbols_icons/symbols.dart';
 
 /// Manage a project's quick-download rules.
 class GitLabQuickDownloadsDialog extends StatefulWidget {
-  const GitLabQuickDownloadsDialog({super.key, required this.tab, this.testPipelineId});
+  const GitLabQuickDownloadsDialog({super.key, required this.tab, this.testPipelineId, this.testPipelineIid});
 
   final GitLabProjectTab tab;
 
-  /// A pipeline to test rules against; normally the newest one on screen.
+  /// The pipeline rules are tested against and suggestions come from — the one
+  /// whose menu this was opened from.
   final int? testPipelineId;
+
+  /// Its user-facing number, for labelling.
+  final int? testPipelineIid;
 
   @override
   State<GitLabQuickDownloadsDialog> createState() => _GitLabQuickDownloadsDialogState();
@@ -119,6 +123,7 @@ class _GitLabQuickDownloadsDialogState extends State<GitLabQuickDownloadsDialog>
         tab: widget.tab,
         rule: rule.copy(),
         testPipelineId: widget.testPipelineId,
+        testPipelineIid: widget.testPipelineIid,
       ),
     );
     if (edited != null) _model.replaceRule(widget.tab.projectId, edited);
@@ -127,11 +132,12 @@ class _GitLabQuickDownloadsDialogState extends State<GitLabQuickDownloadsDialog>
 }
 
 class _RuleEditorDialog extends StatefulWidget {
-  const _RuleEditorDialog({required this.tab, required this.rule, this.testPipelineId});
+  const _RuleEditorDialog({required this.tab, required this.rule, this.testPipelineId, this.testPipelineIid});
 
   final GitLabProjectTab tab;
   final GitLabQuickDownloadRule rule;
   final int? testPipelineId;
+  final int? testPipelineIid;
 
   @override
   State<_RuleEditorDialog> createState() => _RuleEditorDialogState();
@@ -155,9 +161,9 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> with UiLoggy {
   List<Map<String, dynamic>>? _pipelineJobs;
   bool _loadingPipeline = false;
 
-  /// Artifact entry paths per job, so switching the job pattern back and forth
+  /// Directory listings keyed by `jobId|directory`, so browsing back up the tree
   /// does not refetch.
-  final Map<int, List<String>> _treeCache = {};
+  final Map<String, List<String>> _treeCache = {};
 
   @override
   void initState() {
@@ -211,21 +217,35 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> with UiLoggy {
     );
   }
 
-  Future<List<String>> _pathOptions() async {
+  /// Lists one directory of the matched job's archive, chosen from what has been
+  /// typed so far.
+  ///
+  /// Deliberately not the whole archive: enumerating one that ships debug symbols
+  /// takes hundreds of requests, which made this field unusable. This behaves
+  /// like a file picker instead — one request per directory, cached.
+  Future<List<String>> _pathOptions(String query) async {
     final job = _matchedJob;
     if (job == null) return const [];
     final jobId = job['id'] as int;
-    final cached = _treeCache[jobId];
+
+    final directory = literalDirectoryPrefix(query, isRegex: _pathIsRegex);
+    final key = '$jobId|$directory';
+    final cached = _treeCache[key];
     if (cached != null) return cached;
+
     try {
-      final entries = await DataModel().gitlab.artifactTreeAll(widget.tab.projectId, jobId);
+      final entries = await DataModel().gitlab.artifactTreeDirectory(
+        widget.tab.projectId,
+        jobId,
+        path: directory.isEmpty ? null : directory,
+      );
       // Inserted verbatim: GitLab already marks directories with a trailing
       // slash, and adding another would produce a pattern that matches nothing.
       final paths = entries.map(gitlabArtifactPathOf).where((path) => path.isNotEmpty).toList()..sort();
-      _treeCache[jobId] = paths;
+      _treeCache[key] = paths;
       return paths;
     } on Object catch (e) {
-      loggy.warning('Could not load the artifact tree for job $jobId: $e');
+      loggy.warning('Could not list "$directory" in job $jobId: $e');
       return const [];
     }
   }
@@ -301,7 +321,9 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> with UiLoggy {
                 icon: _testing
                     ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Symbols.play_circle),
-                label: const Text('Test on latest pipeline'),
+                label: Text(
+                  widget.testPipelineIid == null ? 'Test on this pipeline' : 'Test on pipeline #${widget.testPipelineIid}',
+                ),
                 onPressed: (_testing || !current.isValid) ? null : _test,
               ),
             const Spacer(),
@@ -364,8 +386,8 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> with UiLoggy {
                 isRegex: _pathIsRegex,
                 onRegexToggled: (value) => setState(() => _pathIsRegex = value),
                 onChanged: (_) => setState(() {}),
-                optionsProvider: _pathOptions,
-                emptyOptionsMessage: _matchedJob == null ? 'Set a job first to list its files' : 'This archive has no entries',
+                optionsForQuery: _pathOptions,
+                emptyOptionsMessage: _matchedJob == null ? 'Set a job first to list its files' : 'This folder is empty',
                 leadingIconFor: (option) => option.endsWith('/') ? Symbols.folder : Symbols.description,
               ),
               if (_pathIsRegex && hasGeneralizableNumbers(_pathPattern.text))

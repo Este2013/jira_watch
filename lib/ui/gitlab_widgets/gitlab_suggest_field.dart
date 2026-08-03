@@ -12,7 +12,8 @@ class GitLabSuggestField extends StatefulWidget {
     super.key,
     required this.controller,
     required this.label,
-    required this.optionsProvider,
+    this.optionsProvider,
+    this.optionsForQuery,
     this.helper,
     this.hint,
     this.isRegex = false,
@@ -21,13 +22,20 @@ class GitLabSuggestField extends StatefulWidget {
     this.leadingIconFor,
     this.emptyOptionsMessage = 'Nothing to suggest',
     this.monospace = true,
-  });
+  }) : assert(optionsProvider != null || optionsForQuery != null, 'One of optionsProvider or optionsForQuery is required');
 
   final TextEditingController controller;
   final String label;
 
-  /// Returns every candidate; filtering against what the user typed is done here.
-  final Future<List<String>> Function() optionsProvider;
+  /// Returns every candidate once; filtering against what the user typed is done
+  /// here. Suits small, fixed sets like a pipeline's job names.
+  final Future<List<String>> Function()? optionsProvider;
+
+  /// Returns the candidates for one query, already narrowed.
+  ///
+  /// Use this when the full set is too expensive to enumerate — an artifact
+  /// archive, for instance, where only the relevant directory should be fetched.
+  final Future<List<String>> Function(String query)? optionsForQuery;
 
   final String? helper;
   final String? hint;
@@ -62,7 +70,7 @@ class _GitLabSuggestFieldState extends State<GitLabSuggestField> {
     if (_loading) return const [];
     _loading = true;
     try {
-      final options = await widget.optionsProvider();
+      final options = await widget.optionsProvider!();
       _options = options;
       return options;
     } finally {
@@ -71,15 +79,19 @@ class _GitLabSuggestFieldState extends State<GitLabSuggestField> {
   }
 
   Future<Iterable<String>> _optionsFor(String query) async {
-    final all = await _load();
+    final all = widget.optionsForQuery != null ? await widget.optionsForQuery!(query) : await _load();
     if (query.isEmpty) return all.take(200);
 
     if (widget.isRegex && query.isValidRegex()) {
       final pattern = RegExp(query, caseSensitive: false);
-      return all.where(pattern.hasMatch).take(200);
+      final matched = all.where(pattern.hasMatch).take(200).toList();
+      // A half-typed pattern often matches nothing yet; showing the candidates
+      // for the directory keeps the list useful while it is being written.
+      return matched.isEmpty ? all.take(200) : matched;
     }
     final lower = query.toLowerCase();
-    return all.where((o) => o.toLowerCase().contains(lower)).take(200);
+    final matched = all.where((o) => o.toLowerCase().contains(lower)).take(200).toList();
+    return matched.isEmpty && widget.optionsForQuery != null ? all.take(200) : matched;
   }
 
   bool get _regexInvalid => widget.isRegex && widget.controller.text.isNotEmpty && !widget.controller.text.isValidRegex();

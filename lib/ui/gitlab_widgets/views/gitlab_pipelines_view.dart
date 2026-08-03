@@ -251,7 +251,12 @@ class _PipelineRowState extends State<_PipelineRow> with UiLoggy {
                     textAlign: TextAlign.end,
                   ),
                 ),
-                _PipelineDownloadsButton(tab: widget.tab, pipelineId: _pipelineId, loadJobs: _ensureJobs),
+                _PipelineDownloadsButton(
+                  tab: widget.tab,
+                  pipelineId: _pipelineId,
+                  pipelineIid: (iid as num?)?.toInt(),
+                  loadJobs: _ensureJobs,
+                ),
                 if (webUrl != null)
                   IconButton(
                     tooltip: 'Open in browser',
@@ -418,6 +423,7 @@ Future<void> runQuickDownload(
   GitLabQuickDownloadRule rule,
   List<Map<String, dynamic>> pipelineJobs, {
   int? pipelineId,
+  int? pipelineIid,
 }) async {
   if (!await GitLabDao().supportsArtifactTree()) {
     if (!context.mounted) return;
@@ -461,7 +467,11 @@ Future<void> runQuickDownload(
                 context: context,
                 // Carries the pipeline through, so the editor can suggest this
                 // pipeline's jobs and files while the pattern is being fixed.
-                builder: (context) => GitLabQuickDownloadsDialog(tab: tab, testPipelineId: pipelineId),
+                builder: (context) => GitLabQuickDownloadsDialog(
+                  tab: tab,
+                  testPipelineId: pipelineId,
+                  testPipelineIid: pipelineIid,
+                ),
               );
             },
             child: const Text('Edit rules'),
@@ -687,10 +697,16 @@ Future<void> downloadJobArchive(BuildContext context, GitLabProjectTab tab, Map<
 /// Jobs are loaded on demand when the menu is opened, so the pipeline list stays
 /// one request per page.
 class _PipelineDownloadsButton extends StatefulWidget {
-  const _PipelineDownloadsButton({required this.tab, required this.pipelineId, required this.loadJobs});
+  const _PipelineDownloadsButton({
+    required this.tab,
+    required this.pipelineId,
+    required this.loadJobs,
+    this.pipelineIid,
+  });
 
   final GitLabProjectTab tab;
   final int pipelineId;
+  final int? pipelineIid;
   final Future<List<Map<String, dynamic>>?> Function() loadJobs;
 
   @override
@@ -779,14 +795,25 @@ class _PipelineDownloadsButtonState extends State<_PipelineDownloadsButton> {
     if (selected == _manageQuickDownloads) {
       await showDialog(
         context: context,
-        builder: (context) => GitLabQuickDownloadsDialog(tab: widget.tab, testPipelineId: widget.pipelineId),
+        builder: (context) => GitLabQuickDownloadsDialog(
+          tab: widget.tab,
+          testPipelineId: widget.pipelineId,
+          testPipelineIid: widget.pipelineIid,
+        ),
       );
       if (mounted) setState(() {});
       return;
     }
 
     if (selected is GitLabQuickDownloadRule) {
-      await runQuickDownload(context, widget.tab, selected, jobs, pipelineId: widget.pipelineId);
+      await runQuickDownload(
+        context,
+        widget.tab,
+        selected,
+        jobs,
+        pipelineId: widget.pipelineId,
+        pipelineIid: widget.pipelineIid,
+      );
       return;
     }
 
