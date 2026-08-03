@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:jira_watcher/dao/gitlab_dao.dart';
 import 'package:jira_watcher/dao/updates_dao.dart';
+import 'package:jira_watcher/models/app_update_model.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_images.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_logo.dart';
@@ -877,6 +878,27 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                       ),
                     ],
                   ),
+                  if (Platform.isWindows)
+                    Row(
+                      spacing: 8,
+                      children: [
+                        Text('Test update staging'),
+                        Spacer(),
+                        TextButton.icon(
+                          icon: Icon(Symbols.download),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => DiagnosticsDialog(
+                                testName: 'Update staging',
+                                stdout: diagnoseUpdateStaging(),
+                              ),
+                            );
+                          },
+                          label: Text('Run test'),
+                        ),
+                      ],
+                    ),
                   Row(
                     spacing: 8,
                     children: [

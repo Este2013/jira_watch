@@ -83,6 +83,20 @@ Future<(bool, NewUpdateData?)> fetchNewUpdateData({
   );
 }
 
+/// The newest release the server publishes, regardless of what is running.
+///
+/// [fetchNewUpdateData] deliberately answers "is there something newer than me",
+/// which is not a question the update-staging diagnostic can use — it needs a real
+/// archive to exercise, even when that archive is older than the running build.
+Future<NewUpdateData?> fetchNewestPublished({bool beta = false}) async {
+  final response = await http.get(beta ? latestBetaDataUri : latestDataUri);
+  if (response.statusCode != 200) return null;
+  final data = _decodeVersionMap(response.body);
+  final newest = data?.entries.firstOrNull;
+  if (newest == null) return null;
+  return NewUpdateData(version: newest.key, metadata: newest.value as Map, isBeta: beta);
+}
+
 /// Decodes a `latest*.json` body, or null when it is not a usable version map.
 ///
 /// The server is a static host, so a hiccup answers with an HTML error page

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart';
+import 'package:jira_watcher/dao/windows_self_update_dao.dart';
 import 'package:jira_watcher/ui/home.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/settings.dart';
@@ -18,7 +19,18 @@ import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:loggy/loggy.dart';
 import 'package:window_manager/window_manager.dart';
 
-void main() async {
+void main(List<String> args) async {
+  // Answered before anything else is initialised, so this costs a process start
+  // and nothing more. The updater runs a freshly extracted build this way to
+  // prove it can actually start — catching a corrupt extraction, a missing VC++
+  // runtime or an antivirus quarantine while the installed app is still
+  // untouched. Returning here also means no window is ever shown, since the
+  // Windows runner creates the window hidden and only Dart reveals it.
+  if (args.contains('--self-test')) {
+    stdout.writeln(WindowsSelfUpdateDao.selfTestMarker);
+    exit(0);
+  }
+
   Loggy.initLoggy(
     logPrinter: FileLogPrinter(),
   );
