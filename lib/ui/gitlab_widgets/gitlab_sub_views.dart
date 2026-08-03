@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/gitlab_tabs_model.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/views/gitlab_artifacts_view.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/views/gitlab_jobs_view.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/views/gitlab_pipelines_view.dart';
 
 typedef GitLabSubViewBuilder = Widget Function(GitLabProjectTab tab);
 
@@ -11,7 +14,12 @@ typedef GitLabSubViewBuilder = Widget Function(GitLabProjectTab tab);
 /// alive, so any state that must survive a section switch belongs on
 /// [GitLabProjectTab.viewState] rather than in a widget's `State`.
 final Map<GitLabSubView, GitLabSubViewBuilder> gitLabSubViewRegistry = {
+  // Anything not listed below is still a placeholder.
   for (final view in GitLabSubView.values) view: (tab) => GitLabSubViewPlaceholder(view: view, tab: tab),
+
+  GitLabSubView.pipelines: (tab) => GitLabPipelinesView(tab: tab, key: ValueKey('pipelines-${tab.projectId}')),
+  GitLabSubView.jobs: (tab) => GitLabJobsView(tab: tab, key: ValueKey('jobs-${tab.projectId}')),
+  GitLabSubView.artifacts: (tab) => GitLabArtifactsView(tab: tab, key: ValueKey('artifacts-${tab.projectId}')),
 };
 
 class GitLabSubViewPlaceholder extends StatelessWidget {

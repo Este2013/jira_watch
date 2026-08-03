@@ -487,6 +487,44 @@ class GitLabDao with GlobalLoggy {
     );
   }
 
+  // INSTANCE CAPABILITIES /////////////////////////////////////////////////////
+
+  String? _instanceVersion;
+  bool? _supportsArtifactTree;
+
+  String? get instanceVersion => _instanceVersion;
+
+  /// Whether `/jobs/:id/artifacts/tree` exists, which is what lets us list the
+  /// contents of an artifact archive without downloading it.
+  ///
+  /// Gated on the instance version rather than probing, because GitLab answers
+  /// 404 both for an unknown route and for a job with no artifacts — so a probe
+  /// cannot tell "too old" from "nothing there".
+  Future<bool> supportsArtifactTree() async {
+    if (_supportsArtifactTree != null) return _supportsArtifactTree!;
+    try {
+      final data = await getJson('/api/v4/version') as Map<String, dynamic>;
+      _instanceVersion = data['version'] as String?;
+      _supportsArtifactTree = versionAtLeast(_instanceVersion, 18, 8);
+      loggy.info('GitLab instance version $_instanceVersion; artifact browsing ${_supportsArtifactTree! ? 'available' : 'unavailable (needs 18.8)'}');
+    } on Object catch (e) {
+      loggy.warning('Could not read the GitLab instance version: $e');
+      _supportsArtifactTree = false;
+    }
+    return _supportsArtifactTree!;
+  }
+
+  /// Compares a GitLab version string like `18.8.1-ee` against a minimum.
+  static bool versionAtLeast(String? version, int major, int minor) {
+    if (version == null) return false;
+    final match = RegExp(r'^(\d+)\.(\d+)').firstMatch(version.trim());
+    if (match == null) return false;
+    final actualMajor = int.parse(match.group(1)!);
+    final actualMinor = int.parse(match.group(2)!);
+    if (actualMajor != major) return actualMajor > major;
+    return actualMinor >= minor;
+  }
+
   // DIAGNOSTICS ///////////////////////////////////////////////////////////////
 
   Stream<String> diagnoseConnection() async* {
@@ -522,5 +560,13 @@ class GitLabDao with GlobalLoggy {
     } on Object catch (e) {
       yield 'Request failed: $e';
     }
+
+    yield '';
+    yield 'Checking instance capabilities ...';
+    final canBrowse = await supportsArtifactTree();
+    yield 'Instance version: ${_instanceVersion ?? "unknown"}';
+    yield canBrowse
+        ? 'Artifact browsing is available, so quick downloads can match by regex.'
+        : 'Artifact browsing needs GitLab 18.8 or newer. Quick downloads will need an exact file path on this instance.';
   }
 }

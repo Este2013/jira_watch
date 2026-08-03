@@ -7,6 +7,7 @@
 #include "generated_plugin_registrant.h"
 
 #include <desktop_webview_window/desktop_webview_window_plugin.h>
+#include <file_selector_windows/file_selector_windows.h>
 #include <flutter_secure_storage_windows/flutter_secure_storage_windows_plugin.h>
 #include <irondash_engine_context/irondash_engine_context_plugin_c_api.h>
 #include <local_auth_windows/local_auth_plugin.h>
@@ -21,6 +22,8 @@
 void RegisterPlugins(flutter::PluginRegistry* registry) {
   DesktopWebviewWindowPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("DesktopWebviewWindowPlugin"));
+  FileSelectorWindowsRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("FileSelectorWindows"));
   FlutterSecureStorageWindowsPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("FlutterSecureStorageWindowsPlugin"));
   IrondashEngineContextPluginCApiRegisterWithRegistrar(

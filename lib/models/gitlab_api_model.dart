@@ -91,4 +91,114 @@ class GitLabApiModel {
   );
 
   Future<Map<String, dynamic>> project(int projectId) async => await dao.getJson('/api/v4/projects/$projectId') as Map<String, dynamic>;
+
+  // PIPELINES /////////////////////////////////////////////////////////////////
+
+  /// Note that the list response omits `duration`, `user`, `started_at` and
+  /// `finished_at` — those need [pipeline] per row.
+  Future<GitLabPage> pipelines(
+    int projectId, {
+    int page = 1,
+    String? status,
+    String? ref,
+    String? source,
+  }) => dao.getJsonPage(
+    '/api/v4/projects/$projectId/pipelines',
+    page: page,
+    queryParameters: {
+      'order_by': 'id',
+      'sort': 'desc',
+      if (status != null && status.isNotEmpty) 'status': status,
+      if (ref != null && ref.isNotEmpty) 'ref': ref,
+      if (source != null && source.isNotEmpty) 'source': source,
+    },
+  );
+
+  Future<Map<String, dynamic>> pipeline(int projectId, int pipelineId) async =>
+      await dao.getJson('/api/v4/projects/$projectId/pipelines/$pipelineId') as Map<String, dynamic>;
+
+  Future<GitLabPage> pipelineJobs(int projectId, int pipelineId, {int page = 1, bool includeRetried = false}) => dao.getJsonPage(
+    '/api/v4/projects/$projectId/pipelines/$pipelineId/jobs',
+    page: page,
+    perPage: 100,
+    queryParameters: {'include_retried': includeRetried},
+  );
+
+  // REPOSITORY ////////////////////////////////////////////////////////////////
+
+  Future<GitLabPage> branches(int projectId, {String? search, int page = 1, int perPage = 20}) => dao.getJsonPage(
+    '/api/v4/projects/$projectId/repository/branches',
+    page: page,
+    perPage: perPage,
+    queryParameters: {if (search != null && search.isNotEmpty) 'search': search},
+  );
+
+  Future<GitLabPage> tags(int projectId, {String? search, int page = 1, int perPage = 20}) => dao.getJsonPage(
+    '/api/v4/projects/$projectId/repository/tags',
+    page: page,
+    perPage: perPage,
+    queryParameters: {
+      'order_by': 'updated',
+      'sort': 'desc',
+      if (search != null && search.isNotEmpty) 'search': search,
+    },
+  );
+
+  // JOBS //////////////////////////////////////////////////////////////////////
+
+  Future<GitLabPage> jobs(int projectId, {int page = 1, List<String>? scope}) => dao.getJsonPage(
+    '/api/v4/projects/$projectId/jobs',
+    page: page,
+    queryParameters: {
+      'order_by': 'id',
+      'sort': 'desc',
+      if (scope != null && scope.isNotEmpty) 'scope[]': scope,
+    },
+  );
+
+  Future<Map<String, dynamic>> job(int projectId, int jobId) async => await dao.getJson('/api/v4/projects/$projectId/jobs/$jobId') as Map<String, dynamic>;
+
+  // ARTIFACTS /////////////////////////////////////////////////////////////////
+
+  /// Lists entries inside a job's artifact archive without extracting it.
+  ///
+  /// This endpoint only exists from GitLab 18.8, so a self-managed instance may
+  /// not have it — see [GitLabDao.artifactBrowsingAvailable].
+  Future<GitLabPage> artifactTree(
+    int projectId,
+    int jobId, {
+    String? path,
+    bool recursive = false,
+    int page = 1,
+    int perPage = 100,
+  }) => dao.getJsonPage(
+    '/api/v4/projects/$projectId/jobs/$jobId/artifacts/tree',
+    page: page,
+    perPage: perPage,
+    queryParameters: {
+      if (path != null && path.isNotEmpty) 'path': path,
+      if (recursive) 'recursive': true,
+    },
+  );
+
+  /// Every entry in a job's archive, following pagination to the end.
+  ///
+  /// Used by the quick-download rules, which have to regex-match against the
+  /// full file list rather than one page of it.
+  Future<List<Map<String, dynamic>>> artifactTreeAll(int projectId, int jobId, {String? path}) async {
+    final all = <Map<String, dynamic>>[];
+    int? page = 1;
+    while (page != null) {
+      final result = await artifactTree(projectId, jobId, path: path, recursive: true, page: page);
+      all.addAll(result.items.map((e) => (e as Map).cast<String, dynamic>()));
+      page = result.nextPage;
+      // Guard against a pathological archive pinning the UI.
+      if (all.length > 20000) break;
+    }
+    return all;
+  }
+
+  // INSTANCE //////////////////////////////////////////////////////////////////
+
+  Future<Map<String, dynamic>> version() async => await dao.getJson('/api/v4/version') as Map<String, dynamic>;
 }

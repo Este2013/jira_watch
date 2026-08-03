@@ -46,6 +46,7 @@ dependencies:
   xml: ^7.0.1
   flutter_context_menu: ^0.4.2
   flutter_markdown: ^0.7.7+1
+  file_selector: ^1.1.0
 
 dev_dependencies:
   flutter_test:

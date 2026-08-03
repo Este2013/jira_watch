@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:csv/csv.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/gitlab_api_model.dart';
+import 'package:jira_watcher/models/gitlab_quick_downloads_model.dart';
 import 'package:jira_watcher/models/gitlab_tabs_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/models/to_do_tasks_models.dart';
@@ -25,12 +26,14 @@ class DataModel with GlobalLoggy {
     todoTasks = ToDoTasksModel();
     gitlab = GitLabApiModel();
     gitlabTabs = GitLabTabsModel();
+    gitlabQuickDownloads = GitLabQuickDownloadsModel();
   }
 
   late final APIModel jiraApi;
   late final ToDoTasksModel todoTasks;
   late final GitLabApiModel gitlab;
   late final GitLabTabsModel gitlabTabs;
+  late final GitLabQuickDownloadsModel gitlabQuickDownloads;
 
   // PROJECTS /////////////////////////////////////////////////////////////////////
 
