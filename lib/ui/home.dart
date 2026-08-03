@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_main.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
 import 'package:jira_watcher/ui/updates_dialog.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_home_view.dart';
@@ -15,6 +16,19 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'utils/under_constuction_notice.dart';
 import 'utils/widgets/animated_icons.dart';
 
+enum HomePage {
+  updates('Updates', Symbols.dashboard, 'View the latest changes made in projects you work on.'),
+  workItems('Work items', Symbols.bug_report, null),
+  toDo('To do', Symbols.assessment, 'Locally keep track of your own tasks.'),
+  gitlab('GitLab', Symbols.fork_right, 'Browse your GitLab projects, pipelines and releases.');
+
+  const HomePage(this.title, this.icon, this.subtitle);
+
+  final String title;
+  final IconData icon;
+  final String? subtitle;
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -23,36 +37,66 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with UiLoggy {
-  String _currentPage = 'Updates';
-
-  int get _selectedIndex {
-    switch (_currentPage) {
-      case 'Updates':
-        return 0;
-      case 'Work items':
-        return 1;
-      case 'To do':
-        return 2;
-      default:
-        return 0;
-    }
-  }
+  HomePage _currentPage = HomePage.updates;
 
   void _onRailSelect(int index) {
-    switch (index) {
-      case 0:
-        loggy.info('User selected "Updates" tab (#$index)');
-        setState(() => _currentPage = 'Updates');
-        break;
-      case 1:
-        loggy.info('User selected "Work items" tab (#$index)');
-        setState(() => _currentPage = 'Work items');
-        break;
-      case 2:
-        loggy.info('User selected "To do" tab (#$index)');
-        setState(() => _currentPage = 'To do');
-        break;
-    }
+    final page = HomePage.values[index];
+    loggy.info('User selected "${page.title}" tab (#$index)');
+    setState(() => _currentPage = page);
+  }
+
+  /// The one list that cannot be generated from [HomePage], so it is isolated
+  /// here to keep the coupling explicit.
+  List<Widget> _pageBodies() {
+    assert(HomePage.values.length == 4);
+    return [
+      // Updates
+      Scaffold(
+        appBar: AppBar(
+          title: Row(
+            children: [
+              Expanded(child: Text(_currentPage.title)),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    currentPageSubtitle(_currentPage),
+                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+                  ),
+                ),
+              ),
+              Spacer(),
+            ],
+          ),
+          actions: [],
+        ),
+        body: UpdatesPage(),
+      ),
+      // Work items
+      UnderConstructionNotice(),
+      // To do
+      TodoPagePreLoadView(),
+      // GitLab
+      Scaffold(
+        appBar: AppBar(
+          title: Row(
+            children: [
+              Expanded(child: Text(HomePage.gitlab.title)),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    HomePage.gitlab.subtitle!,
+                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+                  ),
+                ),
+              ),
+              Spacer(),
+            ],
+          ),
+          actions: [],
+        ),
+        body: GitLabPagePreLoadView(),
+      ),
+    ];
   }
 
   @override
@@ -74,17 +118,7 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
     super.initState();
   }
 
-  String currentPageSubtitle(String currentPage) {
-    switch (currentPage) {
-      case 'Updates':
-        return 'View the latest changes made in projects you work on.';
-      case 'To do':
-        return 'Locally keep track of your own tasks.';
-      case 'Work items':
-      default:
-        return 'No subtitle for this page, call the dev.';
-    }
-  }
+  String currentPageSubtitle(HomePage currentPage) => currentPage.subtitle ?? 'No subtitle for this page, call the dev.';
 
   @override
   Widget build(BuildContext context) => Shortcuts(
@@ -102,7 +136,7 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
             children: [
               NavigationRail(
                 groupAlignment: 0,
-                selectedIndex: _selectedIndex,
+                selectedIndex: _currentPage.index,
                 onDestinationSelected: _onRailSelect,
                 labelType: NavigationRailLabelType.all,
                 trailingAtBottom: true,
@@ -116,27 +150,14 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
                 ),
 
                 destinations: [
-                  NavigationRailDestination(
-                    icon: IconFilledOnSelection(
-                      Icon(Symbols.dashboard),
-                      isSelected: _selectedIndex == 0,
+                  for (final page in HomePage.values)
+                    NavigationRailDestination(
+                      icon: IconFilledOnSelection(
+                        Icon(page.icon),
+                        isSelected: _currentPage == page,
+                      ),
+                      label: Text(page.title),
                     ),
-                    label: Text('Updates'),
-                  ),
-                  NavigationRailDestination(
-                    icon: IconFilledOnSelection(
-                      Icon(Symbols.bug_report),
-                      isSelected: _selectedIndex == 1,
-                    ),
-                    label: Text('Work items'),
-                  ),
-                  NavigationRailDestination(
-                    icon: IconFilledOnSelection(
-                      Icon(Symbols.assessment),
-                      isSelected: _selectedIndex == 2,
-                    ),
-                    label: Text('To do'),
-                  ),
                 ],
                 trailing: Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),
@@ -151,33 +172,8 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
               VerticalDivider(width: 1),
               Expanded(
                 child: IndexedStack(
-                  index: _selectedIndex,
-                  children: [
-                    // Updates page
-                    Scaffold(
-                      appBar: AppBar(
-                        title: Row(
-                          children: [
-                            Expanded(child: Text(_currentPage)),
-                            Expanded(
-                              child: Center(
-                                child: Text(
-                                  currentPageSubtitle(_currentPage),
-                                  style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
-                                ),
-                              ),
-                            ),
-                            Spacer(),
-                          ],
-                        ),
-
-                        actions: [],
-                      ),
-                      body: UpdatesPage(),
-                    ),
-                    UnderConstructionNotice(),
-                    TodoPagePreLoadView(),
-                  ],
+                  index: _currentPage.index,
+                  children: _pageBodies(),
                 ),
               ),
             ],

@@ -5,8 +5,11 @@ import 'dart:io';
 import 'package:fading_edge_scrollview/fading_edge_scrollview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:jira_watcher/dao/gitlab_dao.dart';
 import 'package:jira_watcher/dao/updates_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_images.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_settings_page.dart';
 import 'package:jira_watcher/ui/updates_dialog.dart';
 import 'package:jira_watcher/ui/utils/app_changelog.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
@@ -30,6 +33,7 @@ enum SettingsDialogPage {
   general('General', Symbols.settings),
   connection('Connection', Symbols.account_circle),
   projects('Projects', Symbols.amp_stories),
+  gitlab('GitLab', Symbols.fork_right),
   advanced('Advanced', Symbols.settings_applications);
 
   const SettingsDialogPage(this.label, this.icon);
@@ -57,6 +61,9 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
     SettingsDialogPage.general,
     if (widget.allowConnectionBasedSettings) SettingsDialogPage.connection,
     if (widget.allowConnectionBasedSettings) SettingsDialogPage.projects,
+    // GitLab is independent of the Jira credentials, so it stays reachable from
+    // the pre-login screen too.
+    SettingsDialogPage.gitlab,
     // Advanced is reachable from the General page instead.
   ];
 
@@ -75,6 +82,7 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
     SettingsDialogPage.general => GeneralSettingsPage(),
     SettingsDialogPage.connection => ConnectionSettingsPage(),
     SettingsDialogPage.projects => ProjectsSettingsPage(),
+    SettingsDialogPage.gitlab => GitLabSettingsPage(),
     SettingsDialogPage.advanced => AdvancedSettingsPage(),
   };
 
@@ -749,7 +757,11 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                   ),
                 TextButton.icon(
                   style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-                  onPressed: () => jiraAvatarCacheManager.emptyCache(),
+                  onPressed: () {
+                    jiraAvatarCacheManager.emptyCache();
+                    gitlabAvatarCacheManager.emptyCache();
+                    GitLabAvatar.clearMemoryCache();
+                  },
                   icon: Icon(Symbols.delete, fill: 1),
                   label: Text("Delete images and icons cache"),
                 ),
@@ -849,6 +861,26 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                             builder: (context) => DiagnosticsDialog(
                               testName: 'Writing to settings folder',
                               stdout: testFetchingNewUpdateData(context),
+                            ),
+                          );
+                        },
+                        label: Text('Run test'),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    spacing: 8,
+                    children: [
+                      Text('Test the GitLab connection'),
+                      Spacer(),
+                      TextButton.icon(
+                        icon: Icon(Symbols.fork_right),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => DiagnosticsDialog(
+                              testName: 'GitLab connection',
+                              stdout: GitLabDao().diagnoseConnection(),
                             ),
                           );
                         },
