@@ -415,8 +415,9 @@ Future<void> runQuickDownload(
   BuildContext context,
   GitLabProjectTab tab,
   GitLabQuickDownloadRule rule,
-  List<Map<String, dynamic>> pipelineJobs,
-) async {
+  List<Map<String, dynamic>> pipelineJobs, {
+  int? pipelineId,
+}) async {
   if (!await GitLabDao().supportsArtifactTree()) {
     if (!context.mounted) return;
     await showDialog(
@@ -457,7 +458,9 @@ Future<void> runQuickDownload(
               Navigator.of(context).pop();
               showDialog(
                 context: context,
-                builder: (context) => GitLabQuickDownloadsDialog(tab: tab),
+                // Carries the pipeline through, so the editor can suggest this
+                // pipeline's jobs and files while the pattern is being fixed.
+                builder: (context) => GitLabQuickDownloadsDialog(tab: tab, testPipelineId: pipelineId),
               );
             },
             child: const Text('Edit rules'),
@@ -782,7 +785,7 @@ class _PipelineDownloadsButtonState extends State<_PipelineDownloadsButton> {
     }
 
     if (selected is GitLabQuickDownloadRule) {
-      await runQuickDownload(context, widget.tab, selected, jobs);
+      await runQuickDownload(context, widget.tab, selected, jobs, pipelineId: widget.pipelineId);
       return;
     }
 

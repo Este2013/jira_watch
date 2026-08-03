@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/gitlab_quick_downloads_model.dart';
 import 'package:jira_watcher/models/gitlab_tabs_model.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_suggest_field.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/views/gitlab_jobs_view.dart';
 import 'package:jira_watcher/ui/utils/widgets/dialog_widgets.dart/action_buttons.dart';
-import 'package:jira_watcher/utils/string_utils.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -149,6 +149,15 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> with UiLoggy {
   List<String>? _testMatches;
   Object? _testError;
 
+  /// Jobs of the pipeline the dialog was opened from, used to suggest job names,
+  /// stages, and — through the matched job — artifact paths.
+  List<Map<String, dynamic>>? _pipelineJobs;
+  bool _loadingPipeline = false;
+
+  /// Artifact entry paths per job, so switching the job pattern back and forth
+  /// does not refetch.
+  final Map<int, List<String>> _treeCache = {};
+
   @override
   void initState() {
     super.initState();
@@ -158,6 +167,67 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> with UiLoggy {
     _pathPattern = TextEditingController(text: widget.rule.pathPattern);
     _jobIsRegex = widget.rule.jobIsRegex;
     _pathIsRegex = widget.rule.pathIsRegex;
+    _loadPipelineJobs();
+  }
+
+  Future<void> _loadPipelineJobs() async {
+    final pipelineId = widget.testPipelineId;
+    if (pipelineId == null) return;
+    setState(() => _loadingPipeline = true);
+    try {
+      final page = await DataModel().gitlab.pipelineJobs(widget.tab.projectId, pipelineId);
+      if (!mounted) return;
+      setState(() {
+        _pipelineJobs = page.items.map((e) => (e as Map).cast<String, dynamic>()).toList();
+        _loadingPipeline = false;
+      });
+    } on Object catch (e) {
+      loggy.warning('Could not load pipeline jobs for suggestions: $e');
+      if (!mounted) return;
+      setState(() => _loadingPipeline = false);
+    }
+  }
+
+  /// Reversed so suggestions read in pipeline order rather than newest-first.
+  Iterable<Map<String, dynamic>> get _jobsInPipelineOrder => (_pipelineJobs ?? const <Map<String, dynamic>>[]).reversed;
+
+  Future<List<String>> _jobNameOptions() async => _jobsInPipelineOrder.map((j) => j['name'] as String? ?? '').where((n) => n.isNotEmpty).toSet().toList();
+
+  Future<List<String>> _stageOptions() async => _jobsInPipelineOrder.map((j) => j['stage'] as String? ?? '').where((s) => s.isNotEmpty).toSet().toList();
+
+  /// The job the current patterns resolve to, preferring one that has an archive.
+  Map<String, dynamic>? get _matchedJob {
+    final jobs = _pipelineJobs;
+    if (jobs == null || jobs.isEmpty) return null;
+    final rule = _current;
+    if (rule.jobPattern.isEmpty) return null;
+    final candidates = jobs.where(rule.matchesJob).toList();
+    if (candidates.isEmpty) return null;
+    candidates.sort((a, b) => (b['id'] as int).compareTo(a['id'] as int));
+    return candidates.firstWhere(
+      (j) => (j['artifacts'] as List?)?.any((a) => (a as Map)['file_type'] == 'archive') ?? false,
+      orElse: () => candidates.first,
+    );
+  }
+
+  Future<List<String>> _pathOptions() async {
+    final job = _matchedJob;
+    if (job == null) return const [];
+    final jobId = job['id'] as int;
+    final cached = _treeCache[jobId];
+    if (cached != null) return cached;
+    try {
+      final entries = await DataModel().gitlab.artifactTreeAll(widget.tab.projectId, jobId);
+      final paths = entries
+          .map((e) => '${e['path'] ?? e['name']}${(e['type'] == 'directory' || e['type'] == 'tree') ? '/' : ''}')
+          .where((path) => path.isNotEmpty)
+          .toList();
+      _treeCache[jobId] = paths;
+      return paths;
+    } on Object catch (e) {
+      loggy.warning('Could not load the artifact tree for job $jobId: $e');
+      return const [];
+    }
   }
 
   @override
@@ -259,31 +329,56 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> with UiLoggy {
                   border: OutlineInputBorder(),
                 ),
               ),
-              _patternField(
+              GitLabSuggestField(
+                key: ValueKey('job|${_pipelineJobs?.length}'),
                 controller: _jobPattern,
                 label: 'Job',
-                helper: 'Which job in the pipeline produced the archive',
+                helper: _suggestionHelper('Which job produced the archive'),
                 hint: _jobIsRegex ? r'^build-x86' : 'build-x86',
                 isRegex: _jobIsRegex,
-                onRegexChanged: (value) => setState(() => _jobIsRegex = value),
-              ),
-              TextField(
-                controller: _stage,
+                onRegexToggled: (value) => setState(() => _jobIsRegex = value),
                 onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  labelText: 'Stage (optional)',
-                  helperText: 'Restrict to one stage when job names repeat across stages',
-                  border: OutlineInputBorder(),
-                ),
+                optionsProvider: _jobNameOptions,
+                emptyOptionsMessage: 'No jobs to suggest',
+                leadingIconFor: (_) => Symbols.play_circle,
               ),
-              _patternField(
+              GitLabSuggestField(
+                key: ValueKey('stage|${_pipelineJobs?.length}'),
+                controller: _stage,
+                label: 'Stage (optional)',
+                helper: 'Restrict to one stage when job names repeat across stages',
+                isRegex: false,
+                onChanged: (_) => setState(() {}),
+                optionsProvider: _stageOptions,
+                emptyOptionsMessage: 'No stages to suggest',
+                leadingIconFor: (_) => Symbols.layers,
+              ),
+              GitLabSuggestField(
+                // Rebuilt when the matched job changes, so the suggestion list is
+                // reloaded from that job's archive.
+                key: ValueKey('path|${_matchedJob?['id']}'),
                 controller: _pathPattern,
                 label: 'File or folder inside the archive',
-                helper: 'Use a regular expression when the name is versioned',
+                helper: _pathHelper(),
                 hint: _pathIsRegex ? r'Release/MyApp-.*\.exe$' : 'Release/MyApp.exe',
                 isRegex: _pathIsRegex,
-                onRegexChanged: (value) => setState(() => _pathIsRegex = value),
+                onRegexToggled: (value) => setState(() => _pathIsRegex = value),
+                onChanged: (_) => setState(() {}),
+                optionsProvider: _pathOptions,
+                emptyOptionsMessage: _matchedJob == null ? 'Set a job first to list its files' : 'This archive has no entries',
+                leadingIconFor: (option) => option.endsWith('/') ? Symbols.folder : Symbols.description,
               ),
+              if (_pathIsRegex && hasGeneralizableNumbers(_pathPattern.text))
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    icon: const Icon(Symbols.auto_fix_high, size: 18),
+                    label: const Text('Make version numbers flexible'),
+                    onPressed: () => setState(() {
+                      _pathPattern.text = generalizeNumbersToRegex(_pathPattern.text);
+                    }),
+                  ),
+                ),
               if (_testSummary != null || _testError != null || _testMatches != null) _testResults(),
             ],
           ),
@@ -292,39 +387,20 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> with UiLoggy {
     );
   }
 
-  Widget _patternField({
-    required TextEditingController controller,
-    required String label,
-    required String helper,
-    required String hint,
-    required bool isRegex,
-    required ValueChanged<bool> onRegexChanged,
-  }) {
-    final invalid = isRegex && controller.text.isNotEmpty && !controller.text.isValidRegex();
-    return TextField(
-      controller: controller,
-      onChanged: (_) => setState(() {}),
-      style: const TextStyle(fontFamily: 'RobotoMono'),
-      decoration: InputDecoration(
-        labelText: label,
-        helperText: invalid ? 'That is not a valid regular expression' : helper,
-        helperStyle: invalid ? TextStyle(color: Theme.of(context).colorScheme.error) : null,
-        hintText: hint,
-        border: const OutlineInputBorder(),
-        errorText: invalid ? '' : null,
-        suffixIcon: Tooltip(
-          message: isRegex ? 'Using a regular expression' : 'Using a plain substring',
-          child: IconButton(
-            icon: Icon(
-              Symbols.regular_expression,
-              fill: isRegex ? 1 : 0,
-              color: isRegex ? Theme.of(context).colorScheme.primary : null,
-            ),
-            onPressed: () => onRegexChanged(!isRegex),
-          ),
-        ),
-      ),
-    );
+  String _suggestionHelper(String base) {
+    if (widget.testPipelineId == null) return base;
+    if (_loadingPipeline) return '$base — loading suggestions…';
+    final count = _pipelineJobs?.length;
+    return count == null ? base : '$base — $count job${count == 1 ? '' : 's'} available, click to browse';
+  }
+
+  String _pathHelper() {
+    if (_matchedJob == null) {
+      return _jobPattern.text.trim().isEmpty
+          ? 'Set a job above to browse its files'
+          : 'No job in this pipeline matches that job pattern yet';
+    }
+    return 'Suggestions come from "${_matchedJob!['name']}". Use a regex when the name is versioned.';
   }
 
   Widget _testResults() {
