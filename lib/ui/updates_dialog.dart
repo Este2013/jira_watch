@@ -78,8 +78,17 @@ class _NewUpdateAvailableDialogState extends State<NewUpdateAvailableDialog> wit
   Future<void> _restart() async {
     if (!await _controller.applyAndRestart()) return;
     loggy.info('Handing over to the update helper and exiting');
-    // Gives the log sink a moment to flush before the process goes away.
-    await windowManager.destroy();
+
+    // Closing the window is a courtesy so it disappears promptly; exiting is the
+    // part that matters, since the helper is blocked until this process releases
+    // its executable. destroy() has been observed to hang, so it gets a short
+    // budget and then we leave regardless.
+    try {
+      await windowManager.destroy().timeout(const Duration(seconds: 2));
+    } on Object catch (e) {
+      loggy.warning('Could not close the window cleanly, exiting anyway: $e');
+    }
+    // Lets the log sink flush before the process goes away.
     await Future.delayed(const Duration(milliseconds: 300));
     exit(0);
   }

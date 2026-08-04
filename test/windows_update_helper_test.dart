@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jira_watcher/dao/windows_self_update_dao.dart';
 import 'package:jira_watcher/dao/windows_update_helper.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
   group('apply_update.ps1', () {
@@ -95,6 +98,58 @@ void main() {
     test('counts only instances of this exact executable', () {
       expect(preflightProbeScript, contains(r'$_.Path -eq $ExePath'));
     });
+  });
+
+  group('helper launch', () {
+    test('is not a detached mode', () {
+      // Both detached modes map to DETACHED_PROCESS on Windows, which leaves the
+      // child with no console. powershell.exe is console-subsystem, so it dies
+      // during startup — and silently, because detached also means no stderr.
+      expect(WindowsSelfUpdateDao.helperLaunchMode, isNot(ProcessStartMode.detached));
+      expect(WindowsSelfUpdateDao.helperLaunchMode, isNot(ProcessStartMode.detachedWithStdio));
+    });
+
+    test('passes -File last, so its arguments reach the script', () {
+      final args = WindowsSelfUpdateDao.helperArgumentsFor(r'C:\x\apply.ps1', ['-OldPid', '42']);
+      final fileIndex = args.indexOf('-File');
+      expect(fileIndex, greaterThan(-1));
+      expect(args[fileIndex + 1], r'C:\x\apply.ps1');
+      // Anything before -File would be read by powershell rather than the script.
+      expect(args.sublist(fileIndex + 2), ['-OldPid', '42']);
+    });
+
+    test('bypasses execution policy and shows no window', () {
+      final args = WindowsSelfUpdateDao.helperArgumentsFor('x.ps1', const []);
+      expect(args, containsAllInOrder(['-ExecutionPolicy', 'Bypass']));
+      expect(args, containsAllInOrder(['-WindowStyle', 'Hidden']));
+      expect(args, contains('-NoProfile'));
+    });
+
+    test('actually runs a script, and it outlives its launcher', () async {
+      // The regression this pins: with a detached mode the helper never ran at
+      // all, so the app exited and nothing happened. Runs a real script through
+      // the real flags and requires it to have done its work.
+      final work = Directory.systemTemp.createTempSync('jw_launch_');
+      addTearDown(() => work.existsSync() ? work.deleteSync(recursive: true) : null);
+
+      final marker = File(p.join(work.path, 'ran.txt'));
+      final script = File(p.join(work.path, 'probe.ps1'))
+        ..writeAsStringSync('param([string]\$Out)\nSet-Content -LiteralPath \$Out -Value "ran"\n');
+
+      await Process.start(
+        'powershell.exe',
+        WindowsSelfUpdateDao.helperArgumentsFor(script.path, ['-Out', marker.path]),
+        workingDirectory: work.path,
+        mode: WindowsSelfUpdateDao.helperLaunchMode,
+      );
+
+      final deadline = DateTime.now().add(const Duration(seconds: 20));
+      while (!marker.existsSync() && DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      expect(marker.existsSync(), isTrue, reason: 'the helper never ran');
+      expect(marker.readAsStringSync().trim(), 'ran');
+    }, timeout: const Timeout(Duration(seconds: 40)));
   });
 
   group('UpdatePreflight', () {

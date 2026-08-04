@@ -55,6 +55,17 @@ class InvalidUpdatePayload implements Exception {
   String toString() => 'The downloaded archive is not a usable Jira Watcher build: $reason';
 }
 
+/// The helper process was started but never got as far as writing its log.
+class UpdateHelperDidNotStart implements Exception {
+  UpdateHelperDidNotStart(this.logPath);
+  final String logPath;
+
+  @override
+  String toString() =>
+      'The updater could not start its helper process, so nothing was changed. '
+      'Download the archive and extract it yourself. (Expected a log at $logPath)';
+}
+
 class StagedBinarySelfTestFailed implements Exception {
   StagedBinarySelfTestFailed(this.exitCode, this.output);
   final int exitCode;
@@ -492,10 +503,41 @@ class WindowsSelfUpdateDao with GlobalLoggy {
 
   Future<File> _pendingUpdateMarker() async => File(p.join((await SettingsModel().settingsFolder).path, 'pending_update.json'));
 
-  /// Hands the swap to a detached helper and reports whether it started.
+  /// How the helper process is started.
+  ///
+  /// Deliberately not either detached mode. Both map to `DETACHED_PROCESS` on
+  /// Windows, which gives the child no console — and `powershell.exe` is a
+  /// console-subsystem program, so it dies during startup, silently, because
+  /// being detached also means there is no stderr to complain to. Measured: with
+  /// either detached mode the helper never ran at all.
+  ///
+  /// `normal` still outlives this process. Windows does not kill children when
+  /// their parent exits; only the stdio pipes break, and the helper writes to its
+  /// log file rather than to stdout.
+  static const helperLaunchMode = ProcessStartMode.normal;
+
+  /// The flags the helper is always launched with, shared so a test can prove the
+  /// combination actually runs a script.
+  static List<String> helperArgumentsFor(String scriptPath, List<String> scriptArguments) => [
+    '-NoProfile',
+    '-NonInteractive',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-WindowStyle',
+    'Hidden',
+    // Everything after -File is passed to the script, so it goes last.
+    '-File',
+    scriptPath,
+    ...scriptArguments,
+  ];
+
+  /// Hands the swap to a helper process and waits for proof that it started.
   ///
   /// The caller must exit promptly afterwards: the helper is waiting for this
   /// process's executable to become unlocked, and does nothing until it does.
+  ///
+  /// Throws if the helper produced no sign of life, so a launch that silently
+  /// fails cannot end with the app closing and nothing happening.
   Future<void> launchHelper({required String version, required Directory payload}) async {
     final helperDir = await _helperDir(version);
     await helperDir.create(recursive: true);
@@ -512,15 +554,7 @@ class WindowsSelfUpdateDao with GlobalLoggy {
     loggy.info('Launching the update helper for $version');
     await Process.start(
       'powershell.exe',
-      [
-        '-NoProfile',
-        '-NonInteractive',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-WindowStyle',
-        'Hidden',
-        '-File',
-        script.path,
+      helperArgumentsFor(script.path, [
         '-OldPid',
         '$pid',
         '-Install',
@@ -533,14 +567,32 @@ class WindowsSelfUpdateDao with GlobalLoggy {
         markers.path,
         '-LogPath',
         log.path,
-      ],
-      // Must not be the install directory: a detached child inherits the parent's
-      // working directory, and the parent's is the install folder when launched
-      // from Explorer — which would leave PowerShell holding a handle on the very
+      ]),
+      // Must not be the install directory: a child inherits the parent's working
+      // directory, and the parent's is the install folder when launched from
+      // Explorer — which would leave PowerShell holding a handle on the very
       // folder it is trying to replace.
       workingDirectory: helperDir.path,
-      mode: ProcessStartMode.detached,
+      mode: helperLaunchMode,
     );
+
+    // The helper logs before it touches anything, so its log appearing is proof
+    // it is alive. Without this check a launch that fails to start ends with the
+    // app closing and nothing happening at all — which is exactly what a
+    // detached launch used to do.
+    if (!await _waitForHelperStart(log)) {
+      throw UpdateHelperDidNotStart(log.path);
+    }
+    loggy.info('The update helper is running; handing over.');
+  }
+
+  Future<bool> _waitForHelperStart(File log, {Duration timeout = const Duration(seconds: 10)}) async {
+    final deadline = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(deadline)) {
+      if (await log.exists() && await log.length() > 0) return true;
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    return false;
   }
 
   // STARTUP BOOKKEEPING //////////////////////////////////////////////////////
