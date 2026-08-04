@@ -4,10 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
-import 'package:jira_watcher/ui/utils/avatar.dart';
+import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
-import 'package:jira_watcher/ui/utils/jira_doc_renderer.dart';
+import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_doc_renderer.dart';
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 /// Model for a Comment entry
 class CommentEntry {
@@ -146,6 +147,7 @@ class CommentListEntry extends StatelessWidget {
               AdfRenderer(
                 adf: comment.body,
                 mediaBuilder: (context, node, size) => AdfRenderer.defaultMediaBuilder(node, context, (workItem.fields!['attachment'] as List), size),
+                attachments: workItem.fields!['attachment'] as List,
               ),
 
             if (kDebugMode)
@@ -225,7 +227,7 @@ class CommentDebugDialog extends StatelessWidget {
                                         iconSize: 16,
                                         visualDensity: VisualDensity.compact,
                                         onPressed: () => Clipboard.setData(ClipboardData(text: e.value.toString())),
-                                        icon: Icon(Icons.copy),
+                                        icon: Icon(Symbols.content_copy),
                                       ),
                                     ],
                                   ),
@@ -284,7 +286,7 @@ class CommentDebugDialog extends StatelessWidget {
                                     iconSize: 16,
                                     visualDensity: VisualDensity.compact,
                                     onPressed: () => Clipboard.setData(ClipboardData(text: e.value.toString())),
-                                    icon: Icon(Icons.copy),
+                                    icon: Icon(Symbols.content_copy),
                                   ),
                                 ],
                               ),

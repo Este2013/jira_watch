@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 /// A lightweight, dependency-free JSON viewer with:
 /// - Collapsible objects/arrays (showing child counts)
@@ -442,7 +443,7 @@ class _ExpandableHeader extends StatelessWidget {
           AnimatedRotation(
             duration: const Duration(milliseconds: 150),
             turns: expanded ? 0.25 : 0.0,
-            child: const Icon(Icons.chevron_right, size: 18),
+            child: const Icon(Symbols.chevron_right, size: 18),
           ),
         ],
       ),

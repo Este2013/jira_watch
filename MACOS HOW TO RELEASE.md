@@ -1,0 +1,95 @@
+macOS is a damn pain.
+
+
+# 1) Build
+flutter build macos --release
+
+cd build/macos/Build/Products/Release
+
+APP="YourApp.app"   # change this
+
+# 2) (Optional but often helpful) strip any existing weird signatures
+# This may produce warnings on frameworks; that's fine.
+find "$APP" -name "*.dylib" -o -name "*.so" -o -name "*.framework" -o -name "$APP" | while read f; do
+  codesign --remove-signature "$f" 2>/dev/null || true
+done
+
+# 3) Re-sign app, frameworks and plugins with an ad-hoc signature,
+# preserving entitlements so your permissions still work.
+codesign --force --deep \
+  --sign - \
+  --options runtime \
+  --preserve-metadata=entitlements,requirements,flags,runtime \
+  "$APP"
+
+# 4) Sanity-check (you'll probably see "rejected (not notarized)" in spctl, that's OK)
+spctl --assess --verbose "$APP" || true
+
+8888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888#############
+
+
+
+### Clean build and sign fresh (on the build Mac)
+
+On your build Mac:
+
+```
+flutter clean
+flutter build macos --release
+cd build/macos/Build/Products/Release
+```
+
+Now sign once, at the top level, after everything is built.
+
+### If you have a Developer ID cert (best)
+
+Check the available identities:
+
+```security find-identity -p codesigning -v```
+
+
+Pick your Developer ID Application identity, then:
+
+```
+codesign --force --deep --options runtime \
+  --sign "Developer ID Application: Your Name (TEAMID)" \
+  jira_watch.app
+
+BETTER?
+codesign --force \
+  --options runtime \
+  --entitlements macos/Runner/Release.entitlements \
+  --sign "Apple Development: cesteban112@gmail.com (637C656Q22)" \
+  build/macos/Build/Products/Release/jira_watch.app 
+```
+
+If you’re just testing between your own Macs (ad-hoc)
+
+```codesign --force --deep --sign - jira_watch.app```
+
+
+Now verify on the build Mac:
+
+```
+codesign --verify --deep --strict --verbose=2 jira_watch.app
+spctl --assess --type execute -vv jira_watch.app
+```
+
+You want no errors and (ideally) accepted from spctl.
+
+If ```codesign --verify``` already complains about Info.plist, then something on the build side is still changing it (post-build script, manual edit, etc.).
+
+2. Zip the app properly (use ditto!)
+
+Regular zip is usually fine, but ditto is what Apple recommends and avoids weird edge cases with metadata.
+
+On the build Mac:
+
+```
+cd build/macos/Build/Products/Release
+ditto -c -k --keepParent jira_watch.app jira_watch.zip
+```
+
+Then send jira_watch.zip to the other Mac.
+
+(If you were right-clicking → Compress in Finder, that also uses ditto under the hood and is fine.)

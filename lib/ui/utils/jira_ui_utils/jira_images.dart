@@ -5,12 +5,13 @@ import 'package:flutter_svg/svg.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:mime/mime.dart';
 import 'dart:convert';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:xml/xml.dart' as xml;
 
-import 'network_video_player.dart';
+import '../network_video_player.dart';
 
 final CacheManager jiraAvatarCacheManager = CacheManager(
   Config(
@@ -31,6 +32,10 @@ class JiraProjectAvatar extends StatelessWidget {
     this.resolution = '32x32',
     this.size = 32,
   });
+
+  // Resolve each project's avatar URL only once, so rebuilds don't recreate the
+  // future (which used to re-run the lookup and flash a spinner).
+  static final Map<String, Future<String?>> _urlCache = {};
 
   Future<String?> _getAvatarUrl() async {
     List projects = await DataModel().fetchProjects();
@@ -55,7 +60,7 @@ class JiraProjectAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<String?>(
-      future: _getAvatarUrl(),
+      future: _urlCache.putIfAbsent('$projectCode|$resolution', _getAvatarUrl),
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return SizedBox.square(
@@ -71,7 +76,7 @@ class JiraProjectAvatar extends StatelessWidget {
         }
         final url = snapshot.data;
         if (url == null) {
-          return Icon(Icons.folder, size: size);
+          return Icon(Symbols.folder, size: size);
         }
         return JiraAvatar(url: url, size: size);
       },
@@ -97,14 +102,29 @@ class JiraAvatar extends StatefulWidget {
 }
 
 class _JiraAvatarState extends State<JiraAvatar> {
-  // 1️⃣ Create a custom cache manager instance
+  // Shared across every avatar so a given image is fetched + decoded only once.
+  // _resolvedCache lets rebuilds/recreations render instantly (no FutureBuilder,
+  // no spinner flash, no re-decode) — which is what kept the list choppy while
+  // selecting items, since selection churns the avatar elements.
+  static final Map<String, Future<Widget>> _futureCache = {};
+  static final Map<String, Widget> _resolvedCache = {};
 
   late Future<Widget> _avatarFuture;
+
+  String get _cacheKey => '${widget.url}|${widget.size}|${widget.boxFit}';
 
   @override
   void initState() {
     super.initState();
-    _avatarFuture = _loadAvatar(widget.url);
+    _avatarFuture = _futureCache.putIfAbsent(_cacheKey, () => _loadAvatar(widget.url));
+  }
+
+  @override
+  void didUpdateWidget(covariant JiraAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url || oldWidget.size != widget.size || oldWidget.boxFit != widget.boxFit) {
+      _avatarFuture = _futureCache.putIfAbsent(_cacheKey, () => _loadAvatar(widget.url));
+    }
   }
 
   Future<Widget> _loadAvatar(String url) async {
@@ -145,34 +165,41 @@ class _JiraAvatarState extends State<JiraAvatar> {
   }
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<Widget>(
-    future: _avatarFuture,
-    builder: (context, snapshot) {
-      if (snapshot.connectionState != ConnectionState.done) {
-        return SizedBox.square(
-          dimension: widget.size,
-          child: FractionallySizedBox(
-            widthFactor: .8,
-            heightFactor: .8,
-            child: const Center(
-              child: CircularProgressIndicator(strokeWidth: 2),
+  Widget build(BuildContext context) {
+    // Already decoded once -> render instantly, skipping the FutureBuilder so
+    // recreated elements don't flash a spinner or re-decode.
+    final resolved = _resolvedCache[_cacheKey];
+    if (resolved != null) return resolved;
+    return FutureBuilder<Widget>(
+      future: _avatarFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return SizedBox.square(
+            dimension: widget.size,
+            child: const FractionallySizedBox(
+              widthFactor: .8,
+              heightFactor: .8,
+              child: Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
             ),
-          ),
-        );
-      }
-      if (snapshot.hasError) {
-        return IconButton(
-          icon: const Icon(Icons.error),
-          color: Colors.red,
-          tooltip: '${snapshot.error}\n${widget.url}',
-          onPressed: () => Clipboard.setData(
-            ClipboardData(text: widget.url),
-          ),
-        );
-      }
-      return snapshot.data!;
-    },
-  );
+          );
+        }
+        if (snapshot.hasError) {
+          return IconButton(
+            icon: const Icon(Symbols.error),
+            color: Colors.red,
+            tooltip: '${snapshot.error}\n${widget.url}',
+            onPressed: () => Clipboard.setData(
+              ClipboardData(text: widget.url),
+            ),
+          );
+        }
+        _resolvedCache[_cacheKey] = snapshot.data!;
+        return snapshot.data!;
+      },
+    );
+  }
 }
 
 class JiraImage extends StatefulWidget {
@@ -259,7 +286,7 @@ class _JiraImageState extends State<JiraImage> {
       }
       if (snapshot.hasError) {
         return IconButton(
-          icon: const Icon(Icons.error),
+          icon: const Icon(Symbols.error),
           color: Colors.red,
           tooltip: '${snapshot.error}\n${widget.url}',
           onPressed: () => Clipboard.setData(

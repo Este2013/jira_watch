@@ -74,6 +74,12 @@ class SettingsModel with GlobalLoggy {
         }
         if (domain.isNotEmpty) domainController.text = domain;
 
+        // GITLAB
+        // Populated here for the settings form; writes go through
+        // GitLabDao.saveConnectionSettings rather than a write-back listener.
+        gitlabHostController.text = prefs.getString('gitlab_host') ?? 'gitlab.com';
+        gitlabAppIdController.text = prefs.getString('gitlab_application_id') ?? '';
+
         // PROJECTS
         starredProjects.value = prefs.getStringList('starred_projects') ?? [];
         starredProjects.addListener(() => prefs.setStringList('starred_projects', starredProjects.value ?? []));
@@ -122,6 +128,10 @@ class SettingsModel with GlobalLoggy {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController apiKeyController = TextEditingController();
   final TextEditingController domainController = TextEditingController(text: 'elgato');
+
+  // GITLAB
+  final TextEditingController gitlabHostController = TextEditingController(text: 'gitlab.com');
+  final TextEditingController gitlabAppIdController = TextEditingController();
 
   // FOLDERS
   Future<Directory> tempDir = getTemporaryDirectory().then((v) => Directory(join(v.path, 'jira_watch_cache')));

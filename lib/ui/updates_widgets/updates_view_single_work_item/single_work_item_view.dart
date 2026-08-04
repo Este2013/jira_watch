@@ -1,17 +1,22 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
-import 'package:jira_watcher/ui/home.dart';
+import 'package:jira_watcher/models/to_do_tasks_models.dart';
+import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
 import 'package:jira_watcher/ui/updates_widgets/issue_ui_elements.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_home_view.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_history_view.dart';
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // ignore: unused_import
+import '../../utils/under_constuction_notice.dart';
 import 'work_item_comments_view.dart';
 import 'work_item_details_view.dart';
 
@@ -95,15 +100,48 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
                       style: Theme.of(context).textTheme.bodyMedium ?? TextStyle(),
                       child: Row(
                         children: [
-                          IssueLinkWithParentsRow(workItem),
+                          WorkItemLinkWithParentsRow(workItem),
 
                           JiraWorkItemStatusIndicator(issue: workItem),
                         ],
                       ),
                     ),
-                    Text(workItem['fields']['summary'] ?? 'null'),
+                    SelectableText(workItem['fields']['summary'] ?? 'null'),
                   ],
                 ),
+                actionsPadding: EdgeInsets.only(right: 8),
+                actions: [
+                  MenuAnchor(
+                    menuChildren: [
+                      MenuItemButton(
+                        onPressed: () => keepForLater(context),
+                        leadingIcon: Transform.rotate(
+                          angle: pi / 4,
+                          child: const Icon(Symbols.keep),
+                        ),
+                        child: const Text('Keep for later'),
+                      ),
+                      MenuItemButton(
+                        onPressed: () => addToTasks(context),
+                        leadingIcon: const Icon(Symbols.assignment_add),
+                        child: AddToTasksLabel(workItem: widget.workItem),
+                      ),
+                      MenuItemButton(
+                        onPressed: () => viewInBrowser(context),
+                        leadingIcon: const Icon(Symbols.open_in_browser),
+                        child: const Text('View in browser'),
+                      ),
+                    ],
+                    builder: (context, controller, child) {
+                      return IconButton(
+                        icon: const Icon(Symbols.more_vert),
+                        onPressed: () {
+                          controller.isOpen ? controller.close() : controller.open();
+                        },
+                      );
+                    },
+                  ),
+                ],
                 bottom: TabBar(tabs: tabs, controller: tabController),
               ),
               body: TabBarView(
@@ -122,6 +160,49 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
         return Center(child: CircularProgressIndicator());
       },
     );
+  }
+
+  Future<ToDoTask> keepForLater(BuildContext context) => DataModel().todoTasks
+      .createNewTask(
+        title: '${widget.workItem.key} — ${widget.workItem.fields?['summary']}',
+        workItemKeys: [widget.workItem.key!],
+      )
+      .whenComplete(
+        // ignore: use_build_context_synchronously
+        () => ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saved in your "To do" queue as "${widget.workItem.key}"'),
+          ),
+        ),
+      );
+  void addToTasks(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AddIssueToDoDialog(widget.workItem),
+    );
+  }
+
+  void viewInBrowser(BuildContext context) {
+    String? getWorkItemUrl(dynamic workItemKey) {
+      final domain = APIDao().domain;
+      if (domain != null && workItemKey != null) {
+        return 'https://$domain/browse/$workItemKey';
+      }
+      return null;
+    }
+
+    var workItemURL = getWorkItemUrl(widget.workItem.key);
+    if (workItemURL != null) {
+      launchUrl(Uri.parse(workItemURL));
+    } else {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Something went wrong'),
+          content: Text('The given workItemURL is null?\nFor workItem key: ${widget.workItem.key}, domain ${APIDao().domain}'),
+        ),
+      );
+    }
   }
 }
 
@@ -210,7 +291,7 @@ class _JsonWorkItemViewState extends State<JsonWorkItemView> {
           Expanded(
             child: TextField(
               controller: search,
-              decoration: InputDecoration(border: OutlineInputBorder(), icon: Icon(Icons.search)),
+              decoration: InputDecoration(border: OutlineInputBorder(), icon: Icon(Symbols.search)),
             ),
           ),
           IconButton(
@@ -218,9 +299,14 @@ class _JsonWorkItemViewState extends State<JsonWorkItemView> {
             onPressed: () => setState(() {
               filterEmpties = !filterEmpties;
             }),
-            icon: Icon(Icons.circle_outlined),
-            selectedIcon: Icon(Icons.block),
+            icon: Icon(Symbols.circle),
+            selectedIcon: Icon(Symbols.block),
             isSelected: filterEmpties,
+          ),
+          IconButton(
+            tooltip: 'Copy all json data',
+            onPressed: () => Clipboard.setData(ClipboardData(text: JsonEncoder.withIndent('    ').convert(widget.workItem.data))),
+            icon: Icon(Symbols.copy_all),
           ),
         ],
       ),
@@ -268,7 +354,7 @@ class _FieldsTableState extends State<FieldsTable> {
               controller: searchController,
               decoration: InputDecoration(
                 border: OutlineInputBorder(),
-                icon: Icon(Icons.search),
+                icon: Icon(Symbols.search),
               ),
             ),
           ),
@@ -277,8 +363,8 @@ class _FieldsTableState extends State<FieldsTable> {
               onlyNonHandled = !onlyNonHandled;
             }),
             tooltip: 'Hide fields that are handled in Details view: ${onlyNonHandled ? 'ON' : 'OFF'}',
-            icon: Icon(Icons.filter_alt_off),
-            selectedIcon: Icon(Icons.filter_alt),
+            icon: Icon(Symbols.filter_alt_off),
+            selectedIcon: Icon(Symbols.filter_alt),
             isSelected: onlyNonHandled,
           ),
         ],
@@ -346,12 +432,12 @@ class _FieldsTableState extends State<FieldsTable> {
                                 children: [
                                   IconButton(
                                     onPressed: () => Clipboard.setData(ClipboardData(text: field.key)),
-                                    icon: Icon(Icons.key),
+                                    icon: Icon(Symbols.key),
                                     tooltip: 'Copy key',
                                   ),
                                   IconButton(
                                     onPressed: () => Clipboard.setData(ClipboardData(text: JsonEncoder.withIndent('    ').convert(field.value))),
-                                    icon: Icon(Icons.data_object),
+                                    icon: Icon(Symbols.data_object),
                                     tooltip: 'Copy value',
                                   ),
                                 ],

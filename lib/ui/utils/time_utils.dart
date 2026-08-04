@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 String timeAgo({DateTime? time, String? timeStr}) {
+  if (time == null && timeStr == null) return '';
   final updated = (time ?? DateTime.parse(timeStr!)).toLocal();
   final now = DateTime.now();
   final diff = now.difference(updated);

@@ -1,7 +1,11 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
-import 'package:jira_watcher/ui/utils/avatar.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
+import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Shows a work item's icon and key, formatting appropriately for links and adding a copy button if requested.
@@ -14,11 +18,13 @@ class WorkItemBadge extends StatefulWidget {
     this.badgeSize = 24,
     this.copyable = false,
     this.compact = false,
+    this.workItemKeyForDialog,
   });
 
   final int badgeSize;
   final String label;
   final String? url;
+  final String? workItemKeyForDialog;
   final String? iconUrl;
   final bool copyable, compact;
 
@@ -29,6 +35,8 @@ class WorkItemBadge extends StatefulWidget {
 class _WorkItemBadgeState extends State<WorkItemBadge> {
   bool _hovering = false;
   bool _hoveringCopy = false;
+  bool _hoveringLink = false;
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -53,11 +61,16 @@ class _WorkItemBadgeState extends State<WorkItemBadge> {
               children: [
                 GestureDetector(
                   onTap: () async {
+                    if (widget.workItemKeyForDialog != null) {
+                      showDialog(context: context, builder: (context) => SingleJiraWorkItemDialog(JiraWorkItemData({'key': widget.workItemKeyForDialog!})));
+                      return;
+                    }
                     if (widget.url != null) {
-                      await launchUrl(
+                      launchUrl(
                         Uri.parse(widget.url!),
                         mode: LaunchMode.externalApplication,
                       );
+                      return;
                     }
                   },
                   child: Text(
@@ -78,28 +91,47 @@ class _WorkItemBadgeState extends State<WorkItemBadge> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               const SizedBox(width: 4),
-                              AnimatedOpacity(
-                                duration: const Duration(milliseconds: 150),
-                                opacity: 1,
-                                child: MouseRegion(
-                                  onEnter: (_) => setState(() => _hoveringCopy = true),
-                                  onExit: (_) => setState(() => _hoveringCopy = false),
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      Clipboard.setData(
-                                        ClipboardData(text: widget.label),
-                                      );
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Copied ${widget.label}')),
-                                      );
-                                    },
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                              MouseRegion(
+                                onEnter: (_) => setState(() => _hoveringLink = true),
+                                onExit: (_) => setState(() => _hoveringLink = false),
+                                child: GestureDetector(
+                                  onTap: () {
+                                    Clipboard.setData(ClipboardData(text: widget.url!));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Copied ${widget.url}')),
+                                    );
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                                    child: Transform.rotate(
+                                      angle: -pi / 4,
                                       child: Icon(
-                                        Icons.copy,
+                                        Symbols.link,
                                         size: 16,
-                                        color: _hoveringCopy ? Theme.of(context).hintColor : Theme.of(context).iconTheme.color,
+                                        color: _hoveringLink ? Theme.of(context).hintColor : Theme.of(context).iconTheme.color,
                                       ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              MouseRegion(
+                                onEnter: (_) => setState(() => _hoveringCopy = true),
+                                onExit: (_) => setState(() => _hoveringCopy = false),
+                                child: GestureDetector(
+                                  onTap: () {
+                                    Clipboard.setData(
+                                      ClipboardData(text: widget.label),
+                                    );
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Copied ${widget.label}')),
+                                    );
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                                    child: Icon(
+                                      Symbols.content_copy,
+                                      size: 16,
+                                      color: _hoveringCopy ? Theme.of(context).hintColor : Theme.of(context).iconTheme.color,
                                     ),
                                   ),
                                 ),
@@ -118,17 +150,17 @@ class _WorkItemBadgeState extends State<WorkItemBadge> {
 }
 
 /// Shows the work items project, parent and key as [WorkItemBadge]s.
-class IssueLinkWithParentsRow extends StatefulWidget {
+class WorkItemLinkWithParentsRow extends StatefulWidget {
   final JiraWorkItemData workItem;
   final bool compact;
 
-  const IssueLinkWithParentsRow(this.workItem, {super.key, this.compact = false});
+  const WorkItemLinkWithParentsRow(this.workItem, {super.key, this.compact = false});
 
   @override
-  State<IssueLinkWithParentsRow> createState() => _IssueLinkWithParentsRowState();
+  State<WorkItemLinkWithParentsRow> createState() => _WorkItemLinkWithParentsRowState();
 }
 
-class _IssueLinkWithParentsRowState extends State<IssueLinkWithParentsRow> {
+class _WorkItemLinkWithParentsRowState extends State<WorkItemLinkWithParentsRow> {
   String? _workItemUrl(dynamic workItemKey) {
     final domain = APIDao().domain;
     if (domain != null && workItemKey != null) {
@@ -175,6 +207,7 @@ class _IssueLinkWithParentsRowState extends State<IssueLinkWithParentsRow> {
             key: Key(parentKey),
             iconUrl: parentIconUrl,
             url: _workItemUrl(parentKey),
+            workItemKeyForDialog: parentKey,
             badgeSize: badgeSize,
             compact: widget.compact,
           ),
@@ -207,7 +240,7 @@ class JiraWorkItemStatusIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String colorName = issue.fields?['statusCategory']['colorName'];
+    String colorName = issue.fields?['statusCategory']['colorName'] ?? 'unknown';
 
     return Container(
       decoration: BoxDecoration(
@@ -216,7 +249,7 @@ class JiraWorkItemStatusIndicator extends StatelessWidget {
       ),
       padding: EdgeInsets.symmetric(horizontal: 4),
       child: Text(
-        issue.fields?['status']['name'],
+        issue.fields?['status']['name'] ?? 'unknown status',
         style: TextStyle(color: onColor(context, colorName)),
       ),
     );

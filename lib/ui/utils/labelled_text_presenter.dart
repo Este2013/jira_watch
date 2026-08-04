@@ -258,3 +258,208 @@ class _LabeledPopupTextFieldState extends State<LabeledPopupTextField> {
     );
   }
 }
+
+typedef IconPopupBuilder =
+    Widget Function(
+      BuildContext context,
+      VoidCallback dismiss,
+    );
+
+class PopupIconButton extends StatefulWidget {
+  const PopupIconButton({
+    super.key,
+    required this.icon,
+    this.tooltip,
+    this.onPressed,
+    this.popupBuilder,
+    this.showPopupOnPressed = true,
+    this.focusNode,
+    this.screenPadding = const EdgeInsets.fromLTRB(12, 24, 12, 24),
+    this.preferBelow = true,
+    this.maxPopupWidth = 420,
+    this.minPopupHeight = 160,
+    this.iconSize,
+    this.padding,
+    this.constraints,
+    this.color,
+    this.disabledColor,
+    this.popupColor,
+  });
+
+  /// The icon shown in the button.
+  final Widget icon;
+
+  /// Standard IconButton bits:
+  final String? tooltip;
+  final VoidCallback? onPressed;
+  final double? iconSize;
+  final EdgeInsetsGeometry? padding;
+  final BoxConstraints? constraints;
+  final Color? color;
+  final Color? disabledColor;
+  final Color? popupColor;
+
+  /// Build your custom anchored popup here.
+  /// Call `dismiss()` when the popup should close.
+  final IconPopupBuilder? popupBuilder;
+
+  /// Show popup when the button is pressed.
+  final bool showPopupOnPressed;
+
+  final FocusNode? focusNode;
+
+  /// Layout tuning, same as your text field version:
+  final EdgeInsets screenPadding;
+  final bool preferBelow;
+  final double maxPopupWidth;
+  final double minPopupHeight;
+
+  @override
+  State<PopupIconButton> createState() => _PopupIconButtonState();
+}
+
+class _PopupIconButtonState extends State<PopupIconButton> {
+  final LayerLink _link = LayerLink();
+  OverlayEntry? _entry;
+  late FocusNode _focusNode;
+  final GlobalKey _buttonKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = widget.focusNode ?? FocusNode();
+  }
+
+  @override
+  void didUpdateWidget(covariant PopupIconButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode != widget.focusNode && widget.focusNode != null) {
+      _focusNode = widget.focusNode!;
+    }
+  }
+
+  void _showPopup() {
+    if (_entry != null || widget.popupBuilder == null) return;
+
+    final overlay = Overlay.of(context);
+
+    // 1) Measure target & overlay
+    final overlayBox = overlay.context.findRenderObject() as RenderBox;
+    final targetBox = _buttonKey.currentContext!.findRenderObject() as RenderBox;
+
+    final overlaySize = overlayBox.size;
+    final targetSize = targetBox.size;
+    final targetTopLeft = targetBox.localToGlobal(Offset.zero, ancestor: overlayBox);
+    final targetBottomLeft = targetTopLeft + Offset(0, targetSize.height);
+
+    final pad = widget.screenPadding;
+    final usableTop = pad.top;
+    final usableBottom = overlaySize.height - pad.bottom;
+    final usableLeft = pad.left;
+    final usableRight = overlaySize.width - pad.right;
+
+    final spaceAbove = (targetTopLeft.dy - usableTop).clamp(0.0, double.infinity);
+    final spaceBelow = (usableBottom - targetBottomLeft.dy).clamp(0.0, double.infinity);
+
+    // 2) Decide vertical placement
+    final wantBelow = widget.preferBelow;
+    final placeBelow = (wantBelow && spaceBelow >= widget.minPopupHeight) || (!wantBelow && spaceAbove < widget.minPopupHeight && spaceBelow >= spaceAbove);
+
+    // 3) Compute width and horizontal clamping
+    final maxWidth = widget.maxPopupWidth.clamp(0.0, usableRight - usableLeft);
+    double left = targetTopLeft.dx;
+    left = left.clamp(usableLeft, usableRight - maxWidth);
+    final dx = left - targetTopLeft.dx;
+
+    // 4) Compute max height and y offset
+    const gap = 8.0;
+    final maxHeight = (placeBelow ? spaceBelow : spaceAbove) - gap;
+    final dy = placeBelow ? (targetSize.height + gap) : -(maxHeight + gap);
+
+    // 5) Build overlay with constraints
+    _entry = OverlayEntry(
+      builder: (context) {
+        return Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: _dismissPopup,
+            child: Stack(
+              children: [
+                CompositedTransformFollower(
+                  link: _link,
+                  showWhenUnlinked: false,
+                  offset: Offset(dx, dy),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: maxWidth,
+                      maxHeight: maxHeight > 0 ? maxHeight : 80,
+                    ),
+                    child: Material(
+                      color: widget.popupColor,
+                      elevation: 6,
+                      borderRadius: BorderRadius.circular(12),
+                      clipBehavior: Clip.antiAlias,
+                      child: widget.popupBuilder!(
+                        context,
+                        _dismissPopup,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    overlay.insert(_entry!);
+  }
+
+  void _dismissPopup() {
+    _entry?.remove();
+    _entry = null;
+  }
+
+  @override
+  void dispose() {
+    _dismissPopup();
+    if (widget.focusNode == null) {
+      _focusNode.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CompositedTransformTarget(
+      link: _link,
+      child: KeyedSubtree(
+        key: _buttonKey,
+        child: IconButton(
+          icon: widget.icon,
+          tooltip: widget.tooltip,
+          focusNode: _focusNode,
+          iconSize: widget.iconSize ?? 24,
+          padding: widget.padding ?? const EdgeInsets.all(8),
+          constraints: widget.constraints,
+          color: widget.color,
+          disabledColor: widget.disabledColor,
+          onPressed: (widget.onPressed == null && !widget.showPopupOnPressed)
+              ? null
+              : () {
+                  // call user handler first
+                  widget.onPressed?.call();
+                  if (widget.showPopupOnPressed) {
+                    if (_entry == null) {
+                      _showPopup();
+                    } else {
+                      _dismissPopup();
+                    }
+                  }
+                },
+        ),
+      ),
+    );
+  }
+}

@@ -5,13 +5,20 @@ import 'dart:io';
 import 'package:fading_edge_scrollview/fading_edge_scrollview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:jira_watcher/dao/gitlab_dao.dart';
 import 'package:jira_watcher/dao/updates_dao.dart';
+import 'package:jira_watcher/models/app_update_model.dart';
 import 'package:jira_watcher/models/data_model.dart';
-import 'package:jira_watcher/ui/home.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_images.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_logo.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_settings_page.dart';
 import 'package:jira_watcher/ui/updates_dialog.dart';
-import 'package:jira_watcher/ui/utils/avatar.dart';
+import 'package:jira_watcher/ui/utils/app_changelog.dart';
+import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
+import 'package:jira_watcher/ui/utils/widgets/dialog_widgets.dart/action_buttons.dart';
+import 'package:jira_watcher/ui/utils/widgets/github_button.dart';
 import 'package:jira_watcher/utils/local_auth.dart';
 import 'package:jira_watcher/utils/string_utils.dart';
 import 'package:loggy/loggy.dart';
@@ -22,13 +29,34 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 
 import '../utils/🪵.dart';
+import 'utils/widgets/animated_icons.dart';
 
-enum SettingsDialogPage { general, connection, projects, advanced }
+enum SettingsDialogPage {
+  general('General', Symbols.settings),
+  connection('Connection', Symbols.account_circle),
+  projects('Projects', Symbols.amp_stories),
+  // GitLab draws its own mark instead of [icon]; see [buildIcon].
+  gitlab('GitLab', Symbols.fork_right),
+  advanced('Advanced', Symbols.settings_applications);
+
+  const SettingsDialogPage(this.label, this.icon);
+
+  final String label;
+  final IconData icon;
+
+  /// GitLab uses its own brand mark, which fills on selection through a
+  /// different mechanism than a Material Symbol.
+  Widget buildIcon({required bool isSelected}) => switch (this) {
+    SettingsDialogPage.gitlab => GitLabTanukiIcon(isSelected: isSelected),
+    _ => IconFilledOnSelection(Icon(icon), isSelected: isSelected),
+  };
+}
 
 class SettingsDialog extends StatefulWidget {
-  const SettingsDialog({super.key, this.initialPage = SettingsDialogPage.general});
+  const SettingsDialog({super.key, this.initialPage = SettingsDialogPage.general, this.allowConnectionBasedSettings = true});
 
   final SettingsDialogPage initialPage;
+  final bool allowConnectionBasedSettings;
 
   @override
   State<SettingsDialog> createState() => _SettingsDialogState();
@@ -37,34 +65,36 @@ class SettingsDialog extends StatefulWidget {
 class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  final tabs = [
-    Tab(
-      text: 'General',
-      icon: Icon(Icons.settings),
-    ),
-    Tab(
-      text: 'Connection',
-      icon: Icon(Icons.account_circle),
-    ),
-    Tab(
-      text: 'Projects',
-      icon: Icon(Symbols.ad),
-    ),
-    Tab(
-      text: 'Advanced',
-      icon: Icon(Symbols.settings_applications),
-    ),
+  /// The tab bar, the tab views and the controller length are all derived from
+  /// this one list, so they cannot fall out of sync.
+  late final List<SettingsDialogPage> _pages = [
+    SettingsDialogPage.general,
+    if (widget.allowConnectionBasedSettings) SettingsDialogPage.connection,
+    if (widget.allowConnectionBasedSettings) SettingsDialogPage.projects,
+    // GitLab is independent of the Jira credentials, so it stays reachable from
+    // the pre-login screen too.
+    SettingsDialogPage.gitlab,
+    // Advanced is reachable from the General page instead.
   ];
 
   @override
   void initState() {
     super.initState();
+    final initialIndex = _pages.indexOf(widget.initialPage);
     _tabController = TabController(
-      length: tabs.length,
-      initialIndex: SettingsDialogPage.values.indexed.firstWhere((t) => t.$2 == widget.initialPage).$1,
+      length: _pages.length,
+      initialIndex: initialIndex < 0 ? 0 : initialIndex,
       vsync: this,
     );
   }
+
+  Widget _bodyFor(SettingsDialogPage page) => switch (page) {
+    SettingsDialogPage.general => GeneralSettingsPage(),
+    SettingsDialogPage.connection => ConnectionSettingsPage(),
+    SettingsDialogPage.projects => ProjectsSettingsPage(),
+    SettingsDialogPage.gitlab => GitLabSettingsPage(),
+    SettingsDialogPage.advanced => AdvancedSettingsPage(),
+  };
 
   @override
   Widget build(BuildContext context) => AlertDialog(
@@ -73,15 +103,7 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
     actions: [
       Row(
         children: [
-          TextButton.icon(
-            onPressed: () => launchUrl(Uri.parse('https://github.com/Este2013/jira_watch')),
-            icon: SvgPicture.asset(
-              'assets/icons/github-icon.svg',
-              height: 20,
-              colorFilter: ColorFilter.mode(Theme.of(context).colorScheme.primary, BlendMode.srcIn),
-            ),
-            label: Text('GitHub'),
-          ),
+          OpenInGitHubButton(),
           Spacer(),
           TextButton.icon(
             onPressed: () async {
@@ -114,7 +136,21 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TabBar(controller: _tabController, tabs: tabs),
+          AnimatedBuilder(
+            animation: _tabController,
+            builder: (context, _) {
+              return TabBar(
+                controller: _tabController,
+                tabs: [
+                  for (final (index, page) in _pages.indexed)
+                    Tab(
+                      text: page.label,
+                      icon: page.buildIcon(isSelected: _tabController.index == index),
+                    ),
+                ],
+              );
+            },
+          ),
           Expanded(
             child: SizedBox(
               width: 450,
@@ -122,12 +158,7 @@ class _SettingsDialogState extends State<SettingsDialog> with SingleTickerProvid
                 padding: const EdgeInsets.symmetric(vertical: 16.0),
                 child: TabBarView(
                   controller: _tabController,
-                  children: [
-                    GeneralSettingsPage(),
-                    ConnectionSettingsPage(),
-                    ProjectsSettingsPage(),
-                    AdvancedSettingsPage(),
-                  ],
+                  children: [for (final page in _pages) _bodyFor(page)],
                 ),
               ),
             ),
@@ -148,207 +179,283 @@ class GeneralSettingsPage extends StatefulWidget {
 class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
   @override
   Widget build(BuildContext context) => Center(
-    child: ListView(
-      shrinkWrap: true,
-      children: [
-        // Application
-        Row(
-          spacing: 8,
-          children: [
-            Text('Application', style: Theme.of(context).textTheme.titleMedium),
-            Expanded(child: Divider()),
-          ],
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          child: Column(
+    child: ScrollbarTheme(
+      data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
+      child: ListView(
+        shrinkWrap: true,
+        padding: EdgeInsets.only(right: 16),
+        children: [
+          // Application
+          Row(
             spacing: 8,
             children: [
-              Row(
-                spacing: 8,
-                children: [
-                  Text('Current version'),
-                  Spacer(),
-                  FutureBuilder(
-                    future: SettingsModel().appInfo.version,
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) {
-                        return SizedBox.square(
-                          dimension: 16,
-                          child: CircularProgressIndicator(),
-                        );
-                      }
-                      return Row(
-                        children: [
-                          Text(snapshot.data!),
-                          SizedBox(width: 8),
-                          IconButton(
-                            visualDensity: VisualDensity.compact,
-                            onPressed: () => Clipboard.setData(ClipboardData(text: snapshot.data!)),
-                            tooltip: "Copy version",
-                            icon: Icon(Icons.copy),
-                            iconSize: 16,
-                          ),
-                          IconButton(
-                            visualDensity: VisualDensity.compact,
-                            onPressed: () => showDialog(
-                              context: context,
-                              builder: (context) => ChangeLogsDialog(),
-                            ),
-                            tooltip: "See what's new",
-                            icon: Icon(Icons.new_releases),
-                            iconSize: 16,
-                          ),
-                          IconButton(
-                            visualDensity: VisualDensity.compact,
-                            onPressed: () => fetchNewUpdateDataAndShowResults(context, snapshot.data!),
-                            tooltip: "Check for updates",
-                            icon: Icon(Icons.update),
-                            iconSize: 16,
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ],
-              ),
-              Row(
-                spacing: 8,
-                children: [
-                  Text('Updade track'),
-                  Spacer(),
-                  FutureBuilder(
-                    future: SettingsModel().appInfo.version,
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) {
-                        return SizedBox.square(
-                          dimension: 16,
-                          child: CircularProgressIndicator(),
-                        );
-                      }
-                      return SegmentedButton<UpdateTrack>(
-                        segments: const [
-                          ButtonSegment(
-                            value: UpdateTrack.main,
-                            icon: Icon(Symbols.home, size: 16, fill: 1),
-                            label: Text('Stable'),
-                          ),
-                          ButtonSegment(
-                            value: UpdateTrack.beta,
-                            icon: Icon(Symbols.experiment, size: 16, fill: 1),
-                            label: Text('Beta'),
-                          ),
-                        ],
-                        selected: {SettingsModel().updateTrack.value},
-                        onSelectionChanged: (newSelection) {
-                          if (newSelection.isNotEmpty) {
-                            SettingsModel().updateTrack.value = newSelection.first;
-                            setState(() {});
-                            if (newSelection.first == UpdateTrack.beta) {
-                              fetchNewUpdateDataAndShowResults(context, snapshot.data!);
-                            }
-                          }
-                        },
-                        multiSelectionEnabled: false,
-                        showSelectedIcon: false,
-                      );
-                    },
-                  ),
-                ],
-              ),
-              Row(
-                spacing: 8,
-                children: [
-                  Text('Theme'),
-                  Spacer(),
-                  SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(
-                        value: 'system',
-                        icon: Icon(Icons.computer, size: 16),
-                        label: Text('System'),
-                      ),
-                      ButtonSegment(
-                        value: 'light',
-                        icon: Icon(Icons.light_mode, size: 16),
-                        label: Text('Light'),
-                      ),
-                      ButtonSegment(
-                        value: 'dark',
-                        icon: Icon(Icons.dark_mode, size: 16),
-                        label: Text('Dark'),
-                      ),
-                    ],
-                    selected: {SettingsModel().theme.value},
-                    onSelectionChanged: (newSelection) {
-                      if (newSelection.isNotEmpty) {
-                        SettingsModel().theme.value = newSelection.first;
-                        setState(() {}); // refresh UI if needed
-                      }
-                    },
-                    multiSelectionEnabled: false,
-                    showSelectedIcon: false,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-
-        // Jira Updates view
-        Padding(
-          padding: const EdgeInsets.only(top: 32.0),
-          child: Row(
-            spacing: 8,
-            children: [
-              Text('Jira Updates view', style: Theme.of(context).textTheme.titleMedium),
+              Text('Application', style: Theme.of(context).textTheme.titleMedium),
               Expanded(child: Divider()),
             ],
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          child: Row(
-            spacing: 8,
-            children: [
-              Text('Mark as read upon selection'),
-              Spacer(),
-              Switch(
-                value: SettingsModel().markAsReadOnOpen.value,
-                onChanged: (value) => setState(() {
-                  SettingsModel().markAsReadOnOpen.value = value;
-                }),
-              ),
-            ],
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: Column(
+              spacing: 8,
+              children: [
+                Row(
+                  spacing: 8,
+                  children: [
+                    Text('Current version'),
+                    Spacer(),
+                    FutureBuilder(
+                      future: SettingsModel().appInfo.version,
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        return Row(
+                          children: [
+                            Text(snapshot.data!),
+                            SizedBox(width: 8),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () => Clipboard.setData(ClipboardData(text: snapshot.data!)),
+                              tooltip: "Copy version",
+                              icon: Icon(Symbols.content_copy),
+                              iconSize: 16,
+                            ),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () => showDialog(
+                                context: context,
+                                builder: (context) => ChangeLogsDialog(),
+                              ),
+                              tooltip: "See what's new",
+                              icon: Icon(Symbols.new_releases),
+                              iconSize: 16,
+                            ),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () => fetchNewUpdateDataAndShowResults(context, snapshot.data!),
+                              tooltip: "Check for updates",
+                              icon: Icon(Symbols.update),
+                              iconSize: 16,
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                Row(
+                  spacing: 8,
+                  children: [
+                    Text('Updade track'),
+                    Spacer(),
+                    FutureBuilder(
+                      future: SettingsModel().appInfo.version,
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        return SegmentedButton<UpdateTrack>(
+                          segments: [
+                            ButtonSegment(
+                              value: UpdateTrack.main,
+                              icon: IconFilledOnSelection(
+                                Icon(Symbols.home, size: 16),
+                                isSelected: SettingsModel().updateTrack.value == .main,
+                              ),
+                              label: Text('Stable'),
+                            ),
+                            ButtonSegment(
+                              value: UpdateTrack.beta,
+                              icon: IconFilledOnSelection(
+                                Icon(Symbols.experiment, size: 16),
+                                isSelected: SettingsModel().updateTrack.value == .beta,
+                              ),
+                              label: Text('Beta'),
+                            ),
+                          ],
+                          selected: {SettingsModel().updateTrack.value},
+                          onSelectionChanged: (newSelection) {
+                            if (newSelection.isNotEmpty) {
+                              SettingsModel().updateTrack.value = newSelection.first;
+                              setState(() {});
+                              if (newSelection.first == UpdateTrack.beta) {
+                                fetchNewUpdateDataAndShowResults(context, snapshot.data!);
+                              }
+                            }
+                          },
+                          multiSelectionEnabled: false,
+                          showSelectedIcon: false,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                Row(
+                  spacing: 8,
+                  children: [
+                    Text('Theme'),
+                    Spacer(),
+                    SegmentedButton<String>(
+                      segments: [
+                        ButtonSegment(
+                          value: 'system',
+                          icon: IconFilledOnSelection(
+                            Icon(Symbols.computer, size: 16),
+                            isSelected: SettingsModel().theme.value == 'system',
+                          ),
+                          label: Text('System'),
+                        ),
+                        ButtonSegment(
+                          value: 'light',
+                          icon: IconFilledOnSelection(
+                            Icon(Symbols.light_mode, size: 16),
+                            isSelected: SettingsModel().theme.value == 'light',
+                          ),
+                          label: Text('Light'),
+                        ),
+                        ButtonSegment(
+                          value: 'dark',
+                          icon: IconFilledOnSelection(
+                            Icon(Symbols.dark_mode, size: 16),
+
+                            isSelected: SettingsModel().theme.value == 'dark',
+                          ),
+                          label: Text('Dark'),
+                        ),
+                      ],
+                      selected: {SettingsModel().theme.value},
+                      onSelectionChanged: (newSelection) {
+                        if (newSelection.isNotEmpty) {
+                          SettingsModel().theme.value = newSelection.first;
+                          setState(() {}); // refresh UI if needed
+                        }
+                      },
+                      multiSelectionEnabled: false,
+                      showSelectedIcon: false,
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          child: Row(
-            spacing: 8,
-            children: [
-              Text('Use compact display'),
-              Spacer(),
-              DropdownMenu<String>(
-                enableSearch: false,
-                enableFilter: false,
-                textInputAction: TextInputAction.none,
-                requestFocusOnTap: false,
-                initialSelection: SettingsModel().useCompactJiraWorkItemDisplay.value,
-                dropdownMenuEntries: [
-                  DropdownMenuEntry(value: 'When issue was read', label: 'When update was read'),
-                  DropdownMenuEntry(value: 'Never', label: 'Never'),
-                  DropdownMenuEntry(value: 'Always', label: 'Always'),
-                ],
-                onSelected: (value) => setState(() {
-                  if (value == null) return;
-                  SettingsModel().useCompactJiraWorkItemDisplay.value = value;
-                }),
-              ),
-            ],
+
+          // Jira Updates view
+          Padding(
+            padding: const EdgeInsets.only(top: 32.0),
+            child: Row(
+              spacing: 8,
+              children: [
+                Text('Jira Updates view', style: Theme.of(context).textTheme.titleMedium),
+                Expanded(child: Divider()),
+              ],
+            ),
           ),
-        ),
-      ].expand<Widget>((w) => [w, SizedBox(height: 8)]).toList()..removeLast(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: Row(
+              spacing: 8,
+              children: [
+                Text('Mark as read upon selection'),
+                Spacer(),
+                Switch(
+                  value: SettingsModel().markAsReadOnOpen.value,
+                  onChanged: (value) => setState(() {
+                    SettingsModel().markAsReadOnOpen.value = value;
+                  }),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: Row(
+              spacing: 8,
+              children: [
+                Text('Use compact display'),
+                Spacer(),
+                DropdownMenu<String>(
+                  enableSearch: false,
+                  enableFilter: false,
+                  textInputAction: TextInputAction.none,
+                  requestFocusOnTap: false,
+                  initialSelection: SettingsModel().useCompactJiraWorkItemDisplay.value,
+                  dropdownMenuEntries: [
+                    DropdownMenuEntry(value: 'When issue was read', label: 'When update was read'),
+                    DropdownMenuEntry(value: 'Never', label: 'Never'),
+                    DropdownMenuEntry(value: 'Always', label: 'Always'),
+                  ],
+                  onSelected: (value) => setState(() {
+                    if (value == null) return;
+                    SettingsModel().useCompactJiraWorkItemDisplay.value = value;
+                  }),
+                ),
+              ],
+            ),
+          ),
+          // Advanced settings
+          Padding(
+            padding: const EdgeInsets.only(top: 32.0),
+            child: Row(
+              spacing: 8,
+              children: [
+                Text('Advanced settings', style: Theme.of(context).textTheme.titleMedium),
+                Expanded(child: Divider()),
+                IconButton(
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      constraints: BoxConstraints(maxWidth: 650, maxHeight: 650, minWidth: 600),
+                      title: Text('Advanced settings'),
+                      content: Align(
+                        alignment: .center,
+                        child: SizedBox(width: 400, child: AdvancedSettingsPage()),
+                      ),
+                      actions: [
+                        Row(
+                          children: [
+                            OpenInGitHubButton(),
+                            Spacer(),
+                            TextButton.icon(
+                              onPressed: () async {
+                                showAboutDialog(
+                                  // ignore: use_build_context_synchronously
+                                  context: context,
+                                  applicationVersion: await SettingsModel().appInfo.version,
+                                  applicationIcon: Padding(
+                                    padding: const EdgeInsets.only(top: 4.0),
+                                    child: SvgPicture.asset(
+                                      'assets/app_icon.svg',
+                                      height: 48,
+                                    ),
+                                  ),
+                                  applicationLegalese: """A Jira client, built to easily overview recent work item updates, and keep tabs on your tasks.\nBuilt and maintained by Esteban Aragon (GitHub @Este2013). \nAdress your dissatisfactions and/or love letters to him. Preferably the latter.""",
+                                );
+                              },
+                              // icon: Icon(),
+                              label: Text("About"),
+                            ),
+                            TextButton(
+                              onPressed: Navigator.of(context).pop,
+                              child: Text("Close"),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  icon: Icon(Symbols.open_in_browser),
+                ),
+              ],
+            ),
+          ),
+        ].expand<Widget>((w) => [w, SizedBox(height: 8)]).toList()..removeLast(),
+      ),
     ),
   );
 }
@@ -363,87 +470,90 @@ class ConnectionSettingsPage extends StatefulWidget {
 class _ConnectionSettingsPageState extends State<ConnectionSettingsPage> with UiLoggy {
   @override
   Widget build(BuildContext context) => Center(
-    child: ListView(
-      shrinkWrap: true,
-      children: [
-        FutureBuilder(
-          future: DataModel().jiraApi.myself(),
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              loggy.error("An error occured while fetching the user's account data 😵\nError: ${snapshot.error}\nStacktrace: ${snapshot.stackTrace}");
-              return Card(
-                child: ListTile(
-                  leading: Icon(Symbols.error, fill: 1, color: Theme.of(context).colorScheme.error),
-                  title: Text('An error occured 😵'),
-                  subtitle: Text(snapshot.error.toString()),
-                ),
-              );
-            }
-            if (snapshot.hasData) {
-              if (snapshot.data!.statusCode == 200) {
-                var userData = jsonDecode(snapshot.data!.body);
+    child: ScrollbarTheme(
+      data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
+      child: ListView(
+        shrinkWrap: true,
+        padding: EdgeInsets.only(right: 16),
+        children: [
+          FutureBuilder(
+            future: DataModel().jiraApi.myself(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                loggy.error("An error occured while fetching the user's account data 😵\nError: ${snapshot.error}\nStacktrace: ${snapshot.stackTrace}");
                 return Card(
                   child: ListTile(
-                    leading: JiraAvatar(url: userData['avatarUrls']['48x48']),
-                    title: Text(userData['displayName']),
-                    subtitle: SelectableText('Account id: ${userData['accountId']}'),
-                    trailing: IconButton(
-                      onPressed: () => Clipboard.setData(ClipboardData(text: userData['accountId'])),
-                      tooltip: 'Copy account ID',
-                      icon: Icon(Symbols.content_copy),
-                    ),
+                    leading: Icon(Symbols.error, fill: 1, color: Theme.of(context).colorScheme.error),
+                    title: Text('An error occured 😵'),
+                    subtitle: Text(snapshot.error.toString()),
                   ),
                 );
               }
-              loggy.warning("User's account data could not be fetched 😕\nError: ${snapshot.error}\nStacktrace: ${snapshot.stackTrace}");
-              return Card(
-                child: ListTile(
-                  leading: Icon(Symbols.error, fill: 1, color: Theme.of(context).colorScheme.error),
-                  title: Text('Your account data could not be fetched 😕'),
-                  subtitle: Text('Error ${snapshot.data!.statusCode}: ${snapshot.data!.reasonPhrase}'),
-                ),
-              );
-            }
-            return ListTile(
-              leading: CircularProgressIndicator(),
-              title: Text('Looking for your account...'),
-            );
-          },
-        ),
-        ListTile(
-          title: Text('Jira domain'),
-          trailing: SelectableText(SettingsModel().domainController.text, style: Theme.of(context).textTheme.bodyMedium),
-        ),
-        ListTile(
-          title: Text('User email'),
-          trailing: SelectableText(SettingsModel().emailController.text, style: Theme.of(context).textTheme.bodyMedium),
-        ),
-        ListTile(
-          title: Text('Atlassian API key'),
-          trailing: IconButton(
-            onPressed: () async {
-              const url = 'https://id.atlassian.com/manage-profile/security/api-tokens';
-              if (await canLaunchUrl(Uri.parse(url))) {
-                await launchUrl(Uri.parse(url));
+              if (snapshot.hasData) {
+                if (snapshot.data!.statusCode == 200) {
+                  var userData = jsonDecode(snapshot.data!.body);
+                  return Card(
+                    child: ListTile(
+                      leading: JiraAvatar(url: userData['avatarUrls']['48x48']),
+                      title: Text(userData['displayName']),
+                      subtitle: SelectableText('Account id: ${userData['accountId']}'),
+                      trailing: IconButton(
+                        onPressed: () => Clipboard.setData(ClipboardData(text: userData['accountId'])),
+                        tooltip: 'Copy account ID',
+                        icon: Icon(Symbols.content_copy),
+                      ),
+                    ),
+                  );
+                }
+                loggy.warning("User's account data could not be fetched 😕\nError: ${snapshot.error}\nStacktrace: ${snapshot.stackTrace}");
+                return Card(
+                  child: ListTile(
+                    leading: Icon(Symbols.error, fill: 1, color: Theme.of(context).colorScheme.error),
+                    title: Text('Your account data could not be fetched 😕'),
+                    subtitle: Text('Error ${snapshot.data!.statusCode}: ${snapshot.data!.reasonPhrase}'),
+                  ),
+                );
               }
+              return ListTile(
+                leading: CircularProgressIndicator(),
+                title: Text('Looking for your account...'),
+              );
             },
-            icon: Icon(Symbols.open_in_browser),
-            tooltip: 'Manage your API keys',
           ),
-        ),
-        SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: () => showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: Text('🤨 Are you sure?'),
-              content: Text('You are about to view some sensitive information.\nDo you really want to edit your Atlassian connection settings?'),
-              actions: [
-                TextButton(onPressed: Navigator.of(context).pop, child: Text('Cancel')),
-                FilledButton(
-                  onPressed: () {
+
+          ListTile(
+            title: Text('Jira domain'),
+            trailing: SelectableText(SettingsModel().domainController.text, style: Theme.of(context).textTheme.bodyMedium),
+          ),
+          ListTile(
+            title: Text('User email'),
+            trailing: SelectableText(SettingsModel().emailController.text, style: Theme.of(context).textTheme.bodyMedium),
+          ),
+          ListTile(
+            title: Text('Atlassian API key'),
+            trailing: IconButton(
+              onPressed: () async {
+                const url = 'https://id.atlassian.com/manage-profile/security/api-tokens';
+                if (await canLaunchUrl(Uri.parse(url))) {
+                  await launchUrl(Uri.parse(url));
+                }
+              },
+              icon: Icon(Symbols.open_in_browser),
+              tooltip: 'Manage your API keys',
+            ),
+          ),
+          SizedBox(height: 12),
+          Center(
+            child: OutlinedButton.icon(
+              icon: Icon(Symbols.edit, fill: 1),
+              label: Text('View and edit credentials'),
+              onPressed: () => requestConfirmation(context, 'You are about to view some sensitive information.\nDo you really want to edit your Atlassian connection settings?').then(
+                (value) {
+                  if (value ?? false) {
+                    // ignore: use_build_context_synchronously
                     Navigator.of(context).pop();
                     showDialog<bool>(
+                      // ignore: use_build_context_synchronously
                       context: context,
                       barrierDismissible: false,
                       builder: (context) {
@@ -477,20 +587,13 @@ class _ConnectionSettingsPageState extends State<ConnectionSettingsPage> with Ui
                         );
                       },
                     );
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.errorContainer,
-                    foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
-                  ),
-                  child: Text('I know what I am doing'),
-                ),
-              ],
+                  }
+                },
+              ),
             ),
           ),
-          icon: Icon(Symbols.edit, fill: 1),
-          label: Text('View and edit credentials'),
-        ),
-      ].map((w) => Padding(padding: EdgeInsetsGeometry.only(bottom: 16), child: w)).toList(),
+        ],
+      ),
     ),
   );
 }
@@ -566,7 +669,7 @@ class _ProjectsSettingsPageState extends State<ProjectsSettingsPage> {
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      prefixIcon: Icon(Icons.search),
+                      prefixIcon: Icon(Symbols.search),
                       labelText: 'Search',
                     ),
                     onChanged: (_) => setState(() {}), // just rebuild the list
@@ -657,14 +760,18 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
 
                       TextButton.icon(
                         onPressed: () => SettingsModel().settingsFolderUri.then(launchUrl),
-                        icon: Icon(Icons.folder),
+                        icon: Icon(Symbols.folder),
                         label: Text("View data files in folder"),
                       ),
                     ],
                   ),
                 TextButton.icon(
                   style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-                  onPressed: () => jiraAvatarCacheManager.emptyCache(),
+                  onPressed: () {
+                    jiraAvatarCacheManager.emptyCache();
+                    gitlabAvatarCacheManager.emptyCache();
+                    GitLabAvatar.clearMemoryCache();
+                  },
                   icon: Icon(Symbols.delete, fill: 1),
                   label: Text("Delete images and icons cache"),
                 ),
@@ -705,11 +812,11 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                     spacing: 8,
                     children: [
                       TextButton.icon(
-                        icon: Icon(Icons.menu_book),
+                        icon: Icon(Symbols.menu_book),
                         onPressed: () => showDialog(context: context, builder: (context) => _LogsDialog()),
                         label: Text("Read the logs"),
                       ),
-                      if (Platform.isWindows) TextButton.icon(icon: Icon(Icons.folder), onPressed: () => SettingsModel().settingsFolderUri.then(launchUrl), label: Text("Open in folder")),
+                      if (Platform.isWindows) TextButton.icon(icon: Icon(Symbols.folder), onPressed: () => SettingsModel().settingsFolderUri.then(launchUrl), label: Text("Open in folder")),
                     ],
                   ),
                 ],
@@ -737,7 +844,7 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                       Text('Test writing to settings folder'),
                       Spacer(),
                       TextButton.icon(
-                        icon: Icon(Icons.settings),
+                        icon: Icon(Symbols.settings),
                         onPressed: () {
                           showDialog(
                             context: context,
@@ -757,13 +864,54 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                       Text('Test fetching new update data'),
                       Spacer(),
                       TextButton.icon(
-                        icon: Icon(Icons.update),
+                        icon: Icon(Symbols.update),
                         onPressed: () {
                           showDialog(
                             context: context,
                             builder: (context) => DiagnosticsDialog(
                               testName: 'Writing to settings folder',
                               stdout: testFetchingNewUpdateData(context),
+                            ),
+                          );
+                        },
+                        label: Text('Run test'),
+                      ),
+                    ],
+                  ),
+                  if (Platform.isWindows)
+                    Row(
+                      spacing: 8,
+                      children: [
+                        Text('Test update staging'),
+                        Spacer(),
+                        TextButton.icon(
+                          icon: Icon(Symbols.download),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => DiagnosticsDialog(
+                                testName: 'Update staging',
+                                stdout: diagnoseUpdateStaging(),
+                              ),
+                            );
+                          },
+                          label: Text('Run test'),
+                        ),
+                      ],
+                    ),
+                  Row(
+                    spacing: 8,
+                    children: [
+                      Text('Test the GitLab connection'),
+                      Spacer(),
+                      TextButton.icon(
+                        icon: Icon(Symbols.fork_right),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => DiagnosticsDialog(
+                              testName: 'GitLab connection',
+                              stdout: GitLabDao().diagnoseConnection(),
                             ),
                           );
                         },
@@ -867,7 +1015,7 @@ class _DiagnosticsDialogState extends State<DiagnosticsDialog> {
             if (snap.hasError) {
               return IconButton(
                 onPressed: () => Clipboard.setData(ClipboardData(text: snap.error.toString())),
-                icon: Icon(Icons.error),
+                icon: Icon(Symbols.error),
                 tooltip: snap.error.toString(),
               );
             }
@@ -1084,7 +1232,7 @@ class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
         children: [
           Text('Logs reader'),
           PopupMenuButton<String>(
-            icon: Icon(Icons.edit),
+            icon: Icon(Symbols.edit),
             tooltip: 'Test writing a message',
 
             itemBuilder: (context) => [
@@ -1176,7 +1324,7 @@ class _LogsDialogState extends State<_LogsDialog> with UiLoggy {
                       child: TextField(
                         controller: searchController,
                         decoration: InputDecoration(
-                          prefixIcon: Icon(Icons.search),
+                          prefixIcon: Icon(Symbols.search),
                         ),
                       ),
                     ),

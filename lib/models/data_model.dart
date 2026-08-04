@@ -1,8 +1,10 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:csv/csv.dart';
 import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/models/gitlab_api_model.dart';
+import 'package:jira_watcher/models/gitlab_quick_downloads_model.dart';
+import 'package:jira_watcher/models/gitlab_tabs_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/models/to_do_tasks_models.dart';
 import 'package:loggy/loggy.dart';
@@ -22,10 +24,16 @@ class DataModel with GlobalLoggy {
   DataModel._internal() {
     jiraApi = APIModel();
     todoTasks = ToDoTasksModel();
+    gitlab = GitLabApiModel();
+    gitlabTabs = GitLabTabsModel();
+    gitlabQuickDownloads = GitLabQuickDownloadsModel();
   }
 
   late final APIModel jiraApi;
   late final ToDoTasksModel todoTasks;
+  late final GitLabApiModel gitlab;
+  late final GitLabTabsModel gitlabTabs;
+  late final GitLabQuickDownloadsModel gitlabQuickDownloads;
 
   // PROJECTS /////////////////////////////////////////////////////////////////////
 
@@ -105,20 +113,21 @@ class DataModel with GlobalLoggy {
   ///  - last workitem update time that was marked as read.
   /// If a workitem update is more recent than a cache value stored here, then its unread.
   Map<String, DateTime>? syncWorkItemMarkedAsReadTimeCache;
-  final Future<File> _workItemMarkedAsReadTimeDataFile =(SettingsModel().settingsFolder).then((value) =>File(
-    path
-        .join(
-           value.path,
-          'issue_read_status.csv',
-        )
-        .replaceFirst(RegExp(r'^\\?/?'), ''),
-  ) ,
-  ) ;
+  final Future<File> _workItemMarkedAsReadTimeDataFile = (SettingsModel().settingsFolder).then(
+    (value) => File(
+      path
+          .join(
+            value.path,
+            'issue_read_status.csv',
+          )
+          .replaceFirst(RegExp(r'^\\?/?'), ''),
+    ),
+  );
 
   Future initWorkItemMarkedAsReadCache() async {
     if (syncWorkItemMarkedAsReadTimeCache == null) {
       loggy.info('initializing syncWorkItemMarkedAsReadTimeCache');
-File file =      (await _workItemMarkedAsReadTimeDataFile);
+      File file = (await _workItemMarkedAsReadTimeDataFile);
       if (!await file.exists()) {
         loggy.warning('_workItemMarkedAsReadTimeDataFile does not exist. creating it at: ${file.path}');
         try {
@@ -129,8 +138,11 @@ File file =      (await _workItemMarkedAsReadTimeDataFile);
       }
       syncWorkItemMarkedAsReadTimeCache ??= await file.readAsString().then(
         (strData) {
-          var csv = const CsvToListConverter().convert(strData);
-          return {for (var line in csv) line.first: DateTime.parse(line.last)};
+          final rows = csv.decode(strData);
+          return {
+            for (final row in rows)
+              if (row.length >= 2) row.first.toString(): DateTime.parse(row.last.toString()),
+          };
         },
       );
     }
@@ -141,24 +153,31 @@ File file =      (await _workItemMarkedAsReadTimeDataFile);
     return syncWorkItemMarkedAsReadTimeCache!;
   }
 
-  Future<void> markAsRead(String workItemKey, DateTime time, {bool isRead = true}) async {
-    loggy.debug('Marking $workItemKey as ${isRead ? '' : 'un'}read');
+  Future<void> markAsRead(String workItemKey, DateTime time, {bool isRead = true}) => markAllAsRead([(workItemKey, time)], isRead: isRead);
+
+  /// Writes all changes to the file in one single write operation.
+  Future<void> markAllAsRead(Iterable<(String, DateTime)> workItemKeys, {bool isRead = true}) async {
+    loggy.debug('Marking [${workItemKeys.join(',')}] (${workItemKeys.length}) as ${isRead ? '' : 'un'}read');
     await initWorkItemMarkedAsReadCache();
     if (isRead) {
       if (syncWorkItemMarkedAsReadTimeCache != null) {
-        syncWorkItemMarkedAsReadTimeCache![workItemKey] = time;
+        for (var keyAndTime in workItemKeys) {
+          syncWorkItemMarkedAsReadTimeCache![keyAndTime.$1] = keyAndTime.$2;
+        }
       }
     } else {
       if (syncWorkItemMarkedAsReadTimeCache != null) {
-        syncWorkItemMarkedAsReadTimeCache!.remove(workItemKey);
+        workItemKeys.map((e) => e.$1).forEach(syncWorkItemMarkedAsReadTimeCache!.remove);
       }
     }
 
-    String csv = const ListToCsvConverter().convert([
-      for (var e in syncWorkItemMarkedAsReadTimeCache!.entries) [e.key, e.value.toIso8601String()],
+    // save file
+    final String csvString = csv.encode([
+      for (final e in syncWorkItemMarkedAsReadTimeCache!.entries) [e.key, e.value.toIso8601String()],
     ]);
+
     try {
-      await (await _workItemMarkedAsReadTimeDataFile).writeAsString(csv);
+      await (await _workItemMarkedAsReadTimeDataFile).writeAsString(csvString);
     } on Exception catch (e) {
       loggy.error('_workItemMarkedAsReadTimeDataFile could not be written to!\n${e.toString()}');
     }

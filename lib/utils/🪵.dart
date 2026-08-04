@@ -12,14 +12,14 @@ class FileLogPrinter extends LoggyPrinter {
 
   int maxLoggerNameLength = 30;
 
-  static Future<File> logFile =SettingsModel().settingsFolder.then((value) => File(join(value.path, 'app_log.txt').replaceAll(RegExp(r'^[\/\\]?'), '')));
+  static Future<File> logFile = SettingsModel().settingsFolder.then((value) => File(join(value.path, 'app_log${kDebugMode ? '_debug' : ''}.txt').replaceAll(RegExp(r'^[\/\\]?'), '')));
 
   FileLogPrinter() {
     _initFuture = _init();
   }
 
   Future<void> _init() async {
-var file = (await logFile);
+    var file = (await logFile);
     if (await file.exists()) {
       await file.delete();
     }

@@ -1,7 +1,10 @@
+# TODO
 
-# TODO - UNSORTED
- 
+## UNSORTED
 
+NOTES:
+ - Timeline
+ - Nested tasks
 
 ## PRIORIZATION
 

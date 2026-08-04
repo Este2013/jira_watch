@@ -11,9 +11,9 @@ import 'package:http/http.dart' as http;
 import 'package:jira_watcher/dao/api_dao.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
-import 'package:jira_watcher/ui/utils/avatar.dart';
+import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/ui/utils/expandable_panel.dart';
-import 'package:jira_watcher/ui/utils/jira_doc_renderer.dart';
+import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_doc_renderer.dart';
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
 import 'package:jira_watcher/ui/utils/labelled_text_presenter.dart';
 import 'package:jira_watcher/ui/utils/network_video_player.dart';
@@ -21,7 +21,7 @@ import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart';
 import 'package:url_launcher/url_launcher.dart';
-
+import 'package:flutter_markdown/flutter_markdown.dart';
 import '../issue_ui_elements.dart';
 import 'single_work_item_view.dart';
 
@@ -64,7 +64,7 @@ class JiraWorkItemDetailsView extends StatelessWidget {
                   Expanded(
                     child: ListingTypeField(
                       'Labels',
-                      icon: Icon(Icons.label),
+                      icon: Icon(Symbols.label),
                       itemList: workItem.fields?['labels'],
                     ),
                   ),
@@ -72,7 +72,7 @@ class JiraWorkItemDetailsView extends StatelessWidget {
                   Expanded(
                     child: ListingTypeField(
                       'Components',
-                      icon: Icon(Icons.extension),
+                      icon: Icon(Symbols.extension),
                       itemList: workItem.fields?['components'],
                       itemToString: (item) => (item as Map)['name']!,
                     ),
@@ -82,10 +82,10 @@ class JiraWorkItemDetailsView extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: VersionsField('Affected version', workItem: workItem, property: 'versions', icon: Icon(Icons.bug_report)),
+                child: VersionsField('Affected version', workItem: workItem, property: 'versions', icon: Icon(Symbols.bug_report)),
               ),
               Expanded(
-                child: VersionsField('Fix version', workItem: workItem, property: 'fixVersions', icon: Icon(Icons.auto_awesome)),
+                child: VersionsField('Fix version', workItem: workItem, property: 'fixVersions', icon: Icon(Symbols.auto_awesome)),
               ),
             ],
           ),
@@ -94,11 +94,11 @@ class JiraWorkItemDetailsView extends StatelessWidget {
           if (workItem.fields!['attachment'] != null && (workItem.fields!['attachment'] as List).isNotEmpty) AttachmentsField(attachmentsData: workItem.fields!['attachment']),
           if (workItem.fields?['issuelinks'] != null && workItem.fields!['issuelinks'].isNotEmpty) IssueLinksField(issueLinksData: (workItem.fields!['issuelinks']! as List).cast()),
 
-          DateDisplay('Created${workItem.fields!['creator']?['displayName'] != null ? " by ${workItem.fields!['creator']['displayName']}" : ''}', date: workItem.fields!['created']),
-          if (workItem.fields?['updated'] != null) DateDisplay('Updated', date: workItem.fields!['updated']),
-          if (workItem.fields?['resolutiondate'] != null) DateDisplay('Resolution date', date: workItem.fields!['resolutiondate']),
-          if (workItem.fields?['statuscategorychangedate'] != null) DateDisplay('Last status category change', date: workItem.fields!['statuscategorychangedate']),
-          if (workItem.fields?['lastViewed'] != null) DateDisplay('Last viewed', date: workItem.fields!['lastViewed']),
+          DateDisplay('Created${workItem.fields!['creator']?['displayName'] != null ? " by ${workItem.fields!['creator']['displayName']}" : ''}', dateString: workItem.fields!['created']),
+          if (workItem.fields?['updated'] != null) DateDisplay('Updated', dateString: workItem.fields!['updated']),
+          if (workItem.fields?['resolutiondate'] != null) DateDisplay('Resolution date', dateString: workItem.fields!['resolutiondate']),
+          if (workItem.fields?['statuscategorychangedate'] != null) DateDisplay('Last status category change', dateString: workItem.fields!['statuscategorychangedate']),
+          if (workItem.fields?['lastViewed'] != null) DateDisplay('Last viewed', dateString: workItem.fields!['lastViewed']),
         ].expand((w) => [w, SizedBox(height: 8)]).toList(),
       ),
     );
@@ -134,7 +134,7 @@ class PersonField extends StatelessWidget {
           borderColor: (asyncSnapshot.data ?? false) ? null : Theme.of(context).colorScheme.outlineVariant,
           prefixIcon: Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 4, left: 8),
-            child: hasPerson ? ClipOval(child: JiraAvatar(url: workItem.fields?[field]['avatarUrls']['48x48'])) : Icon(Icons.account_circle_outlined),
+            child: hasPerson ? ClipOval(child: JiraAvatar(url: workItem.fields?[field]['avatarUrls']['48x48'])) : Icon(Symbols.account_circle),
           ),
           popupBuilder: hasPerson
               ? (context, dismiss, controller) => Padding(
@@ -162,7 +162,7 @@ class PersonField extends StatelessWidget {
                                   alignment: AlignmentGeometry.centerEnd,
                                   child: IconButton(
                                     onPressed: () => Clipboard.setData(ClipboardData(text: workItem.fields?[field]['displayName'])),
-                                    icon: Icon(Icons.copy),
+                                    icon: Icon(Symbols.content_copy),
                                     visualDensity: VisualDensity.compact,
                                     iconSize: 16,
                                   ),
@@ -176,11 +176,11 @@ class PersonField extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.center,
                               spacing: 8,
                               children: [
-                                Icon(Icons.email),
+                                Icon(Symbols.email),
                                 Text(workItem.fields?[field]['emailAddress']),
                                 IconButton(
                                   onPressed: () => Clipboard.setData(ClipboardData(text: workItem.fields?[field]['emailAddress'])),
-                                  icon: Icon(Icons.copy),
+                                  icon: Icon(Symbols.content_copy),
                                   visualDensity: VisualDensity.compact,
                                   iconSize: 16,
                                 ),
@@ -191,7 +191,7 @@ class PersonField extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.center,
                               spacing: 8,
                               children: [
-                                Icon(Icons.schedule),
+                                Icon(Symbols.schedule),
                                 Text(workItem.fields?[field]['timeZone']),
                               ],
                             ),
@@ -214,7 +214,7 @@ class PersonField extends StatelessWidget {
                               ),
                               IconButton(
                                 onPressed: () => Clipboard.setData(ClipboardData(text: workItem.fields?[field]['accountId'])),
-                                icon: Icon(Icons.copy),
+                                icon: Icon(Symbols.content_copy),
                                 visualDensity: VisualDensity.compact,
                                 iconSize: 16,
                               ),
@@ -252,7 +252,7 @@ class PriorityField extends StatelessWidget {
       borderColor: Theme.of(context).colorScheme.outlineVariant,
       prefixIcon: Padding(
         padding: const EdgeInsets.only(top: 8, bottom: 8, left: 8),
-        child: hasField ? ClipOval(child: JiraAvatar(url: workItem.fields?[field]['iconUrl'])) : Icon(Icons.block),
+        child: hasField ? ClipOval(child: JiraAvatar(url: workItem.fields?[field]['iconUrl'])) : Icon(Symbols.block),
       ),
       popupBuilder: (context, dismiss, controller) => Padding(
         padding: const EdgeInsets.all(8.0),
@@ -316,7 +316,7 @@ class _WatchedByFieldState extends State<WatchedByField> with UiLoggy {
       borderColor: isCurrentlyWatching ? null : Theme.of(context).colorScheme.outlineVariant,
       prefixIcon: Padding(
         padding: const EdgeInsets.only(top: 8, bottom: 8, left: 10),
-        child: hasField ? ClipOval(child: Icon(isCurrentlyWatching ? Icons.visibility : Icons.visibility_off)) : Icon(Icons.block),
+        child: hasField ? ClipOval(child: Icon(isCurrentlyWatching ? Symbols.visibility : Symbols.visibility_off)) : Icon(Symbols.block),
       ),
 
       popupBuilder: (context, dismiss, controller) {
@@ -404,7 +404,7 @@ class DescriptionLikeField extends StatelessWidget {
     name,
     content: AdfRenderer(
       adf: contentData,
-      mediaBuilder: (context, node, size) => AdfRenderer.defaultMediaBuilder(node, context, attachments ?? [], size),
+      attachments: attachments,
     ),
   );
 }
@@ -463,8 +463,13 @@ class AttachmentPreview extends StatelessWidget {
               String filetype = a['mimeType'];
 
               if (filetype == 'text/plain') {
+                if (a['filename']?.endsWith('.md') ?? false) {
+                  return Center(
+                    child: Icon(Symbols.markdown, size: 48),
+                  );
+                }
                 return Center(
-                  child: Icon(Icons.text_fields, size: 48),
+                  child: Icon(Symbols.text_fields, size: 48),
                 );
               }
               if (filetype == 'application/json') {
@@ -474,12 +479,12 @@ class AttachmentPreview extends StatelessWidget {
               }
               if (filetype.startsWith('video')) {
                 return Center(
-                  child: Icon(Icons.movie, size: 48),
+                  child: Icon(Symbols.movie, size: 48),
                 );
               }
               if (['zip', '7z'].any(filetype.endsWith)) {
                 return Center(
-                  child: Icon(Icons.folder_zip, size: 48),
+                  child: Icon(Symbols.folder_zip, size: 48),
                 );
               }
               if (a['thumbnail'] != null) {
@@ -493,7 +498,7 @@ class AttachmentPreview extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     SizedBox(height: 12),
-                    Icon(Icons.file_present_rounded, size: 48),
+                    Icon(Symbols.file_present_rounded, size: 48),
                     Text(a['mimeType'], style: TextStyle(color: Theme.of(context).hintColor)),
                   ],
                 ),
@@ -565,14 +570,14 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
             TextButton.icon(
               onPressed: () => setState(() => previewAsText = true),
               label: Text('View as text'),
-              icon: Icon(Icons.text_fields),
+              icon: Icon(Symbols.text_fields),
             ),
             FilledButton.icon(
               onPressed: () {
                 launchUrl(Uri.parse(contentURL));
               },
               label: Text('Download'),
-              icon: Icon(Icons.download),
+              icon: Icon(Symbols.download),
             ),
           ],
         ),
@@ -599,7 +604,7 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
         errorBuilder: (context, error, stack) => Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.broken_image_outlined),
+            Icon(Symbols.broken_image),
             const SizedBox(height: 8),
             Text('Failed to load image\n$error', textAlign: TextAlign.center),
           ],
@@ -621,10 +626,17 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
                   child: SingleChildScrollView(
                     child: Padding(
                       padding: const EdgeInsets.only(right: 16.0),
-                      child: SelectableText(
-                        asyncSnapshot.data!,
-                        style: TextStyle(fontFamily: 'RobotoMono'),
-                      ),
+
+                      child: (attachment['filename']?.endsWith('.md') ?? false)
+                          ? MarkdownBody(
+                              data: asyncSnapshot.data!,
+                              selectable: true,
+                              styleSheet: MarkdownStyleSheet(code: const TextStyle(fontFamily: 'RobotoMono')),
+                            )
+                          : SelectableText(
+                              asyncSnapshot.data!,
+                              style: const TextStyle(fontFamily: 'RobotoMono'),
+                            ),
                     ),
                   ),
                 ),
@@ -692,7 +704,7 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
         children: [
           Text(attachment['filename']),
           Spacer(),
-          IconButton(onPressed: () => launchUrl(Uri.parse(contentURL)), icon: Icon(Icons.download)),
+          IconButton(onPressed: () => launchUrl(Uri.parse(contentURL)), icon: Icon(Symbols.download)),
         ],
       ),
       content: Row(
@@ -827,9 +839,11 @@ class IssueLinkSection extends StatelessWidget {
 }
 
 class IssueLinkTile extends StatelessWidget {
-  const IssueLinkTile(this.issueLinkData, {super.key});
+  const IssueLinkTile(this.issueLinkData, {super.key, this.onSelect, this.trailing});
 
   final Map issueLinkData;
+  final void Function(String issueKey)? onSelect;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) => ListTile(
@@ -881,23 +895,27 @@ class IssueLinkTile extends StatelessWidget {
               ),
             ),
             tooltip: 'Debug: inspect json',
-            icon: Icon(Icons.code),
+            icon: Icon(Symbols.code),
             color: Colors.amber.shade900,
           ),
       ],
     ),
-    trailing: IconButton(
-      onPressed: () => launchUrl(Uri.parse('https://${SettingsModel().domainController.text}.atlassian.net/browse/${issueLinkData['key']}')),
-      icon: Icon(Icons.open_in_new),
-      tooltip: 'Open in browser',
-    ),
-    onTap: () => showDialog(
-      context: context,
-      builder: (_) => SingleJiraWorkItemDialog(
-        JiraWorkItemData.fromJson({'data': issueLinkData}),
-        initialTab: JiraWorkItemTab.details,
-      ),
-    ),
+    trailing:
+        trailing ??
+        IconButton(
+          onPressed: () => launchUrl(Uri.parse('https://${SettingsModel().domainController.text}.atlassian.net/browse/${issueLinkData['key']}')),
+          icon: Icon(Symbols.open_in_new),
+          tooltip: 'Open in browser',
+        ),
+    onTap: onSelect != null
+        ? () => onSelect!.call(issueLinkData['key'])
+        : () => showDialog(
+            context: context,
+            builder: (_) => SingleJiraWorkItemDialog(
+              JiraWorkItemData.fromJson({'data': issueLinkData}),
+              initialTab: JiraWorkItemTab.details,
+            ),
+          ),
   );
 }
 
@@ -1005,32 +1023,43 @@ class VersionsField extends StatelessWidget {
 }
 
 class DateDisplay extends StatelessWidget {
-  const DateDisplay(this.title, {super.key, required this.date});
-  final String title, date;
+  const DateDisplay(this.title, {super.key, this.dateString, this.date}) : assert((dateString == null) != (date == null), 'Exactly one of dateString or date must be provided.');
+  final String? title;
+  final String? dateString;
+  final DateTime? date;
+
   @override
-  Widget build(BuildContext context) => Text(
-    '$title: ${formatDateString(date)}',
+  Widget build(BuildContext context) => Text.rich(
+    TextSpan(
+      children: [
+        if (title != null) TextSpan(text: '$title: '),
+        TextSpan(text: formatDateString()),
+      ],
+    ),
     style: TextStyle(
       color: Theme.of(context).hintColor,
     ),
   );
 
-  String formatDateString(String input) {
-    try {
-      // Parse the input string — note that the timezone offset format (+0100)
-      // isn't ISO 8601-compliant, so we insert a colon for Dart's parser.
-      final normalized = input.replaceFirstMapped(
-        RegExp(r'([+-]\d{2})(\d{2})$'),
-        (match) => '${match[1]}:${match[2]}',
-      );
+  String formatDateString() {
+    DateTime time;
+    if (date != null) {
+      time = date!;
+    } else {
+      try {
+        // Parse the input string — note that the timezone offset format (+0100)
+        // isn't ISO 8601-compliant, so we insert a colon for Dart's parser.
+        final normalized = dateString!.replaceFirstMapped(
+          RegExp(r'([+-]\d{2})(\d{2})$'),
+          (match) => '${match[1]}:${match[2]}',
+        );
 
-      final dateTime = DateTime.parse(normalized);
-
-      // Example: "December 6, 2024 at 10:32 AM"
-      final formatted = DateFormat("MMMM d, y 'at' h:mm a").format(dateTime);
-      return formatted;
-    } catch (e) {
-      return 'Invalid date';
-    }
+        time = DateTime.parse(normalized);
+      } catch (e) {
+        return 'Invalid date';
+      }
+    } // Example: "December 6, 2024 at 10:32 AM"
+    final formatted = DateFormat("MMMM d, y 'at' h:mm a").format(time);
+    return formatted;
   }
 }

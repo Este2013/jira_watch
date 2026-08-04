@@ -1,20 +1,45 @@
-import 'dart:convert';
-import 'dart:io';
-import 'dart:math';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/updates_dao.dart';
-import 'package:jira_watcher/models/data_model.dart';
-import 'package:jira_watcher/ui/to_do_widgets/to_do_page.dart';
+import 'package:jira_watcher/main.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_logo.dart';
+import 'package:jira_watcher/ui/utils/update_failed_dialog.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_main.dart';
+import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
 import 'package:jira_watcher/ui/updates_dialog.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_home_view.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/settings.dart';
-import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
+import 'package:jira_watcher/ui/utils/app_changelog.dart';
+import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_work_item_search.dart';
 import 'package:loggy/loggy.dart';
-import 'package:material_symbols_icons/material_symbols_icons.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:material_symbols_icons/symbols.dart';
+
+import 'utils/under_constuction_notice.dart';
+import 'utils/widgets/animated_icons.dart';
+
+enum HomePage {
+  updates('Updates', Symbols.dashboard, 'View the latest changes made in projects you work on.'),
+  workItems('Work items', Symbols.bug_report, null),
+  toDo('To do', Symbols.assessment, 'Locally keep track of your own tasks.'),
+  // GitLab draws its own mark instead of [icon]; see [buildIcon].
+  gitlab('GitLab', Symbols.fork_right, 'Browse your GitLab projects, pipelines and releases.');
+
+  const HomePage(this.title, this.icon, this.subtitle);
+
+  final String title;
+  final IconData icon;
+  final String? subtitle;
+
+  /// GitLab uses its own brand mark, which needs a different mechanism to fill on
+  /// selection than a Material Symbol does.
+  Widget buildIcon({required bool isSelected}) => switch (this) {
+    HomePage.gitlab => GitLabTanukiIcon(isSelected: isSelected),
+    _ => IconFilledOnSelection(Icon(icon), isSelected: isSelected),
+  };
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,43 +49,84 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with UiLoggy {
-  String _currentPage = 'Updates';
-
-  int get _selectedIndex {
-    switch (_currentPage) {
-      case 'Updates':
-        return 0;
-      case 'Work items':
-        return 1;
-      case 'To do':
-        return 2;
-      default:
-        return 0;
-    }
-  }
+  HomePage _currentPage = HomePage.updates;
 
   void _onRailSelect(int index) {
-    switch (index) {
-      case 0:
-        loggy.info('User selected "Updates" tab (#$index)');
-        setState(() => _currentPage = 'Updates');
-        break;
-      case 1:
-        loggy.info('User selected "Work items" tab (#$index)');
-        setState(() => _currentPage = 'Work items');
-        break;
-      case 2:
-        loggy.info('User selected "To do" tab (#$index)');
-        setState(() => _currentPage = 'To do');
-        break;
-    }
+    final page = HomePage.values[index];
+    loggy.info('User selected "${page.title}" tab (#$index)');
+    setState(() => _currentPage = page);
+  }
+
+  /// The one list that cannot be generated from [HomePage], so it is isolated
+  /// here to keep the coupling explicit.
+  List<Widget> _pageBodies() {
+    assert(HomePage.values.length == 4);
+    return [
+      // Updates
+      Scaffold(
+        appBar: AppBar(
+          title: Row(
+            children: [
+              Expanded(child: Text(_currentPage.title)),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    currentPageSubtitle(_currentPage),
+                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+                  ),
+                ),
+              ),
+              Spacer(),
+            ],
+          ),
+          actions: [],
+        ),
+        body: UpdatesPage(),
+      ),
+      // Work items
+      UnderConstructionNotice(),
+      // To do
+      TodoPagePreLoadView(),
+      // GitLab
+      Scaffold(
+        appBar: AppBar(
+          title: Row(
+            children: [
+              Expanded(child: Text(HomePage.gitlab.title)),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    HomePage.gitlab.subtitle!,
+                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+                  ),
+                ),
+              ),
+              Spacer(),
+            ],
+          ),
+          actions: [],
+        ),
+        body: GitLabPagePreLoadView(),
+      ),
+    ];
   }
 
   @override
   void initState() {
+    // A rolled-back update would otherwise be invisible: the app simply reopens
+    // on the old version with no explanation.
+    if (updateAftermath.hadFailure) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => showDialog(
+          context: context,
+          builder: (context) => UpdateFailedDialog(report: updateAftermath.failureReport!),
+        ),
+      );
+    }
+
     var lastVersion = SettingsModel().lastAppVersion;
     SettingsModel().appInfo.version.then((ver) {
-      if (isVersionGreaterThan(ver, lastVersion)) {
+      if (isVersionStrictlyAbove(ver, baseline: lastVersion)) {
         WidgetsBinding.instance.addPostFrameCallback(
           (timeStamp) => showDialog(
             context: context,
@@ -75,26 +141,16 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
     super.initState();
   }
 
-  String currentPageSubtitle(String currentPage) {
-    switch (currentPage) {
-      case 'Updates':
-        return 'View the latest changes made in projects you work on.';
-      case 'To do':
-        return 'Locally keep track of your own tasks.';
-      case 'Work items':
-      default:
-        return 'No subtitle for this page, call the dev.';
-    }
-  }
+  String currentPageSubtitle(HomePage currentPage) => currentPage.subtitle ?? 'No subtitle for this page, call the dev.';
 
   @override
   Widget build(BuildContext context) => Shortcuts(
     shortcuts: {
-      LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyF): OpenSearchIssueDialogIntent(),
+      LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyF): OpenWorkItemSearchDialogIntent(),
     },
     child: Actions(
       actions: {
-        OpenSearchIssueDialogIntent: OpenSearchIssueDialogAction(context),
+        OpenWorkItemSearchDialogIntent: OpenWorkItemSearchDialogAction(context),
       },
       child: Focus(
         autofocus: true,
@@ -103,7 +159,7 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
             children: [
               NavigationRail(
                 groupAlignment: 0,
-                selectedIndex: _selectedIndex,
+                selectedIndex: _currentPage.index,
                 onDestinationSelected: _onRailSelect,
                 labelType: NavigationRailLabelType.all,
                 trailingAtBottom: true,
@@ -111,65 +167,33 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
                   tooltip: 'Search (Ctrl F)',
                   onPressed: () => showDialog(
                     context: context,
-                    builder: (context) => SearchIssueDialog(),
+                    builder: (context) => WorkItemSearchDialog(),
                   ),
-                  icon: Icon(Icons.search),
+                  icon: Icon(Symbols.search),
                 ),
 
                 destinations: [
-                  NavigationRailDestination(
-                    icon: Icon(Icons.dashboard),
-                    label: Text('Updates'),
-                  ),
-                  NavigationRailDestination(
-                    icon: Icon(Icons.bug_report),
-                    label: Text('Work items'),
-                  ),
-                  NavigationRailDestination(
-                    icon: Icon(Icons.assignment),
-                    label: Text('To do'),
-                  ),
+                  for (final page in HomePage.values)
+                    NavigationRailDestination(
+                      icon: page.buildIcon(isSelected: _currentPage == page),
+                      label: Text(page.title),
+                    ),
                 ],
                 trailing: Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),
-                  child: IconButton(
-                    onPressed: () {
+                  child: SettingsButton(
+                    childDialogBuilder: (context) {
                       loggy.info('User opens the settings dialog from navigation rail');
-                      showDialog(context: context, builder: (context) => SettingsDialog());
+                      return SettingsDialog();
                     },
-                    icon: Icon(Icons.settings),
                   ),
                 ),
               ),
               VerticalDivider(width: 1),
               Expanded(
-                child: Scaffold(
-                  appBar: AppBar(
-                    title: Row(
-                      children: [
-                        Expanded(child: Text(_currentPage)),
-                        Expanded(
-                          child: Center(
-                            child: Text(
-                              currentPageSubtitle(_currentPage),
-                              style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
-                            ),
-                          ),
-                        ),
-                        Spacer(),
-                      ],
-                    ),
-
-                    actions: [],
-                  ),
-                  body: IndexedStack(
-                    index: _selectedIndex,
-                    children: const [
-                      UpdatesPage(),
-                      UnderConstructionNotice(),
-                      TodoPagePreLoadView(),
-                    ],
-                  ),
+                child: IndexedStack(
+                  index: _currentPage.index,
+                  children: _pageBodies(),
                 ),
               ),
             ],
@@ -178,737 +202,116 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
       ),
     ),
   );
-
-  bool isVersionGreaterThan(String newVersion, String currentVersion) {
-    List<String> currentV = currentVersion.split(".");
-    List<String> newV = newVersion.split(".");
-    bool a = false;
-    for (var i = 0; i <= 2; i++) {
-      a = int.parse(newV[i]) > int.parse(currentV[i]);
-      if (int.parse(newV[i]) != int.parse(currentV[i])) break;
-    }
-    return a;
-  }
 }
 
-class OpenSearchIssueDialogIntent extends Intent {}
+class SettingsButton extends StatefulWidget {
+  const SettingsButton({super.key, required this.childDialogBuilder});
 
-class OpenSearchIssueDialogAction extends Action with UiLoggy {
-  BuildContext context;
-  OpenSearchIssueDialogAction(this.context);
-  @override
-  Object? invoke(Intent intent) {
-    loggy.info('User pressed ctrl + F: showing search issue dialog');
-    return showDialog(context: context, builder: (context) => SearchIssueDialog());
-  }
-}
-
-class SearchIssueDialog extends StatefulWidget {
-  const SearchIssueDialog({
-    super.key,
-  });
+  final WidgetBuilder childDialogBuilder;
 
   @override
-  State<SearchIssueDialog> createState() => _SearchIssueDialogState();
+  State<SettingsButton> createState() => _SettingsButtonState();
 }
 
-class _SearchIssueDialogState extends State<SearchIssueDialog> {
-  late String searchName;
-  TextEditingController searchController = TextEditingController();
+class _SettingsButtonState extends State<SettingsButton> with TickerProviderStateMixin {
+  late final AnimationController _crankCtrl;
+  late final Animation<double> _crankTurns;
 
-  Future<String> get myOwnRecentEdits async {
-    var data = await DataModel().jiraApi.myself().then((value) => jsonDecode(value.body)['displayName']);
-    return 'issue in updatedBy("$data") ORDER BY updated';
-  }
+  late final AnimationController _spinCtrl;
+  late final AnimationController _fillCtrl;
 
   @override
   void initState() {
-    searchName = 'My recent edits';
     super.initState();
-  }
 
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Row(
-      spacing: 8,
-      children: [
-        Expanded(
-          child: TextField(
-            autofocus: true,
-            controller: searchController,
-            decoration: InputDecoration(
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.search),
-              suffix: IconButton(
-                onPressed: () => searchController.text = '',
-                icon: Icon(Symbols.close),
-                visualDensity: VisualDensity.compact,
-                iconSize: 16,
-              ),
-              label: Text('Search'),
-            ),
+    _crankCtrl = AnimationController(
+      vsync: this,
+      duration: Durations.medium1,
+    );
 
-            onChanged: (value) => setState(() {
-              searchName = 'Search results';
-            }),
-            onEditingComplete: () => setState(() {
-              searchName = 'Search results';
-            }),
-          ),
-        ),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(1000),
-            border: (searchName == 'My recent edits')
-                ? Border.all(
-                    color: Theme.of(context).colorScheme.primary,
-                    width: 2,
-                  )
-                : null,
-          ),
-          child: IconButton(
-            iconSize: 32,
-            tooltip: 'My recent edits',
-            onPressed: () => setState(() {
-              searchName = 'My recent edits';
-            }),
-            icon: Icon(Symbols.change_circle),
-            isSelected: searchName == 'My recent edits',
-          ),
-        ),
-      ],
-    ),
-    constraints: BoxConstraints(maxWidth: 1200 - 50, minWidth: 600),
+    // "Crank back a bit": negative turns means rotate counter-clockwise.
+    _crankTurns =
+        Tween<double>(begin: 0.0, end: -0.08) // ~ -28.8°
+            .chain(CurveTween(curve: Curves.easeOut))
+            .animate(_crankCtrl);
 
-    content: AnimatedSize(
-      duration: Durations.long4,
-      child: Column(
-        spacing: 16,
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 16),
-            child: Text(searchName, style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.start),
-          ),
-          if (searchName == 'Search results')
-            FutureBuilder(
-              future: Future.wait([
-                // direct key search
-                Future.microtask(
-                  () async {
-                    List results = [];
-                    var directWorkItemIds = RegExp(r'[A-Z]+-[0-9]+').allMatches(searchController.text);
-                    if (directWorkItemIds.isNotEmpty) {
-                      for (var m in directWorkItemIds) {
-                        String? key = m.group(0);
-                        if (key == null) continue;
-                        results.add(jsonDecode((await DataModel().jiraApi.getWorkItem(key)).body));
-                      }
-                    }
-                    return results;
-                  },
-                ),
-                // text search
-                DataModel().jiraApi.jqlSearch(
-                  '${searchController.text.isEmpty ? '' : 'text ~ "${searchController.text}"'} ORDER BY created',
-                  fields: [
-                    'issuetype',
-                    'priority',
-                    'status',
-                    'statusCategory',
-                    'summary',
-                  ],
-                  expand: [],
-                ),
-              ]),
-              builder: (context, snapshot) {
-                if (snapshot.hasData) {
-                  List workItems = [...snapshot.data![0], ...(snapshot.data![1]['issues'] as List)];
+    _spinCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
 
-                  return Flexible(
-                    child: SizedBox(
-                      height: 500,
-                      child: SingleChildScrollView(
-                        child: Column(
-                          children: [for (var i in workItems) IssueLinkTile(i)],
-                        ),
-                      ),
-                    ),
-                  );
-                }
-                return LinearProgressIndicator();
-              },
-            ),
-          if (searchName == 'My recent edits')
-            FutureBuilder(
-              future: myOwnRecentEdits.then(
-                (jql) => DataModel().jiraApi.jqlSearch(
-                  jql,
-                  fields: [
-                    'issuetype',
-                    'priority',
-                    'status',
-                    'statusCategory',
-                    'summary',
-                  ],
-                  expand: [],
-                ),
-              ),
-              builder: (context, snapshot) {
-                if (snapshot.hasData) {
-                  List workItems = (snapshot.data!['issues'] as List); //.map((e) => IssueData(e)).toList();
-
-                  return Flexible(
-                    child: SizedBox(
-                      height: 500,
-                      child: SingleChildScrollView(
-                        child: Column(
-                          children: [for (var i in workItems) IssueLinkTile(i)],
-                        ),
-                      ),
-                    ),
-                  );
-                }
-                return LinearProgressIndicator();
-              },
-            ),
-
-          // "GO TO ALL" SECTION
-          Row(
-            spacing: 16,
-            children: [
-              Row(
-                spacing: 8,
-                children: [
-                  SizedBox(),
-                  Transform.rotate(angle: pi / 4, child: Icon(Symbols.navigation)),
-                  Text('Go to all:'),
-                ],
-              ),
-              ActionChip(label: Text('Boards'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/boards?page=1&sortKey=name&sortOrder=ASC'))),
-              ActionChip(label: Text('Projects'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/projects?page=1&sortKey=name&sortOrder=ASC'))),
-              ActionChip(label: Text('Filters'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/filters?Search=Search&filterView=search&name='))),
-              ActionChip(label: Text('Plans'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/plans'))),
-              ActionChip(
-                label: Text('Teams'),
-                onPressed: () => launchUrl(
-                  Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/people'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class UnderConstructionNotice extends StatelessWidget {
-  const UnderConstructionNotice({
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Row(
-      spacing: 8,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text('🚧', style: TextStyle(fontSize: 100)),
-        Column(
-          spacing: 8,
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(height: 8),
-            Text('Under construction', style: TextStyle(fontSize: 32)),
-            Text('Send me a heart or a coffee to accelerate development.'),
-          ],
-        ),
-      ],
-    ),
-  );
-}
-
-class NewUpdateAvailableAlertDialog extends StatelessWidget {
-  const NewUpdateAvailableAlertDialog({
-    super.key,
-    required this.data,
-    required this.version,
-  });
-
-  final (bool, String?, Map?) data;
-  final String version;
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text('A new update is available!'),
-    content: ScrollbarTheme(
-      data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
-      child: SizedBox(
-        width: 400,
-        height: 400,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 16,
-          children: [
-            Row(
-              children: [
-                Expanded(child: Text('Version ${data.$2!}', style: Theme.of(context).textTheme.titleMedium)),
-                Text('(Current: $version)'),
-              ],
-            ),
-            if (data.$3?['changelog'] == null)
-              Expanded(
-                child: SingleChildScrollView(child: Text(data.$3?['changelog'] ?? 'No changelog :(')),
-              )
-            else
-              Expanded(
-                child: Card(
-                  child: Padding(
-                    padding: EdgeInsetsGeometry.all(16),
-                    child: SingleChildScrollView(child: Text(data.$3?['changelog'] ?? 'No changelog :(')),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    ),
-    actions: [
-      Row(
-        spacing: 8,
-        children: [
-          TextButton(onPressed: Navigator.of(context).pop, child: Text('Not now')),
-          Spacer(),
-          TextButton(
-            onPressed: () => launchUrl(Uri.parse('https://github.com/Este2013/jira_watch/releases')),
-            child: Text('Github'),
-          ),
-          FilledButton(onPressed: () {
-String            targetOS = Platform.isWindows ? 'x64':'osX';
-            launchUrl(Uri.parse('https://este2013.github.io/jira_watch/${data.$3?[targetOS]}'));
-          }, child: Text('Download')),
-        ],
-      ),
-    ],
-  );
-}
-
-class ChangeLogsDialog extends StatelessWidget {
-  const ChangeLogsDialog({
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    var versionsData = <Widget>[
-      // version 0
-      Card(
-        child: Center(child: Text("V0: The app now exist 😎")),
-      ),
-      ChangeLogCard(
-        '0.1.1',
-        sections: [
-          ChangeLogSection.features([
-            ChangeLogItem('📋 On first boot after installing a new version, a changelog is shown. It is also accessible in Settings > General.'),
-            ChangeLogItem('🧑 Better login page, with basic input validation.'),
-            ChangeLogItem('📄 Added a default page for when no user project is set.'),
-            ChangeLogItem('⚙️ Added a button to open the app settings files, in Settings > Advanced.'),
-          ]),
-          ChangeLogSection.bugFixes([
-            ChangeLogItem('💡 Jira deprecated their /search API, now using /search/jql instead.'),
-          ]),
-          ChangeLogSection.chores([
-            ChangeLogItem('Bumped version number.'),
-            ChangeLogItem('Added About and Licences pages.'),
-            ChangeLogItem('🛑 BREAKING: set a correct path for app settings. Old settings won’t be kept from previous versions.'),
-          ]),
-        ],
-      ),
-
-      ChangeLogCard(
-        '0.1.2',
-        sections: [
-          ChangeLogSection.features([
-            ChangeLogItem('🔍 Overview filters are now kept through app restarts and page navigation'),
-            ChangeLogItem('🔄️ Implemented auto-update mechanic'),
-          ]),
-          ChangeLogSection.chores([
-            ChangeLogItem('Bumped version number.'),
-            ChangeLogItem('Added application icon 👁️.'),
-            ChangeLogItem('Temporarily removed edit tag (it’s not working yet).'),
-          ]),
-          ChangeLogSection.knownBugs([
-            ChangeLogItem('If project filters are changed before request completes, the newer request is not taken into account'),
-          ]),
-        ],
-      ),
-
-      ChangeLogCard(
-        '1.0.2',
-        sections: [
-          ChangeLogSection.features([
-            ChangeLogItem('🔄️ Adds a manual refresh button'),
-            ChangeLogItem('😀 Also I can test if my update mechanic works now :)'),
-          ]),
-        ],
-      ),
-
-      ChangeLogCard(
-        '1.1.0',
-        sections: [
-          ChangeLogSection.features([
-            ChangeLogItem("Renamed 'Overview' to 'Updates'"),
-            ChangeLogItem('📫 Updates can now be marked as Read or Unread'),
-            ChangeLogItem('⚙️ Added setting "Mark as read upon selection"'),
-            ChangeLogItem("💬 View issue comments in the comments tab (all formatting isn't handled)"),
-            ChangeLogItem('🏃 View issue status in list and details'),
-            ChangeLogItem('🧪 [Experiment] Ticket details view'),
-          ]),
-          ChangeLogSection.bugFixes([
-            ChangeLogItem('Chosen app theme is now kept between sessions'),
-          ]),
-          ChangeLogSection.chores([
-            ChangeLogItem('Bumped version number.'),
-          ]),
-          ChangeLogSection.knownBugs([
-            ChangeLogItem('Emojis are not rendered in comments (there is no Atlassian API for that)'),
-            ChangeLogItem('Newer request is dropped by UI if project filters are changed before request completes'),
-            ChangeLogItem('Comments: nested replies are not shown as nested'),
-          ]),
-        ],
-      ),
-
-      ChangeLogCard(
-        '1.1.1',
-        sections: [
-          ChangeLogSection.features([
-            ChangeLogItem('🔑 [BREAKING] API key is encrypted when stored in file system.'),
-            ChangeLogItem('ℹ️ Your already saved API key (in plain text) will be encrypted and removed from settings file.'),
-          ]),
-          ChangeLogSection.bugFixes([
-            ChangeLogItem('File that keeps track of the read status was not created properly'),
-            ChangeLogItem('Changelog was not scrollable in "new update" notification dialog'),
-          ]),
-          ChangeLogSection.chores([
-            ChangeLogItem('Bumped version number.'),
-            ChangeLogItem('Added dependencies to flutter_secure_storage and cryptography packages.'),
-          ]),
-          ChangeLogSection.knownBugs([
-            ChangeLogItem('Emojis are not rendered in comments (there is no Atlassian API for that)'),
-            ChangeLogItem('Newer request is dropped by UI if project filters are changed before request completes'),
-            ChangeLogItem('Comments: nested replies are not shown as nested'),
-          ]),
-        ],
-      ),
-
-      ChangeLogCard(
-        '1.2.0',
-        sections: [
-          ChangeLogSection.features([
-            ChangeLogItem('⚙️ Settings: Added Compact listing mode for Updates view'),
-            ChangeLogItem('🕜 Custom time filtering is now available'),
-            ChangeLogItem('📖 Ticket details view is now available with default fields! (custom fields tbd)'),
-            ChangeLogItem('🌐 Added link to GitHub in settings'),
-            ChangeLogItem('😣 Added logs and diagnostics options to help troubleshooting'),
-          ]),
-          ChangeLogSection.chores([
-            ChangeLogItem('Bumped version number.'),
-            ChangeLogItem('Removed dependency to flutter_json.'),
-            ChangeLogItem('Added dependency to fading_edge_scrollview and calendar_date_picker2.'),
-            ChangeLogItem('Refactored the ticket details 🡢 json view for more helpful debugging and inspection'),
-          ]),
-          ChangeLogSection.knownBugs([
-            ChangeLogItem('Emojis are not rendered in comments (there is no Atlassian API for that)'),
-            ChangeLogItem('Newer request is dropped by UI if project filters are changed before request completes'),
-            ChangeLogItem('Comments: nested replies are not shown as nested'),
-          ]),
-        ],
-      ),
-
-      ChangeLogCard(
-        '1.3.0',
-        sections: [
-          ChangeLogSection.features([
-            ChangeLogItem('📝 New TO DO system allows to easily set issues aside for later :D'),
-            ChangeLogItem(
-              '🅰️ Text renderer improvements:',
-              subItems: [
-                ChangeLogItem('Tables, panels, images and videos are now rendered'),
-                ChangeLogItem('Whole description and comments can now be selected and copied'),
-              ],
-            ),
-            ChangeLogItem('🧭 Main navigation pages now persist through navigation rail selections'),
-            ChangeLogItem('☀️ Assigned to and Reporter field are now lit when you are the person in it'),
-          ]),
-          ChangeLogSection.bugFixes([
-            ChangeLogItem('😎 SVGs from jira would not get in-line style (eg. colors would be lost)'),
-            ChangeLogItem(
-              '🅰️ Text renderer fixes:',
-              subItems: [
-                ChangeLogItem('🔗 Links from the details view would not open in browser'),
-                ChangeLogItem('🥸 Mentions were unreadable in light mode'),
-                ChangeLogItem('🧑‍🚀 Corrected spacing after AdfRenderer widgets'),
-              ],
-            ),
-            ChangeLogItem('🛞 Attachements loading animation was stretched horizontally'),
-            ChangeLogItem('🙍 Incorrect person was shown as updater when the update was a comment'),
-            ChangeLogItem('🛑 App no longer commits seppuku when switching pages then editing projects (setstate after dispose)'),
-          ]),
-          ChangeLogSection.chores([
-            ChangeLogItem('Bumped version number.'),
-            ChangeLogItem('Added dependency to xml.'),
-          ]),
-          ChangeLogSection.knownBugs([
-            ChangeLogItem('Emojis are not rendered in comments (there is no Atlassian API for that)'),
-            ChangeLogItem('Newer request is dropped by UI if project filters are changed before request completes'),
-            ChangeLogItem('Comments: nested replies are not shown as nested'),
-          ]),
-        ],
-      ),
-
-      ChangeLogCard(
-        '1.4.0',
-        sections: [
-          ChangeLogSection.features([
-            ChangeLogItem('🔍 Issue search is now available!'),
-            ChangeLogItem('💬 When the window is too small, the issue details section gets shown in a new modal'),
-            ChangeLogItem('🔗 Jira link tiles now open in an in-app dialog'),
-          ]),
-          ChangeLogSection.bugFixes([
-            ChangeLogItem('Updates section would reload in a never-ending loop if no project was selected'),
-            ChangeLogItem('Windows: media_kit\'s video player is now statically kept to avoid crashes caused by underlying plugin after dispose calls'),
-            ChangeLogItem(
-              '"To do" section fixes:',
-              subItems: [
-                ChangeLogItem('Filters menu now show filtered-out categories as options'),
-                ChangeLogItem('Category is now saved when using "Add to tasks" button'),
-                ChangeLogItem('Reworked the dang whole todotasks event system to fix UI jank and missed updates'),
-              ],
-            ),
-            ChangeLogItem(
-              'Text renderer fixes:',
-              subItems: [
-                ChangeLogItem('Link cards were unreadable in light mode'),
-                ChangeLogItem('Description panels would overflow if text was longer than could fit on one line'),
-              ],
-            ),
-          ]),
-          ChangeLogSection.chores([
-            ChangeLogItem('Bumped version number.'),
-            ChangeLogItem('Updated  Dart SDK version, and made adequate fixes.'),
-          ]),
-          ChangeLogSection.knownBugs([
-            ChangeLogItem('Emojis are not rendered in comments (there is no Atlassian API for that)'),
-            ChangeLogItem('Newer request is dropped by UI if project filters are changed before request completes'),
-            ChangeLogItem('Comments: nested replies are not shown as nested'),
-          ]),
-        ],
-      ),
-
-      ChangeLogCard(
-        '1.4.1',
-        sections: [
-          ChangeLogSection.bugFixes([
-            ChangeLogItem('Todo tasks can now be edited correctly'),
-            ChangeLogItem('Jira link cards now open in an in-app dialog (instead of in browser)'),
-            ChangeLogItem('You can now open and zoom on medias from Jira.'),
-          ]),
-          ChangeLogSection.chores([
-            ChangeLogItem('Bumped version number.'),
-            ChangeLogItem('Moved known bugs to the project\'s README.'),
-            ChangeLogItem('Code classes will be renamed to fit Jira\'s convention "work item", instead of "issue" or "ticket".'),
-          ]),
-        ],
-      ),
-
-      ChangeLogCard(
-        '1.5.0',
-        sections: [
-          ChangeLogSection.features([
-            ChangeLogItem('🍎 macOS is now supported!'),
-            ChangeLogItem('👤 Improved setting\'s "Connection" page and login page;'),
-            ChangeLogItem('🧪 Added beta update track;'),
-            ChangeLogItem('📁 Json and ips files are now handled in attachements with a proper Json viewer.'),
-            ChangeLogItem(
-              '🕜 Work item history view:',
-              subItems: [
-                ChangeLogItem('Work item history now shows an entry for the ticket\'s creation.'),
-                ChangeLogItem('Improved display of some default field edits in history view'),
-              ],
-            ),
-            ChangeLogItem(
-              '😀 Assignee/reporter:',
-              subItems: [
-                ChangeLogItem('now show a higher-res profile picture;'),
-                ChangeLogItem('their names can be copied.'),
-              ],
-            ),
-          ]),
-          ChangeLogSection.bugFixes([
-            ChangeLogItem('Settings dialog can now scroll when too small;'),
-            ChangeLogItem('App now can no longer be shrunk below 900x600.'),
-            ChangeLogItem('Link cards that aren\'t linking to Jira can now be opened in browser.'),
-          ]),
-          ChangeLogSection.chores([
-            ChangeLogItem('Bumped version number.'),
-            ChangeLogItem('Added window_manager as dependency;'),
-            ChangeLogItem('More code renamed to fit Jira\'s convention "work item" (instead of "issue" or "ticket");'),
-            ChangeLogItem('Removed that ugly placeholder in Updates page.'),
-            ChangeLogItem(
-              'In Settings > Advanced > Log-reading dialog',
-              subItems: [
-                ChangeLogItem('Added log level filter and search'),
-                ChangeLogItem('Now legible in light mode'),
-              ],
-            ),
-          ]),
-        ],
-      ),
-    ];
-    var ctrl = PageController(initialPage: versionsData.length - 1);
-    return AlertDialog(
-      title: Text("Your app was updated!"),
-      actions: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => ctrl.previousPage(duration: Durations.short4, curve: Curves.bounceIn),
-                  icon: Icon(Icons.navigate_before),
-                ),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => ctrl.nextPage(duration: Durations.short4, curve: Curves.bounceIn),
-                  icon: Icon(Icons.navigate_next),
-                ),
-              ],
-            ),
-            Spacer(),
-            TextButton(onPressed: Navigator.of(context).pop, child: Text("Yep yep")),
-          ],
-        ),
-      ],
-      content: SizedBox(
-        width: 600,
-        height: 400,
-        child: Column(
-          spacing: 8,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            FutureBuilder(
-              future: SettingsModel().appInfo.version,
-              builder: (context, asyncSnapshot) {
-                if (asyncSnapshot.hasData) {
-                  return Text(
-                    "You are now running version ${asyncSnapshot.data}",
-                    style: Theme.of(context).textTheme.titleMedium,
-                  );
-                }
-                return Center(child: CircularProgressIndicator());
-              },
-            ),
-            Expanded(
-              child: PageView(
-                controller: ctrl,
-                children: versionsData,
-              ),
-            ),
-          ],
-        ),
-      ),
+    _fillCtrl = AnimationController(
+      vsync: this,
+      duration: Durations.medium1,
+      value: 0,
+      lowerBound: 0,
+      upperBound: 1,
     );
   }
-}
-
-class ChangeLogCard extends StatelessWidget {
-  const ChangeLogCard(this.version, {super.key, required this.sections, this.intro, this.outro});
-
-  final String version;
-  final List<ChangeLogSection> sections;
-  final TextSpan? intro, outro;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: ScrollbarTheme(
-        data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: SelectableText.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: "What's new in $version?\n\n",
+  void dispose() {
+    _crankCtrl.dispose();
+    _spinCtrl.dispose();
+    super.dispose();
+  }
 
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  ?intro,
-                  for (var section in sections) ...[section.toTextSpan(), TextSpan(text: '\n')],
-                  ?outro,
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+  Future<void> _openSettingsDialog() async {
+    // 1) Crank back quickly
+    await _crankCtrl.forward();
+
+    _fillCtrl.forward();
+
+    // 2) Start spinning while dialog is open
+    _spinCtrl.repeat();
+
+    // 3) Show dialog (await closes)
+    await showDialog(
+      context: context,
+      builder: widget.childDialogBuilder,
+    );
+
+    if (!mounted) return;
+
+    // 4) Slow down: stop repeating, then ease-out to a "nice" stop
+    _spinCtrl.stop();
+
+    final current = _spinCtrl.value; // 0..1 fraction of a full turn
+    final remaining = 1.0 - current; // how much left to complete this turn
+
+    // Duration scales with remaining distance for a consistent feel
+    final slowDownDuration = Duration(
+      milliseconds: (250 + (remaining * 450)).round(), // ~250..700ms
+    );
+
+    await _spinCtrl.animateTo(
+      1.0,
+      duration: slowDownDuration,
+      curve: Curves.easeOutCubic,
+    );
+
+    // reset spin back to 0 so next open starts clean
+    _spinCtrl.value = 0.0;
+
+    _fillCtrl.animateTo(0);
+    // 5) Settle: return crank to neutral
+    await _crankCtrl.reverse();
+  }
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    onPressed: _openSettingsDialog,
+    icon: AnimatedBuilder(
+      animation: Listenable.merge([_crankCtrl, _spinCtrl, _fillCtrl]),
+      builder: (context, child) {
+        // Total turns = crank offset + spinning turns
+        final turns = _crankTurns.value + _spinCtrl.value;
+
+        return Transform.rotate(
+          angle: turns * 2 * math.pi,
+          child: Icon(Symbols.settings, fill: _fillCtrl.value),
+        );
+      },
     ),
   );
-}
-
-class ChangeLogSection {
-  ChangeLogSection(this.name, {required this.emote, required this.items});
-
-  factory ChangeLogSection.features(List<ChangeLogItem> items) => ChangeLogSection('Features:', emote: '✨', items: items);
-  factory ChangeLogSection.bugFixes(List<ChangeLogItem> items) => ChangeLogSection('Bug fixes', emote: '🪲', items: items);
-  factory ChangeLogSection.chores(List<ChangeLogItem> items) => ChangeLogSection('Chores', emote: '🧼', items: items);
-  factory ChangeLogSection.knownBugs(List<ChangeLogItem> items) => ChangeLogSection('Known bugs', emote: '🐛', items: items);
-
-  String emote, name;
-  List<ChangeLogItem> items;
-
-  TextSpan toTextSpan() {
-    return TextSpan(
-      children: [
-        TextSpan(text: '$emote '),
-        TextSpan(
-          text: '$name\n',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        for (var i in items) ...[i.toTextSpan(), TextSpan(text: '\n')],
-      ],
-    );
-  }
-}
-
-class ChangeLogItem {
-  ChangeLogItem(this.description, {this.subItems});
-
-  String description;
-  List<ChangeLogItem>? subItems;
-
-  TextSpan toTextSpan({int indent = 0}) {
-    String indentStr = '    ' * (indent);
-    String prefix = ' ᛫ ';
-    var mainItem = TextSpan(text: '$indentStr$prefix${description.replaceAll('\n', '\n$indentStr   ')}');
-    if (subItems == null || subItems!.isEmpty) {
-      return mainItem;
-    }
-    return TextSpan(
-      children: [
-        mainItem,
-        for (var i in subItems!) ...[
-          TextSpan(text: '\n'),
-          i.toTextSpan(indent: indent + 1),
-        ],
-      ],
-    );
-  }
 }
