@@ -1,4 +1,11 @@
 {
+    "1.7.2": {
+        "changelog": "✨ Features:\n ᛫ Changed install icon\n ᛫ This release is there to make sure updating works starting from 1.7.1",
+        "x64": "v1.7.2/Binaries (x64).zip",
+        "x64Url": "https://github.com/Este2013/jira_watch/releases/download/v1.7.2/jira_watch-1.7.2-windows-x64.zip",
+        "x64Sha256": "914ed8d44479b5608badb7ebc99551dcb54a7761a0381980ebdfff152d425dc3",
+        "x64Size": 36615630
+    },
     "1.7.1": {
         "changelog": "✨ Features:\n ᛫ 🦊 Adapted some UI for GitLab view",
         "x64": "v1.7.1/Binaries (x64).zip",
