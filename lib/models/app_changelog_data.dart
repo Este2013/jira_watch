@@ -14,11 +14,20 @@ final List<(String, List<ChangeLogSection>)> appChangeLog = [
     '1.7.1',
     [
       ChangeLogSection.features([
-        ChangeLogItem('🦊 Adapted some UI for GitLab view'),
+        ChangeLogItem('Changed install icon'),
+        ChangeLogItem('This release is there to make sure updating works starting from 1.7.1'),
       ]),
     ],
   ),
   ...[
+    (
+      '1.7.1',
+      [
+        ChangeLogSection.features([
+          ChangeLogItem('🦊 Adapted some UI for GitLab view'),
+        ]),
+      ],
+    ),
     (
       '1.7.0',
       [

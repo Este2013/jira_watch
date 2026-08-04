@@ -281,7 +281,7 @@ class _NewUpdateAvailableDialogState extends State<NewUpdateAvailableDialog> wit
             message: _controller.canInstall ? 'Download and install, then reopen' : (_controller.preflight?.summary ?? ''),
             child: FilledButton.icon(
               onPressed: (_controller.canInstall && phase == UpdatePhase.idle) ? _install : null,
-              icon: const Icon(Symbols.system_update),
+              icon: const Icon(Symbols.install_desktop),
               label: Text(phase == UpdatePhase.failed ? 'Try again' : 'Install update'),
             ),
           ),
