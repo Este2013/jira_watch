@@ -125,31 +125,41 @@ void main() {
       expect(args, contains('-NoProfile'));
     });
 
-    test('actually runs a script, and it outlives its launcher', () async {
+    test('the launch mode and flags actually run a script', () async {
       // The regression this pins: with a detached mode the helper never ran at
       // all, so the app exited and nothing happened. Runs a real script through
       // the real flags and requires it to have done its work.
-      final work = Directory.systemTemp.createTempSync('jw_launch_');
+      //
+      // Kept under the repo rather than the system temp directory: on the CI
+      // image, TEMP sits below a junctioned AppData that PowerShell fails to
+      // resolve — the same path that makes a plugin's build script log
+      // "Could not find item C:\Users\runneradmin\AppData".
+      final work = Directory(p.join(Directory.current.path, '.dart_tool', 'jw_launch_${DateTime.now().microsecondsSinceEpoch}'))
+        ..createSync(recursive: true);
       addTearDown(() => work.existsSync() ? work.deleteSync(recursive: true) : null);
 
       final marker = File(p.join(work.path, 'ran.txt'));
       final script = File(p.join(work.path, 'probe.ps1'))
         ..writeAsStringSync('param([string]\$Out)\nSet-Content -LiteralPath \$Out -Value "ran"\n');
 
-      await Process.start(
+      final process = await Process.start(
         'powershell.exe',
         WindowsSelfUpdateDao.helperArgumentsFor(script.path, ['-Out', marker.path]),
         workingDirectory: work.path,
         mode: WindowsSelfUpdateDao.helperLaunchMode,
       );
+      // Captured so a failure here explains itself rather than just saying "no":
+      // the original bug was a launch that failed with nowhere to report it.
+      final errors = process.stderr.transform(const SystemEncoding().decoder).join();
+      final exitCode = await process.exitCode.timeout(const Duration(seconds: 30), onTimeout: () => -1);
 
-      final deadline = DateTime.now().add(const Duration(seconds: 20));
-      while (!marker.existsSync() && DateTime.now().isBefore(deadline)) {
-        await Future<void>.delayed(const Duration(milliseconds: 100));
-      }
-      expect(marker.existsSync(), isTrue, reason: 'the helper never ran');
+      expect(
+        marker.existsSync(),
+        isTrue,
+        reason: 'the script never ran (exit $exitCode). stderr:\n${await errors}',
+      );
       expect(marker.readAsStringSync().trim(), 'ran');
-    }, timeout: const Timeout(Duration(seconds: 40)));
+    }, timeout: const Timeout(Duration(seconds: 60)));
   });
 
   group('UpdatePreflight', () {

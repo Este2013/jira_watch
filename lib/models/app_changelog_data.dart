@@ -11,7 +11,7 @@ library;
 /// version picker.
 final List<(String, List<ChangeLogSection>)> appChangeLog = [
   (
-    '1.7.1',
+    '1.7.2',
     [
       ChangeLogSection.features([
         ChangeLogItem('Changed install icon'),
