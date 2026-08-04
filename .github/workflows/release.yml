@@ -37,7 +37,11 @@ permissions:
 
 jobs:
   windows:
-    runs-on: windows-latest
+    # Pinned rather than windows-latest. The latest image ships MSVC 14.51, which
+    # rejects the /await flag local_auth_windows still passes, failing the build
+    # with STL1011. windows/CMakeLists.txt silences that too, but pinning keeps
+    # releases reproducible instead of tracking whatever the runner image becomes.
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
 

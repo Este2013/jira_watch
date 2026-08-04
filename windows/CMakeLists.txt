@@ -32,6 +32,14 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
 
+# local_auth_windows compiles with /await, the legacy coroutine flag, even though
+# it already asks for cxx_std_20 where co_await is native. MSVC 14.51 and later
+# turn that combination into a hard error (STL1011) rather than a warning, which
+# breaks the build on newer toolchains than the one used locally. Defined here
+# rather than on a target because the offending target belongs to the plugin;
+# directory definitions set before add_subdirectory are inherited by it.
+add_definitions(-D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+
 # Compilation settings that should be applied to most targets.
 #
 # Be cautious about adding new options here, as plugins use this function by
