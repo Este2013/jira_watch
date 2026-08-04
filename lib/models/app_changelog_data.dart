@@ -11,15 +11,23 @@ library;
 /// version picker.
 final List<(String, List<ChangeLogSection>)> appChangeLog = [
   (
-    '1.7.2',
+    '1.7.3',
     [
       ChangeLogSection.features([
-        ChangeLogItem('Changed install icon'),
-        ChangeLogItem('This release is there to make sure updating works starting from 1.7.1'),
+        ChangeLogItem('This release is there to make sure updating works starting from 1.7.2'),
       ]),
     ],
   ),
   ...[
+    (
+      '1.7.2',
+      [
+        ChangeLogSection.features([
+          ChangeLogItem('Changed install icon'),
+          ChangeLogItem('This release is there to make sure updating works starting from 1.7.1'),
+        ]),
+      ],
+    ),
     (
       '1.7.1',
       [
