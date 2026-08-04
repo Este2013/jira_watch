@@ -148,6 +148,33 @@ class GitLabApiModel {
     queryParameters: {if (search != null && search.isNotEmpty) 'search': search},
   );
 
+  /// Every branch, following pagination to the end.
+  ///
+  /// The branches endpoint accepts only `search` and `regex` — it cannot sort or
+  /// filter by date — so ordering branches and splitting them into active and
+  /// stale has to happen client-side, which means having the whole list rather
+  /// than one page of it.
+  ///
+  /// Capped, and reports whether it hit the cap, so a repository with thousands of
+  /// branches degrades into an honest "showing the first N" rather than a hang.
+  Future<({List<Map<String, dynamic>> branches, bool truncated})> branchesAll(
+    int projectId, {
+    String? search,
+    int maxPages = 10,
+    int perPage = 100,
+  }) async {
+    final all = <Map<String, dynamic>>[];
+    int? page = 1;
+    var fetched = 0;
+    while (page != null && fetched < maxPages) {
+      final result = await branches(projectId, search: search, page: page, perPage: perPage);
+      all.addAll(result.items.map((e) => (e as Map).cast<String, dynamic>()));
+      page = result.nextPage;
+      fetched++;
+    }
+    return (branches: all, truncated: page != null);
+  }
+
   Future<GitLabPage> tags(int projectId, {String? search, int page = 1, int perPage = 20}) => dao.getJsonPage(
     '/api/v4/projects/$projectId/repository/tags',
     page: page,

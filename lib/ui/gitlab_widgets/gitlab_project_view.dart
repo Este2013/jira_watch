@@ -5,6 +5,7 @@ import 'package:jira_watcher/models/gitlab_tabs_model.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_images.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_sub_views.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_tab_strip.dart';
+import 'package:jira_watcher/ui/utils/widgets/animated_icons.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -81,14 +82,57 @@ class GitLabProjectView extends StatefulWidget {
   State<GitLabProjectView> createState() => _GitLabProjectViewState();
 }
 
-class _GitLabProjectViewState extends State<GitLabProjectView> {
+class _GitLabProjectViewState extends State<GitLabProjectView> with TickerProviderStateMixin {
+  /// Drives the sub-view tab bar.
+  ///
+  /// Rebuilt whenever the section changes, because a [TabController]'s length is
+  /// fixed and each section has a different number of sub-views.
+  TabController? _subViewTabs;
+
   /// Derived from the sub-view rather than stored, so the two cannot disagree.
   GitLabSection get _section => widget.tab.subView.section;
+
+  List<GitLabSubView> get _leaves => GitLabSubView.of(_section);
+
+  @override
+  void initState() {
+    super.initState();
+    _rebuildTabController();
+  }
+
+  @override
+  void dispose() {
+    _subViewTabs?.dispose();
+    super.dispose();
+  }
+
+  void _rebuildTabController() {
+    _subViewTabs?.removeListener(_onTabChanged);
+    _subViewTabs?.dispose();
+    final leaves = _leaves;
+    _subViewTabs = TabController(
+      length: leaves.length,
+      initialIndex: leaves.indexOf(widget.tab.subView).clamp(0, leaves.length - 1),
+      vsync: this,
+    )..addListener(_onTabChanged);
+  }
+
+  void _onTabChanged() {
+    final controller = _subViewTabs;
+    // Wait for the indicator to settle, so the swap happens once per change
+    // rather than on every animation frame.
+    if (controller == null || controller.indexIsChanging) return;
+    final selected = _leaves[controller.index];
+    if (selected != widget.tab.subView) _selectSubView(selected);
+  }
 
   void _selectSection(GitLabSection section) {
     final leaves = GitLabSubView.of(section);
     if (leaves.contains(widget.tab.subView)) return;
-    setState(() => DataModel().gitlabTabs.setSubView(widget.tab, leaves.first));
+    setState(() {
+      DataModel().gitlabTabs.setSubView(widget.tab, leaves.first);
+      _rebuildTabController();
+    });
   }
 
   void _selectSubView(GitLabSubView view) => setState(() => DataModel().gitlabTabs.setSubView(widget.tab, view));
@@ -104,22 +148,6 @@ class _GitLabProjectViewState extends State<GitLabProjectView> {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Row(
             children: [
-              SegmentedButton<GitLabSection>(
-                segments: [
-                  for (final section in GitLabSection.values)
-                    ButtonSegment(
-                      value: section,
-                      icon: Icon(section.icon, size: 16),
-                      label: Text(section.label),
-                    ),
-                ],
-                selected: {_section},
-                multiSelectionEnabled: false,
-                showSelectedIcon: false,
-                onSelectionChanged: (selection) {
-                  if (selection.isNotEmpty) _selectSection(selection.first);
-                },
-              ),
               const Spacer(),
               // Reserved for per-section actions (refresh, filters, quick downloads).
               const Row(children: []),
@@ -127,36 +155,36 @@ class _GitLabProjectViewState extends State<GitLabProjectView> {
           ),
         ),
         if (leaves.length > 1)
-          Padding(
-            padding: const EdgeInsets.only(top: 8, left: 12, right: 12),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SegmentedButton<GitLabSubView>(
-                  style: SegmentedButton.styleFrom(visualDensity: VisualDensity.compact),
-                  segments: [
-                    for (final view in leaves)
-                      ButtonSegment(
-                        value: view,
-                        icon: Icon(view.icon, size: 16),
-                        label: Text(view.label),
+          // The tab bar draws its own full-width divider, so it replaces the one
+          // below rather than sitting on top of it.
+          TabBar(
+            controller: _subViewTabs,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: [
+              for (final view in leaves)
+                Tab(
+                  height: 44,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 8,
+                    children: [
+                      // Matches how the nav rail and settings tabs treat selection.
+                      IconFilledOnSelection(
+                        Icon(view.icon, size: 18),
+                        isSelected: view == widget.tab.subView,
                       ),
-                  ],
-                  selected: {widget.tab.subView},
-                  multiSelectionEnabled: false,
-                  showSelectedIcon: false,
-                  onSelectionChanged: (selection) {
-                    if (selection.isNotEmpty) _selectSubView(selection.first);
-                  },
+                      Text(view.label),
+                    ],
+                  ),
                 ),
-              ),
-            ),
+            ],
+          )
+        else
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Divider(height: 1),
           ),
-        const Padding(
-          padding: EdgeInsets.only(top: 8),
-          child: Divider(height: 1),
-        ),
         Expanded(
           // Only the current section's sub-views stay alive, capping the number
           // of live subtrees per project tab.
@@ -190,6 +218,27 @@ class _GitLabProjectViewState extends State<GitLabProjectView> {
             ],
           ),
         ),
+        Expanded(
+          child: Center(
+            child: SegmentedButton<GitLabSection>(
+              segments: [
+                for (final section in GitLabSection.values)
+                  ButtonSegment(
+                    value: section,
+                    icon: Icon(section.icon, size: 16),
+                    label: Text(section.label),
+                  ),
+              ],
+              selected: {_section},
+              multiSelectionEnabled: false,
+              showSelectedIcon: false,
+              onSelectionChanged: (selection) {
+                if (selection.isNotEmpty) _selectSection(selection.first);
+              },
+            ),
+          ),
+        ),
+        Spacer(),
         if (widget.tab.webUrl != null)
           IconButton(
             tooltip: 'Open in browser',
