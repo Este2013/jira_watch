@@ -11,30 +11,37 @@ library;
 /// version picker.
 final List<(String, List<ChangeLogSection>)> appChangeLog = [
   (
-    '1.7.0',
+    '1.7.1',
     [
       ChangeLogSection.features([
-        ChangeLogItem('🦊 GitLab integration!'),
-        ChangeLogItem('All "Add to tasks" buttons now show how many tasks already reference the work item'),
-        ChangeLogItem('Can now copy link to work item as well as just the key'),
-        ChangeLogItem('Added multi-select options in updates view'),
-        ChangeLogItem('Assignee is now shown at the start of update view items'),
-        ChangeLogItem('Can now sort To Do Tasks'),
-      ]),
-
-      ChangeLogSection.bugFixes([
-        ChangeLogItem('Fixed wrong spacing between style nodes in ADF renderer'),
-        ChangeLogItem('Fixed wrong alignment in bullet list when items were not plain text'),
-        ChangeLogItem('Fixed some text could not be highlighted in the ADF renders of bullet lists'),
-      ]),
-      ChangeLogSection.chores([
-        ChangeLogItem('Bumped version number.'),
-        ChangeLogItem('Updated icon styling'),
+        ChangeLogItem('🦊 Adapted some UI for GitLab view'),
       ]),
     ],
   ),
-
   ...[
+    (
+      '1.7.0',
+      [
+        ChangeLogSection.features([
+          ChangeLogItem('🦊 GitLab integration!'),
+          ChangeLogItem('All "Add to tasks" buttons now show how many tasks already reference the work item'),
+          ChangeLogItem('Can now copy link to work item as well as just the key'),
+          ChangeLogItem('Added multi-select options in updates view'),
+          ChangeLogItem('Assignee is now shown at the start of update view items'),
+          ChangeLogItem('Can now sort To Do Tasks'),
+        ]),
+
+        ChangeLogSection.bugFixes([
+          ChangeLogItem('Fixed wrong spacing between style nodes in ADF renderer'),
+          ChangeLogItem('Fixed wrong alignment in bullet list when items were not plain text'),
+          ChangeLogItem('Fixed some text could not be highlighted in the ADF renders of bullet lists'),
+        ]),
+        ChangeLogSection.chores([
+          ChangeLogItem('Bumped version number.'),
+          ChangeLogItem('Updated icon styling'),
+        ]),
+      ],
+    ),
     (
       '1.6.0',
       [
