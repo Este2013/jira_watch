@@ -420,13 +420,24 @@ class WindowsSelfUpdateDao with GlobalLoggy {
       );
     }
 
-    if (await _pendingUpdateMarker() case final marker when await marker.exists()) {
-      blockers.add(
-        UpdateBlocker(
-          'update-pending',
-          'An update is already being applied. Restart Jira Watcher and try again if it seems stuck.',
-        ),
-      );
+    // Only a *recent* marker means an update is genuinely in flight. A handover
+    // that failed without the app relaunching leaves this behind, and treating a
+    // stale one as authoritative would block every future update with no way out
+    // but deleting a file by hand.
+    final pending = await _pendingUpdateMarker();
+    if (await pending.exists()) {
+      final age = DateTime.now().difference((await pending.stat()).modified);
+      if (age < const Duration(minutes: 10)) {
+        blockers.add(
+          UpdateBlocker(
+            'update-pending',
+            'An update is already being applied. Restart Jira Watcher and try again if it seems stuck.',
+          ),
+        );
+      } else {
+        loggy.warning('Ignoring a stale pending_update marker from ${age.inMinutes} minutes ago.');
+        await pending.delete();
+      }
     }
 
     return UpdatePreflight(blockers: blockers);
@@ -551,23 +562,34 @@ class WindowsSelfUpdateDao with GlobalLoggy {
       '{"version": "$version", "startedAt": "${DateTime.now().toIso8601String()}"}',
     );
 
+    final arguments = helperArgumentsFor(script.path, [
+      '-OldPid',
+      '$pid',
+      '-Install',
+      installDirectory.path,
+      '-Payload',
+      payload.path,
+      '-Version',
+      version,
+      '-Markers',
+      markers.path,
+      '-LogPath',
+      log.path,
+    ]);
+
+    // Logged in full, and quoted so it can be pasted into a terminal and re-run
+    // by hand. Diagnosing a handover from the app's log alone was otherwise
+    // guesswork — the helper writes its own log, so when that log is missing
+    // there is nothing at all to go on.
     loggy.info('Launching the update helper for $version');
+    loggy.info('  running from: ${Platform.resolvedExecutable}');
+    loggy.info('  install dir:  ${installDirectory.path}');
+    loggy.info('  launch mode:  $helperLaunchMode');
+    loggy.info('  command:      ${_quoteCommand('powershell.exe', arguments)}');
+
     await Process.start(
       'powershell.exe',
-      helperArgumentsFor(script.path, [
-        '-OldPid',
-        '$pid',
-        '-Install',
-        installDirectory.path,
-        '-Payload',
-        payload.path,
-        '-Version',
-        version,
-        '-Markers',
-        markers.path,
-        '-LogPath',
-        log.path,
-      ]),
+      arguments,
       // Must not be the install directory: a child inherits the parent's working
       // directory, and the parent's is the install folder when launched from
       // Explorer — which would leave PowerShell holding a handle on the very
@@ -581,6 +603,7 @@ class WindowsSelfUpdateDao with GlobalLoggy {
     // app closing and nothing happening at all — which is exactly what a
     // detached launch used to do.
     if (!await _waitForHelperStart(log)) {
+      loggy.error('The helper wrote nothing to ${log.path}; it never started.');
       throw UpdateHelperDidNotStart(log.path);
     }
     loggy.info('The update helper is running; handing over.');
@@ -594,6 +617,11 @@ class WindowsSelfUpdateDao with GlobalLoggy {
     }
     return false;
   }
+
+  /// Renders a command so it can be pasted into a terminal, quoting only what
+  /// needs it.
+  static String _quoteCommand(String executable, List<String> arguments) =>
+      [executable, ...arguments].map((part) => part.contains(' ') ? '"$part"' : part).join(' ');
 
   // STARTUP BOOKKEEPING //////////////////////////////////////////////////////
 
