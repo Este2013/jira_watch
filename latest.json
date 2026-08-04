@@ -1,4 +1,11 @@
 {
+    "1.7.0": {
+        "changelog": "✨ Features:\n ᛫ 🦊 GitLab integration!\n ᛫ All \"Add to tasks\" buttons now show how many tasks already reference the work item\n ᛫ Can now copy link to work item as well as just the key\n ᛫ Added multi-select options in updates view\n ᛫ Assignee is now shown at the start of update view items\n ᛫ Can now sort To Do Tasks\n\n🪲 Bug fixes\n ᛫ Fixed wrong spacing between style nodes in ADF renderer\n ᛫ Fixed wrong alignment in bullet list when items were not plain text\n ᛫ Fixed some text could not be highlighted in the ADF renders of bullet lists\n\n🧼 Chores\n ᛫ Bumped version number.\n ᛫ Updated icon styling",
+        "x64": "v1.7.0/Binaries (x64).zip",
+        "x64Url": "https://github.com/Este2013/jira_watch/releases/download/v1.7.0/jira_watch-1.7.0-windows-x64.zip",
+        "x64Sha256": "4684276a36fca84f1d9d420b3a06e93b6ac58183431da7136d1ba670aa8f70a6",
+        "x64Size": 36597532
+    },
     "1.6.0": {
         "changelog": "✨ Features:\n ᛫ General updates list improvements\n     ᛫ Added context menu to work items in update view\n     ᛫ Added markdown attachment reader\n     ᛫ Added support for mediaInline chips in ADF renderer\n     ᛫ Confluence inlineCards and blockCards now show a basic Chip instead of failing to render\n ᛫ General todo list improvements\n     ᛫ You can now link/unlink work items from notes view\n     ᛫ Task selector now can be collapsed\n ᛫ Added blockCard and checkbox elements to the document renderer\n ᛫ Added whimsy :)\n\n🪲 Bug fixes\n ᛫ Restored functionality of TO DO Task category filters\n\n🧼 Chores\n ᛫ Bumped version number.",
         "x64": "v1.6.0/Binaries (x64).zip"
