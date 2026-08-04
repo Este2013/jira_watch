@@ -5,6 +5,7 @@ import 'package:jira_watcher/ui/gitlab_widgets/gitlab_paginated_list.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_status.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/views/gitlab_artifacts_view.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/views/gitlab_pipelines_view.dart';
+import 'package:jira_watcher/ui/utils/byte_format.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -100,13 +101,8 @@ class GitLabJobRow extends StatelessWidget {
     return null;
   }
 
-  static String formatBytes(int? value) {
-    if (value == null) return '';
-    if (value < 1024) return '$value B';
-    if (value < 1024 * 1024) return '${(value / 1024).toStringAsFixed(0)} KB';
-    if (value < 1024 * 1024 * 1024) return '${(value / (1024 * 1024)).toStringAsFixed(1)} MB';
-    return '${(value / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-  }
+  /// Kept as an alias so the many call sites in the GitLab views stay put.
+  static String formatBytes(int? value) => formatBytesCompact(value);
 
   @override
   Widget build(BuildContext context) {

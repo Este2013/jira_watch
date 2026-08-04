@@ -1,11 +1,141 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:jira_watcher/dao/file_download_service.dart';
 import 'package:jira_watcher/dao/updates_dao.dart';
 import 'package:jira_watcher/dao/windows_self_update_dao.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:loggy/loggy.dart';
+
+enum UpdatePhase {
+  /// Preflight has run; the dialog is waiting for the user.
+  idle,
+  checking,
+  downloading,
+  extracting,
+
+  /// Validating the tree and proving the staged build starts.
+  verifying,
+
+  /// Staged and proven. Nothing installed yet — the app has to exit first.
+  readyToRestart,
+  applying,
+  failed,
+}
+
+/// Drives an in-app update and exposes just enough state for the dialog.
+///
+/// Every phase up to [UpdatePhase.readyToRestart] happens entirely under the temp
+/// directory, so cancelling or failing at any point leaves the install untouched.
+class AppUpdateController extends ChangeNotifier with GlobalLoggy {
+  AppUpdateController({required this.update, required this.currentVersion, this.preflightOverride});
+
+  final NewUpdateData update;
+  final String currentVersion;
+
+  /// Stands in for the real check under test.
+  ///
+  /// A widget test runs on a fake clock, and the real preflight does file and
+  /// process I/O started from initState — futures that a fake clock never lets
+  /// complete. Without this seam the phase machine and the button states it drives
+  /// could not be covered at all.
+  @visibleForTesting
+  final UpdatePreflight? preflightOverride;
+
+  final _dao = WindowsSelfUpdateDao();
+
+  UpdatePhase phase = UpdatePhase.checking;
+  UpdatePreflight? preflight;
+  DownloadTask? task;
+  Object? error;
+  Directory? _payloadRoot;
+
+  bool get canInstall => preflight?.canAutoInstall ?? false;
+  bool get showInstallButton => !(preflight?.isUnsupportedPlatform ?? !Platform.isWindows);
+
+  /// Whether the dialog should refuse to close: past this point there is staged
+  /// work or a helper in flight that a stray Escape should not orphan.
+  bool get isBusy => phase == UpdatePhase.downloading || phase == UpdatePhase.extracting || phase == UpdatePhase.verifying || phase == UpdatePhase.applying;
+
+  Future<void> runPreflight() async {
+    _set(UpdatePhase.checking);
+    try {
+      preflight = preflightOverride ?? await _dao.preflight(update);
+      if (!(preflight?.canAutoInstall ?? false)) {
+        loggy.info('Self-install unavailable: ${preflight!.blockers.join('; ')}');
+      }
+    } on Object catch (e, s) {
+      // Never leave the dialog stuck mid-check: without this the phase would
+      // stay `checking`, which shows a disabled Install button and no reason for
+      // it. Failing to determine whether installing is safe is itself a reason
+      // not to offer it.
+      loggy.error('Preflight could not complete: $e\n$s');
+      preflight = UpdatePreflight(
+        blockers: [
+          UpdateBlocker('preflight-failed', "Couldn't check whether this app can update itself ($e). Download the archive and extract it yourself."),
+        ],
+      );
+    }
+    _set(UpdatePhase.idle);
+  }
+
+  /// Downloads, verifies, unpacks and smoke-tests, stopping short of installing.
+  Future<void> stage() async {
+    try {
+      error = null;
+      task = DownloadTask(label: update.version, destination: await _dao.archiveFileFor(update.version));
+      _set(UpdatePhase.downloading);
+
+      final archive = await _dao.downloadAndVerify(update: update, task: task!);
+
+      _set(UpdatePhase.extracting);
+      final root = await _dao.extract(archive: archive, version: update.version);
+
+      _set(UpdatePhase.verifying);
+      _dao.validatePayload(root);
+      await _dao.selfTestStagedBinary(root: root, version: update.version);
+
+      _payloadRoot = root;
+      _set(UpdatePhase.readyToRestart);
+    } on DownloadCancelled {
+      // Not a failure: nothing outside staging was touched, so return to the
+      // starting state rather than showing an error.
+      loggy.info('Update download cancelled by the user');
+      _set(UpdatePhase.idle);
+    } on Object catch (e, s) {
+      loggy.error('Staging ${update.version} failed: $e\n$s');
+      error = e;
+      _set(UpdatePhase.failed);
+    }
+  }
+
+  /// Hands over to the detached helper and closes the app.
+  ///
+  /// Returns once the helper is running; the caller must then exit, because the
+  /// helper is waiting for this executable to be released before it does anything.
+  Future<bool> applyAndRestart() async {
+    final root = _payloadRoot;
+    if (root == null) return false;
+    try {
+      _set(UpdatePhase.applying);
+      await _dao.launchHelper(version: update.version, payload: root);
+      return true;
+    } on Object catch (e, s) {
+      loggy.error('Could not launch the update helper: $e\n$s');
+      error = e;
+      _set(UpdatePhase.failed);
+      return false;
+    }
+  }
+
+  void cancel() => task?.cancel();
+
+  void _set(UpdatePhase next) {
+    phase = next;
+    notifyListeners();
+  }
+}
 
 /// Narrates a full staging run for the diagnostics dialog.
 ///

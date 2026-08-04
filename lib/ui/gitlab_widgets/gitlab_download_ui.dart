@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/dao/gitlab_download_service.dart';
+import 'package:jira_watcher/ui/utils/byte_format.dart';
 import 'package:jira_watcher/ui/utils/reveal_in_file_manager.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart' as p;
@@ -91,13 +92,6 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
         });
   }
 
-  static String _bytes(int value) {
-    if (value < 1024) return '$value B';
-    if (value < 1024 * 1024) return '${(value / 1024).toStringAsFixed(1)} KB';
-    if (value < 1024 * 1024 * 1024) return '${(value / (1024 * 1024)).toStringAsFixed(1)} MB';
-    return '${(value / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-  }
-
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('Downloading'),
@@ -115,7 +109,7 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
               Text(task.label, maxLines: 2, overflow: TextOverflow.ellipsis),
               LinearProgressIndicator(value: task.fraction),
               Text(
-                task.isIndeterminate ? _bytes(task.received) : '${_bytes(task.received)} of ${_bytes(task.total!)}',
+                task.isIndeterminate ? formatBytes(task.received) : '${formatBytes(task.received)} of ${formatBytes(task.total)}',
                 style: Theme.of(context).textTheme.bodySmall!.copyWith(color: Theme.of(context).hintColor),
               ),
             ],
