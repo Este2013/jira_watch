@@ -1,0 +1,119 @@
+//
+// AUTO-GENERATED FILE, DO NOT MODIFY!
+//
+// @dart=2.18
+
+// ignore_for_file: unused_element, unused_import
+// ignore_for_file: always_put_required_named_parameters_first
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: lines_longer_than_80_chars
+
+part of openapi.api;
+
+class ProjectIssueTypeMapping {
+  /// Returns a new [ProjectIssueTypeMapping] instance.
+  ProjectIssueTypeMapping({
+    required this.issueTypeId,
+    required this.projectId,
+  });
+
+  /// The ID of the issue type.
+  String issueTypeId;
+
+  /// The ID of the project.
+  String projectId;
+
+  @override
+  bool operator ==(Object other) => identical(this, other) || other is ProjectIssueTypeMapping &&
+    other.issueTypeId == issueTypeId &&
+    other.projectId == projectId;
+
+  @override
+  int get hashCode =>
+    // ignore: unnecessary_parenthesis
+    (issueTypeId.hashCode) +
+    (projectId.hashCode);
+
+  @override
+  String toString() => 'ProjectIssueTypeMapping[issueTypeId=$issueTypeId, projectId=$projectId]';
+
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{};
+      json[r'issueTypeId'] = this.issueTypeId;
+      json[r'projectId'] = this.projectId;
+    return json;
+  }
+
+  /// Returns a new [ProjectIssueTypeMapping] instance and imports its values from
+  /// [value] if it's a [Map], null otherwise.
+  // ignore: prefer_constructors_over_static_methods
+  static ProjectIssueTypeMapping? fromJson(dynamic value) {
+    if (value is Map) {
+      final json = value.cast<String, dynamic>();
+
+      // Ensure that the map contains the required keys.
+      // Note 1: the values aren't checked for validity beyond being non-null.
+      // Note 2: this code is stripped in release mode!
+      assert(() {
+        assert(json.containsKey(r'issueTypeId'), 'Required key "ProjectIssueTypeMapping[issueTypeId]" is missing from JSON.');
+        assert(json[r'issueTypeId'] != null, 'Required key "ProjectIssueTypeMapping[issueTypeId]" has a null value in JSON.');
+        assert(json.containsKey(r'projectId'), 'Required key "ProjectIssueTypeMapping[projectId]" is missing from JSON.');
+        assert(json[r'projectId'] != null, 'Required key "ProjectIssueTypeMapping[projectId]" has a null value in JSON.');
+        return true;
+      }());
+
+      return ProjectIssueTypeMapping(
+        issueTypeId: mapValueOfType<String>(json, r'issueTypeId')!,
+        projectId: mapValueOfType<String>(json, r'projectId')!,
+      );
+    }
+    return null;
+  }
+
+  static List<ProjectIssueTypeMapping> listFromJson(dynamic json, {bool growable = false,}) {
+    final result = <ProjectIssueTypeMapping>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = ProjectIssueTypeMapping.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+
+  static Map<String, ProjectIssueTypeMapping> mapFromJson(dynamic json) {
+    final map = <String, ProjectIssueTypeMapping>{};
+    if (json is Map && json.isNotEmpty) {
+      json = json.cast<String, dynamic>(); // ignore: parameter_assignments
+      for (final entry in json.entries) {
+        final value = ProjectIssueTypeMapping.fromJson(entry.value);
+        if (value != null) {
+          map[entry.key] = value;
+        }
+      }
+    }
+    return map;
+  }
+
+  // maps a json object with a list of ProjectIssueTypeMapping-objects as value to a dart map
+  static Map<String, List<ProjectIssueTypeMapping>> mapListFromJson(dynamic json, {bool growable = false,}) {
+    final map = <String, List<ProjectIssueTypeMapping>>{};
+    if (json is Map && json.isNotEmpty) {
+      // ignore: parameter_assignments
+      json = json.cast<String, dynamic>();
+      for (final entry in json.entries) {
+        map[entry.key] = ProjectIssueTypeMapping.listFromJson(entry.value, growable: growable,);
+      }
+    }
+    return map;
+  }
+
+  /// The list of required keys that must be present in a JSON.
+  static const requiredKeys = <String>{
+    'issueTypeId',
+    'projectId',
+  };
+}
+

@@ -1,0 +1,5 @@
+# This is a library, not an application: its lock file constrains nothing for
+# whatever depends on it and would only add churn on every regeneration. The
+# app's own pubspec.lock is the one that matters and stays committed.
+pubspec.lock
+.dart_tool/
