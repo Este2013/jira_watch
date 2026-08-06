@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:jira_platform_api/api.dart' as jira;
 import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/models/settings_model.dart';
 import 'package:loggy/loggy.dart';
 
 /// Exercises the generated Jira client against the real site, before anything in
@@ -80,13 +81,25 @@ Stream<String> diagnoseJiraApi() async* {
   }
 
   // 2. A JQL search, the app's busiest call ------------------------------------
+  //
+  // Bounded on purpose. /search/jql refuses an unrestricted query outright —
+  // "Unbounded JQL queries are not allowed here" — so this mirrors how the app
+  // builds its own filter, from the starred projects, rather than asking for
+  // everything. Anything migrated onto this endpoint has to stay bounded too.
+  final starred = SettingsModel().starredProjects.value?.map((k) => k.trim()).where((k) => k.isNotEmpty).toList() ?? const [];
+  final jql = starred.isEmpty
+      // Still bounded, just by time instead, so this works before any project is starred.
+      ? 'updated >= -14d ORDER BY updated DESC'
+      : 'project in (${starred.join(",")}) ORDER BY updated DESC';
+
   yield '';
   yield 'GET /search/jql through the generated client ...';
+  yield '  jql: $jql';
   String? sampleKey;
   try {
     final started = DateTime.now();
     final results = await jira.IssueSearchApi(client).searchAndReconsileIssuesUsingJql(
-      jql: 'ORDER BY updated DESC',
+      jql: jql,
       maxResults: 3,
       fields: ['summary', 'updated', 'status'],
     );
@@ -99,6 +112,9 @@ Stream<String> diagnoseJiraApi() async* {
     sampleKey = issues.isEmpty ? null : issues.first.key;
   } on jira.ApiException catch (e) {
     yield '  FAILED ${e.code}: ${e.message}';
+    if (e.code == 400 && '${e.message}'.contains('Unbounded')) {
+      yield '  The query needs a restriction — star a project, or narrow it by date.';
+    }
   } on Object catch (e) {
     yield '  FAILED: $e';
   }
