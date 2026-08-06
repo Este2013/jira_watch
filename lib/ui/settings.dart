@@ -6,6 +6,7 @@ import 'package:fading_edge_scrollview/fading_edge_scrollview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:jira_watcher/dao/gitlab_dao.dart';
+import 'package:jira_watcher/dao/jira/jira_diagnostic.dart';
 import 'package:jira_watcher/dao/updates_dao.dart';
 import 'package:jira_watcher/models/app_update_model.dart';
 import 'package:jira_watcher/models/data_model.dart';
@@ -871,6 +872,26 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                             builder: (context) => DiagnosticsDialog(
                               testName: 'Writing to settings folder',
                               stdout: testFetchingNewUpdateData(context),
+                            ),
+                          );
+                        },
+                        label: Text('Run test'),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    spacing: 8,
+                    children: [
+                      Text('Test the Jira API client'),
+                      Spacer(),
+                      TextButton.icon(
+                        icon: Icon(Symbols.api),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => DiagnosticsDialog(
+                              testName: 'Jira API client',
+                              stdout: diagnoseJiraApi(),
                             ),
                           );
                         },
