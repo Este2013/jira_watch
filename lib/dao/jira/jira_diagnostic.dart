@@ -1,40 +1,37 @@
 import 'dart:async';
 
 import 'package:jira_platform_api/api.dart' as jira;
-import 'package:jira_watcher/dao/api_dao.dart';
+
+import 'package:jira_watcher/dao/jira/jira_api.dart';
+import 'package:jira_watcher/dao/jira/jira_auth.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:loggy/loggy.dart';
 
-/// Exercises the generated Jira client against the real site, before anything in
-/// the app depends on it.
+/// Exercises the Jira client the app runs on, against the real site.
 ///
-/// The package's own tests stub the network with hand-written JSON, which cannot
+/// The packages' own tests stub the network with hand-written JSON, which cannot
 /// catch the failure that actually matters: a real response deserialising wrongly
 /// because the spec describes a field loosely. This runs the same three calls the
 /// app makes, against real credentials, and reports what came back.
 ///
-/// Deliberately read-only, and deliberately reads credentials from the existing
-/// [APIDao] rather than replacing it — so this can be checked while the app still
-/// runs entirely on the old layer.
+/// Deliberately read-only, and deliberately goes through [JiraApi] rather than
+/// building its own client, so a wiring problem in the app's own layer shows up
+/// here too.
 Stream<String> diagnoseJiraApi() async* {
-  final dao = APIDao();
-  await dao.load();
+  final auth = JiraAuth();
 
   yield 'Credentials';
-  yield '  site:  ${dao.domain ?? "(none)"}';
-  yield '  email: ${dao.email ?? "(none)"}';
-  yield '  token: ${dao.apiKey == null ? "(none)" : "present, ${dao.apiKey!.length} chars"}';
+  yield '  site:  ${auth.domain ?? "(none)"}';
+  yield '  email: ${auth.email ?? "(none)"}';
+  yield '  token: ${auth.apiToken == null ? "(none)" : "present, ${auth.apiToken!.length} chars"}';
 
-  if (!dao.isReady) {
+  if (!auth.isReady) {
     yield '';
     yield 'No usable credentials, so there is nothing to test. Sign in first.';
     return;
   }
 
-  final client = jira.ApiClient(
-    basePath: 'https://${dao.domain}',
-    authentication: jira.HttpBasicAuth(username: dao.email!, password: dao.apiKey!),
-  );
+  final client = JiraApi().client;
   yield '  basePath resolved to ${client.basePath}';
 
   // 1. Who am I ---------------------------------------------------------------
@@ -64,20 +61,20 @@ Stream<String> diagnoseJiraApi() async* {
   yield '  displayName: ${me.displayName}';
   yield '  active:      ${me.active}';
 
-  // Compared against the layer the app still uses, because matching account ids
-  // is the cheapest proof that swapping one for the other is safe.
+  // The same call again through the facade, which is what the app's widgets
+  // actually use — it returns a raw map rather than a typed User, and the two
+  // agreeing is the cheapest proof the raw boundary is wired to the same site.
   yield '';
-  yield 'Cross-checking against the current APIModel path ...';
+  yield 'Cross-checking the raw-map path the widgets use ...';
   try {
-    final legacy = await dao.myself();
-    final matches = legacy.statusCode == 200 && legacy.body.contains('"accountId":"${me.accountId}"');
-    yield legacy.statusCode == 200
-        ? (matches
-              ? '  Both paths report the same account. Equivalent.'
-              : '  Both succeeded but reported DIFFERENT accounts — investigate before migrating.')
-        : '  The old path returned ${legacy.statusCode} while the new one succeeded.';
+    final raw = await JiraApi().myself(allowCache: false);
+    yield raw == null
+        ? '  JiraApi().myself() returned null while the typed call succeeded.'
+        : (raw['accountId'] == me.accountId
+              ? '  Both paths report the same account. Consistent.'
+              : '  Both succeeded but reported DIFFERENT accounts — investigate.');
   } on Object catch (e) {
-    yield '  The old path threw while the new one succeeded: $e';
+    yield '  The raw path threw while the typed one succeeded: $e';
   }
 
   // 2. A JQL search, the app's busiest call ------------------------------------
@@ -107,7 +104,7 @@ Stream<String> diagnoseJiraApi() async* {
     final issues = results?.issues ?? const [];
     yield '  returned ${issues.length} issue(s)';
     for (final issue in issues) {
-      yield '    ${issue.key}  ${(issue.fields)?['summary'] ?? "(no summary field)"}';
+      yield '    ${issue.key}  ${(issue.fields)['summary'] ?? "(no summary field)"}';
     }
     sampleKey = issues.isEmpty ? null : issues.first.key;
   } on jira.ApiException catch (e) {
@@ -142,7 +139,7 @@ Stream<String> diagnoseJiraApi() async* {
       return;
     }
     yield '  key:    ${issue.key}';
-    yield '  fields: ${issue.fields?.keys.length ?? 0} present';
+    yield '  fields: ${issue.fields.keys.length} present';
 
     // The check that matters most for the migration. The spec does not describe
     // Atlassian Document Format at all — Comment.body carries only a prose
@@ -150,7 +147,7 @@ Stream<String> diagnoseJiraApi() async* {
     // AdfRenderer keeps consuming raw maps exactly as it does today. If these
     // arrive as anything other than a map, the renderer boundary has moved and
     // AdfRenderer would need rework.
-    final description = issue.fields?['description'];
+    final description = issue.fields['description'];
     yield '';
     yield 'Atlassian Document Format boundary';
     yield '  description runtime type: ${description.runtimeType}';
@@ -163,7 +160,7 @@ Stream<String> diagnoseJiraApi() async* {
       yield '  NOT a map — AdfRenderer expects a map, so this needs looking at.';
     }
 
-    final comment = issue.fields?['comment'];
+    final comment = issue.fields['comment'];
     if (comment is Map) {
       final comments = comment['comments'];
       yield '  comments: ${comments is List ? comments.length : "?"} '
@@ -171,7 +168,7 @@ Stream<String> diagnoseJiraApi() async* {
     }
 
     final changelog = issue.changelog;
-    yield '  changelog entries: ${changelog?.histories?.length ?? 0}';
+    yield '  changelog entries: ${changelog?.histories.length ?? 0}';
   } on jira.ApiException catch (e) {
     yield '  FAILED ${e.code}: ${e.message}';
   } on Object catch (e, s) {
@@ -180,6 +177,5 @@ Stream<String> diagnoseJiraApi() async* {
   }
 
   yield '';
-  yield 'Done. Every call above went through the generated client; the app itself';
-  yield 'is still running on the old layer.';
+  yield 'Done. Every call above went through the same client the app runs on.';
 }

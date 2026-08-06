@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:chewie/chewie.dart';
-import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/dao/jira/jira_auth.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
@@ -37,7 +37,7 @@ class _ChewieNetworkVideoState extends State<ChewieNetworkVideo> {
     super.initState();
     _videoController = VideoPlayerController.networkUrl(
       Uri.parse(widget.url),
-      httpHeaders: {'Authorization': APIDao().authHeader},
+      httpHeaders: {'Authorization': JiraAuth().authHeader},
     );
     _videoController
         .initialize()
@@ -93,7 +93,7 @@ class _DesktopVideoPlayerState extends State<DesktopVideoPlayer> {
     super.initState();
     player ??= Player();
     controller = VideoController(player!);
-    player!.open(Media(widget.url, httpHeaders: {'Authorization': APIDao().authHeader}));
+    player!.open(Media(widget.url, httpHeaders: {'Authorization': JiraAuth().authHeader}));
   }
 
   @override

@@ -1,11 +1,11 @@
-import 'dart:convert';
 import 'dart:math';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/models/jira_work_item_data.dart';
+import 'package:jira_watcher/dao/jira/jira_auth.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
@@ -284,7 +284,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       loggy.error('There is a blockCard node without a provided URL? Dev did not expect that:\n${node.toString()}');
       return ErrorWidget('There is a blockCard node without a provided URL? Dev did not expect that.');
     }
-    if (targetUrl.startsWith('https://${APIDao().domain}/wiki')) {
+    if (targetUrl.startsWith('https://${JiraAuth().domain}/wiki')) {
       // TODO Confluence link
       return ActionChip(
         avatar: Icon(Symbols.book_2),
@@ -293,18 +293,20 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         onPressed: () => launchUrl(Uri.parse(targetUrl)),
       );
     }
-    if (targetUrl.startsWith('https://${APIDao().domain}')) {
+    if (targetUrl.startsWith('https://${JiraAuth().domain}')) {
       return Card(
         clipBehavior: .hardEdge,
         color: Theme.of(context).colorScheme.surfaceContainerHigh,
         child: FutureBuilder(
-          future: DataModel().jiraApi.getWorkItem(targetUrl.split('/').last),
+          future: DataModel().jiraApi.workItem(targetUrl.split('/').last),
           builder: (context, asyncSnapshot) {
             if (asyncSnapshot.hasError) return ErrorWidget('Error while fetching blockCard with URL: $targetUrl\n${asyncSnapshot.error}');
-            if (!asyncSnapshot.hasData) {
-              return LinearProgressIndicator();
+            if (asyncSnapshot.data == null) {
+              return asyncSnapshot.connectionState == ConnectionState.done
+                  ? ErrorWidget('Jira would not return the work item for blockCard with URL: $targetUrl')
+                  : LinearProgressIndicator();
             }
-            var workItem = JiraWorkItemData.fromJson({'data': jsonDecode(asyncSnapshot.data!.body)});
+            var workItem = JiraWorkItemData.fromJson({'data': asyncSnapshot.data!});
             return InkWell(
               onTap: () {
                 showDialog(
@@ -493,7 +495,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
   Widget? _buildInlineCard(BuildContext context, Map<String, dynamic> node) {
     var url = node['attrs']['url'];
     if (url == null) return null;
-    if (url.startsWith('https://${APIDao().domain}/wiki')) {
+    if (url.startsWith('https://${JiraAuth().domain}/wiki')) {
       return ActionChip(
         avatar: Icon(Symbols.book_2),
         label: Text(url.split('/').last.split('+').join(' ')),
@@ -512,7 +514,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
             RegExp(r'\?.*'),
             '',
           );
-      var response = DataModel().jiraApi.getWorkItem(issueKey);
+      var response = DataModel().jiraApi.workItem(issueKey);
 
       return FutureBuilder(
         future: response,
@@ -529,9 +531,9 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
               onPressed: () => launchUrl(Uri.parse(url)),
             );
           }
-          if (asyncSnapshot.hasData) {
-            if (asyncSnapshot.data?.statusCode == 200) {
-              var issue = JiraWorkItemData(jsonDecode(asyncSnapshot.data?.body ?? ''), lastCacheUpdate: DateTime.now());
+          if (asyncSnapshot.connectionState == ConnectionState.done) {
+            if (asyncSnapshot.data != null) {
+              var issue = JiraWorkItemData(asyncSnapshot.data!, lastCacheUpdate: DateTime.now());
               return ActionChip(
                 visualDensity: .compact,
                 labelPadding: .zero,
@@ -560,7 +562,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
               );
             }
             return Tooltip(
-              message: 'Jira servers said nope while looking up $url as a Jira inlineCard:\n\nResponse status: ${asyncSnapshot.data?.statusCode}\n${asyncSnapshot.data?.reasonPhrase}',
+              message: 'Jira servers said nope while looking up $url as a Jira inlineCard.',
               child: ActionChip(
                 label: Text('Error', style: TextStyle(color: t.onErrorContainer)),
                 backgroundColor: t.errorContainer,
@@ -801,7 +803,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     var t = Theme.of(context).colorScheme;
     String userIdMentionned = node['attrs']['id'];
     Future<bool> isMe = DataModel().jiraApi.myself().then(
-      (value) => jsonDecode(value.body)['accountId'] == userIdMentionned,
+      (me) => me != null && me['accountId'] == userIdMentionned,
     );
 
     return FutureBuilder(
@@ -1088,7 +1090,7 @@ Future<Map<String, String>> mediaIdToContentUrl(
 
       // Auth + do NOT follow the redirect
       req.followRedirects = false;
-      req.headers.set(HttpHeaders.authorizationHeader, APIDao().authHeader);
+      req.headers.set(HttpHeaders.authorizationHeader, JiraAuth().authHeader);
       // (optional) be explicit about what we want
       req.headers.set(HttpHeaders.acceptHeader, '*/*');
 
@@ -1139,7 +1141,7 @@ Future<dynamic> mediaIdToAttachment(
 
       // Auth + do NOT follow the redirect
       req.followRedirects = false;
-      req.headers.set(HttpHeaders.authorizationHeader, APIDao().authHeader);
+      req.headers.set(HttpHeaders.authorizationHeader, JiraAuth().authHeader);
       // (optional) be explicit about what we want
       req.headers.set(HttpHeaders.acceptHeader, '*/*');
 

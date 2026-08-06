@@ -2,7 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/models/jira_work_item_data.dart';
+import 'package:jira_watcher/dao/jira/jira_auth.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -162,7 +163,7 @@ class WorkItemLinkWithParentsRow extends StatefulWidget {
 
 class _WorkItemLinkWithParentsRowState extends State<WorkItemLinkWithParentsRow> {
   String? _workItemUrl(dynamic workItemKey) {
-    final domain = APIDao().domain;
+    final domain = JiraAuth().domain;
     if (domain != null && workItemKey != null) {
       return 'https://$domain/browse/$workItemKey';
     }

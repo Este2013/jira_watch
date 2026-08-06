@@ -3,7 +3,9 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/models/jira_work_item_data.dart';
+import 'package:jira_watcher/dao/jira/jira_auth.dart';
+import 'package:jira_watcher/dao/jira/jira_api.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/to_do_tasks_models.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
@@ -71,9 +73,12 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
     if ([widget.workItem.changelog, widget.workItem.fields, widget.workItem.commentsData].any((e) => e == null)) {
       loggy.info('Provided data for ${widget.workItem.key} is incomplete; fetching a full version online');
       if (widget.workItem.key == null) return ErrorWidget("Can't work if the issue's key is null!!!");
-      fullWorkItemData = DataModel().jiraApi.getWorkItem(widget.workItem.key!, expand: ['changelog']).then(
+      fullWorkItemData = DataModel().jiraApi.workItem(widget.workItem.key!, expand: ['changelog']).then(
         (value) {
-          return JiraWorkItemData.fromJson({'data': jsonDecode(value.body)});
+          // Surfaced through the FutureBuilder's error branch below; a null here
+          // means Jira refused the fetch, which JiraApi has already logged.
+          if (value == null) throw Exception('Could not fetch ${widget.workItem.key} from Jira.');
+          return JiraWorkItemData.fromJson({'data': value});
         },
       );
     } else {
@@ -184,7 +189,7 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
 
   void viewInBrowser(BuildContext context) {
     String? getWorkItemUrl(dynamic workItemKey) {
-      final domain = APIDao().domain;
+      final domain = JiraAuth().domain;
       if (domain != null && workItemKey != null) {
         return 'https://$domain/browse/$workItemKey';
       }
@@ -199,7 +204,7 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
         context: context,
         builder: (context) => AlertDialog(
           title: Text('Something went wrong'),
-          content: Text('The given workItemURL is null?\nFor workItem key: ${widget.workItem.key}, domain ${APIDao().domain}'),
+          content: Text('The given workItemURL is null?\nFor workItem key: ${widget.workItem.key}, domain ${JiraAuth().domain}'),
         ),
       );
     }
@@ -389,7 +394,7 @@ class _FieldsTableState extends State<FieldsTable> {
                           )
                           .where(
                             // non-handled filtering
-                            (e) => !onlyNonHandled || !DataModel().jiraApi.defaultFields.contains(e.key as String),
+                            (e) => !onlyNonHandled || !JiraApi.defaultFields.contains(e.key as String),
                           )
                           .toList()
                         ..sort(

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import 'dart:math';
 
+import 'package:jira_watcher/dao/jira/jira_auth.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
 import 'package:loggy/loggy.dart';
@@ -28,7 +28,7 @@ class _WorkItemSearchDialogState extends State<WorkItemSearchDialog> {
   Set<String> selectedKeys = {};
 
   Future<String> get myOwnRecentEdits async {
-    var data = await DataModel().jiraApi.myself().then((value) => jsonDecode(value.body)['displayName']);
+    var data = await DataModel().jiraApi.myself().then((me) => me?['displayName']);
     return 'issue in updatedBy("$data") ORDER BY updated';
   }
 
@@ -114,7 +114,8 @@ class _WorkItemSearchDialogState extends State<WorkItemSearchDialog> {
                       for (var m in directWorkItemIds) {
                         String? key = m.group(0);
                         if (key == null) continue;
-                        results.add(jsonDecode((await DataModel().jiraApi.getWorkItem(key)).body));
+                        final item = await DataModel().jiraApi.workItem(key);
+                        if (item != null) results.add(item);
                       }
                     }
                     return results;
@@ -135,7 +136,14 @@ class _WorkItemSearchDialogState extends State<WorkItemSearchDialog> {
               ]),
               builder: (context, snapshot) {
                 if (snapshot.hasData) {
-                  List workItems = [...snapshot.data![0], ...(snapshot.data![1]['issues'] as List)];
+                  // The second future is a JQL search, which yields null when Jira
+                  // refuses the query — an empty search box makes it unbounded,
+                  // which /search/jql rejects outright.
+                  final searchResults = snapshot.data![1] as Map<String, dynamic>?;
+                  List workItems = [
+                    ...(snapshot.data![0] as List),
+                    ...(searchResults?['issues'] as List? ?? const []),
+                  ];
 
                   return Flexible(
                     child: SizedBox(
@@ -232,14 +240,14 @@ class _WorkItemSearchDialogState extends State<WorkItemSearchDialog> {
                     Text('Go to all:'),
                   ],
                 ),
-                ActionChip(label: Text('Boards'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/boards?page=1&sortKey=name&sortOrder=ASC'))),
-                ActionChip(label: Text('Projects'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/projects?page=1&sortKey=name&sortOrder=ASC'))),
-                ActionChip(label: Text('Filters'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/filters?Search=Search&filterView=search&name='))),
-                ActionChip(label: Text('Plans'), onPressed: () => launchUrl(Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/plans'))),
+                ActionChip(label: Text('Boards'), onPressed: () => launchUrl(Uri.parse('${JiraAuth().siteUrl}/jira/boards?page=1&sortKey=name&sortOrder=ASC'))),
+                ActionChip(label: Text('Projects'), onPressed: () => launchUrl(Uri.parse('${JiraAuth().siteUrl}/jira/projects?page=1&sortKey=name&sortOrder=ASC'))),
+                ActionChip(label: Text('Filters'), onPressed: () => launchUrl(Uri.parse('${JiraAuth().siteUrl}/jira/filters?Search=Search&filterView=search&name='))),
+                ActionChip(label: Text('Plans'), onPressed: () => launchUrl(Uri.parse('${JiraAuth().siteUrl}/jira/plans'))),
                 ActionChip(
                   label: Text('Teams'),
                   onPressed: () => launchUrl(
-                    Uri.parse('https://${DataModel().jiraApi.dao.domain}/jira/people'),
+                    Uri.parse('${JiraAuth().siteUrl}/jira/people'),
                   ),
                 ),
               ],

@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -184,10 +183,10 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                             for (var tkt in widget.taskController.linkedWorkItems.list)
                               FutureBuilder(
                                 key: Key('Work item $tkt linked to task ${widget.taskController.id}'),
-                                future: DataModel().jiraApi.getWorkItem(tkt, expand: ['changelog']),
+                                future: DataModel().jiraApi.workItem(tkt, expand: ['changelog']),
                                 builder: (context, asyncSnapshot) {
-                                  if (asyncSnapshot.hasData) {
-                                    var issueData = jsonDecode(asyncSnapshot.data!.body);
+                                  if (asyncSnapshot.data != null) {
+                                    var issueData = asyncSnapshot.data!;
                                     return IssueLinkTile(
                                       issueData,
                                       trailing: IconButton(

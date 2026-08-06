@@ -3,3 +3,8 @@
 # app's own pubspec.lock is the one that matters and stays committed.
 pubspec.lock
 .dart_tool/
+
+# Test and build output. `flutter test` inside the package writes here; the root
+# .gitignore anchors its own `build/` rule to the repo root, so it does not cover
+# these.
+build/

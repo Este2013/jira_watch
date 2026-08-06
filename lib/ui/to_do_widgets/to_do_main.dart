@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/models/jira_work_item_data.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/to_do_tasks_models.dart';
 import 'package:jira_watcher/ui/utils/collapsible_pane.dart';

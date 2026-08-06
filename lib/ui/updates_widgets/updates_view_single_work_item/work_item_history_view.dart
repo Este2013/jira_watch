@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/models/jira_work_item_data.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/ui/updates_widgets/diff_matcher.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
