@@ -200,33 +200,43 @@ class _GitLabProjectViewState extends State<GitLabProjectView> with TickerProvid
 
   Widget _header() => Padding(
     padding: const EdgeInsets.all(12),
-    child: Row(
-      spacing: 12,
-      children: [
-        GitLabAvatar(url: widget.tab.avatarUrl, size: 40, fallbackLabel: widget.tab.name),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(widget.tab.name, style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
-              Text(
-                widget.tab.pathWithNamespace,
-                style: Theme.of(context).textTheme.bodySmall!.copyWith(color: Theme.of(context).hintColor),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        // The selector sits between two equal flexible cells, which is what
+        // centres it while there is room to spare. Being outside them, it keeps
+        // its natural width instead of being squeezed into a share of the row:
+        // the project name beside it is what gives way, since it can ellipsize
+        // and the selector cannot.
+        final showLabels = constraints.maxWidth >= _labelledSelectorWidth(context) + _minProjectNameWidth + _headerFixedWidth;
+
+        return Row(
+          spacing: 12,
+          children: [
+            GitLabAvatar(url: widget.tab.avatarUrl, size: 40, fallbackLabel: widget.tab.name),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.tab.name, style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(
+                    widget.tab.pathWithNamespace,
+                    style: Theme.of(context).textTheme.bodySmall!.copyWith(color: Theme.of(context).hintColor),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: Center(
-            child: SegmentedButton<GitLabSection>(
+            ),
+            SegmentedButton<GitLabSection>(
               segments: [
                 for (final section in GitLabSection.values)
                   ButtonSegment(
                     value: section,
                     icon: Icon(section.icon, size: 16),
-                    label: Text(section.label),
+                    label: showLabels ? Text(section.label) : null,
+                    // Carries the name once the label is gone, so a bare icon is
+                    // still identifiable.
+                    tooltip: showLabels ? null : section.label,
                   ),
               ],
               selected: {_section},
@@ -236,16 +246,55 @@ class _GitLabProjectViewState extends State<GitLabProjectView> with TickerProvid
                 if (selection.isNotEmpty) _selectSection(selection.first);
               },
             ),
-          ),
-        ),
-        Spacer(),
-        if (widget.tab.webUrl != null)
-          IconButton(
-            tooltip: 'Open in browser',
-            icon: const Icon(Symbols.open_in_browser),
-            onPressed: () => launchUrl(Uri.parse(widget.tab.webUrl!)),
-          ),
-      ],
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: widget.tab.webUrl != null
+                    ? IconButton(
+                        tooltip: 'Open in browser',
+                        icon: const Icon(Symbols.open_in_browser),
+                        onPressed: () => launchUrl(Uri.parse(widget.tab.webUrl!)),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ),
+          ],
+        );
+      },
     ),
   );
 }
+
+/// Width the section selector needs with its labels shown.
+///
+/// Measured rather than hardcoded so the labels still drop at the right point
+/// when the system text scale is turned up — a fixed breakpoint would let them
+/// overflow instead.
+double _labelledSelectorWidth(BuildContext context) {
+  final style = Theme.of(context).textTheme.labelLarge;
+  final scaler = MediaQuery.textScalerOf(context);
+  var total = 0.0;
+  for (final section in GitLabSection.values) {
+    final painter = TextPainter(
+      text: TextSpan(text: section.label, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: scaler,
+    )..layout();
+    total += painter.width + _segmentChrome;
+  }
+  return total;
+}
+
+/// The part of a segment that is not its label: the icon, the gap beside it and
+/// the horizontal padding. SegmentedButton does not expose these, so this is a
+/// deliberately generous estimate — erring high drops the labels slightly before
+/// they would actually overflow, which is the harmless direction.
+const double _segmentChrome = 56;
+
+/// Below this the project name is too clipped to identify anything, so the
+/// labels go instead.
+const double _minProjectNameWidth = 160;
+
+/// The avatar, the trailing button and the row's spacing — everything in the
+/// header whose width never changes.
+const double _headerFixedWidth = 40 + 48 + 12 * 3;
