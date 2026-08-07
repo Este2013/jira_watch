@@ -1,0 +1,143 @@
+//
+// AUTO-GENERATED FILE, DO NOT MODIFY!
+//
+// @dart=2.18
+
+// ignore_for_file: unused_element, unused_import
+// ignore_for_file: always_put_required_named_parameters_first
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: lines_longer_than_80_chars
+
+part of openapi.api;
+
+class ContextualConfiguration {
+  /// Returns a new [ContextualConfiguration] instance.
+  ContextualConfiguration({
+    this.configuration,
+    required this.fieldContextId,
+    required this.id,
+    this.schema,
+  });
+
+  /// The field configuration.
+  Object? configuration;
+
+  /// The ID of the field context the configuration is associated with.
+  String fieldContextId;
+
+  /// The ID of the configuration.
+  String id;
+
+  /// The field value schema.
+  Object? schema;
+
+  @override
+  bool operator ==(Object other) => identical(this, other) || other is ContextualConfiguration &&
+    other.configuration == configuration &&
+    other.fieldContextId == fieldContextId &&
+    other.id == id &&
+    other.schema == schema;
+
+  @override
+  int get hashCode =>
+    // ignore: unnecessary_parenthesis
+    (configuration == null ? 0 : configuration!.hashCode) +
+    (fieldContextId.hashCode) +
+    (id.hashCode) +
+    (schema == null ? 0 : schema!.hashCode);
+
+  @override
+  String toString() => 'ContextualConfiguration[configuration=$configuration, fieldContextId=$fieldContextId, id=$id, schema=$schema]';
+
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{};
+    if (this.configuration != null) {
+      json[r'configuration'] = this.configuration;
+    } else {
+      json[r'configuration'] = null;
+    }
+      json[r'fieldContextId'] = this.fieldContextId;
+      json[r'id'] = this.id;
+    if (this.schema != null) {
+      json[r'schema'] = this.schema;
+    } else {
+      json[r'schema'] = null;
+    }
+    return json;
+  }
+
+  /// Returns a new [ContextualConfiguration] instance and imports its values from
+  /// [value] if it's a [Map], null otherwise.
+  // ignore: prefer_constructors_over_static_methods
+  static ContextualConfiguration? fromJson(dynamic value) {
+    if (value is Map) {
+      final json = value.cast<String, dynamic>();
+
+      // Ensure that the map contains the required keys.
+      // Note 1: the values aren't checked for validity beyond being non-null.
+      // Note 2: this code is stripped in release mode!
+      assert(() {
+        assert(json.containsKey(r'fieldContextId'), 'Required key "ContextualConfiguration[fieldContextId]" is missing from JSON.');
+        assert(json[r'fieldContextId'] != null, 'Required key "ContextualConfiguration[fieldContextId]" has a null value in JSON.');
+        assert(json.containsKey(r'id'), 'Required key "ContextualConfiguration[id]" is missing from JSON.');
+        assert(json[r'id'] != null, 'Required key "ContextualConfiguration[id]" has a null value in JSON.');
+        return true;
+      }());
+
+      return ContextualConfiguration(
+        configuration: mapValueOfType<Object>(json, r'configuration'),
+        fieldContextId: mapValueOfType<String>(json, r'fieldContextId')!,
+        id: mapValueOfType<String>(json, r'id')!,
+        schema: mapValueOfType<Object>(json, r'schema'),
+      );
+    }
+    return null;
+  }
+
+  static List<ContextualConfiguration> listFromJson(dynamic json, {bool growable = false,}) {
+    final result = <ContextualConfiguration>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = ContextualConfiguration.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+
+  static Map<String, ContextualConfiguration> mapFromJson(dynamic json) {
+    final map = <String, ContextualConfiguration>{};
+    if (json is Map && json.isNotEmpty) {
+      json = json.cast<String, dynamic>(); // ignore: parameter_assignments
+      for (final entry in json.entries) {
+        final value = ContextualConfiguration.fromJson(entry.value);
+        if (value != null) {
+          map[entry.key] = value;
+        }
+      }
+    }
+    return map;
+  }
+
+  // maps a json object with a list of ContextualConfiguration-objects as value to a dart map
+  static Map<String, List<ContextualConfiguration>> mapListFromJson(dynamic json, {bool growable = false,}) {
+    final map = <String, List<ContextualConfiguration>>{};
+    if (json is Map && json.isNotEmpty) {
+      // ignore: parameter_assignments
+      json = json.cast<String, dynamic>();
+      for (final entry in json.entries) {
+        map[entry.key] = ContextualConfiguration.listFromJson(entry.value, growable: growable,);
+      }
+    }
+    return map;
+  }
+
+  /// The list of required keys that must be present in a JSON.
+  static const requiredKeys = <String>{
+    'fieldContextId',
+    'id',
+  };
+}
+

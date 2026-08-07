@@ -1,0 +1,155 @@
+//
+// AUTO-GENERATED FILE, DO NOT MODIFY!
+//
+// @dart=2.18
+
+// ignore_for_file: unused_element, unused_import
+// ignore_for_file: always_put_required_named_parameters_first
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: lines_longer_than_80_chars
+
+part of openapi.api;
+
+class PaginatedResponseComment {
+  /// Returns a new [PaginatedResponseComment] instance.
+  PaginatedResponseComment({
+    this.maxResults,
+    this.results = const [],
+    this.startAt,
+    this.total,
+  });
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? maxResults;
+
+  List<Comment> results;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? startAt;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? total;
+
+  @override
+  bool operator ==(Object other) => identical(this, other) || other is PaginatedResponseComment &&
+    other.maxResults == maxResults &&
+    _deepEquality.equals(other.results, results) &&
+    other.startAt == startAt &&
+    other.total == total;
+
+  @override
+  int get hashCode =>
+    // ignore: unnecessary_parenthesis
+    (maxResults == null ? 0 : maxResults!.hashCode) +
+    (results.hashCode) +
+    (startAt == null ? 0 : startAt!.hashCode) +
+    (total == null ? 0 : total!.hashCode);
+
+  @override
+  String toString() => 'PaginatedResponseComment[maxResults=$maxResults, results=$results, startAt=$startAt, total=$total]';
+
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{};
+    if (this.maxResults != null) {
+      json[r'maxResults'] = this.maxResults;
+    } else {
+      json[r'maxResults'] = null;
+    }
+      json[r'results'] = this.results;
+    if (this.startAt != null) {
+      json[r'startAt'] = this.startAt;
+    } else {
+      json[r'startAt'] = null;
+    }
+    if (this.total != null) {
+      json[r'total'] = this.total;
+    } else {
+      json[r'total'] = null;
+    }
+    return json;
+  }
+
+  /// Returns a new [PaginatedResponseComment] instance and imports its values from
+  /// [value] if it's a [Map], null otherwise.
+  // ignore: prefer_constructors_over_static_methods
+  static PaginatedResponseComment? fromJson(dynamic value) {
+    if (value is Map) {
+      final json = value.cast<String, dynamic>();
+
+      // Ensure that the map contains the required keys.
+      // Note 1: the values aren't checked for validity beyond being non-null.
+      // Note 2: this code is stripped in release mode!
+      assert(() {
+        return true;
+      }());
+
+      return PaginatedResponseComment(
+        maxResults: mapValueOfType<int>(json, r'maxResults'),
+        results: Comment.listFromJson(json[r'results']),
+        startAt: mapValueOfType<int>(json, r'startAt'),
+        total: mapValueOfType<int>(json, r'total'),
+      );
+    }
+    return null;
+  }
+
+  static List<PaginatedResponseComment> listFromJson(dynamic json, {bool growable = false,}) {
+    final result = <PaginatedResponseComment>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = PaginatedResponseComment.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+
+  static Map<String, PaginatedResponseComment> mapFromJson(dynamic json) {
+    final map = <String, PaginatedResponseComment>{};
+    if (json is Map && json.isNotEmpty) {
+      json = json.cast<String, dynamic>(); // ignore: parameter_assignments
+      for (final entry in json.entries) {
+        final value = PaginatedResponseComment.fromJson(entry.value);
+        if (value != null) {
+          map[entry.key] = value;
+        }
+      }
+    }
+    return map;
+  }
+
+  // maps a json object with a list of PaginatedResponseComment-objects as value to a dart map
+  static Map<String, List<PaginatedResponseComment>> mapListFromJson(dynamic json, {bool growable = false,}) {
+    final map = <String, List<PaginatedResponseComment>>{};
+    if (json is Map && json.isNotEmpty) {
+      // ignore: parameter_assignments
+      json = json.cast<String, dynamic>();
+      for (final entry in json.entries) {
+        map[entry.key] = PaginatedResponseComment.listFromJson(entry.value, growable: growable,);
+      }
+    }
+    return map;
+  }
+
+  /// The list of required keys that must be present in a JSON.
+  static const requiredKeys = <String>{
+  };
+}
+

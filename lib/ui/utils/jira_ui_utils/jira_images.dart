@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:html/parser.dart' as html_parser;
-import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/dao/jira/jira_auth.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:mime/mime.dart';
@@ -132,7 +132,7 @@ class _JiraAvatarState extends State<JiraAvatar> {
     final file = await jiraAvatarCacheManager.getSingleFile(
       url,
       headers: {
-        'Authorization': APIDao().authHeader,
+        'Authorization': JiraAuth().authHeader,
         'Accept': '*/*',
       },
     );
@@ -237,7 +237,7 @@ class _JiraImageState extends State<JiraImage> {
     final file = await jiraAvatarCacheManager.getSingleFile(
       url,
       headers: {
-        'Authorization': APIDao().authHeader,
+        'Authorization': JiraAuth().authHeader,
         'Accept': '*/*',
       },
     );

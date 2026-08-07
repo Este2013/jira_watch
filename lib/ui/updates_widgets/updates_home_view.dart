@@ -13,7 +13,8 @@ import 'package:jira_watcher/models/to_do_tasks_models.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
-import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/models/jira_work_item_data.dart';
+import 'package:jira_watcher/dao/jira/jira_auth.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
 import 'package:jira_watcher/ui/settings.dart';
@@ -627,7 +628,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
 
   Future<void> _openAllInBrowser() async {
     final items = _selectedItems;
-    final domain = APIDao().domain;
+    final domain = JiraAuth().domain;
     if (domain == null) return;
     if (items.length > 10) {
       final confirmed = await showDialog<bool>(
@@ -1260,7 +1261,7 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
 
   void viewInBrowser(BuildContext context) {
     String? getWorkItemUrl(dynamic workItemKey) {
-      final domain = APIDao().domain;
+      final domain = JiraAuth().domain;
       if (domain != null && workItemKey != null) {
         return 'https://$domain/browse/$workItemKey';
       }
@@ -1275,7 +1276,7 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
         context: context,
         builder: (context) => AlertDialog(
           title: Text('Something went wrong'),
-          content: Text('The given workItemURL is null?\nFor workItem key: ${widget.workItem.key}, domain ${APIDao().domain}'),
+          content: Text('The given workItemURL is null?\nFor workItem key: ${widget.workItem.key}, domain ${JiraAuth().domain}'),
         ),
       );
     }

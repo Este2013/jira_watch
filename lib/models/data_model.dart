@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:csv/csv.dart';
-import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/dao/jira/jira_api.dart';
+import 'package:jira_watcher/models/jira_work_item_data.dart';
 import 'package:jira_watcher/models/gitlab_api_model.dart';
 import 'package:jira_watcher/models/gitlab_quick_downloads_model.dart';
 import 'package:jira_watcher/models/gitlab_tabs_model.dart';
@@ -11,7 +12,6 @@ import 'package:loggy/loggy.dart';
 import 'package:path/path.dart' as path;
 import 'dart:io';
 
-import 'jira_api_model.dart';
 
 /// Accessor to cached data.
 ///
@@ -22,14 +22,14 @@ class DataModel with GlobalLoggy {
   factory DataModel() => _instance;
 
   DataModel._internal() {
-    jiraApi = APIModel();
+    jiraApi = JiraApi();
     todoTasks = ToDoTasksModel();
     gitlab = GitLabApiModel();
     gitlabTabs = GitLabTabsModel();
     gitlabQuickDownloads = GitLabQuickDownloadsModel();
   }
 
-  late final APIModel jiraApi;
+  late final JiraApi jiraApi;
   late final ToDoTasksModel todoTasks;
   late final GitLabApiModel gitlab;
   late final GitLabTabsModel gitlabTabs;
@@ -58,8 +58,7 @@ class DataModel with GlobalLoggy {
       return _projectsDataCache!;
     }
 
-    final data = await jiraApi.fetchProjects();
-    final result = (data as List);
+    final result = await jiraApi.allProjects();
     _projectsDataCache = result;
     return result;
   }
@@ -72,14 +71,14 @@ class DataModel with GlobalLoggy {
 
   Future fetchSingleProject(String code, {List<String>? expand}) {
     // TODO missing cache check
-    return jiraApi.fetchSingleProject(code, expand: expand);
+    return jiraApi.project(code, expand: expand);
   }
 
   // WORK ITEMS /////////////////////////////////////////////////////////////////////
 
   Future<(Iterable<JiraWorkItemData>, bool, String?)> fetchLastUpdatedWorkItems({int maxResults = 0, String? nextPageToken, DateTime? before, DateTime? after, List<String>? filterByProjectCodes}) {
     // TODO missing cache check
-    return jiraApi.fetchLastUpdatedWorkItems(
+    return jiraApi.lastUpdatedWorkItems(
       maxResults: maxResults,
       before: before,
       after: after,

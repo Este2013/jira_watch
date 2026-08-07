@@ -1,0 +1,158 @@
+//
+// AUTO-GENERATED FILE, DO NOT MODIFY!
+//
+// @dart=2.18
+
+// ignore_for_file: unused_element, unused_import
+// ignore_for_file: always_put_required_named_parameters_first
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: lines_longer_than_80_chars
+
+part of openapi.api;
+
+class ScreenPayload {
+  /// Returns a new [ScreenPayload] instance.
+  ScreenPayload({
+    this.description,
+    this.name,
+    this.pcri,
+    this.tabs = const [],
+  });
+
+  /// The description of the screen
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? description;
+
+  /// The name of the screen
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? name;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  ProjectCreateResourceIdentifier? pcri;
+
+  /// The tabs of the screen. See https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-screen-tab-fields/\\#api-rest-api-3-screens-screenid-tabs-tabid-fields-post
+  List<TabPayload> tabs;
+
+  @override
+  bool operator ==(Object other) => identical(this, other) || other is ScreenPayload &&
+    other.description == description &&
+    other.name == name &&
+    other.pcri == pcri &&
+    _deepEquality.equals(other.tabs, tabs);
+
+  @override
+  int get hashCode =>
+    // ignore: unnecessary_parenthesis
+    (description == null ? 0 : description!.hashCode) +
+    (name == null ? 0 : name!.hashCode) +
+    (pcri == null ? 0 : pcri!.hashCode) +
+    (tabs.hashCode);
+
+  @override
+  String toString() => 'ScreenPayload[description=$description, name=$name, pcri=$pcri, tabs=$tabs]';
+
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{};
+    if (this.description != null) {
+      json[r'description'] = this.description;
+    } else {
+      json[r'description'] = null;
+    }
+    if (this.name != null) {
+      json[r'name'] = this.name;
+    } else {
+      json[r'name'] = null;
+    }
+    if (this.pcri != null) {
+      json[r'pcri'] = this.pcri;
+    } else {
+      json[r'pcri'] = null;
+    }
+      json[r'tabs'] = this.tabs;
+    return json;
+  }
+
+  /// Returns a new [ScreenPayload] instance and imports its values from
+  /// [value] if it's a [Map], null otherwise.
+  // ignore: prefer_constructors_over_static_methods
+  static ScreenPayload? fromJson(dynamic value) {
+    if (value is Map) {
+      final json = value.cast<String, dynamic>();
+
+      // Ensure that the map contains the required keys.
+      // Note 1: the values aren't checked for validity beyond being non-null.
+      // Note 2: this code is stripped in release mode!
+      assert(() {
+        return true;
+      }());
+
+      return ScreenPayload(
+        description: mapValueOfType<String>(json, r'description'),
+        name: mapValueOfType<String>(json, r'name'),
+        pcri: ProjectCreateResourceIdentifier.fromJson(json[r'pcri']),
+        tabs: TabPayload.listFromJson(json[r'tabs']),
+      );
+    }
+    return null;
+  }
+
+  static List<ScreenPayload> listFromJson(dynamic json, {bool growable = false,}) {
+    final result = <ScreenPayload>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = ScreenPayload.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+
+  static Map<String, ScreenPayload> mapFromJson(dynamic json) {
+    final map = <String, ScreenPayload>{};
+    if (json is Map && json.isNotEmpty) {
+      json = json.cast<String, dynamic>(); // ignore: parameter_assignments
+      for (final entry in json.entries) {
+        final value = ScreenPayload.fromJson(entry.value);
+        if (value != null) {
+          map[entry.key] = value;
+        }
+      }
+    }
+    return map;
+  }
+
+  // maps a json object with a list of ScreenPayload-objects as value to a dart map
+  static Map<String, List<ScreenPayload>> mapListFromJson(dynamic json, {bool growable = false,}) {
+    final map = <String, List<ScreenPayload>>{};
+    if (json is Map && json.isNotEmpty) {
+      // ignore: parameter_assignments
+      json = json.cast<String, dynamic>();
+      for (final entry in json.entries) {
+        map[entry.key] = ScreenPayload.listFromJson(entry.value, growable: growable,);
+      }
+    }
+    return map;
+  }
+
+  /// The list of required keys that must be present in a JSON.
+  static const requiredKeys = <String>{
+  };
+}
+

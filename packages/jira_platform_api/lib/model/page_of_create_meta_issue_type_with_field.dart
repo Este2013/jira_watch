@@ -1,0 +1,166 @@
+//
+// AUTO-GENERATED FILE, DO NOT MODIFY!
+//
+// @dart=2.18
+
+// ignore_for_file: unused_element, unused_import
+// ignore_for_file: always_put_required_named_parameters_first
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: lines_longer_than_80_chars
+
+part of openapi.api;
+
+class PageOfCreateMetaIssueTypeWithField {
+  /// Returns a new [PageOfCreateMetaIssueTypeWithField] instance.
+  PageOfCreateMetaIssueTypeWithField({
+    this.fields = const [],
+    this.maxResults,
+    this.results = const [],
+    this.startAt,
+    this.total,
+  });
+
+  /// The collection of FieldCreateMetaBeans.
+  List<FieldCreateMetadata> fields;
+
+  /// The maximum number of items to return per page.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? maxResults;
+
+  List<FieldCreateMetadata> results;
+
+  /// The index of the first item returned.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? startAt;
+
+  /// The total number of items in all pages.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? total;
+
+  @override
+  bool operator ==(Object other) => identical(this, other) || other is PageOfCreateMetaIssueTypeWithField &&
+    _deepEquality.equals(other.fields, fields) &&
+    other.maxResults == maxResults &&
+    _deepEquality.equals(other.results, results) &&
+    other.startAt == startAt &&
+    other.total == total;
+
+  @override
+  int get hashCode =>
+    // ignore: unnecessary_parenthesis
+    (fields.hashCode) +
+    (maxResults == null ? 0 : maxResults!.hashCode) +
+    (results.hashCode) +
+    (startAt == null ? 0 : startAt!.hashCode) +
+    (total == null ? 0 : total!.hashCode);
+
+  @override
+  String toString() => 'PageOfCreateMetaIssueTypeWithField[fields=$fields, maxResults=$maxResults, results=$results, startAt=$startAt, total=$total]';
+
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{};
+      json[r'fields'] = this.fields;
+    if (this.maxResults != null) {
+      json[r'maxResults'] = this.maxResults;
+    } else {
+      json[r'maxResults'] = null;
+    }
+      json[r'results'] = this.results;
+    if (this.startAt != null) {
+      json[r'startAt'] = this.startAt;
+    } else {
+      json[r'startAt'] = null;
+    }
+    if (this.total != null) {
+      json[r'total'] = this.total;
+    } else {
+      json[r'total'] = null;
+    }
+    return json;
+  }
+
+  /// Returns a new [PageOfCreateMetaIssueTypeWithField] instance and imports its values from
+  /// [value] if it's a [Map], null otherwise.
+  // ignore: prefer_constructors_over_static_methods
+  static PageOfCreateMetaIssueTypeWithField? fromJson(dynamic value) {
+    if (value is Map) {
+      final json = value.cast<String, dynamic>();
+
+      // Ensure that the map contains the required keys.
+      // Note 1: the values aren't checked for validity beyond being non-null.
+      // Note 2: this code is stripped in release mode!
+      assert(() {
+        return true;
+      }());
+
+      return PageOfCreateMetaIssueTypeWithField(
+        fields: FieldCreateMetadata.listFromJson(json[r'fields']),
+        maxResults: mapValueOfType<int>(json, r'maxResults'),
+        results: FieldCreateMetadata.listFromJson(json[r'results']),
+        startAt: mapValueOfType<int>(json, r'startAt'),
+        total: mapValueOfType<int>(json, r'total'),
+      );
+    }
+    return null;
+  }
+
+  static List<PageOfCreateMetaIssueTypeWithField> listFromJson(dynamic json, {bool growable = false,}) {
+    final result = <PageOfCreateMetaIssueTypeWithField>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = PageOfCreateMetaIssueTypeWithField.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+
+  static Map<String, PageOfCreateMetaIssueTypeWithField> mapFromJson(dynamic json) {
+    final map = <String, PageOfCreateMetaIssueTypeWithField>{};
+    if (json is Map && json.isNotEmpty) {
+      json = json.cast<String, dynamic>(); // ignore: parameter_assignments
+      for (final entry in json.entries) {
+        final value = PageOfCreateMetaIssueTypeWithField.fromJson(entry.value);
+        if (value != null) {
+          map[entry.key] = value;
+        }
+      }
+    }
+    return map;
+  }
+
+  // maps a json object with a list of PageOfCreateMetaIssueTypeWithField-objects as value to a dart map
+  static Map<String, List<PageOfCreateMetaIssueTypeWithField>> mapListFromJson(dynamic json, {bool growable = false,}) {
+    final map = <String, List<PageOfCreateMetaIssueTypeWithField>>{};
+    if (json is Map && json.isNotEmpty) {
+      // ignore: parameter_assignments
+      json = json.cast<String, dynamic>();
+      for (final entry in json.entries) {
+        map[entry.key] = PageOfCreateMetaIssueTypeWithField.listFromJson(entry.value, growable: growable,);
+      }
+    }
+    return map;
+  }
+
+  /// The list of required keys that must be present in a JSON.
+  static const requiredKeys = <String>{
+  };
+}
+

@@ -1,0 +1,24 @@
+# Hand-written, unlike lib/. Listed in .openapi-generator-ignore so regeneration
+# leaves it alone: the generated one sets homepage to the literal string
+# "homepage" and pins test to a 2022-era range that will not run on a current SDK.
+name: jira_software_api
+version: 1.0.0
+description: A Dart client for the Jira Software (Agile) Cloud REST API, generated from Atlassian's OpenAPI specification.
+publish_to: none
+
+environment:
+  # Deliberately wider than the app's constraint. Nothing here needs a recent
+  # language feature, and a narrow bound on a path dependency only creates
+  # resolution conflicts for whatever consumes it.
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  collection: ">=1.17.0 <2.0.0"
+  http: ">=0.13.0 <2.0.0"
+  intl: any
+  meta: ">=1.1.8 <2.0.0"
+
+dev_dependencies:
+  # Only used by test/smoke_test.dart. MockClient comes from http/testing.dart,
+  # so stubbing the network needs no extra dependency.
+  test: ^1.25.0

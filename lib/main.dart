@@ -15,7 +15,8 @@ import 'package:jira_watcher/utils/%F0%9F%AA%B5.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/dao/jira/jira_api.dart';
+import 'package:jira_watcher/dao/jira/jira_auth.dart';
 import 'package:loggy/loggy.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -116,15 +117,17 @@ class _SplashScreenState extends State<SplashScreen> with UiLoggy {
       // ignore: use_build_context_synchronously
       Navigator.pushReplacementNamed(context, '/settingsError');
     }
-    await APIDao().load();
-    if (!APIDao().isReady) {
-      loggy.warning('API DAO not ready, navigating to /apikey');
+    await JiraAuth().load();
+    if (!JiraAuth().isReady) {
+      loggy.warning('No Jira credentials stored, navigating to /apikey');
       // ignore: use_build_context_synchronously
       Navigator.pushReplacementNamed(context, '/apikey');
     } else {
-      // test credentials validity
+      // The raw response, not the typed call: this needs the status code, since a
+      // 401 means the stored token expired and only that should send the user back
+      // to the sign-in screen.
       loggy.debug('Testing credentials via /rest/api/3/myself');
-      var response = await APIDao().requestAtEndpoint('/rest/api/3/myself');
+      var response = await JiraApi().myselfRaw();
       loggy.debug('Response status: ${response.statusCode}');
       if (response.statusCode == 401) {
         loggy.error('Invalid credentials (401), navigating to /apikey');
@@ -175,7 +178,7 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> with UiLoggy {
       domain += '.atlassian.net';
     }
     bool success = true;
-    await APIDao().updateCredentials(email: email, apiKey: apiKey, domain: domain).onError(
+    await JiraAuth().update(email: email, apiToken: apiKey, domain: domain).onError(
       // ignore: use_build_context_synchronously
       (error, stackTrace) {
         success = false;
@@ -231,8 +234,10 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> with UiLoggy {
 
   bool anyControllerIsEmpty() => SettingsModel().domainController.text.isEmpty || SettingsModel().emailController.text.isEmpty || SettingsModel().apiKeyController.text.isEmpty;
 
-  Future<Response> _testJiraAuth() => APIDao().testJiraAuth(
-    domainOrHost: '${SettingsModel().domainController.text}.atlassian.net',
+  /// Checks what has been typed, before any of it is saved, so the site is
+  /// normalised here rather than assumed to already end in .atlassian.net.
+  Future<Response> _testJiraAuth() => JiraAuth.test(
+    domainOrHost: SettingsModel().domainController.text,
     email: SettingsModel().emailController.text,
     apiToken: SettingsModel().apiKeyController.text,
   );

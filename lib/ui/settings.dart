@@ -6,6 +6,7 @@ import 'package:fading_edge_scrollview/fading_edge_scrollview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:jira_watcher/dao/gitlab_dao.dart';
+import 'package:jira_watcher/dao/jira/jira_diagnostic.dart';
 import 'package:jira_watcher/dao/updates_dao.dart';
 import 'package:jira_watcher/models/app_update_model.dart';
 import 'package:jira_watcher/models/data_model.dart';
@@ -489,28 +490,30 @@ class _ConnectionSettingsPageState extends State<ConnectionSettingsPage> with Ui
                   ),
                 );
               }
-              if (snapshot.hasData) {
-                if (snapshot.data!.statusCode == 200) {
-                  var userData = jsonDecode(snapshot.data!.body);
-                  return Card(
-                    child: ListTile(
-                      leading: JiraAvatar(url: userData['avatarUrls']['48x48']),
-                      title: Text(userData['displayName']),
-                      subtitle: SelectableText('Account id: ${userData['accountId']}'),
-                      trailing: IconButton(
-                        onPressed: () => Clipboard.setData(ClipboardData(text: userData['accountId'])),
-                        tooltip: 'Copy account ID',
-                        icon: Icon(Symbols.content_copy),
-                      ),
+              final userData = snapshot.data;
+              if (userData != null) {
+                return Card(
+                  child: ListTile(
+                    leading: JiraAvatar(url: userData['avatarUrls']['48x48']),
+                    title: Text(userData['displayName']),
+                    subtitle: SelectableText('Account id: ${userData['accountId']}'),
+                    trailing: IconButton(
+                      onPressed: () => Clipboard.setData(ClipboardData(text: userData['accountId'])),
+                      tooltip: 'Copy account ID',
+                      icon: Icon(Symbols.content_copy),
                     ),
-                  );
-                }
-                loggy.warning("User's account data could not be fetched 😕\nError: ${snapshot.error}\nStacktrace: ${snapshot.stackTrace}");
+                  ),
+                );
+              }
+              // A null result means Jira refused the call; [JiraApi.myself] has
+              // already logged the status code, which is not surfaced here.
+              if (snapshot.connectionState == ConnectionState.done) {
+                loggy.warning("User's account data could not be fetched 😕");
                 return Card(
                   child: ListTile(
                     leading: Icon(Symbols.error, fill: 1, color: Theme.of(context).colorScheme.error),
                     title: Text('Your account data could not be fetched 😕'),
-                    subtitle: Text('Error ${snapshot.data!.statusCode}: ${snapshot.data!.reasonPhrase}'),
+                    subtitle: Text('Jira refused the request. Check the credentials in the API key settings.'),
                   ),
                 );
               }
@@ -871,6 +874,26 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                             builder: (context) => DiagnosticsDialog(
                               testName: 'Writing to settings folder',
                               stdout: testFetchingNewUpdateData(context),
+                            ),
+                          );
+                        },
+                        label: Text('Run test'),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    spacing: 8,
+                    children: [
+                      Text('Test the Jira API client'),
+                      Spacer(),
+                      TextButton.icon(
+                        icon: Icon(Symbols.api),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => DiagnosticsDialog(
+                              testName: 'Jira API client',
+                              stdout: diagnoseJiraApi(),
                             ),
                           );
                         },

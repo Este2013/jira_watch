@@ -49,6 +49,14 @@ dependencies:
   archive: ^4.0.9
   crypto: ^3.0.7
 
+  # Generated from Atlassian's OpenAPI specs; see packages/*/README.md and
+  # tool/generate_jira_api.ps1. Path dependencies rather than a separate
+  # repository so a change to a client and its caller stays one commit.
+  jira_platform_api:
+    path: packages/jira_platform_api
+  jira_software_api:
+    path: packages/jira_software_api
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

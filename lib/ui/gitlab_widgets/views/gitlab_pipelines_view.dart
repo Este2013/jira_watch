@@ -214,11 +214,18 @@ class _PipelineRowState extends State<_PipelineRow> with UiLoggy {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        name ?? ref,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      // The commit summary, rather than the ref, which the line
+                      // below already shows. Fetched per row because the
+                      // pipelines response carries only a sha, so the ref stands
+                      // in until it arrives and stays if the commit is gone.
+                      FutureBuilder<String?>(
+                        future: DataModel().gitlab.commitTitle(_projectId, widget.pipeline['sha'] as String? ?? ''),
+                        builder: (context, snapshot) => Text(
+                          snapshot.data ?? name ?? ref,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                        ),
                       ),
                       Row(
                         spacing: 6,

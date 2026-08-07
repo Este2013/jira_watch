@@ -8,7 +8,9 @@ import 'package:intl/intl.dart';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:jira_watcher/dao/api_dao.dart';
+import 'package:jira_watcher/models/jira_work_item_data.dart';
+import 'package:jira_watcher/dao/jira/jira_auth.dart';
+import 'package:jira_watcher/dao/jira/jira_api.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
@@ -119,7 +121,7 @@ class PersonField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Future<bool> isMe = DataModel().jiraApi.myself().then(
-      (value) => jsonDecode(value.body)['accountId'] == workItem.fields?[field]?['accountId'],
+      (me) => me != null && me['accountId'] == workItem.fields?[field]?['accountId'],
     );
 
     var hasPerson = workItem.fields?[field] != null;
@@ -329,7 +331,7 @@ class _WatchedByFieldState extends State<WatchedByField> with UiLoggy {
         Future<http.Response>? resp;
         if (cache == null) {
           String url = widget.workItem.fields?[field]['self'];
-          resp = APIDao().directRequest(Uri.parse(url));
+          resp = JiraApi().authenticatedGet(Uri.parse(url));
           SchedulerBinding.instance.addPostFrameCallback(
             (timeStamp) => setState(() {
               cache = resp;
@@ -590,7 +592,7 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
       isMediaType = true;
       content = Image.network(
         contentURL,
-        headers: {'Authorization': APIDao().authHeader},
+        headers: {'Authorization': JiraAuth().authHeader},
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child; // <- key line
           final total = progress.expectedTotalBytes;
@@ -759,7 +761,7 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
 
   Future<String> fetchText(String url, {Duration timeout = const Duration(seconds: 15)}) async {
     final uri = Uri.parse(url);
-    final res = await http.get(uri, headers: {'Authorization': APIDao().authHeader}).timeout(timeout);
+    final res = await http.get(uri, headers: {'Authorization': JiraAuth().authHeader}).timeout(timeout);
 
     if (res.statusCode != 200) {
       throw Exception('Failed to load: ${res.statusCode}');

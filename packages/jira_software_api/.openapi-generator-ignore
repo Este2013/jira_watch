@@ -1,0 +1,18 @@
+# Read by the generator before it writes anything, so these are never emitted.
+#
+# The docs are 220 markdown files restating what the spec already says,
+# and the generated tests are 220 stubs with every assertion commented out —
+# 1.1 MB of files that run nothing. Neither is worth committing, and this repo's
+# history is already large.
+doc/**
+test/**
+
+# Ours, not the generator's: it writes a placeholder README, a git_push.sh helper
+# nobody runs, and an empty analysis_options.yaml that would replace the one we
+# keep here.
+README.md
+git_push.sh
+analysis_options.yaml
+pubspec.yaml
+.gitignore
+.travis.yml
