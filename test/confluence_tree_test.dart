@@ -68,7 +68,8 @@ void main() {
         page('root'),
         page('a', parentId: 'root'),
         page('b', parentId: 'a'),
-      ]..add(page('a2', parentId: 'b')));
+        page('a2', parentId: 'b'),
+      ]);
 
       expect(shape(roots), 'root(a(b(a2)))');
     });

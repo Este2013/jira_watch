@@ -207,10 +207,34 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     switch (type) {
       case 'blockCard':
         return _buildBlockCard(context, node);
+      case 'blockquote':
+        return _buildBlockquote(context, node, indentLevel);
       case 'bulletList':
         return _buildBulletList(context, node, indentLevel);
       case 'codeBlock':
         return _buildCodeBlock(context, node);
+      // Confluence-only from here. None of these appear in Jira ADF, so adding
+      // them changes nothing for work items — but a wiki page made of macros,
+      // layouts and expandable sections is mostly invisible without them.
+      case 'date':
+        return _buildDate(context, node);
+      case 'expand':
+      case 'nestedExpand':
+        return _buildExpand(context, node, indentLevel);
+      case 'extension':
+      case 'bodiedExtension':
+      case 'inlineExtension':
+        return _buildExtension(context, node, indentLevel);
+      case 'layoutSection':
+        return _buildLayoutSection(context, node, indentLevel);
+      case 'layoutColumn':
+        return _buildLayoutColumn(context, node, indentLevel);
+      case 'orderedList':
+        return _buildOrderedList(context, node, indentLevel);
+      case 'rule':
+        return const Divider(height: 24);
+      case 'status':
+        return _buildStatus(context, node);
       case 'emoji':
         return _buildEmoji(context, node);
       case 'heading':
@@ -410,6 +434,183 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         ),
       );
     }
+  }
+
+  /// A numbered list.
+  ///
+  /// Built here rather than left to the default case, which would recurse into
+  /// the items and give every one a bullet — turning an ordered list into an
+  /// unordered one without any sign that it happened.
+  Widget _buildOrderedList(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    final start = (node['attrs']?['order'] as num?)?.toInt() ?? 1;
+    final items = _asList(node['content']);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < items.length; i++) _buildListItem(context, items[i], indentLevel, marker: '${start + i}.'),
+      ],
+    );
+  }
+
+  Widget _buildBlockquote(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    final children = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
+    final colours = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.only(left: 12),
+      decoration: BoxDecoration(
+        border: Border(left: BorderSide(color: colours.outlineVariant, width: 3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: _withParagraphSpacing(children, paragraphSpacing),
+      ),
+    );
+  }
+
+  /// Confluence's collapsible section.
+  ///
+  /// Starts closed, as it does on the website: an author collapses something
+  /// precisely because it is detail most readers can skip.
+  Widget _buildExpand(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    final children = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: ExpansionTile(
+        dense: true,
+        shape: const Border(),
+        title: Text(
+          (node['attrs']?['title'] as String?)?.trim().isNotEmpty == true ? node['attrs']['title'] as String : 'Details',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        expandedCrossAxisAlignment: CrossAxisAlignment.start,
+        children: _withParagraphSpacing(children, paragraphSpacing),
+      ),
+    );
+  }
+
+  /// A Confluence macro.
+  ///
+  /// Macros run on Confluence's server, so a client cannot execute one. Two
+  /// cases are still worth more than nothing:
+  ///
+  /// - A macro migrated from the legacy editor carries its original body under
+  ///   `parameters.nestedContent` as a whole ADF document. That is real content
+  ///   and is rendered.
+  /// - A bodied macro has children of its own, which are rendered under a label.
+  ///
+  /// Anything else becomes a labelled chip, so a reader can see that something
+  /// is there and open the page on the website. Rendering nothing — which is
+  /// what the default case did — loses the content silently.
+  Widget _buildExtension(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    final attrs = node['attrs'] as Map<String, dynamic>? ?? const {};
+    final parameters = attrs['parameters'] as Map<String, dynamic>? ?? const {};
+    final name = (parameters['macroMetadata']?['title'] as String?) ?? (attrs['extensionKey'] as String?) ?? 'Macro';
+
+    final nested = parameters['nestedContent'];
+    if (nested is Map<String, dynamic>) {
+      final children = _asList(nested['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
+      if (children.isNotEmpty) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: _withParagraphSpacing(children, paragraphSpacing),
+        );
+      }
+    }
+
+    final children = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
+    final label = Tooltip(
+      message: 'This is a Confluence macro. It runs on the server, so it cannot be rendered here — open the page on the website to see it.',
+      child: Chip(
+        avatar: const Icon(Symbols.extension, size: 14),
+        label: Text(name, style: const TextStyle(fontSize: 11)),
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+      ),
+    );
+
+    if (children.isEmpty) return label;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [label, ..._withParagraphSpacing(children, paragraphSpacing)],
+    );
+  }
+
+  /// Confluence's multi-column page layout.
+  ///
+  /// Laid out as a row when there is room and stacked when there is not, since
+  /// three columns of prose in a narrow pane are unreadable.
+  Widget _buildLayoutSection(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    final columns = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
+    if (columns.isEmpty) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (context, constraints) => constraints.maxWidth < 600
+          ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: _withParagraphSpacing(columns, paragraphSpacing))
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 16,
+              children: [for (final column in columns) Expanded(child: column)],
+            ),
+    );
+  }
+
+  Widget _buildLayoutColumn(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    final children = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: _withParagraphSpacing(children, paragraphSpacing),
+    );
+  }
+
+  /// The coloured lozenge Confluence uses for states like DRAFT or DONE.
+  Widget _buildStatus(BuildContext context, Map<String, dynamic> node) {
+    final attrs = node['attrs'] as Map<String, dynamic>? ?? const {};
+    final colours = Theme.of(context).colorScheme;
+    // ADF names a colour rather than giving one, and the palette is fixed.
+    final background = switch (attrs['color']) {
+      'green' => Colors.green,
+      'red' => Colors.red,
+      'yellow' => Colors.amber,
+      'blue' => Colors.blue,
+      'purple' => Colors.purple,
+      _ => colours.outline,
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: background.withAlpha(60),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: background.withAlpha(120)),
+      ),
+      child: Text(
+        '${attrs['text'] ?? ''}'.toUpperCase(),
+        style: Theme.of(context).textTheme.labelSmall!.copyWith(fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+
+  /// An inline date. ADF carries it as epoch milliseconds in a string.
+  Widget _buildDate(BuildContext context, Map<String, dynamic> node) {
+    final raw = int.tryParse('${node['attrs']?['timestamp'] ?? ''}');
+    if (raw == null) return const SizedBox.shrink();
+    final date = DateTime.fromMillisecondsSinceEpoch(raw);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}',
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+    );
   }
 
   Widget _buildBulletList(BuildContext context, Map<String, dynamic> node, int indentLevel) {
@@ -629,10 +830,15 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
               recognizer = TapGestureRecognizer()
                 ..onTap = () {
                   if (href.isEmpty) return;
+                  // Either the caller's handler or the browser, not both. Both
+                  // meant a custom handler could add behaviour but never replace
+                  // it, so a reader that opens wiki links in its own tab would
+                  // still launch a browser window alongside.
                   if (linkHandler != null) {
                     linkHandler!(href);
+                  } else {
+                    defaultLinkHandler(href);
                   }
-                  defaultLinkHandler(href);
                 };
               break;
           }
@@ -654,7 +860,9 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     return spans;
   }
 
-  Widget _buildListItem(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+  /// [marker] replaces the bullet, for an ordered list's numbering. Null keeps
+  /// the bullet, which is what a bulletList and a bare listItem want.
+  Widget _buildListItem(BuildContext context, Map<String, dynamic> node, int indentLevel, {String? marker}) {
     // A listItem can contain one or more paragraphs and nested lists.
     final children = _asList(node['content']);
 
@@ -677,7 +885,10 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       text: TextSpan(
         children: [
           WidgetSpan(child: SizedBox(width: indentLevel * listIndent)),
-          BulletListBulletSpan(indent: 1),
+          if (marker == null)
+            BulletListBulletSpan(indent: 1)
+          else
+            TextSpan(text: marker, style: Theme.of(context).textTheme.bodyMedium),
           WidgetSpan(child: SizedBox(width: bulletGap)),
           WidgetSpan(child: bulletLine),
         ],
