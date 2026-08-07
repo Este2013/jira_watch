@@ -2,6 +2,7 @@ import 'package:confluence_api/api.dart' as confluence;
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/dao/confluence/confluence_api.dart';
 import 'package:jira_watcher/models/confluence_tabs_model.dart';
+import 'package:jira_watcher/ui/confluence_widgets/confluence_images.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 /// Picks a space to open as a tab.
@@ -49,6 +50,7 @@ class _ConfluenceSpacePickerDialogState extends State<ConfluenceSpacePickerDialo
       spaceId: space.id ?? '',
       spaceKey: space.key ?? '',
       spaceName: space.name ?? space.key ?? 'Space',
+      iconPath: space.icon?.path,
     ),
   );
 
@@ -100,7 +102,7 @@ class _ConfluenceSpacePickerDialogState extends State<ConfluenceSpacePickerDialo
                   itemBuilder: (context, i) {
                     final space = spaces[i];
                     return ListTile(
-                      leading: const Icon(Symbols.book_2),
+                      leading: ConfluenceSpaceIcon(path: space.icon?.path, size: 24, fallbackLabel: space.name ?? space.key),
                       title: Text('${space.name}'),
                       subtitle: Text('${space.key}'),
                       trailing: space.status == confluence.SpaceStatus.archived

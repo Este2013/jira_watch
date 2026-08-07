@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jira_watcher/dao/confluence/confluence_api.dart';
 
-ConfluenceListedPage page(String id, {String? title, String? parentId, int? position}) =>
-    (id: id, title: title ?? 'Page $id', parentId: parentId, position: position);
+ConfluenceListedPage page(String id, {String? title, String? parentId, int? position, bool openable = true}) =>
+    (id: id, title: title ?? 'Page $id', parentId: parentId, position: position, openable: openable);
 
 /// `id(children)` — compact enough to compare a whole tree in one expectation.
 String shape(List<ConfluencePageNode> nodes) =>
@@ -75,13 +75,38 @@ void main() {
     });
 
     test('falls back to a placeholder for an untitled page', () {
-      final roots = assembleConfluenceTree([(id: '1', title: null, parentId: null, position: null)]);
+      final roots = assembleConfluenceTree([(id: '1', title: null, parentId: null, position: null, openable: true)]);
 
       expect(roots.single.title, '(untitled)');
     });
 
     test('returns nothing for an empty space', () {
       expect(assembleConfluenceTree([]), isEmpty);
+    });
+
+    test('nests pages under a folder once the folder has been resolved', () {
+      // The bug this guards: a page's parent can be a folder, and a folder is
+      // not a page, so it never appears in a listing of the space's pages.
+      // Without the folder present, both children looked parentless and sat at
+      // the top of the tree beside the space's real roots.
+      final roots = assembleConfluenceTree([
+        page('home'),
+        page('folder', title: 'Guides', parentId: 'home', openable: false),
+        page('deep1', parentId: 'folder'),
+        page('deep2', parentId: 'folder'),
+      ]);
+
+      expect(shape(roots), 'home(folder(deep1,deep2))');
+    });
+
+    test('carries openable through, so a folder is not clicked like an article', () {
+      final roots = assembleConfluenceTree([
+        page('folder', parentId: null, openable: false),
+        page('child', parentId: 'folder'),
+      ]);
+
+      expect(roots.single.openable, isFalse);
+      expect(roots.single.children.single.openable, isTrue);
     });
   });
 }

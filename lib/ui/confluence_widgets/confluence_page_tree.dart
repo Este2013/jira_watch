@@ -48,7 +48,7 @@ class ConfluencePageTreeState extends State<ConfluencePageTree> {
     for (final node in nodes) {
       final children = _filtered(node.children, query);
       if (children.isNotEmpty || node.title.toLowerCase().contains(query)) {
-        result.add(ConfluencePageNode(id: node.id, title: node.title, children: children));
+        result.add(ConfluencePageNode(id: node.id, title: node.title, openable: node.openable, children: children));
       }
     }
     return result;
@@ -176,7 +176,9 @@ class _TreeNodeState extends State<_TreeNode> {
         Material(
           color: isOpen ? scheme.secondaryContainer : Colors.transparent,
           child: InkWell(
-            onTap: () => widget.onOpen(widget.node),
+            // A folder has no article behind it, so the only thing its row can
+            // do is open and close.
+            onTap: () => widget.node.openable ? widget.onOpen(widget.node) : _toggle(),
             child: Padding(
               padding: EdgeInsets.only(left: 4 + widget.depth * 14, right: 4, top: 2, bottom: 2),
               child: Row(
@@ -200,6 +202,10 @@ class _TreeNodeState extends State<_TreeNode> {
                           )
                         : null,
                   ),
+                  if (!widget.node.openable) ...[
+                    Icon(Symbols.folder, size: 15, color: Theme.of(context).hintColor),
+                    const SizedBox(width: 6),
+                  ],
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),

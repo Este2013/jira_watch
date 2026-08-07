@@ -5,6 +5,7 @@ import 'package:jira_watcher/models/confluence_tabs_model.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/ui/confluence_widgets/confluence_adf.dart';
 import 'package:jira_watcher/ui/confluence_widgets/confluence_article_view.dart';
+import 'package:jira_watcher/ui/confluence_widgets/confluence_images.dart';
 import 'package:jira_watcher/ui/confluence_widgets/confluence_page_tree.dart';
 import 'package:jira_watcher/ui/confluence_widgets/confluence_tab_strip.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -115,6 +116,24 @@ class _ConfluenceSpaceViewState extends State<ConfluenceSpaceView> {
   /// cheap to set again and a per-tab saved width would fight the window size.
   double _treeFraction = 0.28;
 
+  @override
+  void initState() {
+    super.initState();
+    _describeSpace();
+  }
+
+  /// A tab opened from a search result carries a page but often no space name
+  /// or icon, and a tab restored from an older file has no icon either. One
+  /// lookup fills both in, and it is skipped when there is nothing to learn.
+  Future<void> _describeSpace() async {
+    if (widget.tab.spaceId.isEmpty) return;
+    if (widget.tab.iconPath != null && widget.tab.spaceName.isNotEmpty && widget.tab.spaceKey.isNotEmpty) return;
+
+    final space = await ConfluenceApi().space(widget.tab.spaceId);
+    if (!mounted || space == null) return;
+    setState(() => _model.describeSpace(widget.tab, name: space.name, key: space.key, iconPath: space.icon?.path));
+  }
+
   void _open(String pageId, {String? title}) => setState(() => _model.setPage(widget.tab, pageId, title: title));
 
   /// A link inside an article. Ctrl opens a new tab, Alt a preview dialog, and
@@ -158,7 +177,9 @@ class _ConfluenceSpaceViewState extends State<ConfluenceSpaceView> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 10, 4, 0),
                     child: Row(
+                      spacing: 8,
                       children: [
+                        ConfluenceSpaceIcon(path: widget.tab.iconPath, size: 20, fallbackLabel: widget.tab.spaceName),
                         Expanded(
                           child: Text(
                             widget.tab.spaceName,

@@ -23,6 +23,7 @@ class ConfluenceSpaceTab {
     required this.spaceId,
     required this.spaceKey,
     required this.spaceName,
+    this.iconPath,
     this.pageId,
     this.pageTitle,
     Set<String>? expandedPageIds,
@@ -32,6 +33,11 @@ class ConfluenceSpaceTab {
   final String spaceId;
   String spaceKey;
   String spaceName;
+
+  /// The space's icon, as the path the API returns. Denormalised like the name
+  /// so a restored tab draws it without a request first; null until a space
+  /// opened from search has been looked up.
+  String? iconPath;
 
   /// The article on show. Null means the tab is still on the space's landing
   /// state, with nothing selected in the tree.
@@ -57,6 +63,7 @@ class ConfluenceSpaceTab {
     spaceId: spaceId,
     spaceKey: spaceKey,
     spaceName: spaceName,
+    iconPath: iconPath,
     pageId: pageId,
     pageTitle: pageTitle,
     expandedPageIds: {...expandedPageIds},
@@ -69,6 +76,7 @@ class ConfluenceSpaceTab {
     spaceId: json['spaceId'] as String? ?? '',
     spaceKey: json['spaceKey'] as String? ?? '',
     spaceName: json['spaceName'] as String? ?? '',
+    iconPath: json['iconPath'] as String?,
     pageId: json['pageId'] as String?,
     pageTitle: json['pageTitle'] as String?,
     expandedPageIds: (json['expandedPageIds'] as List? ?? const []).map((e) => '$e').toSet(),
@@ -79,6 +87,7 @@ class ConfluenceSpaceTab {
     'spaceId': spaceId,
     'spaceKey': spaceKey,
     'spaceName': spaceName,
+    'iconPath': iconPath,
     'pageId': pageId,
     'pageTitle': pageTitle,
     'expandedPageIds': expandedPageIds.toList(),
@@ -192,6 +201,15 @@ class ConfluenceTabsModel with GlobalLoggy {
 
   void setActive(ConfluenceSpaceTab tab) {
     activeTabId.value = tab.tabId;
+    requestSave();
+  }
+
+  /// Fills in details a tab was opened without — a search result knows a page
+  /// but not always its space's name or icon.
+  void describeSpace(ConfluenceSpaceTab tab, {String? name, String? key, String? iconPath}) {
+    if (name != null && name.isNotEmpty) tab.spaceName = name;
+    if (key != null && key.isNotEmpty) tab.spaceKey = key;
+    if (iconPath != null && iconPath.isNotEmpty) tab.iconPath = iconPath;
     requestSave();
   }
 

@@ -39,11 +39,16 @@ class ConfluencePage {
 
 /// A node in a space's page tree.
 class ConfluencePageNode {
-  ConfluencePageNode({required this.id, required this.title, this.children = const []});
+  ConfluencePageNode({required this.id, required this.title, this.openable = true, this.children = const []});
 
   final String id;
   final String title;
   final List<ConfluencePageNode> children;
+
+  /// False for a container that holds pages but is not one — a folder, a
+  /// whiteboard, a database. Clicking it can only expand it; there is no
+  /// article behind it to fetch.
+  final bool openable;
 
   bool get hasChildren => children.isNotEmpty;
 }
@@ -53,7 +58,7 @@ typedef ConfluenceTree = ({List<ConfluencePageNode> roots, bool truncated});
 
 /// The fields of a page listing the tree is built from, without the generated
 /// model — so the assembly below can be exercised without a Confluence.
-typedef ConfluenceListedPage = ({String id, String? title, String? parentId, int? position});
+typedef ConfluenceListedPage = ({String id, String? title, String? parentId, int? position, bool openable});
 
 /// Turns a flat page listing into roots and children.
 ///
@@ -82,6 +87,7 @@ List<ConfluencePageNode> assembleConfluenceTree(List<ConfluenceListedPage> pages
           ConfluencePageNode(
             id: page.id,
             title: page.title ?? '(untitled)',
+            openable: page.openable,
             children: build(page.id, seen),
           ),
     ];
@@ -139,10 +145,25 @@ class ConfluenceApi with GlobalLoggy {
     return '$base$relativePath';
   }
 
+  /// Like [webUrl], but for paths that already carry the `/wiki` prefix.
+  ///
+  /// A space icon's `path` is inconsistent about it — some sites return
+  /// `/wiki/download/...` and others `/download/...` — and prefixing blindly
+  /// would produce `/wiki/wiki/download/...`, which 404s and shows as a missing
+  /// image with no explanation.
+  String? absoluteUrl(String? path) {
+    if (path == null || path.isEmpty) return null;
+    if (path.startsWith('http')) return path;
+    final site = JiraAuth().siteUrl;
+    if (site == null) return null;
+    return path.startsWith('/wiki/') ? '$site$path' : webUrl(path);
+  }
+
   // The generated surface, for anything the conveniences below do not cover.
   confluence.SpaceApi get spacesApi => confluence.SpaceApi(client);
   confluence.PageApi get pagesApi => confluence.PageApi(client);
   confluence.ChildrenApi get childrenApi => confluence.ChildrenApi(client);
+  confluence.FolderApi get foldersApi => confluence.FolderApi(client);
   confluence.VersionApi get versionsApi => confluence.VersionApi(client);
   confluence.AttachmentApi get attachmentsApi => confluence.AttachmentApi(client);
   confluence.CommentApi get commentsApi => confluence.CommentApi(client);
@@ -159,7 +180,7 @@ class ConfluenceApi with GlobalLoggy {
     final spaces = <confluence.SpaceBulk>[];
     String? cursor;
     for (var page = 0; page < maxPages; page++) {
-      final result = await spacesApi.getSpaces(limit: perPage, cursor: cursor);
+      final result = await spacesApi.getSpaces(limit: perPage, cursor: cursor, includeIcon: true);
       spaces.addAll(result?.results ?? const []);
       cursor = _cursorOf(result?.links?.next);
       if (cursor == null) break;
@@ -185,6 +206,14 @@ class ConfluenceApi with GlobalLoggy {
   /// fetching would also have to draw every node as expandable — v2 reports no
   /// child count — so half the chevrons would open onto nothing.
   ///
+  /// A page's parent need not be a page: `parentType` also allows folder,
+  /// whiteboard, database and embed. None of those appear in a listing of the
+  /// space's *pages*, so their children arrive looking parentless and would sit
+  /// at the top of the tree beside the space's real roots — several levels
+  /// shallower than they belong. Missing parents are fetched instead, which
+  /// also puts the folders themselves into the tree, where Confluence shows
+  /// them too.
+  ///
   /// [maxPages] caps how far it will page. A space past the cap returns
   /// `truncated: true` rather than pretending the tree is complete; the parts
   /// that did arrive are still usable.
@@ -192,7 +221,16 @@ class ConfluenceApi with GlobalLoggy {
     final id = int.tryParse(spaceId);
     if (id == null) return (roots: const <ConfluencePageNode>[], truncated: false);
 
-    final pages = <confluence.PageBulk>[];
+    final listed = <String, ConfluenceListedPage>{};
+    // Kept beside the entries because only a parent's own record says what kind
+    // of thing it is, and that decides which endpoint can fetch it.
+    final parentKinds = <String, confluence.ParentContentType>{};
+
+    void record(String id, {String? title, String? parentId, confluence.ParentContentType? parentType, int? position, bool openable = true}) {
+      listed[id] = (id: id, title: title, parentId: parentId, position: position, openable: openable);
+      if (parentId != null && parentType != null) parentKinds[parentId] = parentType;
+    }
+
     String? cursor;
     var truncated = false;
     for (var page = 0; ; page++) {
@@ -201,18 +239,97 @@ class ConfluenceApi with GlobalLoggy {
         break;
       }
       final result = await pagesApi.getPagesInSpace(id, limit: perPage, cursor: cursor, status: const ['current']);
-      pages.addAll(result?.results ?? const []);
+      for (final page in result?.results ?? const <confluence.PageBulk>[]) {
+        if (page.id == null) continue;
+        record(page.id!, title: page.title, parentId: page.parentId, parentType: page.parentType, position: page.position);
+      }
       cursor = _cursorOf(result?.links?.next);
       if (cursor == null) break;
     }
 
-    return (
-      roots: assembleConfluenceTree([
-        for (final page in pages)
-          if (page.id != null) (id: page.id!, title: page.title, parentId: page.parentId, position: page.position),
-      ]),
-      truncated: truncated,
-    );
+    await _resolveMissingParents(listed, parentKinds, record);
+
+    return (roots: assembleConfluenceTree(listed.values.toList()), truncated: truncated);
+  }
+
+  /// Walks up from every parentless entry, fetching the parent, until nothing is
+  /// missing.
+  ///
+  /// Looped because a resolved parent can itself have a parent that was never
+  /// listed — a page inside a folder inside a folder. [maxRounds] bounds it, so
+  /// data that disagrees with itself cannot spin here forever.
+  Future<void> _resolveMissingParents(
+    Map<String, ConfluenceListedPage> listed,
+    Map<String, confluence.ParentContentType> parentKinds,
+    void Function(String id, {String? title, String? parentId, confluence.ParentContentType? parentType, int? position, bool openable}) record,
+  ) async {
+    final unreachable = <String>{};
+
+    for (var round = 0; round < 6; round++) {
+      final missing = {
+        for (final entry in listed.values)
+          if (entry.parentId != null && !listed.containsKey(entry.parentId) && !unreachable.contains(entry.parentId)) entry.parentId!,
+      };
+      if (missing.isEmpty) return;
+
+      // In parallel: these are independent single-object reads, and a folder
+      // with twenty pages under it would otherwise be twenty serial round trips.
+      await Future.wait(
+        missing.map((parentId) async {
+          final resolved = await _fetchContainer(parentId, parentKinds[parentId]);
+          if (resolved == null) {
+            // Left out of reach on purpose: a parent nobody can read means its
+            // children stay where they are rather than the walk retrying it on
+            // every round.
+            unreachable.add(parentId);
+            return;
+          }
+          record(
+            parentId,
+            title: resolved.title,
+            parentId: resolved.parentId,
+            parentType: resolved.parentType,
+            position: resolved.position,
+            openable: resolved.openable,
+          );
+        }),
+      );
+    }
+  }
+
+  /// Fetches whatever a page hangs from, by kind.
+  ///
+  /// Folders and pages are the cases that occur in practice and are read
+  /// properly. A whiteboard, database or embed becomes a labelled placeholder:
+  /// none of them can be read as an article anyway, and the only thing the tree
+  /// needs from it is somewhere to hang its children.
+  Future<({String? title, String? parentId, confluence.ParentContentType? parentType, int? position, bool openable})?> _fetchContainer(
+    String containerId,
+    confluence.ParentContentType? kind,
+  ) async {
+    final id = int.tryParse(containerId);
+    if (id == null) return null;
+
+    try {
+      if (kind == confluence.ParentContentType.folder) {
+        final folder = await foldersApi.getFolderById(id);
+        if (folder == null) return null;
+        return (title: folder.title, parentId: folder.parentId, parentType: folder.parentType, position: folder.position, openable: false);
+      }
+
+      if (kind == null || kind == confluence.ParentContentType.page) {
+        final page = await pagesApi.getPageById(id);
+        if (page == null) return null;
+        return (title: page.title, parentId: page.parentId, parentType: page.parentType, position: page.position, openable: true);
+      }
+
+      return (title: '${kind.toString()[0].toUpperCase()}${kind.toString().substring(1)}', parentId: null, parentType: null, position: null, openable: false);
+    } on Object catch (e) {
+      // An archived or restricted parent is a 404 or a 403 here, which is not a
+      // reason to fail the whole tree.
+      loggy.info('Could not resolve tree parent $containerId: $e');
+      return null;
+    }
   }
 
   // PAGES /////////////////////////////////////////////////////////////////////
