@@ -8,9 +8,10 @@
   runner, keeps `flutter pub get` fast, and makes a spec change show up as a
   reviewable diff rather than as invisible drift.
 
-  Each spec becomes its own package. The two specs share 25 schema names
+  Each spec becomes its own package. The two Jira specs share 25 schema names
   (IssueBean, Changelog, FieldMetadata, ...) and 2 operationIds (getIssue,
-  getConfiguration), so a single flat package would collide.
+  getConfiguration), so a single flat package would collide; Confluence brings
+  its own Version, User and Space on top of that.
 
   The `dart` generator is used rather than `dart-dio`: dart-dio emits built_value
   models needing build_runner over ~1000 schemas, which would dominate every
@@ -30,7 +31,7 @@
   pwsh tool/generate_jira_api.ps1 -SkipDownload
 #>
 param(
-  [ValidateSet('jira_platform_api', 'jira_software_api')]
+  [ValidateSet('jira_platform_api', 'jira_software_api', 'confluence_api')]
   [string[]]$Package,
   [switch]$SkipDownload
 )
@@ -56,6 +57,16 @@ $Specs = @(
     SpecFile    = 'swagger.v3.json'
     Url         = 'https://developer.atlassian.com/cloud/jira/software/swagger.v3.json'
     Description = 'Generated client for the Jira Software (Agile) Cloud REST API.'
+  },
+  # v2 only. CQL search exists solely in the v1 API, which the app reaches
+  # through a raw request rather than a second generated package for one
+  # endpoint. Note this spec's server carries a /wiki/api/v2 prefix, so a client
+  # has to be built with that in its basePath.
+  [ordered]@{
+    Package     = 'confluence_api'
+    SpecFile    = 'openapi-v2.v3.json'
+    Url         = 'https://developer.atlassian.com/cloud/confluence/openapi-v2.v3.json'
+    Description = 'Generated client for the Confluence Cloud REST API v2.'
   }
 )
 

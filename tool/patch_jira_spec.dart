@@ -48,13 +48,24 @@ void main(List<String> args) {
   stdout.writeln('  removed enum defaults:  ${report.enumDefaults}');
   stdout.writeln('  loosened nested maps:   ${report.nestedMaps}');
   stdout.writeln('  removed uniqueItems:    ${report.uniqueItems}');
+  stdout.writeln('  collapsed scalar unions: ${report.scalarUnions}');
 }
 
 class _Report {
   int enumDefaults = 0;
   int nestedMaps = 0;
   int uniqueItems = 0;
+  int scalarUnions = 0;
 }
+
+const _scalarTypes = {'string', 'integer', 'number', 'boolean'};
+
+/// True for an `anyOf`/`oneOf` list whose every branch is a bare scalar — no
+/// `$ref`, no properties, nothing to model.
+bool _isScalarUnion(Object? branches) =>
+    branches is List &&
+    branches.isNotEmpty &&
+    branches.every((b) => b is Map<String, dynamic> && _scalarTypes.contains(b['type']) && !b.containsKey(r'$ref') && !b.containsKey('properties'));
 
 void _patch(Object? node, _Report report) {
   if (node is Map<String, dynamic>) {
@@ -89,6 +100,27 @@ void _patch(Object? node, _Report report) {
       if (additional['type'] == 'object' && inner is Map<String, dynamic>) {
         additional.remove('additionalProperties');
         report.nestedMaps++;
+      }
+    }
+
+    // An `anyOf`/`oneOf` of plain scalars — Confluence uses one for "a built-in
+    // content type, or any custom one" — gives the generator nothing to model,
+    // and it emits a class with no properties whose `==` and `hashCode` bodies
+    // are simply missing, so the package will not parse. Collapsing the union to
+    // the type its branches share keeps the wire format identical.
+    //
+    // The `enum` goes with it: a union of enums is not representable as one, and
+    // the whole point of these unions is that a value outside the list is legal.
+    for (final keyword in const ['anyOf', 'oneOf']) {
+      if (_isScalarUnion(node[keyword])) {
+        final branches = (node[keyword] as List).cast<Map<String, dynamic>>();
+        final types = branches.map((b) => b['type']).toSet();
+        node.remove(keyword);
+        node.remove('enum');
+        // Branches disagreeing on type leaves it free-form, which the generator
+        // maps to Object — still reachable, since the app reads these raw.
+        if (types.length == 1) node['type'] = types.first;
+        report.scalarUnions++;
       }
     }
 
