@@ -202,6 +202,35 @@ class GitLabApiModel {
     },
   );
 
+  /// A single commit, keyed by sha or ref.
+  Future<Map<String, dynamic>?> commit(int projectId, String sha) async {
+    final data = await dao.getJson('/api/v4/projects/$projectId/repository/commits/$sha');
+    return data is Map ? data.cast<String, dynamic>() : null;
+  }
+
+  /// Commit summaries by sha, so a list can show what a change was about.
+  ///
+  /// The pipelines list carries only a sha, so a title costs one request per
+  /// row. Two things keep that cheap: results are cached for the session, and
+  /// concurrent asks for the same sha share one in-flight request — pipelines
+  /// retried on the same commit are common, and a page of rows would otherwise
+  /// fire identical requests side by side.
+  final Map<String, Future<String?>> _commitTitles = {};
+
+  Future<String?> commitTitle(int projectId, String sha) {
+    if (sha.isEmpty) return Future.value(null);
+    final key = '$projectId|$sha';
+    return _commitTitles[key] ??= commit(projectId, sha)
+        .then((data) => data?['title'] as String?)
+        // A commit can be unreachable — a dropped branch, or a pipeline on a
+        // ref that was force-pushed. Not worth failing a row over, but the
+        // failure is not cached, so a later attempt can still succeed.
+        .catchError((Object e) {
+          _commitTitles.remove(key);
+          return null;
+        });
+  }
+
   /// The root of the repository tree, used to locate the readme.
   Future<GitLabPage> repositoryTree(int projectId, {String? ref, String? path, int perPage = 100}) => dao.getJsonPage(
     '/api/v4/projects/$projectId/repository/tree',
