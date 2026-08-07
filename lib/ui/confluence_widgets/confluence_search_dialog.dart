@@ -96,8 +96,11 @@ class _ConfluenceSearchDialogState extends State<ConfluenceSearchDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('Search Confluence'),
-    constraints: const BoxConstraints(maxWidth: 760, minWidth: 520),
+    // No minWidth: it would make the dialog measure the intrinsic width of a
+    // lazy ListView, which throws. The content carries the width instead.
+    constraints: const BoxConstraints(maxWidth: 800, maxHeight: 700),
     content: SizedBox(
+      width: 750,
       height: 520,
       child: Column(
         spacing: 12,

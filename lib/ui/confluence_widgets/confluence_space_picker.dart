@@ -55,8 +55,12 @@ class _ConfluenceSpacePickerDialogState extends State<ConfluenceSpacePickerDialo
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('Open a space'),
-    constraints: const BoxConstraints(maxWidth: 640, minWidth: 480),
+    // A minWidth here would make the dialog ask its content how wide it wants
+    // to be, and the content is a lazy ListView, which cannot answer — sizing
+    // it would mean building every child. The content is given a width instead.
+    constraints: const BoxConstraints(maxWidth: 650, maxHeight: 650),
     content: SizedBox(
+      width: 600,
       height: 480,
       child: Column(
         spacing: 12,
