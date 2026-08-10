@@ -39,7 +39,7 @@ class ConfluenceDebugDialog extends StatelessWidget {
       width: 940,
       height: 620,
       child: DefaultTabController(
-        length: 3,
+        length: 4,
         child: Column(
           children: [
             const TabBar(
@@ -47,6 +47,7 @@ class ConfluenceDebugDialog extends StatelessWidget {
                 Tab(text: 'Page'),
                 Tab(text: 'ADF'),
                 Tab(text: 'Node types'),
+                Tab(text: 'Space'),
               ],
             ),
             Expanded(
@@ -57,6 +58,7 @@ class ConfluenceDebugDialog extends StatelessWidget {
                     _pageTab(context),
                     _JsonPane(label: 'ADF handed to AdfRenderer', json: page?.adf, empty: 'This page carries no ADF body.'),
                     _nodeTypesTab(context),
+                    _SpacePane(spaceId: page?.spaceId),
                   ],
                 ),
               ),
@@ -133,6 +135,84 @@ class ConfluenceDebugDialog extends StatelessWidget {
   }
 }
 
+/// What the space queries return, and what the app made of them.
+///
+/// Both halves are here because a space icon needs both: the space itself
+/// carries an image, and an emoji icon lives in the properties, which the spec
+/// does not describe at all. Seeing the raw properties is the only way to know
+/// what key a site actually uses for one.
+class _SpacePane extends StatefulWidget {
+  const _SpacePane({required this.spaceId});
+
+  final String? spaceId;
+
+  @override
+  State<_SpacePane> createState() => _SpacePaneState();
+}
+
+class _SpacePaneState extends State<_SpacePane> {
+  Future<Map<String, Object?>>? _query;
+
+  @override
+  void initState() {
+    super.initState();
+    final spaceId = widget.spaceId;
+    if (spaceId != null && spaceId.isNotEmpty) _query = _load(spaceId);
+  }
+
+  Future<Map<String, Object?>> _load(String spaceId) async {
+    final api = ConfluenceApi();
+    // Requested together rather than in sequence: the dialog is opened to look
+    // at both, and neither depends on the other.
+    final (space, properties) = await (api.space(spaceId), api.spaceProperties(spaceId)).wait;
+
+    final iconPath = ConfluenceApi.iconPathOf(space?.icon);
+    final emojiProperty = properties.where((p) => (p.key ?? '').toLowerCase().contains('emoji')).firstOrNull;
+
+    return {
+      // The app's reading first: this is what the tab and sidebar draw from,
+      // and where a mismatch with the raw data below shows up.
+      'resolved': {
+        'iconPath': iconPath,
+        'iconUrl': api.absoluteUrl(iconPath),
+        'iconPathIsUnauthenticatable': iconPath != null && ConfluenceApi.isUnauthenticatableIconPath(iconPath),
+        'emojiPropertyKey': emojiProperty?.key,
+        'emojiRawValue': emojiProperty?.value,
+        'emojiDecoded': decodeConfluenceEmoji(emojiProperty?.value),
+        'drawnAs': iconPath != null
+            ? 'image'
+            : decodeConfluenceEmoji(emojiProperty?.value) != null
+            ? 'emoji'
+            : 'initials',
+      },
+      'GET /spaces/{id}?include-icon=true': space?.toJson(),
+      'GET /spaces/{id}/properties': [for (final property in properties) property.toJson()],
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _query;
+    if (query == null) {
+      return Center(
+        child: Text('This page reports no space to query.', style: TextStyle(color: Theme.of(context).hintColor)),
+      );
+    }
+
+    return FutureBuilder<Map<String, Object?>>(
+      future: query,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('The space could not be queried.\n${snapshot.error}', textAlign: TextAlign.center));
+        }
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+
+        return _JsonPane(label: 'Space ${widget.spaceId}', json: snapshot.data, empty: 'Nothing returned.');
+      },
+    );
+  }
+}
+
 class _JsonPane extends StatelessWidget {
   const _JsonPane({required this.label, required this.json, required this.empty});
 
@@ -145,7 +225,17 @@ class _JsonPane extends StatelessWidget {
     if (json == null) {
       return Center(child: Text(empty, style: TextStyle(color: Theme.of(context).hintColor)));
     }
-    final text = ConfluenceDebugDialog._encoder.convert(json);
+
+    // Anything not JSON-encodable — a value a generated toJson passed straight
+    // through — would otherwise take the dialog down. Falling back to toString
+    // still shows what is there, and a debugger that dies on odd data is no use
+    // precisely when the data is odd.
+    String text;
+    try {
+      text = ConfluenceDebugDialog._encoder.convert(json);
+    } on Object catch (e) {
+      text = '// could not be encoded as JSON ($e)\n$json';
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

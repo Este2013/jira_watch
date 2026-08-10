@@ -302,19 +302,28 @@ class ConfluenceApi with GlobalLoggy {
   Future<String?> spaceEmoji(String spaceId) async {
     if (_spaceEmojiCache.containsKey(spaceId)) return _spaceEmojiCache[spaceId];
 
+    for (final property in await spaceProperties(spaceId)) {
+      if (!(property.key ?? '').toLowerCase().contains('emoji')) continue;
+      final emoji = decodeConfluenceEmoji(property.value);
+      if (emoji != null) return _spaceEmojiCache[spaceId] = emoji;
+    }
+    return _spaceEmojiCache[spaceId] = null;
+  }
+
+  /// A space's properties, as Confluence returns them.
+  ///
+  /// Public because this is where an emoji icon hides and the spec says nothing
+  /// about it — so the debug dialog shows the lot, which is the only way to see
+  /// what key a site actually uses.
+  Future<List<confluence.SpaceProperty>> spaceProperties(String spaceId) async {
     final id = int.tryParse(spaceId);
-    if (id == null) return null;
+    if (id == null) return const [];
     try {
       final result = await spacePropertiesApi.getSpaceProperties(id, limit: 100);
-      for (final property in result?.results ?? const <confluence.SpaceProperty>[]) {
-        if (!(property.key ?? '').toLowerCase().contains('emoji')) continue;
-        final emoji = decodeConfluenceEmoji(property.value);
-        if (emoji != null) return _spaceEmojiCache[spaceId] = emoji;
-      }
-      return _spaceEmojiCache[spaceId] = null;
+      return result?.results ?? const [];
     } on Object catch (e) {
       loggy.info('Could not read the space properties of $spaceId: $e');
-      return _spaceEmojiCache[spaceId] = null;
+      return const [];
     }
   }
 
