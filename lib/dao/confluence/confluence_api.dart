@@ -110,6 +110,39 @@ List<ConfluencePageNode> assembleConfluenceTree(List<ConfluenceListedPage> pages
   return build(null, <String>{});
 }
 
+/// Turns Confluence's stored emoji into characters.
+///
+/// It stores the codepoints rather than the character: `1f4da`, or
+/// `1f468-200d-1f4bb` for one built from several joined by a zero-width joiner.
+/// A shortname such as `:books:` is also possible and cannot be resolved without
+/// a table, so it is declined rather than shown raw.
+///
+/// Returns null for anything unrecognisable, which the caller treats as "this
+/// space has no emoji".
+String? decodeConfluenceEmoji(Object? value) {
+  final raw = value is String ? value : (value is Map ? value['value']?.toString() : null);
+  if (raw == null || raw.trim().isEmpty) return null;
+
+  final text = raw.trim();
+
+  if (!RegExp(r'^[0-9a-fA-F-]+$').hasMatch(text)) {
+    // Not codepoints. An emoji sent as an actual character has no ASCII letters
+    // or digits in it, which is what separates it from a shortname like
+    // `:books:` or from a value that is simply malformed — both of which are
+    // declined rather than rendered as literal text in the tab strip.
+    return RegExp(r'[A-Za-z0-9]').hasMatch(text) ? null : text;
+  }
+
+  final codePoints = <int>[];
+  for (final part in text.split('-')) {
+    final point = int.tryParse(part, radix: 16);
+    // A codepoint outside Unicode's range would throw in fromCharCodes.
+    if (point == null || point < 0 || point > 0x10FFFF) return null;
+    codePoints.add(point);
+  }
+  return codePoints.isEmpty ? null : String.fromCharCodes(codePoints);
+}
+
 /// Confluence access for the app.
 ///
 /// Shaped like [JiraApi]: the generated API classes are exposed directly so any
@@ -133,6 +166,7 @@ class ConfluenceApi with GlobalLoggy {
   void _invalidateClient() {
     _client = null;
     _spaceNameCache.clear();
+    _spaceEmojiCache.clear();
     _iconBytes.clear();
   }
 
@@ -228,6 +262,7 @@ class ConfluenceApi with GlobalLoggy {
   confluence.VersionApi get versionsApi => confluence.VersionApi(client);
   confluence.AttachmentApi get attachmentsApi => confluence.AttachmentApi(client);
   confluence.CommentApi get commentsApi => confluence.CommentApi(client);
+  confluence.SpacePropertiesApi get spacePropertiesApi => confluence.SpacePropertiesApi(client);
 
   // SPACES ////////////////////////////////////////////////////////////////////
 
@@ -250,6 +285,37 @@ class ConfluenceApi with GlobalLoggy {
       if (space.id != null && space.name != null) _spaceNameCache[space.id!] = space.name!;
     }
     return spaces;
+  }
+
+  final Map<String, String?> _spaceEmojiCache = {};
+
+  /// The emoji a space uses as its icon, if it does.
+  ///
+  /// Confluence's newer space icons are emoji, not images, and the v2 spec does
+  /// not describe them at all — the word never appears in it. They are stored as
+  /// a space property whose value is the emoji's codepoints, so this reads the
+  /// properties and looks for one, rather than hardcoding a key the spec never
+  /// promised.
+  ///
+  /// A space with an emoji reports no `icon`, which is why such a space looked
+  /// like it had no icon at all.
+  Future<String?> spaceEmoji(String spaceId) async {
+    if (_spaceEmojiCache.containsKey(spaceId)) return _spaceEmojiCache[spaceId];
+
+    final id = int.tryParse(spaceId);
+    if (id == null) return null;
+    try {
+      final result = await spacePropertiesApi.getSpaceProperties(id, limit: 100);
+      for (final property in result?.results ?? const <confluence.SpaceProperty>[]) {
+        if (!(property.key ?? '').toLowerCase().contains('emoji')) continue;
+        final emoji = decodeConfluenceEmoji(property.value);
+        if (emoji != null) return _spaceEmojiCache[spaceId] = emoji;
+      }
+      return _spaceEmojiCache[spaceId] = null;
+    } on Object catch (e) {
+      loggy.info('Could not read the space properties of $spaceId: $e');
+      return _spaceEmojiCache[spaceId] = null;
+    }
   }
 
   /// A space by its key rather than its id, for a macro that names one — the
@@ -279,7 +345,9 @@ class ConfluenceApi with GlobalLoggy {
   Future<confluence.GetSpaceById200Response?> space(String spaceId) async {
     final id = int.tryParse(spaceId);
     if (id == null) return null;
-    return spacesApi.getSpaceById(id);
+    // includeIcon is opt-in, and forgetting it here was why a space resolved
+    // through this path always came back iconless and fell back to initials.
+    return spacesApi.getSpaceById(id, includeIcon: true);
   }
 
   // PAGE TREE /////////////////////////////////////////////////////////////////

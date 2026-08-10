@@ -34,6 +34,42 @@ void main() {
     });
   });
 
+  group('decoding a space emoji', () {
+    // Confluence stores the codepoints rather than the character.
+    const books = '\u{1f4da}';
+
+    test('reads a single codepoint', () {
+      expect(decodeConfluenceEmoji('1f4da'), books);
+    });
+
+    test('joins a multi-codepoint emoji', () {
+      // A zero-width joiner sequence: several codepoints, one glyph.
+      expect(decodeConfluenceEmoji('1f468-200d-1f4bb'), '\u{1f468}\u{200d}\u{1f4bb}');
+    });
+
+    test('reads the value out of a wrapped property', () {
+      expect(decodeConfluenceEmoji({'value': '1f4da'}), books);
+    });
+
+    test('passes an actual character through unchanged', () {
+      expect(decodeConfluenceEmoji(books), books);
+    });
+
+    test('declines a shortname, which needs a table to resolve', () {
+      // Better no icon than the literal text ":books:" in the tab strip.
+      expect(decodeConfluenceEmoji(':books:'), isNull);
+    });
+
+    test('declines nonsense rather than throwing mid-build', () {
+      expect(decodeConfluenceEmoji(null), isNull);
+      expect(decodeConfluenceEmoji(''), isNull);
+      expect(decodeConfluenceEmoji('   '), isNull);
+      // Past the top of Unicode — fromCharCodes would throw on this.
+      expect(decodeConfluenceEmoji('ffffffff'), isNull);
+      expect(decodeConfluenceEmoji('1f4da-zzzz'), isNull);
+    });
+  });
+
   group('re-resolving a stored icon path', () {
     test('spots the path a saved tab cannot fetch', () {
       expect(ConfluenceApi.isUnauthenticatableIconPath('/wiki/aa-avatar/3382476835'), isTrue);

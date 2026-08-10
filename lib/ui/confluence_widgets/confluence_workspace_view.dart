@@ -133,12 +133,23 @@ class _ConfluenceSpaceViewState extends State<ConfluenceSpaceView> {
   /// lookup fills both in, and it is skipped when there is nothing to learn.
   Future<void> _describeSpace() async {
     if (widget.tab.spaceId.isEmpty) return;
-    final hasUsableIcon = widget.tab.iconPath != null && !ConfluenceApi.isUnauthenticatableIconPath(widget.tab.iconPath!);
+    final hasUsableIcon =
+        widget.tab.iconEmoji != null || (widget.tab.iconPath != null && !ConfluenceApi.isUnauthenticatableIconPath(widget.tab.iconPath!));
     if (hasUsableIcon && widget.tab.spaceName.isNotEmpty && widget.tab.spaceKey.isNotEmpty) return;
 
-    final space = await ConfluenceApi().space(widget.tab.spaceId);
-    if (!mounted || space == null) return;
-    setState(() => _model.describeSpace(widget.tab, name: space.name, key: space.key, iconPath: ConfluenceApi.iconPathOf(space.icon)));
+    final api = ConfluenceApi();
+    final space = await api.space(widget.tab.spaceId);
+    if (!mounted) return;
+    if (space != null) {
+      setState(() => _model.describeSpace(widget.tab, name: space.name, key: space.key, iconPath: ConfluenceApi.iconPathOf(space.icon)));
+    }
+
+    // Asked for separately, and only when there is no image: an emoji lives in
+    // the space's properties rather than on the space itself.
+    if (ConfluenceApi.iconPathOf(space?.icon) != null) return;
+    final emoji = await api.spaceEmoji(widget.tab.spaceId);
+    if (!mounted || emoji == null) return;
+    setState(() => _model.describeSpace(widget.tab, iconEmoji: emoji));
   }
 
   void _open(String pageId, {String? title}) => setState(() => _model.setPage(widget.tab, pageId, title: title));
@@ -196,7 +207,7 @@ class _ConfluenceSpaceViewState extends State<ConfluenceSpaceView> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           spacing: 8,
                           children: [
-                            ConfluenceSpaceIcon(path: widget.tab.iconPath, size: 20, fallbackLabel: widget.tab.spaceName),
+                            ConfluenceSpaceIcon(path: widget.tab.iconPath, emoji: widget.tab.iconEmoji, size: 20, fallbackLabel: widget.tab.spaceName),
                             Flexible(
                               child: Text(
                                 widget.tab.spaceName,

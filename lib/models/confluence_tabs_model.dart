@@ -24,6 +24,7 @@ class ConfluenceSpaceTab {
     required this.spaceKey,
     required this.spaceName,
     this.iconPath,
+    this.iconEmoji,
     this.pageId,
     this.pageTitle,
     Set<String>? expandedPageIds,
@@ -42,6 +43,11 @@ class ConfluenceSpaceTab {
   /// so a restored tab draws it without a request first; null until a space
   /// opened from search has been looked up.
   String? iconPath;
+
+  /// The emoji a space uses as its icon instead of an image, which is what
+  /// Confluence's newer spaces have. Denormalised like the rest so a restored
+  /// tab draws it without a request.
+  String? iconEmoji;
 
   /// The article on show. Null means the tab is still on the space's landing
   /// state, with nothing selected in the tree.
@@ -108,6 +114,7 @@ class ConfluenceSpaceTab {
     spaceKey: spaceKey,
     spaceName: spaceName,
     iconPath: iconPath,
+    iconEmoji: iconEmoji,
     pageId: pageId,
     pageTitle: pageTitle,
     expandedPageIds: {...expandedPageIds},
@@ -123,6 +130,7 @@ class ConfluenceSpaceTab {
     spaceKey: json['spaceKey'] as String? ?? '',
     spaceName: json['spaceName'] as String? ?? '',
     iconPath: json['iconPath'] as String?,
+    iconEmoji: json['iconEmoji'] as String?,
     pageId: json['pageId'] as String?,
     pageTitle: json['pageTitle'] as String?,
     expandedPageIds: (json['expandedPageIds'] as List? ?? const []).map((e) => '$e').toSet(),
@@ -136,6 +144,7 @@ class ConfluenceSpaceTab {
     'spaceKey': spaceKey,
     'spaceName': spaceName,
     'iconPath': iconPath,
+    'iconEmoji': iconEmoji,
     'pageId': pageId,
     'pageTitle': pageTitle,
     'expandedPageIds': expandedPageIds.toList(),
@@ -264,10 +273,11 @@ class ConfluenceTabsModel with GlobalLoggy {
 
   /// Fills in details a tab was opened without — a search result knows a page
   /// but not always its space's name or icon.
-  void describeSpace(ConfluenceSpaceTab tab, {String? name, String? key, String? iconPath}) {
+  void describeSpace(ConfluenceSpaceTab tab, {String? name, String? key, String? iconPath, String? iconEmoji}) {
     if (name != null && name.isNotEmpty) tab.spaceName = name;
     if (key != null && key.isNotEmpty) tab.spaceKey = key;
     if (iconPath != null && iconPath.isNotEmpty) tab.iconPath = iconPath;
+    if (iconEmoji != null && iconEmoji.isNotEmpty) tab.iconEmoji = iconEmoji;
     requestSave();
   }
 

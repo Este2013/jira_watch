@@ -12,9 +12,14 @@ import 'package:material_symbols_icons/symbols.dart';
 /// spaces are easier to tell apart by their letters than by the same book
 /// glyph twice.
 class ConfluenceSpaceIcon extends StatelessWidget {
-  const ConfluenceSpaceIcon({super.key, required this.path, this.size = 20, this.fallbackLabel});
+  const ConfluenceSpaceIcon({super.key, required this.path, this.emoji, this.size = 20, this.fallbackLabel});
 
   final String? path;
+
+  /// Preferred over [path] when present. A space with an emoji icon reports no
+  /// image at all, so the two never compete in practice.
+  final String? emoji;
+
   final double size;
   final String? fallbackLabel;
 
@@ -45,6 +50,17 @@ class ConfluenceSpaceIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final emoji = this.emoji;
+    if (emoji != null && emoji.isNotEmpty) {
+      return SizedBox(
+        width: size,
+        height: size,
+        // Sized a little under the box: an emoji glyph fills its line box more
+        // than a letter does, and at the full size it clips.
+        child: Center(child: Text(emoji, style: TextStyle(fontSize: size * 0.8))),
+      );
+    }
+
     final url = ConfluenceApi().absoluteUrl(path);
     if (url == null) return _fallback(context);
 

@@ -155,7 +155,7 @@ class _SpaceTabChipState extends State<_SpaceTabChip> {
                     padding: const EdgeInsets.only(left: 8, right: 4),
                     child: Row(
                       children: [
-                        ConfluenceSpaceIcon(path: widget.tab.iconPath, size: 16, fallbackLabel: widget.tab.spaceName),
+                        ConfluenceSpaceIcon(path: widget.tab.iconPath, emoji: widget.tab.iconEmoji, size: 16, fallbackLabel: widget.tab.spaceName),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
