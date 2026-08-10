@@ -1,9 +1,11 @@
 import 'package:confluence_api/api.dart' as confluence;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/confluence/confluence_api.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/confluence_widgets/confluence_adf.dart';
+import 'package:jira_watcher/ui/confluence_widgets/confluence_debug_dialog.dart';
 import 'package:jira_watcher/ui/updates_widgets/diff_matcher.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_doc_renderer.dart';
 import 'package:loggy/loggy.dart';
@@ -20,6 +22,7 @@ class ConfluenceArticleView extends StatefulWidget {
     required this.pageId,
     this.onOpenLink,
     this.compact = false,
+    this.onTitleResolved,
   });
 
   final String pageId;
@@ -31,6 +34,10 @@ class ConfluenceArticleView extends StatefulWidget {
   /// Drops the version history and the toolbar's space actions, for the preview
   /// dialog where neither has anywhere to go.
   final bool compact;
+
+  /// Reports the page's real title once it has loaded, so the tab it sits in
+  /// can label itself with the article rather than the space.
+  final void Function(String title)? onTitleResolved;
 
   @override
   State<ConfluenceArticleView> createState() => _ConfluenceArticleViewState();
@@ -46,7 +53,16 @@ class _ConfluenceArticleViewState extends State<ConfluenceArticleView> with UiLo
   @override
   void initState() {
     super.initState();
-    _page = ConfluenceApi().page(widget.pageId);
+    _load();
+  }
+
+  void _load() {
+    _page = ConfluenceApi().page(widget.pageId).then((page) {
+      // Reported from here rather than from the tree, because a page reached by
+      // a link or by going back was never in the tree to be named.
+      if (page != null && mounted) widget.onTitleResolved?.call(page.title);
+      return page;
+    });
   }
 
   @override
@@ -54,7 +70,7 @@ class _ConfluenceArticleViewState extends State<ConfluenceArticleView> with UiLo
     super.didUpdateWidget(old);
     if (old.pageId != widget.pageId) {
       setState(() {
-        _page = ConfluenceApi().page(widget.pageId);
+        _load();
         _comparingWith = null;
         _showHistory = false;
       });
@@ -94,42 +110,71 @@ class _ConfluenceArticleViewState extends State<ConfluenceArticleView> with UiLo
   Widget build(BuildContext context) => FutureBuilder<ConfluencePage?>(
     future: _page,
     builder: (context, snapshot) {
-      if (snapshot.hasError) {
-        return _Message(
-          icon: Symbols.error,
-          title: 'This page could not be loaded.',
-          detail: '${snapshot.error}',
-        );
-      }
-      if (!snapshot.hasData && snapshot.connectionState != ConnectionState.done) {
-        return const Center(child: CircularProgressIndicator());
-      }
-
       final page = snapshot.data;
-      if (page == null) {
-        return const _Message(
-          icon: Symbols.visibility_off,
-          title: 'This page could not be opened.',
-          detail: 'Confluence refused the request — it may have been deleted, or your account may not have access.',
-        );
-      }
+      final loading = !snapshot.hasData && snapshot.connectionState != ConnectionState.done;
 
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      // A Stack so the debug button is a sibling of the article rather than
+      // part of it: if the renderer throws on a node it cannot handle, Flutter
+      // replaces the article with an error box, and the one moment the button
+      // is most wanted is the moment it would otherwise disappear with it.
+      return Stack(
         children: [
-          _toolbar(context, page),
-          const Divider(height: 1),
-          if (_showHistory) ...[
-            SizedBox(height: 220, child: _history(context)),
-            const Divider(height: 1),
-          ],
-          Expanded(child: _body(context, page)),
-          const Divider(height: 1),
-          _ReadingBar(page: page),
+          Positioned.fill(child: _content(context, snapshot, page, loading)),
+          if (kDebugMode && !loading)
+            Positioned(
+              right: 16,
+              bottom: 56,
+              child: FloatingActionButton.small(
+                tooltip: 'Debug: inspect this article',
+                heroTag: 'confluence-debug-${widget.pageId}',
+                onPressed: () => showDialog(
+                  context: context,
+                  builder: (context) => ConfluenceDebugDialog(
+                    pageId: widget.pageId,
+                    page: page,
+                    error: snapshot.error,
+                  ),
+                ),
+                child: const Icon(Symbols.bug_report),
+              ),
+            ),
         ],
       );
     },
   );
+
+  Widget _content(BuildContext context, AsyncSnapshot<ConfluencePage?> snapshot, ConfluencePage? page, bool loading) {
+    if (snapshot.hasError) {
+      return _Message(
+        icon: Symbols.error,
+        title: 'This page could not be loaded.',
+        detail: '${snapshot.error}',
+      );
+    }
+    if (loading) return const Center(child: CircularProgressIndicator());
+    if (page == null) {
+      return const _Message(
+        icon: Symbols.visibility_off,
+        title: 'This page could not be opened.',
+        detail: 'Confluence refused the request — it may have been deleted, or your account may not have access.',
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _toolbar(context, page),
+        const Divider(height: 1),
+        if (_showHistory) ...[
+          SizedBox(height: 220, child: _history(context)),
+          const Divider(height: 1),
+        ],
+        Expanded(child: _body(context, page)),
+        const Divider(height: 1),
+        _ReadingBar(page: page),
+      ],
+    );
+  }
 
   Widget _toolbar(BuildContext context, ConfluencePage page) {
     final webUrl = ConfluenceApi().webUrl(page.webPath);
@@ -244,7 +289,7 @@ class _ConfluenceArticleViewState extends State<ConfluenceArticleView> with UiLo
       // loses formatting on purpose: what changed in the words is the question
       // being asked, and a rendered diff of two ADF trees is a different job.
       return SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
         child: DiffReviewer(before: comparison.text, after: adfToPlainText(page.adf)),
       );
     }
@@ -252,7 +297,10 @@ class _ConfluenceArticleViewState extends State<ConfluenceArticleView> with UiLo
     return ValueListenableBuilder<double>(
       valueListenable: SettingsModel().confluenceTextScale,
       builder: (context, scale, _) => SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        // Wider than the toolbar and reading bar on purpose: the gutters are
+        // what make the article read as a document sitting in the app rather
+        // than as another panel of it.
+        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
         child: AdfRenderer(
           adf: page.adf!,
           attachments: const [],

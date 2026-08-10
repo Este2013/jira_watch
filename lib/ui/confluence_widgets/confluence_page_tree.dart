@@ -64,7 +64,6 @@ class ConfluencePageTreeState extends State<ConfluencePageTree> {
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
           child: Row(
-            spacing: 4,
             children: [
               Expanded(
                 child: TextField(
@@ -77,11 +76,6 @@ class ConfluencePageTreeState extends State<ConfluencePageTree> {
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
-              ),
-              IconButton(
-                tooltip: 'Reload the tree',
-                icon: const Icon(Symbols.refresh),
-                onPressed: refresh,
               ),
             ],
           ),
@@ -202,10 +196,12 @@ class _TreeNodeState extends State<_TreeNode> {
                           )
                         : null,
                   ),
-                  if (!widget.node.openable) ...[
-                    Icon(Symbols.folder, size: 15, color: Theme.of(context).hintColor),
-                    const SizedBox(width: 6),
-                  ],
+                  Icon(
+                    widget.node.openable ? Symbols.article : Symbols.folder,
+                    size: 15,
+                    color: isOpen ? scheme.onSecondaryContainer : Theme.of(context).hintColor,
+                  ),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),

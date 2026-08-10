@@ -5,6 +5,7 @@ import 'package:flutter_context_menu/flutter_context_menu.dart';
 import 'package:jira_watcher/dao/confluence/confluence_api.dart';
 import 'package:jira_watcher/models/confluence_tabs_model.dart';
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/ui/confluence_widgets/confluence_images.dart';
 import 'package:jira_watcher/ui/confluence_widgets/confluence_search_dialog.dart';
 import 'package:jira_watcher/ui/confluence_widgets/confluence_space_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -154,7 +155,7 @@ class _SpaceTabChipState extends State<_SpaceTabChip> {
                     padding: const EdgeInsets.only(left: 8, right: 4),
                     child: Row(
                       children: [
-                        const Icon(Symbols.book_2, size: 16),
+                        ConfluenceSpaceIcon(path: widget.tab.iconPath, size: 16, fallbackLabel: widget.tab.spaceName),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(

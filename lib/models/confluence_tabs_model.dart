@@ -27,7 +27,11 @@ class ConfluenceSpaceTab {
     this.pageId,
     this.pageTitle,
     Set<String>? expandedPageIds,
-  }) : expandedPageIds = expandedPageIds ?? {};
+    List<String>? history,
+    int? historyIndex,
+  }) : expandedPageIds = expandedPageIds ?? {},
+       history = history ?? [?pageId],
+       historyIndex = historyIndex ?? (pageId == null ? -1 : 0);
 
   final String tabId;
   final String spaceId;
@@ -46,6 +50,46 @@ class ConfluenceSpaceTab {
   /// Kept beside [pageId] so a restored tab can label itself before its page
   /// has loaded.
   String? pageTitle;
+
+  /// The pages visited in this tab, oldest first, and where in them the reader
+  /// currently is. Going back moves the cursor rather than dropping entries, so
+  /// forward still works — and opening a new page from partway back drops what
+  /// was ahead, exactly as a browser does.
+  final List<String> history;
+  int historyIndex;
+
+  bool get canGoBack => historyIndex > 0;
+  bool get canGoForward => historyIndex >= 0 && historyIndex < history.length - 1;
+
+  /// Shows [pageId], recording it in the trail.
+  void openPage(String? pageId, {String? title}) {
+    this.pageId = pageId;
+    pageTitle = title;
+    if (pageId == null || history.elementAtOrNull(historyIndex) == pageId) return;
+
+    // Anything ahead of the cursor is dropped: navigating from partway back
+    // starts a new branch, which is what a browser does and what a forward
+    // button leading somewhere unrelated would not.
+    if (historyIndex < history.length - 1) history.removeRange(historyIndex + 1, history.length);
+    history.add(pageId);
+    historyIndex = history.length - 1;
+  }
+
+  /// Moves the cursor. Returns the page now open, or null if there was nowhere
+  /// to go.
+  String? goBack() => _move(-1);
+  String? goForward() => _move(1);
+
+  String? _move(int step) {
+    final target = historyIndex + step;
+    if (target < 0 || target >= history.length) return null;
+    historyIndex = target;
+    pageId = history[target];
+    // The title belonged to the page being left, so it goes rather than lying
+    // about which article the tab is on.
+    pageTitle = null;
+    return pageId;
+  }
 
   /// Which tree nodes are open. Persisted because collapsing a large space back
   /// to its roots on every restart is the kind of thing that makes a reader stop
@@ -67,6 +111,8 @@ class ConfluenceSpaceTab {
     pageId: pageId,
     pageTitle: pageTitle,
     expandedPageIds: {...expandedPageIds},
+    history: [...history],
+    historyIndex: historyIndex,
   );
 
   factory ConfluenceSpaceTab.fromJson(Map<String, dynamic> json) => ConfluenceSpaceTab(
@@ -80,6 +126,8 @@ class ConfluenceSpaceTab {
     pageId: json['pageId'] as String?,
     pageTitle: json['pageTitle'] as String?,
     expandedPageIds: (json['expandedPageIds'] as List? ?? const []).map((e) => '$e').toSet(),
+    history: (json['history'] as List?)?.map((e) => '$e').toList(),
+    historyIndex: json['historyIndex'] as int?,
   );
 
   Map<String, dynamic> toJson() => {
@@ -91,6 +139,8 @@ class ConfluenceSpaceTab {
     'pageId': pageId,
     'pageTitle': pageTitle,
     'expandedPageIds': expandedPageIds.toList(),
+    'history': history,
+    'historyIndex': historyIndex,
   };
 }
 
@@ -213,12 +263,32 @@ class ConfluenceTabsModel with GlobalLoggy {
     requestSave();
   }
 
-  /// The open article. [title] is stored alongside so a restored tab can label
-  /// itself before the page loads.
+  /// Opens an article, recording it in the tab's history.
+  ///
+  /// [title] is stored alongside so a restored tab can label itself before the
+  /// page loads; the article view corrects it once the page is in, via
+  /// [describePage].
   void setPage(ConfluenceSpaceTab tab, String? pageId, {String? title}) {
-    tab.pageId = pageId;
+    tab.openPage(pageId, title: title);
+    requestSave();
+  }
+
+  /// Corrects the label once the article itself has loaded — a page reached by
+  /// a link or by going back was never in the tree to be named.
+  void describePage(ConfluenceSpaceTab tab, String title) {
+    if (tab.pageTitle == title) return;
     tab.pageTitle = title;
     requestSave();
+  }
+
+  /// Moves the history cursor. Returns the page now open, or null if there was
+  /// nowhere to go.
+  String? goBack(ConfluenceSpaceTab tab) => _saved(tab.goBack());
+  String? goForward(ConfluenceSpaceTab tab) => _saved(tab.goForward());
+
+  String? _saved(String? pageId) {
+    requestSave();
+    return pageId;
   }
 
   void setExpanded(ConfluenceSpaceTab tab, String pageId, bool expanded) {

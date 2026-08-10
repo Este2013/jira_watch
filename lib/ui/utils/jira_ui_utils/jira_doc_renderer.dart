@@ -306,6 +306,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     }
 
     return RichText(
+      textScaler: MediaQuery.textScalerOf(context),
       selectionRegistrar: SelectionContainer.maybeOf(context),
       selectionColor: selectionColor,
       text: TextSpan(
@@ -320,6 +321,13 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       ),
     );
   }
+
+  /// Scales an icon or avatar to match the text around it.
+  ///
+  /// An explicit `size:` overrides any ambient IconTheme, so icons in this
+  /// document would stay put while the prose grew — which reads as the
+  /// magnifier being broken. Everything sized by hand goes through here.
+  double _scaled(BuildContext context, double size) => MediaQuery.textScalerOf(context).scale(size);
 
   List<Widget> _withParagraphSpacing(List<Widget> children, double spacing) {
     final spaced = <Widget>[];
@@ -404,6 +412,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         final children = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
         if (children.isEmpty) return const SizedBox.shrink();
         return RichText(
+          textScaler: MediaQuery.textScalerOf(context),
           selectionRegistrar: SelectionContainer.maybeOf(context),
           selectionColor: selectionColor,
           text: TextSpan(
@@ -487,7 +496,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                       Row(
                         spacing: 8,
                         children: [
-                          if (workItem.fields?['issuetype']['iconUrl'] != null) JiraAvatar(url: workItem.fields!['issuetype']['iconUrl'], size: 20) else Icon(Symbols.broken_image),
+                          if (workItem.fields?['issuetype']['iconUrl'] != null) JiraAvatar(url: workItem.fields!['issuetype']['iconUrl'], size: _scaled(context, 20)) else Icon(Symbols.broken_image),
                           Expanded(
                             child: Text(
                               '${workItem.key}: ${workItem.fields?['summary']}',
@@ -503,7 +512,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                         child: Row(
                           spacing: 8,
                           children: [
-                            if (workItem.fields?['assignee']['avatarUrls'] != null) JiraAvatar(url: workItem.fields!['assignee']?['avatarUrls']?['16x16'], size: 24) else Icon(Symbols.broken_image),
+                            if (workItem.fields?['assignee']['avatarUrls'] != null) JiraAvatar(url: workItem.fields!['assignee']?['avatarUrls']?['16x16'], size: _scaled(context, 24)) else Icon(Symbols.broken_image),
                             Expanded(
                               child: Text.rich(
                                 TextSpan(
@@ -522,7 +531,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                                       alignment: PlaceholderAlignment.middle,
                                       child: Padding(
                                         padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                                        child: (workItem.fields?['priority']['iconUrl'] != null) ? JiraAvatar(url: workItem.fields?['priority']?['iconUrl'], size: 16) : Icon(Symbols.broken_image),
+                                        child: (workItem.fields?['priority']['iconUrl'] != null) ? JiraAvatar(url: workItem.fields?['priority']?['iconUrl'], size: _scaled(context, 16)) : Icon(Symbols.broken_image),
                                       ),
                                     ),
                                     TextSpan(text: ' ${workItem.fields?['priority']?['name'] ?? ''}'),
@@ -556,6 +565,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
           defaultLinkHandler(targetUrl);
         };
       return RichText(
+        textScaler: MediaQuery.textScalerOf(context),
         selectionRegistrar: SelectionContainer.maybeOf(context),
         text: TextSpan(
           text: targetUrl,
@@ -672,7 +682,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     final label = Tooltip(
       message: 'This is a Confluence macro. It runs on the server, so it cannot be rendered here — open the page on the website to see it.',
       child: Chip(
-        avatar: const Icon(Symbols.extension, size: 14),
+        avatar: Icon(Symbols.extension, size: _scaled(context, 14)),
         label: Text(name, style: const TextStyle(fontSize: 11)),
         visualDensity: VisualDensity.compact,
         padding: EdgeInsets.zero,
@@ -716,7 +726,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
             Row(
               spacing: 6,
               children: [
-                Icon(Symbols.toc, size: 16, color: colours.onSurfaceVariant),
+                Icon(Symbols.toc, size: _scaled(context, 16), color: colours.onSurfaceVariant),
                 Text('On this page', style: Theme.of(context).textTheme.labelLarge),
               ],
             ),
@@ -919,7 +929,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       return FutureBuilder<String?>(
         future: linkTitleResolver?.call(url),
         builder: (context, snapshot) => ActionChip(
-          avatar: const Icon(Symbols.book_2),
+          avatar: Icon(Symbols.book_2, size: _scaled(context, 18)),
           label: Text(
             snapshot.data ?? (looksLikeAnId ? 'Confluence page' : fallback),
             maxLines: 1,
@@ -983,7 +993,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                     JiraWorkItemStatusIndicator(issue: issue),
                   ],
                 ),
-                avatar: JiraAvatar(url: issue.fields?['issuetype']['iconUrl'], size: 16),
+                avatar: JiraAvatar(url: issue.fields?['issuetype']['iconUrl'], size: _scaled(context, 16)),
 
                 onPressed: () {
                   showDialog(
@@ -1114,6 +1124,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     final bulletLine = paragraphs.isNotEmpty ? _buildParagraph(context, paragraphs.first) : const SizedBox.shrink();
 
     final bulletRow = RichText(
+      textScaler: MediaQuery.textScalerOf(context),
       text: TextSpan(
         children: [
           WidgetSpan(child: SizedBox(width: indentLevel * listIndent)),
@@ -1181,6 +1192,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
       ),
       child: RichText(
+        textScaler: MediaQuery.textScalerOf(context),
         text: TextSpan(text: alt, style: _defaultTextStyle(context)),
         selectionRegistrar: SelectionContainer.maybeOf(context),
         selectionColor: selectionColor,
@@ -1306,6 +1318,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
             icon,
             Flexible(
               child: RichText(
+                textScaler: MediaQuery.textScalerOf(context),
                 text: TextSpan(
                   children: _buildInlineSpans(context, (node['content'] as List).cast()),
                 ),
@@ -1325,6 +1338,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       return const SizedBox(height: 0); // empty paragraph -> minimal gap
     }
     return RichText(
+      textScaler: MediaQuery.textScalerOf(context),
       text: TextSpan(
         style: style ?? _defaultTextStyle(context),
         children: spans,
@@ -1401,6 +1415,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     }
     spans.removeLast();
     return RichText(
+      textScaler: MediaQuery.textScalerOf(context),
       text: TextSpan(children: spans),
       selectionRegistrar: SelectionContainer.maybeOf(context),
       selectionColor: selectionColor,

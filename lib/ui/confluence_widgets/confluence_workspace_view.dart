@@ -116,6 +116,12 @@ class _ConfluenceSpaceViewState extends State<ConfluenceSpaceView> {
   /// cheap to set again and a per-tab saved width would fight the window size.
   double _treeFraction = 0.28;
 
+  /// Bumped to rebuild the tree and the article from scratch. Keying on it is
+  /// simpler than threading a reload method into each, and it also drops any
+  /// state they were holding — an open version history, a filter — which is
+  /// what someone pressing refresh is asking for.
+  int _reloadToken = 0;
+
   @override
   void initState() {
     super.initState();
@@ -135,6 +141,11 @@ class _ConfluenceSpaceViewState extends State<ConfluenceSpaceView> {
   }
 
   void _open(String pageId, {String? title}) => setState(() => _model.setPage(widget.tab, pageId, title: title));
+
+  void _goBack() => setState(() => _model.goBack(widget.tab));
+  void _goForward() => setState(() => _model.goForward(widget.tab));
+
+  void _refreshTab() => setState(() => _reloadToken++);
 
   /// A link inside an article. Ctrl opens a new tab, Alt a preview dialog, and
   /// a plain click replaces the article in this tab.
@@ -175,31 +186,70 @@ class _ConfluenceSpaceViewState extends State<ConfluenceSpaceView> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 10, 4, 0),
-                    child: Row(
-                      spacing: 8,
+                    padding: const EdgeInsets.fromLTRB(8, 10, 8, 0),
+                    child: Column(
                       children: [
-                        ConfluenceSpaceIcon(path: widget.tab.iconPath, size: 20, fallbackLabel: widget.tab.spaceName),
-                        Expanded(
-                          child: Text(
-                            widget.tab.spaceName,
-                            style: Theme.of(context).textTheme.titleSmall,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                        // Centred, because the space is the heading of this
+                        // pane rather than one control among several.
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          spacing: 8,
+                          children: [
+                            ConfluenceSpaceIcon(path: widget.tab.iconPath, size: 20, fallbackLabel: widget.tab.spaceName),
+                            Flexible(
+                              child: Text(
+                                widget.tab.spaceName,
+                                style: Theme.of(context).textTheme.titleSmall,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
-                        if (spaceUrl != null)
-                          IconButton(
-                            tooltip: 'Create a page on the website',
-                            icon: const Icon(Symbols.add_circle),
-                            visualDensity: VisualDensity.compact,
-                            onPressed: () => launchUrl(Uri.parse('$spaceUrl/pages/createpage.action')),
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                IconButton(
+                                  tooltip: 'Back',
+                                  icon: const Icon(Symbols.arrow_back),
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: widget.tab.canGoBack ? _goBack : null,
+                                ),
+                                IconButton(
+                                  tooltip: 'Forward',
+                                  icon: const Icon(Symbols.arrow_forward),
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: widget.tab.canGoForward ? _goForward : null,
+                                ),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                IconButton(
+                                  tooltip: 'Reload this tab',
+                                  icon: const Icon(Symbols.refresh),
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: _refreshTab,
+                                ),
+                                if (spaceUrl != null)
+                                  IconButton(
+                                    tooltip: 'Create a page on the website',
+                                    icon: const Icon(Symbols.add_circle),
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () => launchUrl(Uri.parse('$spaceUrl/pages/createpage.action')),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
                   Expanded(
                     child: ConfluencePageTree(
+                      key: ValueKey('tree|${widget.tab.tabId}|$_reloadToken'),
                       tab: widget.tab,
                       onOpen: (node) => _open(node.id, title: node.title),
                     ),
@@ -220,9 +270,13 @@ class _ConfluenceSpaceViewState extends State<ConfluenceSpaceView> {
                   : ConfluenceArticleView(
                       // Keyed so switching articles rebuilds the state rather
                       // than showing the previous page's history panel.
-                      key: ValueKey(widget.tab.pageId),
+                      key: ValueKey('${widget.tab.pageId}|$_reloadToken'),
                       pageId: widget.tab.pageId!,
                       onOpenLink: _openLink,
+                      // The tab labels itself with the article, which is only
+                      // known once the page is in — a page reached by a link or
+                      // by going back was never named in the tree.
+                      onTitleResolved: (title) => setState(() => _model.describePage(widget.tab, title)),
                     ),
             ),
           ],
