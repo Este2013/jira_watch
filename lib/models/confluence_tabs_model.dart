@@ -169,6 +169,14 @@ class ConfluenceTabsModel with GlobalLoggy {
   late final ObservableList<ConfluenceSpaceTab> tabs;
   final ValueNotifier<String?> activeTabId = ValueNotifier(null);
 
+  /// Bumped whenever anything about a tab changes.
+  ///
+  /// [tabs] reports insertions and removals, not edits to a tab already in it —
+  /// so a tab whose open article changed looked identical to the strip, and its
+  /// label stayed on whatever page it was opened at. Anything displaying a tab's
+  /// details has to listen to this as well as to the list.
+  final ValueNotifier<int> revision = ValueNotifier(0);
+
   late Future<bool> isReady;
   bool _saveRequested = false;
   // ignore: unused_field
@@ -305,8 +313,16 @@ class ConfluenceTabsModel with GlobalLoggy {
     requestSave();
   }
 
-  /// Coalesces bursts of changes into at most one write per second.
-  void requestSave() => _saveRequested = true;
+  /// Coalesces bursts of changes into at most one write per second, and tells
+  /// anything showing a tab that it has changed.
+  ///
+  /// Every mutation already came through here, which is why the notification
+  /// lives here rather than being repeated at each call site and forgotten at
+  /// one of them.
+  void requestSave() {
+    _saveRequested = true;
+    revision.value++;
+  }
 
   Future<void> _save() async {
     final file = await _dataFile;

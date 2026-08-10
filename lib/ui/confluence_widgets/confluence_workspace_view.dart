@@ -32,7 +32,7 @@ class ConfluenceWorkspaceView extends StatelessWidget {
     final model = DataModel().confluenceTabs;
 
     return AnimatedBuilder(
-      animation: Listenable.merge([model.tabs, model.activeTabId]),
+      animation: Listenable.merge([model.tabs, model.activeTabId, model.revision]),
       builder: (context, _) => CallbackShortcuts(
         bindings: {
           const SingleActivator(LogicalKeyboardKey.keyT, control: true): () => showConfluenceSpacePicker(context),

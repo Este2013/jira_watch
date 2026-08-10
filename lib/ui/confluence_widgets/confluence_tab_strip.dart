@@ -68,7 +68,7 @@ class _ConfluenceTabStripState extends State<ConfluenceTabStrip> {
     // whose widget instance is identical, so a parent rebuild alone would never
     // re-run this build method.
     return AnimatedBuilder(
-      animation: Listenable.merge([model.tabs, model.activeTabId]),
+      animation: Listenable.merge([model.tabs, model.activeTabId, model.revision]),
       builder: (context, _) => SizedBox(
         height: 40,
         child: Row(

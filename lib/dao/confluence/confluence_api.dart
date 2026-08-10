@@ -19,6 +19,7 @@ class ConfluencePage {
     required this.adf,
     this.authorId,
     this.status,
+    this.parentId,
     this.versionNumber,
     this.versionCreatedAt,
     this.webPath,
@@ -37,6 +38,10 @@ class ConfluencePage {
 
   /// `current`, `draft`, `archived` — what Confluence calls the page's state.
   final String? status;
+
+  /// Whatever the page hangs from — which need not be a page; see
+  /// [ConfluenceApi.pageTree].
+  final String? parentId;
 
   final int? versionNumber;
   final DateTime? versionCreatedAt;
@@ -197,6 +202,30 @@ class ConfluenceApi with GlobalLoggy {
       if (space.id != null && space.name != null) _spaceNameCache[space.id!] = space.name!;
     }
     return spaces;
+  }
+
+  /// A space by its key rather than its id, for a macro that names one — the
+  /// page-tree macro's `spaces` parameter carries the key.
+  Future<confluence.SpaceBulk?> spaceByKey(String key) async {
+    if (key.isEmpty) return null;
+    try {
+      final result = await spacesApi.getSpaces(keys: [key], limit: 1, includeIcon: true);
+      return result?.results.firstOrNull;
+    } on Object catch (e) {
+      loggy.info('Could not look up space "$key": $e');
+      return null;
+    }
+  }
+
+  /// A space's home page, which is where the page-tree macro roots itself by
+  /// default (`root: @home`).
+  Future<String?> spaceHomepageId(String spaceId) async {
+    try {
+      return (await space(spaceId))?.homepageId;
+    } on Object catch (e) {
+      loggy.info('Could not read the home page of space $spaceId: $e');
+      return null;
+    }
   }
 
   Future<confluence.GetSpaceById200Response?> space(String spaceId) async {
@@ -369,6 +398,7 @@ class ConfluenceApi with GlobalLoggy {
       adf: _decodeAdf(response.body?.atlasDocFormat?.value, pageId),
       authorId: response.authorId,
       status: response.status?.toString(),
+      parentId: response.parentId,
       versionNumber: response.version?.number,
       versionCreatedAt: response.version?.createdAt,
       // The response's _links carries only a base, no page path. This form

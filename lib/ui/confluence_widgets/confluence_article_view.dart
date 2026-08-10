@@ -306,7 +306,7 @@ class _ConfluenceArticleViewState extends State<ConfluenceArticleView> with UiLo
           attachments: const [],
           mediaBuilder: confluenceMediaBuilder(page.id),
           macroBuilder: confluenceMacroBuilder(
-            page.id,
+            page,
             onOpen: (pageId, mode) => widget.onOpenLink?.call(pageId, mode),
           ),
           linkHandler: _handleLink,

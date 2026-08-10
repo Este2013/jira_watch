@@ -136,23 +136,32 @@ Future<String?> resolveConfluenceLinkTitle(String url) async {
 /// The table of contents is not here: everything it needs is in the document,
 /// so the renderer builds it without help.
 Widget? Function(BuildContext, String, Map<String, dynamic>) confluenceMacroBuilder(
-  String pageId, {
+  ConfluencePage page, {
   required void Function(String pageId, ConfluenceOpenMode mode) onOpen,
 }) {
   return (context, macroKey, node) {
-    // Confluence has shipped this macro under both names.
-    if (macroKey != 'children' && macroKey != 'child-pages') return null;
-
     final parameters = node['attrs']?['parameters']?['macroParams'] as Map<String, dynamic>?;
-    // The macro can be pointed at another page; with no root it lists the
-    // children of the page it sits on.
-    final root = '${parameters?['page']?['value'] ?? ''}'.trim();
+    String param(String name) => '${parameters?[name]?['value'] ?? ''}'.trim();
 
-    return _ChildPagesMacro(
-      pageId: pageId,
-      rootTitle: root.isEmpty ? null : root,
-      onOpen: onOpen,
-    );
+    switch (macroKey) {
+      // Confluence has shipped the child-pages macro under both names.
+      case 'children':
+      case 'child-pages':
+        final root = param('page');
+        return _ChildPagesMacro(pageId: page.id, rootTitle: root.isEmpty ? null : root, onOpen: onOpen);
+
+      case 'pagetree':
+        final root = param('root');
+        return _PageTreeMacro(
+          page: page,
+          // `@home`, `@self`, `@parent`, or a page named by title. `@home` is
+          // both the macro's default and what it carries in practice.
+          root: root.isEmpty ? '@home' : root,
+          spaceKey: param('spaces'),
+          onOpen: onOpen,
+        );
+    }
+    return null;
   };
 }
 
@@ -239,6 +248,227 @@ class _ChildPagesMacroState extends State<_ChildPagesMacro> {
           ],
         );
       },
+    );
+  }
+}
+
+/// The page-tree macro: a whole subtree, one level at a time.
+///
+/// Unlike the child-pages macro this can be rooted anywhere — `@home` (the
+/// default), `@self`, `@parent`, or a page named by title — and in a different
+/// space than the one being read, which the `spaces` parameter gives by key.
+///
+/// Everything starts collapsed and each level is fetched the first time it is
+/// opened, because loading the whole subtree up front would be one request per
+/// node on a tree nobody may expand.
+class _PageTreeMacro extends StatefulWidget {
+  const _PageTreeMacro({required this.page, required this.root, required this.spaceKey, required this.onOpen});
+
+  final ConfluencePage page;
+  final String root;
+  final String spaceKey;
+  final void Function(String pageId, ConfluenceOpenMode mode) onOpen;
+
+  @override
+  State<_PageTreeMacro> createState() => _PageTreeMacroState();
+}
+
+class _PageTreeMacroState extends State<_PageTreeMacro> {
+  late final Future<({String? rootId, String? note})> _root;
+
+  @override
+  void initState() {
+    super.initState();
+    _root = _resolveRoot();
+  }
+
+  Future<({String? rootId, String? note})> _resolveRoot() async {
+    final api = ConfluenceApi();
+
+    switch (widget.root) {
+      case '@self':
+        return (rootId: widget.page.id, note: null);
+
+      case '@parent':
+        // A page at the top of its space has no parent, so its own subtree is
+        // the nearest useful thing to show.
+        return (rootId: widget.page.parentId ?? widget.page.id, note: null);
+
+      case '@home':
+        var spaceId = widget.page.spaceId;
+        if (widget.spaceKey.isNotEmpty) {
+          final space = await api.spaceByKey(widget.spaceKey);
+          spaceId = space?.id ?? spaceId;
+        }
+        if (spaceId == null) return (rootId: null, note: 'This tree names a space that could not be found.');
+
+        final home = await api.spaceHomepageId(spaceId);
+        return home == null
+            ? (rootId: null, note: 'That space has no home page for the tree to start from.')
+            : (rootId: home, note: null);
+
+      default:
+        // A page title, which cannot be turned into an id without a search.
+        // This page's own subtree beats showing nothing, as long as it says so.
+        return (
+          rootId: widget.page.id,
+          note: 'This tree is rooted at "${widget.root}"; showing the current page instead.',
+        );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<({String? rootId, String? note})>(
+    future: _root,
+    builder: (context, snapshot) {
+      if (!snapshot.hasData) {
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+        );
+      }
+
+      final (rootId: rootId, note: note) = snapshot.data!;
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (note != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                note,
+                style: Theme.of(context).textTheme.bodySmall!.copyWith(color: Theme.of(context).hintColor),
+              ),
+            ),
+          if (rootId != null) _LazyTreeLevel(parentId: rootId, depth: 0, onOpen: widget.onOpen),
+        ],
+      );
+    },
+  );
+}
+
+/// One level of a lazily-expanded tree.
+class _LazyTreeLevel extends StatefulWidget {
+  const _LazyTreeLevel({required this.parentId, required this.depth, required this.onOpen});
+
+  final String parentId;
+  final int depth;
+  final void Function(String pageId, ConfluenceOpenMode mode) onOpen;
+
+  @override
+  State<_LazyTreeLevel> createState() => _LazyTreeLevelState();
+}
+
+class _LazyTreeLevelState extends State<_LazyTreeLevel> {
+  late final Future<List<ConfluencePageNode>> _children;
+
+  @override
+  void initState() {
+    super.initState();
+    _children = ConfluenceApi().childPages(widget.parentId);
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<ConfluencePageNode>>(
+    future: _children,
+    builder: (context, snapshot) {
+      if (snapshot.hasError) {
+        return Text('This part of the tree could not be listed.', style: TextStyle(color: Theme.of(context).colorScheme.error));
+      }
+      if (!snapshot.hasData) {
+        return Padding(
+          padding: EdgeInsets.only(left: widget.depth * 16, top: 4, bottom: 4),
+          child: const SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+        );
+      }
+
+      final children = snapshot.data!;
+      if (children.isEmpty) {
+        return Padding(
+          padding: EdgeInsets.only(left: widget.depth * 16 + 24),
+          child: Text(
+            widget.depth == 0 ? 'Nothing under this page yet.' : 'Nothing here.',
+            style: Theme.of(context).textTheme.bodySmall!.copyWith(color: Theme.of(context).hintColor),
+          ),
+        );
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final child in children) _LazyTreeNode(node: child, depth: widget.depth, onOpen: widget.onOpen),
+        ],
+      );
+    },
+  );
+}
+
+class _LazyTreeNode extends StatefulWidget {
+  const _LazyTreeNode({required this.node, required this.depth, required this.onOpen});
+
+  final ConfluencePageNode node;
+  final int depth;
+  final void Function(String pageId, ConfluenceOpenMode mode) onOpen;
+
+  @override
+  State<_LazyTreeNode> createState() => _LazyTreeNodeState();
+}
+
+class _LazyTreeNodeState extends State<_LazyTreeNode> {
+  /// Closed to begin with, and its children are not fetched until it is opened.
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colours = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.only(left: widget.depth * 16),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Every node gets a chevron. v2 reports no child count, so whether
+              // anything sits under a page is only knowable by asking — and an
+              // empty one says so rather than opening onto a blank.
+              IconButton(
+                tooltip: _expanded ? 'Collapse' : 'Expand',
+                icon: AnimatedRotation(
+                  turns: _expanded ? 0 : -0.25,
+                  duration: Durations.short3,
+                  child: const Icon(Symbols.expand_more),
+                ),
+                iconSize: 16,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: () => setState(() => _expanded = !_expanded),
+              ),
+              const SizedBox(width: 4),
+              Icon(Symbols.article, size: 15, color: colours.primary),
+              const SizedBox(width: 4),
+              Flexible(
+                child: InkWell(
+                  onTap: () => widget.onOpen(widget.node.id, currentOpenMode()),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Text(
+                      widget.node.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: colours.primary, decoration: TextDecoration.underline, decorationColor: colours.primary.withAlpha(90)),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_expanded) _LazyTreeLevel(parentId: widget.node.id, depth: widget.depth + 1, onOpen: widget.onOpen),
+      ],
     );
   }
 }

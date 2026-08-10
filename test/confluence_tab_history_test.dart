@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jira_watcher/models/confluence_tabs_model.dart';
 
@@ -13,6 +16,26 @@ ConfluenceSpaceTab tab({String? pageId}) => ConfluenceSpaceTab(
 // reads its file on construction, and the trail's rules are the tab's own.
 
 void main() {
+  // Constructing the model reaches for its settings folder, which goes through
+  // platform plugins that do not exist in a test. Left unstubbed, those calls
+  // resolve after the test that triggered them has finished and are reported as
+  // that test failing, with assertions that all passed.
+  setUpAll(() {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    for (final channel in const [
+      MethodChannel('dev.fluttercommunity.plus/package_info'),
+      MethodChannel('plugins.flutter.io/path_provider'),
+      MethodChannel('plugins.flutter.io/path_provider_windows'),
+    ]) {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == 'getAll') {
+          return <String, Object?>{'appName': 'test', 'packageName': 'test', 'version': '0.0.0', 'buildNumber': '0'};
+        }
+        return Directory.systemTemp.createTempSync('confluence_tabs_test').path;
+      });
+    }
+  });
+
   group('tab navigation history', () {
     test('a tab opened on a page starts with that page in its history', () {
       final t = tab(pageId: '1');
@@ -119,6 +142,31 @@ void main() {
       expect(restored.historyIndex, 1);
       expect(restored.canGoBack, isTrue);
       expect(restored.canGoForward, isTrue);
+    });
+
+    test('editing a tab notifies, so the strip showing it rebuilds', () {
+      // The bug this guards: the strip listens to the tab list, which reports
+      // insertions and removals but not edits to a tab already in it — so
+      // navigating within a tab left its label on the page it was opened at.
+      // Every mutation goes through requestSave, which is where the signal is.
+      final model = ConfluenceTabsModel();
+      var notifications = 0;
+      // Held in a variable: passing a fresh closure to removeListener would
+      // remove nothing, and the leaked listener would count another test's
+      // edits into this one.
+      void onChange() => notifications++;
+      model.revision.addListener(onChange);
+      addTearDown(() => model.revision.removeListener(onChange));
+
+      final t = tab(pageId: '1');
+      model.setPage(t, '2', title: 'Second');
+      expect(notifications, 1);
+
+      model.describePage(t, 'Corrected');
+      expect(notifications, 2);
+
+      model.goBack(t);
+      expect(notifications, 3);
     });
 
     test('a tab saved before history existed still loads', () {
