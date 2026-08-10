@@ -1,6 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/dao/confluence/confluence_api.dart';
-import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 /// A space's icon, falling back to its initials.
@@ -24,40 +25,54 @@ class ConfluenceSpaceIcon extends StatelessWidget {
     return (words.length == 1 ? words.first.substring(0, 1) : words.take(2).map((w) => w.substring(0, 1)).join()).toUpperCase();
   }
 
+  Widget _fallback(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final initials = _initials;
+
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: scheme.secondaryContainer, borderRadius: BorderRadius.circular(4)),
+      child: initials == null
+          ? Icon(Symbols.book_2, size: size * 0.7, color: scheme.onSecondaryContainer)
+          : Text(
+              initials,
+              style: TextStyle(fontSize: size * 0.45, fontWeight: FontWeight.w700, color: scheme.onSecondaryContainer),
+            ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final url = ConfluenceApi().absoluteUrl(path);
-    final scheme = Theme.of(context).colorScheme;
+    if (url == null) return _fallback(context);
 
-    if (url == null) {
-      final initials = _initials;
-      return Container(
-        width: size,
-        height: size,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(color: scheme.secondaryContainer, borderRadius: BorderRadius.circular(4)),
-        child: initials == null
-            ? Icon(Symbols.book_2, size: size * 0.7, color: scheme.onSecondaryContainer)
-            : Text(
-                initials,
-                style: TextStyle(fontSize: size * 0.45, fontWeight: FontWeight.w700, color: scheme.onSecondaryContainer),
-              ),
-      );
-    }
+    // Fetched here rather than through JiraImage because a space icon that
+    // cannot be loaded should quietly become initials. JiraImage throws, which
+    // showed as a red error box in the sidebar and on the tab — and an icon is
+    // not worth a visible failure.
+    return FutureBuilder<Uint8List?>(
+      future: ConfluenceApi().iconBytes(url),
+      builder: (context, snapshot) {
+        final bytes = snapshot.data;
+        // While loading, the initials stand in: they are the same size, so
+        // nothing shifts when the image arrives.
+        if (bytes == null) return _fallback(context);
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      // Sized from outside because JiraImage takes a width but no height, and
-      // an icon that is square everywhere else should stay square here.
-      //
-      // Goes through JiraImage for its authenticated cache: a space icon sits
-      // behind the same login as everything else, so an unauthenticated fetch
-      // gets a login page rather than a picture.
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: JiraImage(url: url, width: size, boxFit: BoxFit.cover),
-      ),
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Image.memory(
+            bytes,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            // Bytes that are not a decodable image — an SVG, or an HTML login
+            // page served with a 200 — land here.
+            errorBuilder: (context, _, _) => _fallback(context),
+          ),
+        );
+      },
     );
   }
 }

@@ -133,11 +133,12 @@ class _ConfluenceSpaceViewState extends State<ConfluenceSpaceView> {
   /// lookup fills both in, and it is skipped when there is nothing to learn.
   Future<void> _describeSpace() async {
     if (widget.tab.spaceId.isEmpty) return;
-    if (widget.tab.iconPath != null && widget.tab.spaceName.isNotEmpty && widget.tab.spaceKey.isNotEmpty) return;
+    final hasUsableIcon = widget.tab.iconPath != null && !ConfluenceApi.isUnauthenticatableIconPath(widget.tab.iconPath!);
+    if (hasUsableIcon && widget.tab.spaceName.isNotEmpty && widget.tab.spaceKey.isNotEmpty) return;
 
     final space = await ConfluenceApi().space(widget.tab.spaceId);
     if (!mounted || space == null) return;
-    setState(() => _model.describeSpace(widget.tab, name: space.name, key: space.key, iconPath: space.icon?.path));
+    setState(() => _model.describeSpace(widget.tab, name: space.name, key: space.key, iconPath: ConfluenceApi.iconPathOf(space.icon)));
   }
 
   void _open(String pageId, {String? title}) => setState(() => _model.setPage(widget.tab, pageId, title: title));

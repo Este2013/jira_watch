@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:confluence_api/api.dart' as confluence;
 import 'package:http/http.dart' as http;
@@ -132,6 +133,7 @@ class ConfluenceApi with GlobalLoggy {
   void _invalidateClient() {
     _client = null;
     _spaceNameCache.clear();
+    _iconBytes.clear();
   }
 
   /// The v2 spec's paths are relative to a server of `{site}/wiki/api/v2`, so
@@ -170,6 +172,52 @@ class ConfluenceApi with GlobalLoggy {
     final site = JiraAuth().siteUrl;
     if (site == null) return null;
     return path.startsWith('/wiki/') ? '$site$path' : webUrl(path);
+  }
+
+  /// Which of a space icon's two URLs to use.
+  ///
+  /// `path` is the web UI's route and can be `/wiki/aa-avatar/...` for a space
+  /// with a generated icon, which rejects an API token — that is the 401 those
+  /// icons produced. The spec says outright to prefer `apiDownloadLink` for
+  /// programmatic retrieval; it is only returned for global spaces, so `path`
+  /// stays as the fallback.
+  static String? iconPathOf(confluence.SpaceIcon? icon) {
+    final api = icon?.apiDownloadLink;
+    if (api != null && api.isNotEmpty) return api;
+    final path = icon?.path;
+    return (path != null && path.isNotEmpty) ? path : null;
+  }
+
+  /// Whether a stored icon path is one an API token cannot fetch.
+  ///
+  /// Tabs saved before [iconPathOf] existed hold the web UI's `path`, and for a
+  /// space with a generated icon that is an `aa-avatar` route which answers 401.
+  /// Treating those as missing makes such a tab look its space up once more and
+  /// pick up the API link, rather than showing initials forever.
+  static bool isUnauthenticatableIconPath(String path) => path.contains('/aa-avatar/');
+
+  /// A space icon's bytes, or null if it could not be fetched.
+  ///
+  /// Cached including the failures: an icon that 401s would otherwise be
+  /// re-requested on every rebuild of every tab showing that space.
+  final Map<String, Uint8List?> _iconBytes = {};
+
+  Future<Uint8List?> iconBytes(String url) async {
+    if (_iconBytes.containsKey(url)) return _iconBytes[url];
+    try {
+      final response = await http.get(Uri.parse(url), headers: {
+        'Authorization': JiraAuth().authHeader,
+        'Accept': 'image/*',
+      });
+      if (response.statusCode != 200) {
+        loggy.info('Space icon $url returned ${response.statusCode}; falling back to initials.');
+        return _iconBytes[url] = null;
+      }
+      return _iconBytes[url] = response.bodyBytes;
+    } on Object catch (e) {
+      loggy.info('Space icon $url could not be fetched ($e); falling back to initials.');
+      return _iconBytes[url] = null;
+    }
   }
 
   // The generated surface, for anything the conveniences below do not cover.

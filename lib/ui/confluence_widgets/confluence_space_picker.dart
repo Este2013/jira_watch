@@ -50,7 +50,7 @@ class _ConfluenceSpacePickerDialogState extends State<ConfluenceSpacePickerDialo
       spaceId: space.id ?? '',
       spaceKey: space.key ?? '',
       spaceName: space.name ?? space.key ?? 'Space',
-      iconPath: space.icon?.path,
+      iconPath: ConfluenceApi.iconPathOf(space.icon),
     ),
   );
 
@@ -102,7 +102,7 @@ class _ConfluenceSpacePickerDialogState extends State<ConfluenceSpacePickerDialo
                   itemBuilder: (context, i) {
                     final space = spaces[i];
                     return ListTile(
-                      leading: ConfluenceSpaceIcon(path: space.icon?.path, size: 24, fallbackLabel: space.name ?? space.key),
+                      leading: ConfluenceSpaceIcon(path: ConfluenceApi.iconPathOf(space.icon), size: 24, fallbackLabel: space.name ?? space.key),
                       title: Text('${space.name}'),
                       subtitle: Text('${space.key}'),
                       trailing: space.status == confluence.SpaceStatus.archived
