@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/confluence/confluence_api.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 /// How a link the reader clicked should be opened.
 enum ConfluenceOpenMode {
@@ -116,6 +117,130 @@ class _ZoomableImage extends StatelessWidget {
     ),
     child: JiraImage(url: url, boxFit: BoxFit.fitWidth, width: width),
   );
+}
+
+/// Labels a wiki link with the page's actual title.
+///
+/// A Confluence URL ends in a page id as often as a title slug, so a link chip
+/// would otherwise read "2857762846" where the website reads "CHKB0 -
+/// Dictionnary". Returns null for anything that is not a page this app can
+/// identify, which leaves the chip on its fallback.
+Future<String?> resolveConfluenceLinkTitle(String url) async {
+  final pageId = confluencePageIdIn(url);
+  return pageId == null ? null : ConfluenceApi().pageTitle(pageId);
+}
+
+/// Renders the macros that need Confluence itself, rather than only the
+/// document — currently the child-pages listing.
+///
+/// The table of contents is not here: everything it needs is in the document,
+/// so the renderer builds it without help.
+Widget? Function(BuildContext, String, Map<String, dynamic>) confluenceMacroBuilder(
+  String pageId, {
+  required void Function(String pageId, ConfluenceOpenMode mode) onOpen,
+}) {
+  return (context, macroKey, node) {
+    // Confluence has shipped this macro under both names.
+    if (macroKey != 'children' && macroKey != 'child-pages') return null;
+
+    final parameters = node['attrs']?['parameters']?['macroParams'] as Map<String, dynamic>?;
+    // The macro can be pointed at another page; with no root it lists the
+    // children of the page it sits on.
+    final root = '${parameters?['page']?['value'] ?? ''}'.trim();
+
+    return _ChildPagesMacro(
+      pageId: pageId,
+      rootTitle: root.isEmpty ? null : root,
+      onOpen: onOpen,
+    );
+  };
+}
+
+class _ChildPagesMacro extends StatefulWidget {
+  const _ChildPagesMacro({required this.pageId, required this.rootTitle, required this.onOpen});
+
+  final String pageId;
+
+  /// The macro's `page` parameter, when it points somewhere other than the page
+  /// it sits on. Only a title, which is not something this can resolve without
+  /// a search — so it is shown as a note rather than followed.
+  final String? rootTitle;
+
+  final void Function(String pageId, ConfluenceOpenMode mode) onOpen;
+
+  @override
+  State<_ChildPagesMacro> createState() => _ChildPagesMacroState();
+}
+
+class _ChildPagesMacroState extends State<_ChildPagesMacro> {
+  late final Future<List<ConfluencePageNode>> _children;
+
+  @override
+  void initState() {
+    super.initState();
+    _children = ConfluenceApi().childPages(widget.pageId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colours = Theme.of(context).colorScheme;
+
+    return FutureBuilder<List<ConfluencePageNode>>(
+      future: _children,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Text('The child pages could not be listed.', style: TextStyle(color: colours.error));
+        }
+        if (!snapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        }
+
+        final children = snapshot.data!;
+        if (children.isEmpty) {
+          return Text('This page has no child pages.', style: TextStyle(color: Theme.of(context).hintColor));
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (widget.rootTitle != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  'Showing this page\'s children; the macro points at "${widget.rootTitle}".',
+                  style: Theme.of(context).textTheme.bodySmall!.copyWith(color: Theme.of(context).hintColor),
+                ),
+              ),
+            for (final child in children)
+              InkWell(
+                onTap: () => widget.onOpen(child.id, currentOpenMode()),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    spacing: 6,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Symbols.description, size: 15, color: colours.primary),
+                      Flexible(
+                        child: Text(
+                          child.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: colours.primary, decoration: TextDecoration.underline, decorationColor: colours.primary.withAlpha(90)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 /// Flattens an ADF document to plain text, for comparing two revisions.

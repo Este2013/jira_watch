@@ -17,6 +17,8 @@ class ConfluencePage {
     required this.title,
     required this.spaceId,
     required this.adf,
+    this.authorId,
+    this.status,
     this.versionNumber,
     this.versionCreatedAt,
     this.webPath,
@@ -29,6 +31,12 @@ class ConfluencePage {
   /// The Atlassian Document Format body, already decoded. Null when Confluence
   /// returned no ADF for this page — see [ConfluenceApi.page].
   final Map<String, dynamic>? adf;
+
+  /// Resolved to a name separately: the pages API reports only an account id.
+  final String? authorId;
+
+  /// `current`, `draft`, `archived` — what Confluence calls the page's state.
+  final String? status;
 
   final int? versionNumber;
   final DateTime? versionCreatedAt;
@@ -359,6 +367,8 @@ class ConfluenceApi with GlobalLoggy {
       title: response.title ?? '(untitled)',
       spaceId: response.spaceId,
       adf: _decodeAdf(response.body?.atlasDocFormat?.value, pageId),
+      authorId: response.authorId,
+      status: response.status?.toString(),
       versionNumber: response.version?.number,
       versionCreatedAt: response.version?.createdAt,
       // The response's _links carries only a base, no page path. This form
@@ -376,6 +386,109 @@ class ConfluenceApi with GlobalLoggy {
       loggy.warning('Page $pageId has an atlas_doc_format body that is not JSON: $e');
       return null;
     }
+  }
+
+  // PAGE DETAILS //////////////////////////////////////////////////////////////
+
+  final Map<String, String> _pageTitleCache = {};
+
+  /// A page's title, for labelling a link to it.
+  ///
+  /// Cached hard: an article linking to the same page five times would
+  /// otherwise fetch it five times while rendering, and a title does not change
+  /// while someone is reading.
+  Future<String?> pageTitle(String pageId) async {
+    final cached = _pageTitleCache[pageId];
+    if (cached != null) return cached;
+
+    final id = int.tryParse(pageId);
+    if (id == null) return null;
+    try {
+      final page = await pagesApi.getPageById(id);
+      final title = page?.title;
+      if (title != null) _pageTitleCache[pageId] = title;
+      return title;
+    } on Object catch (e) {
+      // A link to a page the reader cannot see is not an error worth showing;
+      // the chip falls back to the URL.
+      loggy.info('Could not read the title of page $pageId: $e');
+      return null;
+    }
+  }
+
+  final Map<String, confluence.User> _userCache = {};
+
+  /// A display name for an account id.
+  ///
+  /// The pages API reports only `authorId`, so an author's name always costs
+  /// this second call.
+  Future<confluence.User?> user(String accountId) async {
+    final cached = _userCache[accountId];
+    if (cached != null) return cached;
+    try {
+      final result = await confluence.UserApi(client).createBulkUserLookup(
+        confluence.CreateBulkUserLookupRequest(accountIds: [accountId]),
+      );
+      final user = result?.results.firstOrNull;
+      if (user != null) _userCache[accountId] = user;
+      return user;
+    } on Object catch (e) {
+      loggy.info('Could not look up user $accountId: $e');
+      return null;
+    }
+  }
+
+  /// How many people reacted to the page.
+  ///
+  /// v2 models this as footer *likes*; Confluence's own footer shows the same
+  /// number behind an emoji.
+  Future<int?> likeCount(String pageId) async {
+    final id = int.tryParse(pageId);
+    if (id == null) return null;
+    try {
+      final result = await confluence.LikeApi(client).getFooterLikeCount(id);
+      return result?.count;
+    } on Object catch (e) {
+      loggy.info('Could not read the like count of page $pageId: $e');
+      return null;
+    }
+  }
+
+  /// How many times the page has been viewed.
+  ///
+  /// Analytics is a v1 endpoint with no v2 equivalent, and it is not available
+  /// on every Confluence plan — so this returns null rather than failing, and
+  /// the reader simply omits the figure.
+  Future<int?> viewCount(String pageId) async {
+    final site = JiraAuth().siteUrl;
+    if (site == null) return null;
+    try {
+      final response = await http.get(
+        Uri.parse('$site/wiki/rest/api/analytics/content/$pageId/views'),
+        headers: {'Authorization': JiraAuth().authHeader, 'Accept': 'application/json'},
+      );
+      if (response.statusCode != 200) {
+        loggy.info('Analytics returned ${response.statusCode} for page $pageId; view count omitted.');
+        return null;
+      }
+      return (jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>)['count'] as int?;
+    } on Object catch (e) {
+      loggy.info('Could not read the view count of page $pageId: $e');
+      return null;
+    }
+  }
+
+  /// A page's direct children, for the child-pages macro.
+  Future<List<ConfluencePageNode>> childPages(String pageId) async {
+    final id = int.tryParse(pageId);
+    if (id == null) return const [];
+    final result = await childrenApi.getChildPages(id, limit: 250);
+    final children = [...result?.results ?? const <confluence.ChildPage>[]]
+      ..sort((a, b) => (a.childPosition ?? 1 << 31).compareTo(b.childPosition ?? 1 << 31));
+    return [
+      for (final child in children)
+        if (child.id != null) ConfluencePageNode(id: child.id!, title: child.title ?? '(untitled)'),
+    ];
   }
 
   // VERSIONS //////////////////////////////////////////////////////////////////

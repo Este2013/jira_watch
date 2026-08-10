@@ -1,6 +1,8 @@
 import 'package:confluence_api/api.dart' as confluence;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/confluence/confluence_api.dart';
+import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/confluence_widgets/confluence_adf.dart';
 import 'package:jira_watcher/ui/updates_widgets/diff_matcher.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_doc_renderer.dart';
@@ -122,6 +124,8 @@ class _ConfluenceArticleViewState extends State<ConfluenceArticleView> with UiLo
             const Divider(height: 1),
           ],
           Expanded(child: _body(context, page)),
+          const Divider(height: 1),
+          _ReadingBar(page: page),
         ],
       );
     },
@@ -162,6 +166,16 @@ class _ConfluenceArticleViewState extends State<ConfluenceArticleView> with UiLo
               onPressed: () => setState(() => _showHistory = !_showHistory),
             ),
           if (webUrl != null) ...[
+            IconButton(
+              tooltip: 'Copy link to this page',
+              icon: const Icon(Symbols.link),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: webUrl));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Link copied.'), duration: Duration(seconds: 2)),
+                );
+              },
+            ),
             // Editing and creating are deliberately not implemented; these hand
             // the reader over to the website rather than pretending otherwise.
             IconButton(
@@ -235,19 +249,189 @@ class _ConfluenceArticleViewState extends State<ConfluenceArticleView> with UiLo
       );
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: AdfRenderer(
-        adf: page.adf!,
-        attachments: const [],
-        mediaBuilder: confluenceMediaBuilder(page.id),
-        linkHandler: _handleLink,
+    return ValueListenableBuilder<double>(
+      valueListenable: SettingsModel().confluenceTextScale,
+      builder: (context, scale, _) => SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: AdfRenderer(
+          adf: page.adf!,
+          attachments: const [],
+          mediaBuilder: confluenceMediaBuilder(page.id),
+          macroBuilder: confluenceMacroBuilder(
+            page.id,
+            onOpen: (pageId, mode) => widget.onOpenLink?.call(pageId, mode),
+          ),
+          linkHandler: _handleLink,
+          linkTitleResolver: resolveConfluenceLinkTitle,
+          textScale: scale,
+        ),
       ),
     );
   }
 
   static String _shortDate(DateTime date) =>
       '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+}
+
+/// The strip under the article: who wrote it and how it has been received on
+/// the left, reading controls on the right.
+///
+/// Each figure is fetched separately and each is allowed to be absent. The
+/// author costs a second call because the page reports only an account id, and
+/// the view count comes from an analytics endpoint that not every Confluence
+/// plan exposes — so a missing figure is normal here and simply omitted rather
+/// than shown as an error.
+class _ReadingBar extends StatefulWidget {
+  const _ReadingBar({required this.page});
+
+  final ConfluencePage page;
+
+  @override
+  State<_ReadingBar> createState() => _ReadingBarState();
+}
+
+class _ReadingBarState extends State<_ReadingBar> {
+  late Future<confluence.User?> _author;
+  late Future<int?> _views;
+  late Future<int?> _likes;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(_ReadingBar old) {
+    super.didUpdateWidget(old);
+    if (old.page.id != widget.page.id) setState(_load);
+  }
+
+  void _load() {
+    final api = ConfluenceApi();
+    final authorId = widget.page.authorId;
+    _author = authorId == null ? Future.value(null) : api.user(authorId);
+    _views = api.viewCount(widget.page.id);
+    _likes = api.likeCount(widget.page.id);
+  }
+
+  /// The status is only worth showing when it is not the ordinary one — every
+  /// page a reader opens is `current`, so labelling them all says nothing.
+  String? get _status {
+    final status = widget.page.status;
+    if (status == null || status.isEmpty || status == 'current') return null;
+    return '${status[0].toUpperCase()}${status.substring(1)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hint = Theme.of(context).hintColor;
+    final small = Theme.of(context).textTheme.bodySmall!.copyWith(color: hint);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Wrap(
+              spacing: 16,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                FutureBuilder<confluence.User?>(
+                  future: _author,
+                  builder: (context, snapshot) => snapshot.data?.displayName == null
+                      ? const SizedBox.shrink()
+                      : _Fact(icon: Symbols.person, label: snapshot.data!.displayName!, style: small),
+                ),
+                if (_status != null) _Fact(icon: Symbols.flag, label: _status!, style: small),
+                FutureBuilder<int?>(
+                  future: _views,
+                  builder: (context, snapshot) => snapshot.data == null
+                      ? const SizedBox.shrink()
+                      : _Fact(icon: Symbols.visibility, label: '${snapshot.data} views', style: small),
+                ),
+                FutureBuilder<int?>(
+                  future: _likes,
+                  builder: (context, snapshot) => snapshot.data == null || snapshot.data == 0
+                      ? const SizedBox.shrink()
+                      : _Fact(icon: Symbols.mood, label: '${snapshot.data}', style: small),
+                ),
+              ],
+            ),
+          ),
+          const _TextMagnifier(),
+        ],
+      ),
+    );
+  }
+}
+
+class _Fact extends StatelessWidget {
+  const _Fact({required this.icon, required this.label, required this.style});
+
+  final IconData icon;
+  final String label;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    spacing: 4,
+    children: [
+      Icon(icon, size: 14, color: style.color),
+      Text(label, style: style),
+    ],
+  );
+}
+
+/// Sets the article text size for every Confluence article, not just this one —
+/// somebody who wants larger text wants it on the next page too.
+class _TextMagnifier extends StatelessWidget {
+  const _TextMagnifier();
+
+  static const _min = 0.8;
+  static const _max = 2.0;
+  static const _step = 0.1;
+
+  @override
+  Widget build(BuildContext context) {
+    final setting = SettingsModel().confluenceTextScale;
+
+    return ValueListenableBuilder<double>(
+      valueListenable: setting,
+      builder: (context, scale, _) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Smaller text',
+            icon: const Icon(Symbols.text_decrease),
+            visualDensity: VisualDensity.compact,
+            onPressed: scale <= _min ? null : () => setting.value = (scale - _step).clamp(_min, _max),
+          ),
+          // Doubles as the reset: the percentage is the only place the current
+          // setting is visible, so it is also where it can be undone.
+          Tooltip(
+            message: 'Reset to 100%',
+            child: InkWell(
+              onTap: scale == 1.0 ? null : () => setting.value = 1.0,
+              borderRadius: BorderRadius.circular(4),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: Text('${(scale * 100).round()}%', style: Theme.of(context).textTheme.bodySmall),
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Larger text',
+            icon: const Icon(Symbols.text_increase),
+            visualDensity: VisualDensity.compact,
+            onPressed: scale >= _max ? null : () => setting.value = (scale + _step).clamp(_min, _max),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _Message extends StatelessWidget {
