@@ -11,14 +11,24 @@ library;
 /// version picker.
 final List<(String, List<ChangeLogSection>)> appChangeLog = [
   (
-    '1.7.3',
+    '1.8.0',
     [
       ChangeLogSection.features([
-        ChangeLogItem('This release is there to make sure updating works starting from 1.7.2'),
+        ChangeLogItem('Added Confluence viewer'),
+        ChangeLogItem('QoL changes for Gitlab view'),
       ]),
     ],
   ),
+
   ...[
+    (
+      '1.7.3',
+      [
+        ChangeLogSection.features([
+          ChangeLogItem('This release is there to make sure updating works starting from 1.7.2'),
+        ]),
+      ],
+    ),
     (
       '1.7.2',
       [
