@@ -1,0 +1,13 @@
+# Deliberately permissive: everything under lib/ is generated and is overwritten
+# wholesale by tool/generate_jira_api.ps1, so any lint fixed here is undone by the
+# next regeneration. Errors still surface — the package has to compile — but style
+# is not this code's job.
+#
+# The app's own analysis is unaffected either way: CI runs
+# `flutter analyze lib test tool`, which does not reach packages/.
+analyzer:
+  errors:
+    dead_code: ignore
+    unused_element: ignore
+    unused_import: ignore
+    deprecated_member_use_from_same_package: ignore

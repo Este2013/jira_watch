@@ -21,15 +21,34 @@ import '../../updates_widgets/issue_ui_elements.dart';
 
 Color selectionColor = const Color(0x336694e8);
 
+/// One heading in a document, found before rendering starts.
+///
+/// Collected up front rather than as headings are built, because a table of
+/// contents is normally the first thing on a page — by the time the headings
+/// themselves render, the widget that has to list them has already been built.
+class AdfHeading {
+  AdfHeading({required this.node, required this.text, required this.level}) : key = GlobalKey();
+
+  final Map<String, dynamic> node;
+  final String text;
+  final int level;
+
+  /// Lets a table of contents scroll to the heading.
+  final GlobalKey key;
+}
+
 /// Renderer for Atlassian Document Format (Jira doc) JSON.
-class AdfRenderer extends StatelessWidget {
+class AdfRenderer extends StatefulWidget {
   const AdfRenderer({
     super.key,
     required this.adf,
     this.mediaBuilder,
+    this.macroBuilder,
     this.linkHandler,
+    this.linkTitleResolver,
     this.textStyle,
     this.codeStyle,
+    this.textScale = 1.0,
     this.paragraphSpacing = 8.0,
     this.listIndent = 16.0,
     this.bulletGap = 8.0,
@@ -45,12 +64,29 @@ class AdfRenderer extends StatelessWidget {
   /// {"type":"file","id":"[uuid]","alt":"image.png","width":532,"height":477}
   final Widget Function(BuildContext context, Map<String, dynamic> attrs, num size)? mediaBuilder;
 
+  /// Builds a widget for a macro this renderer cannot handle itself — anything
+  /// needing data from the server it came from, like a list of a page's
+  /// children. Returning null falls back to the labelled placeholder.
+  ///
+  /// Kept as a callback so the renderer stays free of any one product's API.
+  final Widget? Function(BuildContext context, String macroKey, Map<String, dynamic> node)? macroBuilder;
+
   /// Called when a link is tapped. If null, uses default launcher (if available)
   /// otherwise does nothing.
   final void Function(String url)? linkHandler;
 
+  /// Resolves a link to something worth reading.
+  ///
+  /// A wiki URL often ends in a bare page id, which is what a link chip would
+  /// otherwise be labelled with. Null, or a null result, keeps the URL.
+  final Future<String?> Function(String url)? linkTitleResolver;
+
   final TextStyle? textStyle;
   final TextStyle? codeStyle;
+
+  /// Multiplies every text size in the document, for readers who want the
+  /// article larger without resizing the rest of the app.
+  final double textScale;
 
   final double paragraphSpacing;
   final double listIndent;
@@ -60,19 +96,7 @@ class AdfRenderer extends StatelessWidget {
   final List? attachments;
 
   @override
-  Widget build(BuildContext context) => SelectionArea(
-    child: _AdfRenderer(
-      adf: adf,
-      bulletGap: bulletGap,
-      codeStyle: codeStyle,
-      linkHandler: linkHandler,
-      listIndent: listIndent,
-      mediaBuilder: mediaBuilder ?? (context, node, size) => AdfRenderer.defaultMediaBuilder(node, context, attachments ?? [], size),
-      paragraphSpacing: paragraphSpacing,
-      textStyle: textStyle,
-      attachments: attachments,
-    ),
-  );
+  State<AdfRenderer> createState() => _AdfRendererState();
 
   static Widget defaultMediaBuilder(Map node, BuildContext context, List attachments, num size) {
     if (node['type'] == 'file') {
@@ -131,17 +155,112 @@ class AdfRenderer extends StatelessWidget {
   }
 }
 
+class _AdfRendererState extends State<AdfRenderer> {
+  /// Every heading in the document, in order, each with a key of its own.
+  late List<AdfHeading> _headings;
+
+  /// The same headings by identity of their node, so a heading being built can
+  /// find the key that was minted for it. Identity works because the whole
+  /// document is one decoded object graph that outlives every rebuild.
+  late Map<Map<String, dynamic>, AdfHeading> _byNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _scanHeadings();
+  }
+
+  @override
+  void didUpdateWidget(AdfRenderer old) {
+    super.didUpdateWidget(old);
+    // Only when the document itself changed: rescanning on every rebuild would
+    // mint new GlobalKeys and force the whole article to rebuild from scratch.
+    if (!identical(old.adf, widget.adf)) setState(_scanHeadings);
+  }
+
+  void _scanHeadings() {
+    _headings = [];
+    _byNode = Map.identity();
+
+    void walk(Object? node) {
+      if (node is List) {
+        for (final child in node) {
+          walk(child);
+        }
+        return;
+      }
+      if (node is! Map<String, dynamic>) return;
+      if (node['type'] == 'heading') {
+        final heading = AdfHeading(
+          node: node,
+          text: _plainTextOf(node),
+          level: (node['attrs']?['level'] as num?)?.toInt() ?? 1,
+        );
+        _headings.add(heading);
+        _byNode[node] = heading;
+      }
+      walk(node['content']);
+    }
+
+    walk(widget.adf['content']);
+  }
+
+  static String _plainTextOf(Object? node) {
+    if (node is List) return node.map(_plainTextOf).join();
+    if (node is! Map) return '';
+    if (node['type'] == 'text') return '${node['text'] ?? ''}';
+    return _plainTextOf(node['content']);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final renderer = _AdfRenderer(
+      adf: widget.adf,
+      bulletGap: widget.bulletGap,
+      codeStyle: widget.codeStyle,
+      linkHandler: widget.linkHandler,
+      linkTitleResolver: widget.linkTitleResolver,
+      listIndent: widget.listIndent,
+      macroBuilder: widget.macroBuilder,
+      mediaBuilder: widget.mediaBuilder ?? (context, node, size) => AdfRenderer.defaultMediaBuilder(node, context, widget.attachments ?? [], size),
+      paragraphSpacing: widget.paragraphSpacing,
+      textStyle: widget.textStyle,
+      attachments: widget.attachments,
+      headings: _headings,
+      headingOf: (node) => _byNode[node],
+    );
+
+    return SelectionArea(
+      // Scaling through MediaQuery rather than by overriding styles: it reaches
+      // every piece of text in the subtree, including the ones built by widgets
+      // that pick their own style.
+      child: widget.textScale == 1.0
+          ? renderer
+          : MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.linear(MediaQuery.textScalerOf(context).scale(1) * widget.textScale),
+              ),
+              child: renderer,
+            ),
+    );
+  }
+}
+
 class _AdfRenderer extends StatelessWidget with UiLoggy {
   const _AdfRenderer({
     required this.adf,
     this.mediaBuilder,
+    this.macroBuilder,
     this.linkHandler,
+    this.linkTitleResolver,
     this.textStyle,
     this.codeStyle,
     this.paragraphSpacing = 8.0,
     this.listIndent = 16.0,
     this.bulletGap = 8.0,
     this.attachments,
+    this.headings = const [],
+    this.headingOf,
   });
 
   /// Parsed ADF JSON map (root document object).
@@ -153,9 +272,13 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
   /// {"type":"file","id":"[uuid]","alt":"image.png","width":532,"height":477}
   final Widget Function(BuildContext context, Map<String, dynamic> attrs, num size)? mediaBuilder;
 
+  final Widget? Function(BuildContext context, String macroKey, Map<String, dynamic> node)? macroBuilder;
+
   /// Called when a link is tapped. If null, uses default launcher (if available)
   /// otherwise does nothing.
   final void Function(String url)? linkHandler;
+
+  final Future<String?> Function(String url)? linkTitleResolver;
 
   final TextStyle? textStyle;
   final TextStyle? codeStyle;
@@ -165,6 +288,12 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
   final double bulletGap;
 
   final List? attachments;
+
+  /// Every heading in the document, found before rendering — see [AdfHeading].
+  final List<AdfHeading> headings;
+
+  /// The heading record minted for a node, if it is one.
+  final AdfHeading? Function(Map<String, dynamic> node)? headingOf;
 
   @override
   Widget build(BuildContext context) {
@@ -177,6 +306,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     }
 
     return RichText(
+      textScaler: MediaQuery.textScalerOf(context),
       selectionRegistrar: SelectionContainer.maybeOf(context),
       selectionColor: selectionColor,
       text: TextSpan(
@@ -191,6 +321,13 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       ),
     );
   }
+
+  /// Scales an icon or avatar to match the text around it.
+  ///
+  /// An explicit `size:` overrides any ambient IconTheme, so icons in this
+  /// document would stay put while the prose grew — which reads as the
+  /// magnifier being broken. Everything sized by hand goes through here.
+  double _scaled(BuildContext context, double size) => MediaQuery.textScalerOf(context).scale(size);
 
   List<Widget> _withParagraphSpacing(List<Widget> children, double spacing) {
     final spaced = <Widget>[];
@@ -207,14 +344,42 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     switch (type) {
       case 'blockCard':
         return _buildBlockCard(context, node);
+      case 'blockquote':
+        return _buildBlockquote(context, node, indentLevel);
       case 'bulletList':
         return _buildBulletList(context, node, indentLevel);
       case 'codeBlock':
         return _buildCodeBlock(context, node);
+      // Confluence-only from here. None of these appear in Jira ADF, so adding
+      // them changes nothing for work items — but a wiki page made of macros,
+      // layouts and expandable sections is mostly invisible without them.
+      case 'date':
+        return _buildDate(context, node);
+      case 'expand':
+      case 'nestedExpand':
+        return _buildExpand(context, node, indentLevel);
+      case 'extension':
+      case 'bodiedExtension':
+      case 'inlineExtension':
+        return _buildExtension(context, node, indentLevel);
+      case 'layoutSection':
+        return _buildLayoutSection(context, node, indentLevel);
+      case 'layoutColumn':
+        return _buildLayoutColumn(context, node, indentLevel);
+      case 'orderedList':
+        return _buildOrderedList(context, node, indentLevel);
+      case 'rule':
+        return const Divider(height: 24);
+      case 'status':
+        return _buildStatus(context, node);
       case 'emoji':
         return _buildEmoji(context, node);
       case 'heading':
-        return _buildHeading(context, node);
+        // Keyed so a table of contents can scroll to it. KeyedSubtree rather
+        // than a key on the built widget, which _buildHeading does not accept.
+        final heading = headingOf?.call(node);
+        final built = _buildHeading(context, node);
+        return heading == null ? built : KeyedSubtree(key: heading.key, child: built);
       case 'inlineCard':
         return _buildInlineCard(context, node);
       case 'listItem':
@@ -247,6 +412,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         final children = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
         if (children.isEmpty) return const SizedBox.shrink();
         return RichText(
+          textScaler: MediaQuery.textScalerOf(context),
           selectionRegistrar: SelectionContainer.maybeOf(context),
           selectionColor: selectionColor,
           text: TextSpan(
@@ -330,7 +496,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                       Row(
                         spacing: 8,
                         children: [
-                          if (workItem.fields?['issuetype']['iconUrl'] != null) JiraAvatar(url: workItem.fields!['issuetype']['iconUrl'], size: 20) else Icon(Symbols.broken_image),
+                          if (workItem.fields?['issuetype']['iconUrl'] != null) JiraAvatar(url: workItem.fields!['issuetype']['iconUrl'], size: _scaled(context, 20)) else Icon(Symbols.broken_image),
                           Expanded(
                             child: Text(
                               '${workItem.key}: ${workItem.fields?['summary']}',
@@ -346,7 +512,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                         child: Row(
                           spacing: 8,
                           children: [
-                            if (workItem.fields?['assignee']['avatarUrls'] != null) JiraAvatar(url: workItem.fields!['assignee']?['avatarUrls']?['16x16'], size: 24) else Icon(Symbols.broken_image),
+                            if (workItem.fields?['assignee']['avatarUrls'] != null) JiraAvatar(url: workItem.fields!['assignee']?['avatarUrls']?['16x16'], size: _scaled(context, 24)) else Icon(Symbols.broken_image),
                             Expanded(
                               child: Text.rich(
                                 TextSpan(
@@ -365,7 +531,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                                       alignment: PlaceholderAlignment.middle,
                                       child: Padding(
                                         padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                                        child: (workItem.fields?['priority']['iconUrl'] != null) ? JiraAvatar(url: workItem.fields?['priority']?['iconUrl'], size: 16) : Icon(Symbols.broken_image),
+                                        child: (workItem.fields?['priority']['iconUrl'] != null) ? JiraAvatar(url: workItem.fields?['priority']?['iconUrl'], size: _scaled(context, 16)) : Icon(Symbols.broken_image),
                                       ),
                                     ),
                                     TextSpan(text: ' ${workItem.fields?['priority']?['name'] ?? ''}'),
@@ -399,6 +565,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
           defaultLinkHandler(targetUrl);
         };
       return RichText(
+        textScaler: MediaQuery.textScalerOf(context),
         selectionRegistrar: SelectionContainer.maybeOf(context),
         text: TextSpan(
           text: targetUrl,
@@ -410,6 +577,262 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         ),
       );
     }
+  }
+
+  /// A numbered list.
+  ///
+  /// Built here rather than left to the default case, which would recurse into
+  /// the items and give every one a bullet — turning an ordered list into an
+  /// unordered one without any sign that it happened.
+  Widget _buildOrderedList(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    final start = (node['attrs']?['order'] as num?)?.toInt() ?? 1;
+    final items = _asList(node['content']);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < items.length; i++) _buildListItem(context, items[i], indentLevel, marker: '${start + i}.'),
+      ],
+    );
+  }
+
+  Widget _buildBlockquote(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    final children = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
+    final colours = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.only(left: 12),
+      decoration: BoxDecoration(
+        border: Border(left: BorderSide(color: colours.outlineVariant, width: 3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: _withParagraphSpacing(children, paragraphSpacing),
+      ),
+    );
+  }
+
+  /// Confluence's collapsible section.
+  ///
+  /// Starts closed, as it does on the website: an author collapses something
+  /// precisely because it is detail most readers can skip.
+  Widget _buildExpand(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    final children = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: ExpansionTile(
+        dense: true,
+        shape: const Border(),
+        title: Text(
+          (node['attrs']?['title'] as String?)?.trim().isNotEmpty == true ? node['attrs']['title'] as String : 'Details',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        expandedCrossAxisAlignment: CrossAxisAlignment.start,
+        children: _withParagraphSpacing(children, paragraphSpacing),
+      ),
+    );
+  }
+
+  /// A Confluence macro.
+  ///
+  /// Macros run on Confluence's server, so a client cannot execute one. Two
+  /// cases are still worth more than nothing:
+  ///
+  /// - A macro migrated from the legacy editor carries its original body under
+  ///   `parameters.nestedContent` as a whole ADF document. That is real content
+  ///   and is rendered.
+  /// - A bodied macro has children of its own, which are rendered under a label.
+  ///
+  /// Anything else becomes a labelled chip, so a reader can see that something
+  /// is there and open the page on the website. Rendering nothing — which is
+  /// what the default case did — loses the content silently.
+  Widget _buildExtension(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    final attrs = node['attrs'] as Map<String, dynamic>? ?? const {};
+    final parameters = attrs['parameters'] as Map<String, dynamic>? ?? const {};
+    // Read defensively: this is macro metadata off the wire, and a sibling
+    // field in the same object (schemaVersion) is a {value: ...} wrapper rather
+    // than a bare string, so a hard cast here is one Atlassian change away from
+    // throwing mid-render.
+    final metadataTitle = parameters['macroMetadata']?['title'];
+    final name = (metadataTitle is String ? metadataTitle : metadataTitle?['value']?.toString()) ?? (attrs['extensionKey'] as String?) ?? 'Macro';
+
+    final macroKey = attrs['extensionKey'] as String?;
+
+    // Built here because everything it needs is in the document already.
+    if (macroKey == 'toc') return _buildTableOfContents(context, parameters);
+
+    // Anything else that needs data from the server this document came from.
+    final delegated = macroKey == null ? null : macroBuilder?.call(context, macroKey, node);
+    if (delegated != null) return delegated;
+
+    final nested = parameters['nestedContent'];
+    if (nested is Map<String, dynamic>) {
+      final children = _asList(nested['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
+      if (children.isNotEmpty) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: _withParagraphSpacing(children, paragraphSpacing),
+        );
+      }
+    }
+
+    final children = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
+    final label = Tooltip(
+      message: 'This is a Confluence macro. It runs on the server, so it cannot be rendered here — open the page on the website to see it.',
+      child: Chip(
+        avatar: Icon(Symbols.extension, size: _scaled(context, 14)),
+        label: Text(name, style: const TextStyle(fontSize: 11)),
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+      ),
+    );
+
+    if (children.isEmpty) return label;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [label, ..._withParagraphSpacing(children, paragraphSpacing)],
+    );
+  }
+
+  /// Confluence's table-of-contents macro.
+  ///
+  /// Built from the headings found before rendering started, so it works even
+  /// though it sits above every heading it lists. Confluence's own `minLevel`
+  /// and `maxLevel` parameters are honoured; the rest of the macro's options
+  /// are styling, which this ignores.
+  Widget _buildTableOfContents(BuildContext context, Map<String, dynamic> parameters) {
+    int? level(String name) => int.tryParse('${parameters['macroParams']?[name]?['value'] ?? ''}');
+    final minLevel = level('minLevel') ?? 1;
+    final maxLevel = level('maxLevel') ?? 6;
+
+    final listed = headings.where((h) => h.level >= minLevel && h.level <= maxLevel).toList();
+    if (listed.isEmpty) return const SizedBox.shrink();
+
+    // Indented relative to the shallowest heading actually listed, so a page
+    // whose headings all start at level 3 is not pushed off to the right.
+    final shallowest = listed.map((h) => h.level).reduce((a, b) => a < b ? a : b);
+    final colours = Theme.of(context).colorScheme;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      color: colours.surfaceContainerHigh,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              spacing: 6,
+              children: [
+                Icon(Symbols.toc, size: _scaled(context, 16), color: colours.onSurfaceVariant),
+                Text('On this page', style: Theme.of(context).textTheme.labelLarge),
+              ],
+            ),
+            const SizedBox(height: 4),
+            for (final heading in listed)
+              Padding(
+                padding: EdgeInsets.only(left: (heading.level - shallowest) * 14.0),
+                child: InkWell(
+                  // The heading may not be laid out yet — it is below the fold
+                  // on a long page — in which case there is nothing to scroll
+                  // to and the tap is simply ignored.
+                  onTap: () {
+                    final target = heading.key.currentContext;
+                    if (target != null) Scrollable.ensureVisible(target, duration: Durations.medium2, alignment: 0.1);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Text(
+                      heading.text,
+                      style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                        color: colours.primary,
+                        decoration: TextDecoration.underline,
+                        decorationColor: colours.primary.withAlpha(90),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Confluence's multi-column page layout.
+  ///
+  /// Laid out as a row when there is room and stacked when there is not, since
+  /// three columns of prose in a narrow pane are unreadable.
+  Widget _buildLayoutSection(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    final columns = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
+    if (columns.isEmpty) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (context, constraints) => constraints.maxWidth < 600
+          ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: _withParagraphSpacing(columns, paragraphSpacing))
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 16,
+              children: [for (final column in columns) Expanded(child: column)],
+            ),
+    );
+  }
+
+  Widget _buildLayoutColumn(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    final children = _asList(node['content']).map((c) => _buildNode(context, c, indentLevel)).whereType<Widget>().toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: _withParagraphSpacing(children, paragraphSpacing),
+    );
+  }
+
+  /// The coloured lozenge Confluence uses for states like DRAFT or DONE.
+  Widget _buildStatus(BuildContext context, Map<String, dynamic> node) {
+    final attrs = node['attrs'] as Map<String, dynamic>? ?? const {};
+    final colours = Theme.of(context).colorScheme;
+    // ADF names a colour rather than giving one, and the palette is fixed.
+    final background = switch (attrs['color']) {
+      'green' => Colors.green,
+      'red' => Colors.red,
+      'yellow' => Colors.amber,
+      'blue' => Colors.blue,
+      'purple' => Colors.purple,
+      _ => colours.outline,
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: background.withAlpha(60),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: background.withAlpha(120)),
+      ),
+      child: Text(
+        '${attrs['text'] ?? ''}'.toUpperCase(),
+        style: Theme.of(context).textTheme.labelSmall!.copyWith(fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+
+  /// An inline date. ADF carries it as epoch milliseconds in a string.
+  Widget _buildDate(BuildContext context, Map<String, dynamic> node) {
+    final raw = int.tryParse('${node['attrs']?['timestamp'] ?? ''}');
+    if (raw == null) return const SizedBox.shrink();
+    final date = DateTime.fromMillisecondsSinceEpoch(raw);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}',
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+    );
   }
 
   Widget _buildBulletList(BuildContext context, Map<String, dynamic> node, int indentLevel) {
@@ -496,11 +919,31 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     var url = node['attrs']['url'];
     if (url == null) return null;
     if (url.startsWith('https://${JiraAuth().domain}/wiki')) {
-      return ActionChip(
-        avatar: Icon(Symbols.book_2),
-        label: Text(url.split('/').last.split('+').join(' ')),
-        tooltip: 'Confluence wiki link\n$url',
-        onPressed: () => launchUrl(Uri.parse(url)),
+      // The last path segment is a page id as often as it is a title slug —
+      // a link pasted from the address bar has no slug at all — so the chip
+      // showed a bare number where Confluence shows a name. The resolver asks
+      // what the page is actually called; the slug remains the fallback.
+      final fallback = Uri.decodeComponent(url.split('/').last.split('?').first).split('+').join(' ');
+      final looksLikeAnId = int.tryParse(fallback) != null;
+
+      return FutureBuilder<String?>(
+        future: linkTitleResolver?.call(url),
+        builder: (context, snapshot) => ActionChip(
+          avatar: Icon(Symbols.book_2, size: _scaled(context, 18)),
+          label: Text(
+            snapshot.data ?? (looksLikeAnId ? 'Confluence page' : fallback),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          tooltip: 'Confluence wiki link\n$url',
+          onPressed: () {
+            if (linkHandler != null) {
+              linkHandler!(url);
+            } else {
+              launchUrl(Uri.parse(url));
+            }
+          },
+        ),
       );
     }
     if ((url as String).startsWith('https://${SettingsModel().domainController.text}.atlassian.net/browse')) {
@@ -550,7 +993,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                     JiraWorkItemStatusIndicator(issue: issue),
                   ],
                 ),
-                avatar: JiraAvatar(url: issue.fields?['issuetype']['iconUrl'], size: 16),
+                avatar: JiraAvatar(url: issue.fields?['issuetype']['iconUrl'], size: _scaled(context, 16)),
 
                 onPressed: () {
                   showDialog(
@@ -629,10 +1072,15 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
               recognizer = TapGestureRecognizer()
                 ..onTap = () {
                   if (href.isEmpty) return;
+                  // Either the caller's handler or the browser, not both. Both
+                  // meant a custom handler could add behaviour but never replace
+                  // it, so a reader that opens wiki links in its own tab would
+                  // still launch a browser window alongside.
                   if (linkHandler != null) {
                     linkHandler!(href);
+                  } else {
+                    defaultLinkHandler(href);
                   }
-                  defaultLinkHandler(href);
                 };
               break;
           }
@@ -654,7 +1102,9 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     return spans;
   }
 
-  Widget _buildListItem(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+  /// [marker] replaces the bullet, for an ordered list's numbering. Null keeps
+  /// the bullet, which is what a bulletList and a bare listItem want.
+  Widget _buildListItem(BuildContext context, Map<String, dynamic> node, int indentLevel, {String? marker}) {
     // A listItem can contain one or more paragraphs and nested lists.
     final children = _asList(node['content']);
 
@@ -674,10 +1124,14 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     final bulletLine = paragraphs.isNotEmpty ? _buildParagraph(context, paragraphs.first) : const SizedBox.shrink();
 
     final bulletRow = RichText(
+      textScaler: MediaQuery.textScalerOf(context),
       text: TextSpan(
         children: [
           WidgetSpan(child: SizedBox(width: indentLevel * listIndent)),
-          BulletListBulletSpan(indent: 1),
+          if (marker == null)
+            BulletListBulletSpan(indent: 1)
+          else
+            TextSpan(text: marker, style: Theme.of(context).textTheme.bodyMedium),
           WidgetSpan(child: SizedBox(width: bulletGap)),
           WidgetSpan(child: bulletLine),
         ],
@@ -738,6 +1192,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
       ),
       child: RichText(
+        textScaler: MediaQuery.textScalerOf(context),
         text: TextSpan(text: alt, style: _defaultTextStyle(context)),
         selectionRegistrar: SelectionContainer.maybeOf(context),
         selectionColor: selectionColor,
@@ -863,6 +1318,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
             icon,
             Flexible(
               child: RichText(
+                textScaler: MediaQuery.textScalerOf(context),
                 text: TextSpan(
                   children: _buildInlineSpans(context, (node['content'] as List).cast()),
                 ),
@@ -882,6 +1338,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       return const SizedBox(height: 0); // empty paragraph -> minimal gap
     }
     return RichText(
+      textScaler: MediaQuery.textScalerOf(context),
       text: TextSpan(
         style: style ?? _defaultTextStyle(context),
         children: spans,
@@ -958,6 +1415,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     }
     spans.removeLast();
     return RichText(
+      textScaler: MediaQuery.textScalerOf(context),
       text: TextSpan(children: spans),
       selectionRegistrar: SelectionContainer.maybeOf(context),
       selectionColor: selectionColor,

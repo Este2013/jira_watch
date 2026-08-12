@@ -42,6 +42,10 @@ class SettingsModel with GlobalLoggy {
         useCompactJiraWorkItemDisplay.value = prefs.getString('use_compact_ticket_display') ?? 'When issue was read';
         useCompactJiraWorkItemDisplay.addListener(() => prefs.setString('use_compact_ticket_display', useCompactJiraWorkItemDisplay.value));
 
+        // CONFLUENCE
+        confluenceTextScale.value = prefs.getDouble('confluence_text_scale') ?? 1.0;
+        confluenceTextScale.addListener(() => prefs.setDouble('confluence_text_scale', confluenceTextScale.value));
+
         // CONNECTION
         emailController.text = prefs.getString('jira_email') ?? '';
 
@@ -122,6 +126,11 @@ class SettingsModel with GlobalLoggy {
   final ValueNotifier<bool> markAsReadOnOpen = ValueNotifier(true);
 
   final ValueNotifier<String> useCompactJiraWorkItemDisplay = ValueNotifier('When issue was read');
+
+  /// How much larger to render a Confluence article's text. Global rather than
+  /// per tab: someone who wants bigger text wants it everywhere, and a setting
+  /// that reset itself on each article would be worse than none.
+  final ValueNotifier<double> confluenceTextScale = ValueNotifier(1.0);
 
   // CONNECTION
 

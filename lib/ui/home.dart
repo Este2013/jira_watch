@@ -12,6 +12,7 @@ import 'package:jira_watcher/ui/updates_dialog.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_home_view.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/settings.dart';
+import 'package:jira_watcher/ui/confluence_widgets/confluence_workspace_view.dart';
 import 'package:jira_watcher/ui/utils/app_changelog.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_work_item_search.dart';
 import 'package:loggy/loggy.dart';
@@ -25,6 +26,7 @@ enum HomePage {
   workItems('Work items', Symbols.bug_report, null),
   toDo('To do', Symbols.assessment, 'Locally keep track of your own tasks.'),
   // GitLab draws its own mark instead of [icon]; see [buildIcon].
+  confluence('Confluence', Symbols.book_2, 'Access your Confluence documentation.'),
   gitlab('GitLab', Symbols.fork_right, 'Browse your GitLab projects, pipelines and releases.');
 
   const HomePage(this.title, this.icon, this.subtitle);
@@ -60,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
   /// The one list that cannot be generated from [HomePage], so it is isolated
   /// here to keep the coupling explicit.
   List<Widget> _pageBodies() {
-    assert(HomePage.values.length == 4);
+    assert(HomePage.values.length == 5);
     return [
       // Updates
       Scaffold(
@@ -85,8 +87,29 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
       ),
       // Work items
       UnderConstructionNotice(),
-      // To do
+      // User's To-do-tasks view
       TodoPagePreLoadView(),
+      // Confluence
+      Scaffold(
+        appBar: AppBar(
+          title: Row(
+            children: [
+              Expanded(child: Text(HomePage.confluence.title)),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    HomePage.confluence.subtitle!,
+                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+                  ),
+                ),
+              ),
+              Spacer(),
+            ],
+          ),
+          actions: [],
+        ),
+        body: ConfluencePagePreLoadView(),
+      ),
       // GitLab
       Scaffold(
         appBar: AppBar(

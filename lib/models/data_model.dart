@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:csv/csv.dart';
 import 'package:jira_watcher/dao/jira/jira_api.dart';
 import 'package:jira_watcher/models/jira_work_item_data.dart';
+import 'package:jira_watcher/models/confluence_tabs_model.dart';
 import 'package:jira_watcher/models/gitlab_api_model.dart';
 import 'package:jira_watcher/models/gitlab_quick_downloads_model.dart';
 import 'package:jira_watcher/models/gitlab_tabs_model.dart';
@@ -27,6 +28,7 @@ class DataModel with GlobalLoggy {
     gitlab = GitLabApiModel();
     gitlabTabs = GitLabTabsModel();
     gitlabQuickDownloads = GitLabQuickDownloadsModel();
+    confluenceTabs = ConfluenceTabsModel();
   }
 
   late final JiraApi jiraApi;
@@ -34,6 +36,7 @@ class DataModel with GlobalLoggy {
   late final GitLabApiModel gitlab;
   late final GitLabTabsModel gitlabTabs;
   late final GitLabQuickDownloadsModel gitlabQuickDownloads;
+  late final ConfluenceTabsModel confluenceTabs;
 
   // PROJECTS /////////////////////////////////////////////////////////////////////
 
