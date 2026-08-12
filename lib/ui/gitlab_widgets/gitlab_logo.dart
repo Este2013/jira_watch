@@ -33,16 +33,24 @@ class GitLabTanukiIcon extends StatelessWidget {
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: isSelected ? 0 : 1, end: isSelected ? 1 : 0),
       duration: Durations.medium1,
+      curve: Curves.easeOutCubic,
       builder: (context, fill, _) => SizedBox.square(
         dimension: dimension,
         child: Stack(
           fit: StackFit.expand,
           children: [
             SvgPicture.asset(_outlineAsset, colorFilter: filter),
-            // Layered over the outline rather than cross-faded against it: both
-            // are the same silhouette, so fading one out as the other rises
-            // would dip in the middle of the transition.
-            Opacity(opacity: fill, child: SvgPicture.asset(_filledAsset, colorFilter: filter)),
+            // Scaled up from the centre rather than faded in: an opacity cross
+            // fade reads as a dissolve, where Material's own fill transitions
+            // (a FAB's icon swap, a nav bar's selected indicator) grow the new
+            // shape outward from a point. Layered over the outline rather than
+            // cross-faded against it either way, since both are the same
+            // silhouette and fading one out as the other rises would dip in
+            // the middle of the transition.
+            Transform.scale(
+              scale: fill,
+              child: SvgPicture.asset(_filledAsset, colorFilter: filter),
+            ),
           ],
         ),
       ),
