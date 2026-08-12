@@ -1,4 +1,11 @@
 {
+    "1.8.0": {
+        "changelog": "✨ Features:\n ᛫ Added Confluence viewer\n ᛫ QoL changes for Gitlab view",
+        "x64": "v1.8.0/Binaries (x64).zip",
+        "x64Url": "https://github.com/Este2013/jira_watch/releases/download/v1.8.0/jira_watch-1.8.0-windows-x64.zip",
+        "x64Sha256": "9d3684c69041b079510c90d2800b1bd672ca3e8856d361f3e102e960b399e572",
+        "x64Size": 37498317
+    },
     "1.7.3": {
         "changelog": "✨ Features:\n ᛫ This release is there to make sure updating works starting from 1.7.2",
         "x64": "v1.7.3/Binaries (x64).zip",
