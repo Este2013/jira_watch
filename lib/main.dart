@@ -193,20 +193,25 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> with UiLoggy {
             action: SnackBarAction(
               textColor: Theme.of(context).colorScheme.onErrorContainer,
               label: 'Inspect',
-              onPressed: () => AlertDialog(
-                backgroundColor: Theme.of(context).colorScheme.errorContainer,
-                title: Text('Error occured while saving your credentials'),
-                content: SelectableText.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: error.toString(),
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      TextSpan(text: '\n'),
-                      TextSpan(text: stackTrace.toString()),
-                    ],
+              // ignore: use_build_context_synchronously
+              onPressed: () => showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                  title: Text('Error occured while saving your credentials'),
+                  content: SelectableText.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: error.toString(),
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        TextSpan(text: '\n'),
+                        TextSpan(text: stackTrace.toString()),
+                      ],
+                    ),
                   ),
+                  actions: [TextButton(onPressed: Navigator.of(context).pop, child: Text('Close'))],
                 ),
               ),
             ),
