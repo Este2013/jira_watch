@@ -60,7 +60,9 @@ class GitLabConnectCallToAction extends StatelessWidget with UiLoggy {
         mainAxisSize: MainAxisSize.min,
         spacing: 16,
         children: [
-          const GitLabTanukiLogo(size: 84),
+          const GitLabTanukiLogo(
+            size: 84,
+          ),
           Text(_title, style: const TextStyle(fontSize: 28), textAlign: TextAlign.center),
           Text(
             _subtitle,
