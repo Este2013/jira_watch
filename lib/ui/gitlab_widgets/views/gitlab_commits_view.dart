@@ -5,6 +5,7 @@ import 'package:jira_watcher/models/gitlab_tabs_model.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_images.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_paginated_list.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_ref_field.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_snackbar.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_status.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -171,7 +172,7 @@ class GitLabCommitRow extends StatelessWidget {
               icon: const Icon(Symbols.content_copy),
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: '${commit['id']}'));
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Commit SHA copied')));
+                showGitLabSnackBar(context, const SnackBar(content: Text('Commit SHA copied')));
               },
             ),
           ],

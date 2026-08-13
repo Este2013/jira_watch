@@ -111,25 +111,33 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
         body: ConfluencePagePreLoadView(),
       ),
       // GitLab
-      Scaffold(
-        appBar: AppBar(
-          title: Row(
-            children: [
-              Expanded(child: Text(HomePage.gitlab.title)),
-              Expanded(
-                child: Center(
-                  child: Text(
-                    HomePage.gitlab.subtitle!,
-                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+      //
+      // Wrapped in its own ScaffoldMessenger so the SnackBars it shows (copy
+      // confirmations, download results) are confined to this pane's own
+      // width rather than the whole window's — without this, a SnackBar
+      // spans full width and sits on top of the NavigationRail's settings
+      // button in the bottom-left corner.
+      ScaffoldMessenger(
+        child: Scaffold(
+          appBar: AppBar(
+            title: Row(
+              children: [
+                Expanded(child: Text(HomePage.gitlab.title)),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      HomePage.gitlab.subtitle!,
+                      style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+                    ),
                   ),
                 ),
-              ),
-              Spacer(),
-            ],
+                Spacer(),
+              ],
+            ),
+            actions: [],
           ),
-          actions: [],
+          body: GitLabPagePreLoadView(),
         ),
-        body: GitLabPagePreLoadView(),
       ),
     ];
   }

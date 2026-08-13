@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/gitlab_tabs_model.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_snackbar.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_status.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -430,7 +431,7 @@ class _BranchRow extends StatelessWidget {
               icon: const Icon(Symbols.content_copy),
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: name));
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Copied $name')));
+                showGitLabSnackBar(context, SnackBar(content: Text('Copied $name')));
               },
             ),
           ],

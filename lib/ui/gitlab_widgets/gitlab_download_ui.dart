@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/dao/gitlab_download_service.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_snackbar.dart';
 import 'package:jira_watcher/ui/utils/byte_format.dart';
 import 'package:jira_watcher/ui/utils/reveal_in_file_manager.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -39,7 +40,8 @@ Future<File?> runGitLabDownload(
   if (!context.mounted) return null;
 
   if (result is File) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    showGitLabSnackBar(
+      context,
       SnackBar(
         content: Text('Saved ${p.basename(result.path)}'),
         action: SnackBarAction(
