@@ -13,6 +13,7 @@ import 'package:jira_watcher/ui/updates_widgets/issue_ui_elements.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_home_view.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_history_view.dart';
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
+import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -174,11 +175,7 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
       )
       .whenComplete(
         // ignore: use_build_context_synchronously
-        () => ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Saved in your "To do" queue as "${widget.workItem.key}"'),
-          ),
-        ),
+        () => showAppSnackBar(context, SnackBar(content: Text('Saved in your "To do" queue as "${widget.workItem.key}"'))),
       );
   void addToTasks(BuildContext context) {
     showDialog(

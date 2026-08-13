@@ -18,6 +18,7 @@ import 'package:jira_watcher/dao/jira/jira_auth.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
 import 'package:jira_watcher/ui/settings.dart';
+import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -610,9 +611,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
     final title = keys.length <= 3 ? keys.join(', ') : '${keys.length} work items';
     DataModel().todoTasks.createNewTask(title: title, workItemKeys: keys).whenComplete(() {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saved ${keys.length} work items in your "To do" queue')),
-      );
+      showAppSnackBar(context, SnackBar(content: Text('Saved ${keys.length} work items in your "To do" queue')));
       clearMultiSelection();
     });
   }
@@ -1245,11 +1244,7 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
       )
       .whenComplete(
         // ignore: use_build_context_synchronously
-        () => ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Saved in your "To do" queue as "${widget.workItem.key}"'),
-          ),
-        ),
+        () => showAppSnackBar(context, SnackBar(content: Text('Saved in your "To do" queue as "${widget.workItem.key}"'))),
       );
 
   void addToTasks(BuildContext context) {

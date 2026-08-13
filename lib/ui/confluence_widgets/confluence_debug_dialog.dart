@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/confluence/confluence_api.dart';
+import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 /// Inspects what an article actually is, for the debug build only.
@@ -248,9 +249,7 @@ class _JsonPane extends StatelessWidget {
               icon: const Icon(Symbols.content_copy),
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: text));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Copied.'), duration: Duration(seconds: 2)),
-                );
+                showAppSnackBar(context, const SnackBar(content: Text('Copied.')), duration: const Duration(seconds: 2));
               },
             ),
           ],

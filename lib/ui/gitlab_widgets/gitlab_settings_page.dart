@@ -5,6 +5,7 @@ import 'package:jira_watcher/dao/gitlab_oauth_server.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_images.dart';
 import 'package:jira_watcher/ui/utils/expandable_panel.dart';
+import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
 import 'package:jira_watcher/ui/utils/widgets/dialog_widgets.dart/action_buttons.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -128,7 +129,7 @@ class _GitLabSettingsPageState extends State<GitLabSettingsPage> with UiLoggy {
                 tooltip: 'Copy redirect URI',
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: gitlabRedirectUri(_port)));
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Redirect URI copied')));
+                  showAppSnackBar(context, SnackBar(content: Text('Redirect URI copied')));
                 },
                 icon: Icon(Symbols.content_copy),
               ),
@@ -333,11 +334,11 @@ class _GitLabSettingsPageState extends State<GitLabSettingsPage> with UiLoggy {
       await GitLabDao().refreshNow();
       if (!mounted) return;
       setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Access token renewed')));
+      showAppSnackBar(context, SnackBar(content: Text('Access token renewed')));
     } on Object catch (e) {
       loggy.warning('Manual GitLab token refresh failed: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not renew the token: $e')));
+      showAppSnackBar(context, SnackBar(content: Text('Could not renew the token: $e')));
     }
   }
 

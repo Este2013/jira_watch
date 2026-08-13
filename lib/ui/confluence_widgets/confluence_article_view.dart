@@ -8,6 +8,7 @@ import 'package:jira_watcher/ui/confluence_widgets/confluence_adf.dart';
 import 'package:jira_watcher/ui/confluence_widgets/confluence_debug_dialog.dart';
 import 'package:jira_watcher/ui/updates_widgets/diff_matcher.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_doc_renderer.dart';
+import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -95,9 +96,7 @@ class _ConfluenceArticleViewState extends State<ConfluenceArticleView> with UiLo
     final older = await ConfluenceApi().page(widget.pageId, version: number);
     if (!mounted) return;
     if (older == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Version $number could not be loaded.')),
-      );
+      showAppSnackBar(context, SnackBar(content: Text('Version $number could not be loaded.')));
       return;
     }
     setState(() {
@@ -216,9 +215,7 @@ class _ConfluenceArticleViewState extends State<ConfluenceArticleView> with UiLo
               icon: const Icon(Symbols.link),
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: webUrl));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Link copied.'), duration: Duration(seconds: 2)),
-                );
+                showAppSnackBar(context, const SnackBar(content: Text('Link copied.')), duration: const Duration(seconds: 2));
               },
             ),
             // Editing and creating are deliberately not implemented; these hand

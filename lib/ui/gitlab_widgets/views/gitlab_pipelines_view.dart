@@ -12,11 +12,11 @@ import 'package:jira_watcher/models/gitlab_tabs_model.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_download_ui.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_paginated_list.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_ref_field.dart';
-import 'package:jira_watcher/ui/gitlab_widgets/gitlab_snackbar.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_status.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/views/gitlab_jobs_view.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/views/gitlab_quick_downloads_dialog.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
+import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart' as p;
@@ -602,7 +602,7 @@ Future<void> _downloadMatchedFolder(BuildContext context, GitLabProjectTab tab, 
   if (!context.mounted) return;
 
   if (failures.isEmpty) {
-    showGitLabSnackBar(
+    showAppSnackBar(
       context,
       SnackBar(
         content: Text('Saved ${files.length} files to ${p.basename(directory)}'),

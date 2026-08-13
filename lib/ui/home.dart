@@ -65,58 +65,64 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
     assert(HomePage.values.length == 5);
     return [
       // Updates
-      Scaffold(
-        appBar: AppBar(
-          title: Row(
-            children: [
-              Expanded(child: Text(_currentPage.title)),
-              Expanded(
-                child: Center(
-                  child: Text(
-                    currentPageSubtitle(_currentPage),
-                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+      //
+      // Wrapped in its own ScaffoldMessenger so the SnackBars this page shows
+      // (copy confirmations, "saved to To do") are confined to this pane's own
+      // width rather than the whole window's. Without one, ScaffoldMessenger.
+      // of(context) resolves to the app's single root instance, so a SnackBar
+      // spans full width and sits on top of the NavigationRail's settings
+      // button in the bottom-left corner. Every page below gets the same
+      // treatment for the same reason.
+      ScaffoldMessenger(
+        child: Scaffold(
+          appBar: AppBar(
+            title: Row(
+              children: [
+                Expanded(child: Text(_currentPage.title)),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      currentPageSubtitle(_currentPage),
+                      style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+                    ),
                   ),
                 ),
-              ),
-              Spacer(),
-            ],
+                Spacer(),
+              ],
+            ),
+            actions: [],
           ),
-          actions: [],
+          body: UpdatesPage(),
         ),
-        body: UpdatesPage(),
       ),
       // Work items
       UnderConstructionNotice(),
       // User's To-do-tasks view
-      TodoPagePreLoadView(),
+      ScaffoldMessenger(child: TodoPagePreLoadView()),
       // Confluence
-      Scaffold(
-        appBar: AppBar(
-          title: Row(
-            children: [
-              Expanded(child: Text(HomePage.confluence.title)),
-              Expanded(
-                child: Center(
-                  child: Text(
-                    HomePage.confluence.subtitle!,
-                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+      ScaffoldMessenger(
+        child: Scaffold(
+          appBar: AppBar(
+            title: Row(
+              children: [
+                Expanded(child: Text(HomePage.confluence.title)),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      HomePage.confluence.subtitle!,
+                      style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+                    ),
                   ),
                 ),
-              ),
-              Spacer(),
-            ],
+                Spacer(),
+              ],
+            ),
+            actions: [],
           ),
-          actions: [],
+          body: ConfluencePagePreLoadView(),
         ),
-        body: ConfluencePagePreLoadView(),
       ),
       // GitLab
-      //
-      // Wrapped in its own ScaffoldMessenger so the SnackBars it shows (copy
-      // confirmations, download results) are confined to this pane's own
-      // width rather than the whole window's — without this, a SnackBar
-      // spans full width and sits on top of the NavigationRail's settings
-      // button in the bottom-left corner.
       ScaffoldMessenger(
         child: Scaffold(
           appBar: AppBar(

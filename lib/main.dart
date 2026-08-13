@@ -10,6 +10,7 @@ import 'package:jira_watcher/ui/home.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/settings.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
+import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
 import 'package:jira_watcher/ui/utils/widgets/github_button.dart';
 import 'package:jira_watcher/utils/%F0%9F%AA%B5.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
@@ -167,9 +168,7 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> with UiLoggy {
 
     if (email.isEmpty || apiKey.isEmpty || domain.isEmpty) {
       loggy.warning('Some credentials are empty. Refusing to proceed.');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('All fields are required.')),
-      );
+      showAppSnackBar(context, SnackBar(content: Text('All fields are required.')));
       return;
     }
 
@@ -183,7 +182,8 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> with UiLoggy {
       (error, stackTrace) {
         success = false;
         loggy.error('An error occured while updating credentials in API DAO:\n$error\n$stackTrace');
-        ScaffoldMessenger.of(context).showSnackBar(
+        showAppSnackBar(
+          context,
           SnackBar(
             backgroundColor: Theme.of(context).colorScheme.errorContainer,
             content: Text(
@@ -370,9 +370,7 @@ class _ApiKeyInputScreenState extends State<ApiKeyInputScreen> with UiLoggy {
                     suffixIcon: IconButton(
                       onPressed: () {
                         Clipboard.setData(ClipboardData(text: SettingsModel().apiKeyController.text));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('API Key copied to clipboard')),
-                        );
+                        showAppSnackBar(context, SnackBar(content: Text('API Key copied to clipboard')));
                       },
                       icon: Icon(Symbols.content_copy),
                     ),

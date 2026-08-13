@@ -6,6 +6,7 @@ import 'package:jira_watcher/models/jira_work_item_data.dart';
 import 'package:jira_watcher/dao/jira/jira_auth.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
+import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -98,9 +99,7 @@ class _WorkItemBadgeState extends State<WorkItemBadge> {
                                 child: GestureDetector(
                                   onTap: () {
                                     Clipboard.setData(ClipboardData(text: widget.url!));
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Copied ${widget.url}')),
-                                    );
+                                    showAppSnackBar(context, SnackBar(content: Text('Copied ${widget.url}')));
                                   },
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 4.0),
@@ -123,9 +122,7 @@ class _WorkItemBadgeState extends State<WorkItemBadge> {
                                     Clipboard.setData(
                                       ClipboardData(text: widget.label),
                                     );
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Copied ${widget.label}')),
-                                    );
+                                    showAppSnackBar(context, SnackBar(content: Text('Copied ${widget.label}')));
                                   },
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 4.0),
