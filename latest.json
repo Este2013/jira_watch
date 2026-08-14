@@ -1,4 +1,11 @@
 {
+    "1.8.1": {
+        "changelog": "✨ Features:\n ᛫ GitLab view: can select branches as favorites for quick filtering\n\n🪲 Bug fixes\n ᛫ Fixed: Snackbars would cover the settings button\n ᛫ Fixed: Correct colors for GitLab icon on login page",
+        "x64": "v1.8.1/Binaries (x64).zip",
+        "x64Url": "https://github.com/Este2013/jira_watch/releases/download/v1.8.1/jira_watch-1.8.1-windows-x64.zip",
+        "x64Sha256": "7ac31bb15ae9e0a58c435a50c439fe461770e818273874285bb7be38a5c77fda",
+        "x64Size": 37545805
+    },
     "1.8.0": {
         "changelog": "✨ Features:\n ᛫ Added Confluence viewer\n ᛫ QoL changes for Gitlab view",
         "x64": "v1.8.0/Binaries (x64).zip",
