@@ -158,6 +158,9 @@ class _GitLabBranchesViewState extends State<GitLabBranchesView> {
                 ),
               ),
             ),
+            Expanded(
+              child: GitLabQuickBranchChips(tab: widget.tab, currentValue: _search, onResolved: _selectFavorite),
+            ),
             DropdownMenu<BranchSort>(
               initialSelection: _sort,
               enableSearch: false,
@@ -179,9 +182,6 @@ class _GitLabBranchesViewState extends State<GitLabBranchesView> {
                 context: context,
                 builder: (context) => GitLabQuickBranchesDialog(tab: widget.tab),
               ),
-            ),
-            Expanded(
-              child: GitLabQuickBranchChips(projectId: widget.tab.projectId, onResolved: _selectFavorite),
             ),
             IconButton(
               tooltip: 'Refresh',

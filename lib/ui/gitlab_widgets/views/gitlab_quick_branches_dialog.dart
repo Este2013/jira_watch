@@ -70,6 +70,10 @@ class _GitLabQuickBranchesDialogState extends State<GitLabQuickBranchesDialog> {
                 child: rules.isEmpty
                     ? const Center(child: Text('No favorites yet.'))
                     : ReorderableListView.builder(
+                        // A tile already supplies its own drag handle below;
+                        // leaving this true adds a second, automatic one on
+                        // desktop that overlaps it.
+                        buildDefaultDragHandles: false,
                         itemCount: rules.length,
                         itemBuilder: (context, index) {
                           final rule = rules[index];
@@ -111,8 +115,8 @@ class _RuleTile extends StatelessWidget {
 
   String get _subtitle => switch (rule.matchType) {
     GitLabBranchMatchType.exact => rule.pattern,
-    GitLabBranchMatchType.contains => 'contains "${rule.pattern}" · most recent',
-    GitLabBranchMatchType.regex => 'matches /${rule.pattern}/ · most recent',
+    GitLabBranchMatchType.contains => 'most recent containing "${rule.pattern}"',
+    GitLabBranchMatchType.regex => 'most recent matching /${rule.pattern}/',
   };
 
   @override

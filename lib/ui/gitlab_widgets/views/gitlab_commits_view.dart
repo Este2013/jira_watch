@@ -67,7 +67,7 @@ class _GitLabCommitsViewState extends State<GitLabCommitsView> {
               onSubmitted: _selectRef,
             ),
             Expanded(
-              child: GitLabQuickBranchChips(projectId: widget.tab.projectId, onResolved: _selectRef),
+              child: GitLabQuickBranchChips(tab: widget.tab, currentValue: _ref, onResolved: _selectRef),
             ),
             IconButton(
               tooltip: 'Refresh',

@@ -105,14 +105,14 @@ class _GitLabRepoGraphViewState extends State<GitLabRepoGraphView> with UiLoggy 
               width: 320,
               onSubmitted: _selectRef,
             ),
+            Expanded(
+              child: GitLabQuickBranchChips(tab: widget.tab, currentValue: _ref, onResolved: _selectRef),
+            ),
             if (_loadingRefs)
               const Padding(
                 padding: EdgeInsets.only(left: 4),
                 child: SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)),
               ),
-            Expanded(
-              child: GitLabQuickBranchChips(projectId: widget.tab.projectId, onResolved: _selectRef),
-            ),
             Text(
               '${_refsBySha.length} labelled commit${_refsBySha.length == 1 ? '' : 's'}',
               style: Theme.of(context).textTheme.bodySmall!.copyWith(color: Theme.of(context).hintColor),

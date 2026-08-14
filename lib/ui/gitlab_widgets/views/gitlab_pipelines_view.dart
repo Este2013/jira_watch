@@ -86,6 +86,9 @@ class _GitLabPipelinesViewState extends State<GitLabPipelinesView> {
               controller: _refController,
               onSubmitted: _selectRef,
             ),
+            Expanded(
+              child: GitLabQuickBranchChips(tab: widget.tab, currentValue: _ref, onResolved: _selectRef),
+            ),
             DropdownMenu<String?>(
               initialSelection: _status,
               enableSearch: false,
@@ -103,9 +106,6 @@ class _GitLabPipelinesViewState extends State<GitLabPipelinesView> {
                 _status = value;
                 _reloadToken++;
               }),
-            ),
-            Expanded(
-              child: GitLabQuickBranchChips(projectId: widget.tab.projectId, onResolved: _selectRef),
             ),
             IconButton(
               tooltip: 'Refresh',
