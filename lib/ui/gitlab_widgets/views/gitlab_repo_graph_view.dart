@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/gitlab_tabs_model.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_paginated_list.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_quick_branch_chips.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_ref_field.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/views/gitlab_commits_view.dart';
 import 'package:loggy/loggy.dart';
@@ -34,6 +35,14 @@ class _GitLabRepoGraphViewState extends State<GitLabRepoGraphView> with UiLoggy 
     widget.tab.viewState['graphRef'] = value;
     DataModel().gitlabTabs.requestSave();
   }
+
+  /// Wired to both the ref field and the favorite-branch chips, so either one
+  /// picking a branch does exactly the same thing: fill the field and reload.
+  void _selectRef(String value) => setState(() {
+    _ref = value;
+    _refController.text = value;
+    _reloadToken++;
+  });
 
   @override
   void initState() {
@@ -94,17 +103,16 @@ class _GitLabRepoGraphViewState extends State<GitLabRepoGraphView> with UiLoggy 
               controller: _refController,
               label: 'Branch or tag (default branch if empty)',
               width: 320,
-              onSubmitted: (value) => setState(() {
-                _ref = value;
-                _reloadToken++;
-              }),
+              onSubmitted: _selectRef,
             ),
             if (_loadingRefs)
               const Padding(
                 padding: EdgeInsets.only(left: 4),
                 child: SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)),
               ),
-            const Spacer(),
+            Expanded(
+              child: GitLabQuickBranchChips(projectId: widget.tab.projectId, onResolved: _selectRef),
+            ),
             Text(
               '${_refsBySha.length} labelled commit${_refsBySha.length == 1 ? '' : 's'}',
               style: Theme.of(context).textTheme.bodySmall!.copyWith(color: Theme.of(context).hintColor),

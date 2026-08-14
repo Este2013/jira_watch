@@ -11,6 +11,7 @@ import 'package:jira_watcher/models/gitlab_quick_downloads_model.dart';
 import 'package:jira_watcher/models/gitlab_tabs_model.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_download_ui.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_paginated_list.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_quick_branch_chips.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_ref_field.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_status.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/views/gitlab_jobs_view.dart';
@@ -64,6 +65,14 @@ class _GitLabPipelinesViewState extends State<GitLabPipelinesView> {
     super.dispose();
   }
 
+  /// Wired to both the ref field and the favorite-branch chips, so either one
+  /// picking a branch does exactly the same thing: fill the field and reload.
+  void _selectRef(String value) => setState(() {
+    _ref = value;
+    _refController.text = value;
+    _reloadToken++;
+  });
+
   @override
   Widget build(BuildContext context) => Column(
     children: [
@@ -75,10 +84,7 @@ class _GitLabPipelinesViewState extends State<GitLabPipelinesView> {
             GitLabRefField(
               projectId: widget.tab.projectId,
               controller: _refController,
-              onSubmitted: (value) => setState(() {
-                _ref = value;
-                _reloadToken++;
-              }),
+              onSubmitted: _selectRef,
             ),
             DropdownMenu<String?>(
               initialSelection: _status,
@@ -98,7 +104,9 @@ class _GitLabPipelinesViewState extends State<GitLabPipelinesView> {
                 _reloadToken++;
               }),
             ),
-            const Spacer(),
+            Expanded(
+              child: GitLabQuickBranchChips(projectId: widget.tab.projectId, onResolved: _selectRef),
+            ),
             IconButton(
               tooltip: 'Refresh',
               icon: const Icon(Symbols.refresh),

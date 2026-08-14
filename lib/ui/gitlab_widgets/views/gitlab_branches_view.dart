@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/models/gitlab_quick_branches_model.dart';
 import 'package:jira_watcher/models/gitlab_tabs_model.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_quick_branch_chips.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_status.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/views/gitlab_quick_branches_dialog.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
 import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -126,6 +129,15 @@ class _GitLabBranchesViewState extends State<GitLabBranchesView> {
     });
   }
 
+  /// A favorite-branch chip jumps the search straight to that branch, rather
+  /// than going through the debounce meant for someone still typing.
+  void _selectFavorite(String name) {
+    _debounce?.cancel();
+    _searchController.text = name;
+    _search = name;
+    _refresh();
+  }
+
   @override
   Widget build(BuildContext context) => Column(
     children: [
@@ -160,7 +172,17 @@ class _GitLabBranchesViewState extends State<GitLabBranchesView> {
                 setState(() => _sort = value);
               },
             ),
-            const Spacer(),
+            IconButton(
+              tooltip: 'Manage favorite branches',
+              icon: const Icon(Symbols.star, fill: 1),
+              onPressed: () => showDialog(
+                context: context,
+                builder: (context) => GitLabQuickBranchesDialog(tab: widget.tab),
+              ),
+            ),
+            Expanded(
+              child: GitLabQuickBranchChips(projectId: widget.tab.projectId, onResolved: _selectFavorite),
+            ),
             IconButton(
               tooltip: 'Refresh',
               icon: const Icon(Symbols.refresh),
@@ -247,6 +269,8 @@ class _GitLabBranchesViewState extends State<GitLabBranchesView> {
             branches: stale,
             emptyMessage: 'Every branch has recent activity.',
           ),
+          // Kept out of `_section` itself, which is otherwise stateless data
+          // shaping — projectId is the one thing every row also needs.
         ],
       );
     },
@@ -279,7 +303,7 @@ class _GitLabBranchesViewState extends State<GitLabBranchesView> {
           itemCount: branches.length,
           itemBuilder: (context, index) => Column(
             children: [
-              _BranchRow(branch: branches[index]),
+              _BranchRow(projectId: widget.tab.projectId, branch: branches[index]),
               if (index < branches.length - 1) const Divider(height: 1),
             ],
           ),
@@ -365,8 +389,9 @@ class _EmptySection extends StatelessWidget {
 }
 
 class _BranchRow extends StatelessWidget {
-  const _BranchRow({required this.branch});
+  const _BranchRow({required this.projectId, required this.branch});
 
+  final int projectId;
   final Map<String, dynamic> branch;
 
   @override
@@ -425,6 +450,7 @@ class _BranchRow extends StatelessWidget {
                   textAlign: TextAlign.end,
                 ),
               ),
+            _FavoriteStar(projectId: projectId, branchName: name),
             IconButton(
               tooltip: 'Copy branch name',
               visualDensity: VisualDensity.compact,
@@ -448,4 +474,34 @@ class _BranchRow extends StatelessWidget {
     ),
     child: Text(text, style: TextStyle(fontSize: 10, color: color)),
   );
+}
+
+/// The star toggle: an instant exact-match favorite for one branch.
+///
+/// Wrapped in its own AnimatedBuilder rather than relying on the row's parent
+/// to rebuild it, since the row list is built from the branch API response and
+/// has no reason to rebuild just because a favorite changed elsewhere — in the
+/// manage dialog, or another row's own star.
+class _FavoriteStar extends StatelessWidget {
+  const _FavoriteStar({required this.projectId, required this.branchName});
+
+  final int projectId;
+  final String branchName;
+
+  @override
+  Widget build(BuildContext context) {
+    final rules = GitLabQuickBranchesModel().forProject(projectId);
+    return AnimatedBuilder(
+      animation: rules,
+      builder: (context, _) {
+        final isFavorite = GitLabQuickBranchesModel().hasExactFavorite(projectId, branchName);
+        return IconButton(
+          tooltip: isFavorite ? 'Remove from favorite branches' : 'Add to favorite branches',
+          visualDensity: VisualDensity.compact,
+          icon: Icon(Symbols.star, fill: isFavorite ? 1 : 0),
+          onPressed: () => GitLabQuickBranchesModel().toggleExactFavorite(projectId, branchName),
+        );
+      },
+    );
+  }
 }
