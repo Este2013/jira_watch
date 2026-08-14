@@ -136,8 +136,15 @@ class GitLabQuickBranchesModel with GlobalLoggy {
       for (final entry in projects.entries) {
         final projectId = int.tryParse(entry.key);
         if (projectId == null) continue;
-        _byProject[projectId] = ObservableList(
-          initialData: (entry.value as List).map((e) => GitLabQuickBranchRule.fromJson((e as Map).cast<String, dynamic>())).toList(),
+        // Populated in place via forProject rather than replaced with a new
+        // ObservableList: a page can render — and call forProject — before
+        // this file finishes reading, since that is disk I/O and the first
+        // frame is not. Swapping in a new object then would leave whatever
+        // already grabbed the old one listening to a list that only ever
+        // stays empty, showing no favorites until something else rebuilt that
+        // widget from scratch and called forProject again.
+        forProject(projectId).addAll(
+          (entry.value as List).map((e) => GitLabQuickBranchRule.fromJson((e as Map).cast<String, dynamic>())),
         );
       }
     } on Object catch (e) {
