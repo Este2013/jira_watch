@@ -11,16 +11,28 @@ library;
 /// version picker.
 final List<(String, List<ChangeLogSection>)> appChangeLog = [
   (
-    '1.8.0',
+    '1.8.1',
     [
       ChangeLogSection.features([
-        ChangeLogItem('Added Confluence viewer'),
-        ChangeLogItem('QoL changes for Gitlab view'),
+        ChangeLogItem('GitLab view: can select branches as favorites for quick filtering'),
+      ]),
+      ChangeLogSection.bugFixes([
+        ChangeLogItem('Fixed: Snackbars would cover the settings button'),
+        ChangeLogItem('Fixed: Correct colors for GitLab icon on login page'),
       ]),
     ],
   ),
 
   ...[
+    (
+      '1.8.0',
+      [
+        ChangeLogSection.features([
+          ChangeLogItem('Added Confluence viewer'),
+          ChangeLogItem('QoL changes for Gitlab view'),
+        ]),
+      ],
+    ),
     (
       '1.7.3',
       [
