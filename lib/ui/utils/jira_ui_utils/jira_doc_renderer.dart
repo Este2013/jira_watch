@@ -98,60 +98,111 @@ class AdfRenderer extends StatefulWidget {
   @override
   State<AdfRenderer> createState() => _AdfRendererState();
 
+  /// Renders a `media` node's attachment, whatever it turns out to be.
+  ///
+  /// A `media` node only ever carries an id — nothing here says up front
+  /// whether it is a picture, a text file, or a zip, so the id has to be
+  /// resolved to its full attachment via [mediaIdToAttachment] before anything
+  /// can be drawn. Only an `image/*` mimetype gets the picture treatment;
+  /// everything else — `text/plain`, `application/json`, video, archives,
+  /// whatever a Jira attachment can be — opens [AttachmentsDialog], the same
+  /// dialog the Details view's own attachment carousel already renders every
+  /// one of those correctly in. That is deliberately not duplicated here.
   static Widget defaultMediaBuilder(Map node, BuildContext context, List attachments, num size) {
-    if (node['type'] == 'file') {
-      // match ID with attachment
-      String id = node['id'];
-
-      return FutureBuilder(
-        future: Future.microtask(
-          () async {
-            var map = await mediaIdToContentUrl(attachments);
-            return map[id];
-          },
-        ),
-        builder: (context, snapshot) {
-          return snapshot.hasData
-              ? InkWell(
-                  onTap: () => showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      constraints: BoxConstraints.expand(),
-                      title: Row(
-                        children: [
-                          Text(node.toString()),
-                          Spacer(),
-                          // IconButton(onPressed: () => launchUrl(Uri.parse(contentURL)), icon: Icon(Symbols.download)),
-                        ],
-                      ),
-                      content: InteractiveViewer(
-                        child: Center(
-                          child: JiraImage(
-                            url: snapshot.data!,
-                            boxFit: BoxFit.contain,
-                            width: size.toDouble(),
-                          ),
-                        ),
-                      ),
-                      actions: [
-                        TextButton(onPressed: Navigator.of(context).pop, child: Text('Close')),
-                      ],
-                    ),
-                  ),
-                  child: JiraImage(
-                    url: snapshot.data!,
-                    boxFit: BoxFit.fitWidth,
-                    width: size.toDouble(),
-                  ),
-                )
-              : CircularProgressIndicator();
-        },
-      );
-
-      // return JiraAvatar(url: attachment['content']);
-    } else {
+    if (node['type'] != 'file') {
       throw Exception('Media node of type: ${node['type']} is not handled');
     }
+    final id = node['id'] as String;
+
+    return FutureBuilder(
+      future: mediaIdToAttachment(id, attachments),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+
+        final attachment = snapshot.data as Map?;
+        if (attachment == null) {
+          // The id could not be matched to any of this document's attachments
+          // — most likely one that has since been deleted.
+          return Tooltip(
+            message: 'This attachment is no longer available.',
+            child: Icon(Symbols.broken_image, size: size.toDouble().clamp(24, 48)),
+          );
+        }
+
+        final mimeType = (attachment['mimeType'] as String?) ?? '';
+        final contentUrl = attachment['content'] as String?;
+        final filename = attachment['filename'] as String?;
+
+        if (mimeType.startsWith('image/') && contentUrl != null) {
+          return InkWell(
+            onTap: () => showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                constraints: BoxConstraints.expand(),
+                title: Row(
+                  children: [
+                    Text(filename ?? node.toString()),
+                    Spacer(),
+                  ],
+                ),
+                content: InteractiveViewer(
+                  child: Center(
+                    child: JiraImage(
+                      url: contentUrl,
+                      boxFit: BoxFit.contain,
+                      width: size.toDouble(),
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(onPressed: Navigator.of(context).pop, child: Text('Close')),
+                ],
+              ),
+            ),
+            child: JiraImage(
+              url: contentUrl,
+              boxFit: BoxFit.fitWidth,
+              width: size.toDouble(),
+            ),
+          );
+        }
+
+        return InkWell(
+          onTap: () => showDialog(context: context, builder: (context) => AttachmentsDialog([attachment])),
+          child: Container(
+            alignment: Alignment.center,
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              spacing: 6,
+              children: [
+                Icon(_iconForAttachment(mimeType, filename), size: 40),
+                Text(
+                  filename ?? (mimeType.isEmpty ? 'Attachment' : mimeType),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Mirrors the icon choices the Details view's own attachment carousel
+  /// makes, so a file looks the same whether it is met inline in a document or
+  /// in that carousel.
+  static IconData _iconForAttachment(String mimeType, String? filename) {
+    if (mimeType == 'text/plain') {
+      return (filename?.endsWith('.md') ?? false) ? Symbols.markdown : Symbols.text_fields;
+    }
+    if (mimeType == 'application/json') return Symbols.file_json;
+    if (mimeType.startsWith('video/')) return Symbols.movie;
+    if (filename != null && ['.zip', '.7z'].any(filename.endsWith)) return Symbols.folder_zip;
+    return Symbols.file_present_rounded;
   }
 }
 
@@ -388,7 +439,8 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         return _buildMedia(context, node, 200);
       case 'mediaSingle':
         return _buildMediaSingle(context, node, indentLevel);
-
+      case 'mediaGroup':
+        return _buildMediaGroup(context, node, indentLevel);
       case 'mediaInline':
         return _buildMediaInline(context, node, indentLevel);
       case 'mention':
@@ -468,9 +520,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
           builder: (context, asyncSnapshot) {
             if (asyncSnapshot.hasError) return ErrorWidget('Error while fetching blockCard with URL: $targetUrl\n${asyncSnapshot.error}');
             if (asyncSnapshot.data == null) {
-              return asyncSnapshot.connectionState == ConnectionState.done
-                  ? ErrorWidget('Jira would not return the work item for blockCard with URL: $targetUrl')
-                  : LinearProgressIndicator();
+              return asyncSnapshot.connectionState == ConnectionState.done ? ErrorWidget('Jira would not return the work item for blockCard with URL: $targetUrl') : LinearProgressIndicator();
             }
             var workItem = JiraWorkItemData.fromJson({'data': asyncSnapshot.data!});
             return InkWell(
@@ -1128,10 +1178,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       text: TextSpan(
         children: [
           WidgetSpan(child: SizedBox(width: indentLevel * listIndent)),
-          if (marker == null)
-            BulletListBulletSpan(indent: 1)
-          else
-            TextSpan(text: marker, style: Theme.of(context).textTheme.bodyMedium),
+          if (marker == null) BulletListBulletSpan(indent: 1) else TextSpan(text: marker, style: Theme.of(context).textTheme.bodyMedium),
           WidgetSpan(child: SizedBox(width: bulletGap)),
           WidgetSpan(child: bulletLine),
         ],
@@ -1252,6 +1299,14 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     } else {
       throw Exception('Media node of type: ${node['type']} is not handled');
     }
+  }
+
+  Widget? _buildMediaGroup(BuildContext context, Map<String, dynamic> node, int indentLevel) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [for (var subnode in node['content']) _buildNode(context, subnode, indentLevel) ?? SizedBox()],
+    );
   }
 
   Widget? _buildMention(BuildContext context, Map<String, dynamic> node) {
@@ -1513,74 +1568,6 @@ class BulletListBulletSpan extends WidgetSpan {
   }) {
     buffer.write('\n${"\t" * indent} ');
   }
-}
-
-/// Given a list of Jira attachment objects (from the REST API),
-/// resolves their Media Service IDs by following the redirect
-/// from the attachment.content URL.
-///
-/// Returns a map of `mediaId` → `contentUrl`.
-///
-/// Requires:
-/// - [attachments] : List of attachment JSON objects
-/// - [jiraToken]   : Jira Cloud API OAuth or PAT token
-///
-/// Example:
-/// final mapping = await mapMediaIdsToAttachments(attachments, jiraToken);
-/// print(mapping); // { "43b3bd1f-0d90-4798-8bff-bf84ba84ca00": "https://elgato.atlassian.net/rest/api/3/attachment/content/70981" }
-/// Returns a map of mediaId (UUID) -> attachment content URL.
-/// [attachments] is the list from Jira's REST API under "fields.attachments".
-/// [jiraToken] is your OAuth2/PAT bearer token.
-/// Works on Dart VM / Flutter mobile/desktop. Not suitable for Flutter Web.
-Future<Map<String, String>> mediaIdToContentUrl(
-  List<dynamic> attachments,
-) async {
-  final result = <String, String>{};
-  final client = HttpClient()..autoUncompress = false;
-
-  try {
-    for (final a in attachments) {
-      final contentUrl = (a['content'] as String?)?.trim();
-      if (contentUrl == null || contentUrl.isEmpty) continue;
-
-      final uri = Uri.parse(contentUrl);
-      final req = await client.getUrl(uri);
-
-      // Auth + do NOT follow the redirect
-      req.followRedirects = false;
-      req.headers.set(HttpHeaders.authorizationHeader, JiraAuth().authHeader);
-      // (optional) be explicit about what we want
-      req.headers.set(HttpHeaders.acceptHeader, '*/*');
-
-      final res = await req.close();
-
-      // We expect 303 with a Location header to api.media.atlassian.com
-      final loc = res.headers.value(HttpHeaders.locationHeader);
-
-      if (loc == null || loc.isEmpty) {
-        // Some proxies/CDNs may reply 302/307/308 as well; still check location.
-        // If missing, skip gracefully.
-        await res.drain();
-        continue;
-      }
-
-      // Extract UUID from .../file/<uuid>/binary
-      final match = RegExp(
-        r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
-      ).firstMatch(loc);
-
-      if (match != null) {
-        final mediaId = match.group(0)!;
-        result[mediaId] = contentUrl;
-      }
-
-      await res.drain();
-    }
-  } finally {
-    client.close(force: true);
-  }
-
-  return result;
 }
 
 Future<dynamic> mediaIdToAttachment(

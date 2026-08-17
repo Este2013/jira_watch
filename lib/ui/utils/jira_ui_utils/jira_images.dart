@@ -246,6 +246,7 @@ class _JiraImageState extends State<JiraImage> {
 
     // 3️⃣ Detect mime—either from extension or from magic‐bytes
     final mimeType = lookupMimeType(file.path, headerBytes: bytes) ?? '';
+
     if (mimeType.contains('text/html')) {
       // still scrape HTML if Jira wrapped the <img> in a page
       final document = html_parser.parse(String.fromCharCodes(bytes));
