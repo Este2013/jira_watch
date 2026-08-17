@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/gitlab_quick_branches_model.dart';
 import 'package:jira_watcher/models/gitlab_tabs_model.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_branch_icons.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/views/gitlab_quick_branches_dialog.dart';
 import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -173,7 +174,7 @@ class _QuickBranchChipState extends State<_QuickBranchChip> {
     return ActionChip(
       avatar: _resolving
           ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-          : Icon(Symbols.star, fill: 1, size: 16, color: selected ? colors.onPrimaryContainer : null),
+          : Icon(gitLabBranchIcon(widget.rule.iconName), fill: 1, size: 16, color: selected ? colors.onPrimaryContainer : null),
       label: Text(
         widget.rule.label,
         maxLines: 1,

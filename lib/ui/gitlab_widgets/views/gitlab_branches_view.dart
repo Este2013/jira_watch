@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/gitlab_quick_branches_model.dart';
 import 'package:jira_watcher/models/gitlab_tabs_model.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_branch_icons.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_quick_branch_chips.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_status.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/views/gitlab_quick_branches_dialog.dart';
@@ -494,11 +495,16 @@ class _FavoriteStar extends StatelessWidget {
     return AnimatedBuilder(
       animation: rules,
       builder: (context, _) {
-        final isFavorite = GitLabQuickBranchesModel().hasExactFavorite(projectId, branchName);
+        // Reflects the rule's own chosen icon rather than always assuming a
+        // star: toggling this button creates one with the default icon, but
+        // editing that same rule afterwards in the manage dialog can give it
+        // a different one, and this row should not go on showing a star once
+        // it no longer is one.
+        final favorite = GitLabQuickBranchesModel().exactFavorite(projectId, branchName);
         return IconButton(
-          tooltip: isFavorite ? 'Remove from favorite branches' : 'Add to favorite branches',
+          tooltip: favorite != null ? 'Remove from favorite branches' : 'Add to favorite branches',
           visualDensity: VisualDensity.compact,
-          icon: Icon(Symbols.star, fill: isFavorite ? 1 : 0),
+          icon: Icon(favorite != null ? gitLabBranchIcon(favorite.iconName) : Symbols.star, fill: favorite != null ? 1 : 0),
           onPressed: () => GitLabQuickBranchesModel().toggleExactFavorite(projectId, branchName),
         );
       },

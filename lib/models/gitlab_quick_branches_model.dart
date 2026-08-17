@@ -34,12 +34,19 @@ class GitLabQuickBranchRule {
     required this.label,
     required this.pattern,
     this.matchType = GitLabBranchMatchType.exact,
+    this.iconName = 'star',
   });
 
   final int id;
   String label;
   String pattern;
   GitLabBranchMatchType matchType;
+
+  /// A key into [gitLabBranchIconChoices], resolved with [gitLabBranchIcon]
+  /// rather than trusted directly — a rule saved by a newer version of the app
+  /// could name an icon this version's curated list does not have, and that
+  /// should fall back to the default rather than fail to render at all.
+  String iconName;
 
   factory GitLabQuickBranchRule.fromJson(Map<String, dynamic> json) => GitLabQuickBranchRule(
     id: json['id'] as int,
@@ -49,6 +56,9 @@ class GitLabQuickBranchRule {
       (t) => t.name == json['matchType'],
       orElse: () => GitLabBranchMatchType.exact,
     ),
+    // Absent for every rule saved before icons existed, which must still load
+    // as the star they always implicitly were.
+    iconName: (json['iconName'] as String?)?.trim().isNotEmpty == true ? json['iconName'] as String : 'star',
   );
 
   Map<String, dynamic> toJson() => {
@@ -56,6 +66,7 @@ class GitLabQuickBranchRule {
     'label': label,
     'pattern': pattern,
     'matchType': matchType.name,
+    'iconName': iconName,
   };
 
   GitLabQuickBranchRule copy() => GitLabQuickBranchRule.fromJson(toJson());
@@ -198,10 +209,16 @@ class GitLabQuickBranchesModel with GlobalLoggy {
     requestSave();
   }
 
+  /// The exact-match favorite for [branchName], if one exists — what the
+  /// branches view's row icon draws from, so it shows the rule's own chosen
+  /// icon rather than always assuming a star.
+  GitLabQuickBranchRule? exactFavorite(int projectId, String branchName) => forProject(
+    projectId,
+  ).list.where((r) => r.matchType == GitLabBranchMatchType.exact && r.pattern == branchName).firstOrNull;
+
   /// Whether an exact-match favorite already exists for [branchName] — what the
   /// branches view's star icon is either filled or outlined for.
-  bool hasExactFavorite(int projectId, String branchName) =>
-      forProject(projectId).list.any((r) => r.matchType == GitLabBranchMatchType.exact && r.pattern == branchName);
+  bool hasExactFavorite(int projectId, String branchName) => exactFavorite(projectId, branchName) != null;
 
   /// Adds or removes an exact-match favorite for [branchName] — the star
   /// icon's whole job. Labelled with the branch name itself: a one-click

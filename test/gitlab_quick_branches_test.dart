@@ -92,6 +92,22 @@ void main() {
       final restored = GitLabQuickBranchRule.fromJson({'id': 1, 'label': 'l', 'pattern': 'p', 'matchType': 'something-new'});
       expect(restored.matchType, GitLabBranchMatchType.exact);
     });
+
+    test('iconName survives round-trip', () {
+      final rule = GitLabQuickBranchRule(id: 1, label: 'l', pattern: 'p', iconName: 'rocket_launch');
+      final restored = GitLabQuickBranchRule.fromJson(rule.toJson());
+      expect(restored.iconName, 'rocket_launch');
+    });
+
+    test('a rule saved before icons existed defaults to the star', () {
+      final restored = GitLabQuickBranchRule.fromJson({'id': 1, 'label': 'l', 'pattern': 'p'});
+      expect(restored.iconName, 'star');
+    });
+
+    test('a blank iconName also defaults to the star', () {
+      final restored = GitLabQuickBranchRule.fromJson({'id': 1, 'label': 'l', 'pattern': 'p', 'iconName': '  '});
+      expect(restored.iconName, 'star');
+    });
   });
 
   group('GitLabQuickBranchesModel', () {
@@ -181,6 +197,19 @@ void main() {
       model.toggleExactFavorite(projectId, 'main');
       expect(model.hasExactFavorite(projectId, 'main'), isFalse);
       expect(model.forProject(projectId).list, isEmpty);
+    });
+
+    test('exactFavorite returns the matching rule itself, not just whether one exists', () {
+      final model = GitLabQuickBranchesModel();
+      final projectId = newProjectId();
+
+      expect(model.exactFavorite(projectId, 'main'), isNull);
+
+      model.toggleExactFavorite(projectId, 'main');
+      final favorite = model.exactFavorite(projectId, 'main');
+      expect(favorite, isNotNull);
+      expect(favorite!.pattern, 'main');
+      expect(favorite.matchType, GitLabBranchMatchType.exact);
     });
 
     test('toggleExactFavorite only touches the one branch it is given', () {

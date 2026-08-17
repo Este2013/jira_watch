@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/gitlab_quick_branches_model.dart';
 import 'package:jira_watcher/models/gitlab_tabs_model.dart';
 import 'package:jira_watcher/utils/string_utils.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_branch_icons.dart';
 import 'package:jira_watcher/ui/utils/widgets/dialog_widgets.dart/action_buttons.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -122,7 +123,7 @@ class _RuleTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListTile(
     leading: Icon(
-      rule.isValid ? Symbols.star : Symbols.error,
+      rule.isValid ? gitLabBranchIcon(rule.iconName) : Symbols.error,
       fill: 1,
       color: rule.isValid ? null : Theme.of(context).colorScheme.error,
     ),
@@ -162,6 +163,7 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
   late final TextEditingController _label;
   late final TextEditingController _pattern;
   late GitLabBranchMatchType _matchType;
+  late String _iconName;
 
   Timer? _debounce;
   bool _resolving = false;
@@ -173,6 +175,7 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
     label: _label.text,
     pattern: _pattern.text,
     matchType: _matchType,
+    iconName: _iconName,
   );
 
   @override
@@ -181,6 +184,7 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
     _label = TextEditingController(text: widget.rule.label);
     _pattern = TextEditingController(text: widget.rule.pattern);
     _matchType = widget.rule.matchType;
+    _iconName = widget.rule.iconName;
     _schedulePreview();
   }
 
@@ -229,6 +233,53 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
     }
   }
 
+  Future<void> _pickFromFullList() async {
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (context) => GitLabBranchIconPickerDialog(selected: _iconName),
+    );
+    if (picked != null) setState(() => _iconName = picked);
+  }
+
+  Widget _iconPicker(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    // The current icon is always offered even when it is not one of the
+    // quick-select defaults — picked via the full list, it should still show
+    // as selected here rather than looking like nothing was chosen.
+    final quickNames = gitLabBranchQuickIconNames.contains(_iconName)
+        ? gitLabBranchQuickIconNames
+        : [...gitLabBranchQuickIconNames, _iconName];
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        for (final name in quickNames)
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => setState(() => _iconName = name),
+            child: Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                color: name == _iconName ? colors.primaryContainer : null,
+                border: name == _iconName ? Border.all(color: colors.primary) : null,
+              ),
+              child: Icon(gitLabBranchIcon(name), fill: name == _iconName ? 1 : 0),
+            ),
+          ),
+        IconButton(
+          tooltip: 'More icons…',
+          icon: const Icon(Symbols.more_horiz),
+          onPressed: _pickFromFullList,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text(widget.rule.label.isEmpty ? 'New favorite branch' : 'Edit favorite branch'),
@@ -245,6 +296,7 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
             decoration: const InputDecoration(labelText: 'Label', helperText: 'Shown on the chip'),
             onChanged: (_) => setState(() {}),
           ),
+          _iconPicker(context),
           SegmentedButton<GitLabBranchMatchType>(
             segments: [
               for (final type in GitLabBranchMatchType.values) ButtonSegment(value: type, label: Text(type.label)),
