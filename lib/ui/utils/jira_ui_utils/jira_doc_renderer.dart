@@ -168,10 +168,26 @@ class AdfRenderer extends StatefulWidget {
         }
 
         return InkWell(
+          borderRadius: BorderRadius.circular(8),
           onTap: () => showDialog(context: context, builder: (context) => AttachmentsDialog([attachment])),
           child: Container(
+            // Sized like the Details view's own attachment carousel tiles
+            // rather than left to expand: Container.alignment makes it fill
+            // whatever bounded width its parent offers once set, which inside
+            // a mediaGroup's Wrap is the whole line — a fixed width the size
+            // this node was actually asked for keeps every card the same
+            // width whether it sits alone or beside others in a group. Height
+            // is left alone: the enclosing SizedBox already fixes that from
+            // the node's own width/height attrs, and a value here would just
+            // be overridden by it regardless of what it said.
+            width: size.toDouble(),
             alignment: Alignment.center,
             padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Theme.of(context).dividerColor),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
