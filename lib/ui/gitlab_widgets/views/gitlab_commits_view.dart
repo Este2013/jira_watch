@@ -45,9 +45,15 @@ class _GitLabCommitsViewState extends State<GitLabCommitsView> {
 
   /// Wired to both the ref field and the favorite-branch chips, so either one
   /// picking a branch does exactly the same thing: fill the field and reload.
+  ///
+  /// Only writes the controller when the text actually changes: this also
+  /// fires from the ref field's own debounce, echoing back exactly what is
+  /// already typed there, and reassigning [TextEditingController.text]
+  /// unconditionally collapses the selection — turning "pause while typing"
+  /// into "cursor jumps and the field selects all" every 350ms.
   void _selectRef(String value) => setState(() {
     _ref = value;
-    _refController.text = value;
+    if (_refController.text != value) _refController.text = value;
     _reloadToken++;
   });
 
