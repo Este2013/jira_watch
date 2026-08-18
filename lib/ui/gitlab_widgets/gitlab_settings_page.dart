@@ -4,6 +4,7 @@ import 'package:jira_watcher/dao/gitlab_dao.dart';
 import 'package:jira_watcher/dao/gitlab_oauth_server.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_images.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_logo.dart';
 import 'package:jira_watcher/ui/utils/expandable_panel.dart';
 import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
 import 'package:jira_watcher/ui/utils/widgets/dialog_widgets.dart/action_buttons.dart';
@@ -21,10 +22,12 @@ class GitLabSettingsPage extends StatefulWidget {
 class _GitLabSettingsPageState extends State<GitLabSettingsPage> with UiLoggy {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _portController;
+  late final ScrollController scrollController;
 
   @override
   void initState() {
     super.initState();
+    scrollController = ScrollController();
     _portController = TextEditingController(text: '${GitLabDao().oauthPort}');
   }
 
@@ -43,6 +46,7 @@ class _GitLabSettingsPageState extends State<GitLabSettingsPage> with UiLoggy {
       child: ScrollbarTheme(
         data: ScrollbarThemeData(thumbVisibility: WidgetStatePropertyAll(true)),
         child: ListView(
+          controller: scrollController,
           shrinkWrap: true,
           padding: EdgeInsets.only(right: 16),
           children: switch (state) {
@@ -60,7 +64,6 @@ class _GitLabSettingsPageState extends State<GitLabSettingsPage> with UiLoggy {
   // SETUP /////////////////////////////////////////////////////////////////////
 
   List<Widget> _setupChildren() => [
-    _sectionHeader('Connect to GitLab'),
     Form(
       key: _formKey,
       child: Padding(
@@ -94,6 +97,15 @@ class _GitLabSettingsPageState extends State<GitLabSettingsPage> with UiLoggy {
                 labelText: 'Application ID',
                 border: OutlineInputBorder(),
                 helperText: 'From your GitLab application. Not a secret.',
+                suffixIcon: Padding(
+                  padding: const EdgeInsets.only(right: 4.0),
+                  child: IconButton(
+                    icon: Icon(Symbols.open_in_new, fill: 1),
+                    onPressed: _openApplicationsPage,
+                    tooltip: 'Get my Application ID',
+                    visualDensity: .compact,
+                  ),
+                ),
               ),
               autovalidateMode: AutovalidateMode.onUnfocus,
               validator: (value) => (value ?? '').trim().isEmpty ? 'An Application ID is required' : null,
@@ -112,16 +124,17 @@ class _GitLabSettingsPageState extends State<GitLabSettingsPage> with UiLoggy {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Paste this into your GitLab application exactly as shown. A single character of difference makes sign-in fail.',
+            'Paste this into your GitLab application exactly as shown:',
             style: Theme.of(context).textTheme.bodySmall!.copyWith(color: Theme.of(context).hintColor),
           ),
           Row(
             spacing: 8,
             children: [
               Expanded(
-                child: SelectableText(
+                child: Text(
                   gitlabRedirectUri(_port),
                   style: TextStyle(fontFamily: 'RobotoMono'),
+                  overflow: .ellipsis,
                 ),
               ),
               IconButton(
@@ -133,12 +146,13 @@ class _GitLabSettingsPageState extends State<GitLabSettingsPage> with UiLoggy {
                 },
                 icon: Icon(Symbols.content_copy),
               ),
+              SizedBox(),
               SizedBox(
-                width: 110,
+                width: 90,
                 child: TextField(
                   controller: _portController,
                   keyboardType: TextInputType.number,
-                  decoration: InputDecoration(labelText: 'Port', isDense: true),
+                  decoration: InputDecoration(prefix: Text('Port: ')),
                   onChanged: (_) => setState(() {}),
                 ),
               ),
@@ -148,58 +162,38 @@ class _GitLabSettingsPageState extends State<GitLabSettingsPage> with UiLoggy {
       ),
     ),
 
-    _sectionHeader('Scopes'),
-    Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final scope in kGitLabOAuthScopes.split(' '))
-            Chip(
-              label: Text(scope, style: TextStyle(fontFamily: 'RobotoMono')),
-              visualDensity: VisualDensity.compact,
-            ),
-        ],
-      ),
-    ),
-
     SizedBox(height: 8),
     ExpandablePanel(
-      'How to set this up',
+      'Full guide',
+
       isInitiallyExpanded: false,
+      suffix: FilledButton.icon(
+        icon: Icon(Symbols.link),
+        onPressed: _canConnect ? _connect : null,
+        label: Text('Connect'),
+      ),
+      onExpand: () => Future.delayed(Duration(milliseconds: 300)).then(
+        (_) => scrollController.animateTo(
+          scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        ),
+      ),
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: 8,
         children: [
           for (final (i, step) in const [
-            'Open GitLab, then User settings > Applications, and add a new application.',
-            'Paste the redirect URI shown above into the Redirect URI field.',
-            'Leave "Confidential" UNCHECKED — this app cannot keep a secret.',
-            'Tick the api and read_repository scopes.',
+            'In GitLab > User settings > Applications, add a new application;',
+            'Copy and paste the above redirect URI on the website;',
+            'Leave "Confidential" UNCHECKED;',
+            'Tick the "api" and "read_repository" scopes.',
             'Save the application, then copy its Application ID.',
             'Paste the Application ID above and press Connect.',
           ].indexed)
             Text('${i + 1}. $step'),
         ],
       ),
-    ),
-
-    SizedBox(height: 8),
-    Row(
-      children: [
-        TextButton.icon(
-          icon: Icon(Symbols.help, fill: 1),
-          onPressed: _openApplicationsPage,
-          label: Text('Where do I get an Application ID?'),
-        ),
-        Spacer(),
-        FilledButton.icon(
-          icon: Icon(Symbols.link),
-          onPressed: _canConnect ? _connect : null,
-          label: Text('Connect'),
-        ),
-      ],
     ),
   ];
 
@@ -232,6 +226,7 @@ class _GitLabSettingsPageState extends State<GitLabSettingsPage> with UiLoggy {
   // CONNECTING ////////////////////////////////////////////////////////////////
 
   List<Widget> _connectingChildren() => [
+    GitLabTanukiLogo(),
     SizedBox(height: 24),
     LinearProgressIndicator(),
     SizedBox(height: 16),

@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 class ExpandablePanel extends StatefulWidget {
-  const ExpandablePanel(this.name, {super.key, required this.content, this.isInitiallyExpanded = true});
+  const ExpandablePanel(this.name, {super.key, required this.content, this.suffix, this.isInitiallyExpanded = true, this.onExpand, this.onCollapse});
 
   final String name;
+  final Widget? suffix;
   final Widget content;
   final bool isInitiallyExpanded;
+  final VoidCallback? onExpand, onCollapse;
 
   @override
   State<ExpandablePanel> createState() => _ExpandablePanelState();
@@ -28,7 +30,14 @@ class _ExpandablePanelState extends State<ExpandablePanel> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         InkWell(
-          onTap: () => setState(() => isExpanded = !isExpanded),
+          onTap: () {
+            setState(() => isExpanded = !isExpanded);
+            if (isExpanded) {
+              widget.onExpand?.call();
+            } else {
+              widget.onCollapse?.call();
+            }
+          },
           child: Padding(
             padding: const EdgeInsets.all(8),
             child: Row(
@@ -49,6 +58,10 @@ class _ExpandablePanelState extends State<ExpandablePanel> {
                   widget.name,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
+                if (widget.suffix != null) ...[
+                  Spacer(),
+                  widget.suffix!,
+                ],
               ],
             ),
           ),
