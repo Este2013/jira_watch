@@ -1,4 +1,11 @@
 {
+    "1.8.2": {
+        "changelog": "✨ Features:\n ᛫ GitLab view\n     ᛫ Visual adjustments\n     ᛫ Can now give icons to favorite branches\n\n🪲 Bug fixes\n ᛫ Jira ADF Renderer can now show text/plain attachments\n ᛫ Snackbars would cover the settings button\n ᛫ Correct colors for GitLab icon on login page\n ᛫ Can now type in Gitlab search fields without text selection changing",
+        "x64": "v1.8.2/Binaries (x64).zip",
+        "x64Url": "https://github.com/Este2013/jira_watch/releases/download/v1.8.2/jira_watch-1.8.2-windows-x64.zip",
+        "x64Sha256": "a1fd5fc156dada5d902c752a71b63551cf55b9b8ce2c48476d020b953052a6d0",
+        "x64Size": 37680517
+    },
     "1.8.1": {
         "changelog": "✨ Features:\n ᛫ GitLab view: can select branches as favorites for quick filtering\n\n🪲 Bug fixes\n ᛫ Fixed: Snackbars would cover the settings button\n ᛫ Fixed: Correct colors for GitLab icon on login page",
         "x64": "v1.8.1/Binaries (x64).zip",
