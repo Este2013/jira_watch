@@ -46,6 +46,7 @@ class _GitLabTabStripState extends State<GitLabTabStrip> {
       builder: (context, _) => SizedBox(
         height: 40,
         child: Row(
+          spacing: 8,
           children: [
             Expanded(
               child: ListView(
@@ -66,6 +67,7 @@ class _GitLabTabStripState extends State<GitLabTabStrip> {
               icon: Icon(Symbols.add),
               onPressed: () => showGitLabProjectPicker(context),
             ),
+            SizedBox(),
           ],
         ),
       ),
@@ -135,9 +137,8 @@ class _ProjectTabChipState extends State<_ProjectTabChip> {
                           child: showClose
                               ? IconButton(
                                   icon: Icon(Symbols.close),
-                                  iconSize: 14,
-                                  visualDensity: VisualDensity.compact,
-                                  padding: EdgeInsets.zero,
+                                  iconSize: 16,
+                                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                                   constraints: const BoxConstraints(),
                                   tooltip: 'Close',
                                   onPressed: _close,

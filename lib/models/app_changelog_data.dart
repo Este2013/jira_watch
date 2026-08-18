@@ -11,19 +11,39 @@ library;
 /// version picker.
 final List<(String, List<ChangeLogSection>)> appChangeLog = [
   (
-    '1.8.1',
+    '1.8.2',
     [
       ChangeLogSection.features([
-        ChangeLogItem('GitLab view: can select branches as favorites for quick filtering'),
+        ChangeLogItem(
+          'GitLab view',
+          subItems: [
+            ChangeLogItem('Visual adjustments'),
+            ChangeLogItem('Can now give icons to favorite branches'),
+          ],
+        ),
       ]),
       ChangeLogSection.bugFixes([
-        ChangeLogItem('Fixed: Snackbars would cover the settings button'),
-        ChangeLogItem('Fixed: Correct colors for GitLab icon on login page'),
+        ChangeLogItem('Jira ADF Renderer can now show text/plain attachments'),
+        ChangeLogItem('Snackbars would cover the settings button'),
+        ChangeLogItem('Correct colors for GitLab icon on login page'),
+        ChangeLogItem('Can now type in Gitlab search fields without text selection changing'),
       ]),
     ],
   ),
 
   ...[
+    (
+      '1.8.1',
+      [
+        ChangeLogSection.features([
+          ChangeLogItem('GitLab view: can select branches as favorites for quick filtering'),
+        ]),
+        ChangeLogSection.bugFixes([
+          ChangeLogItem('Fixed: Snackbars would cover the settings button'),
+          ChangeLogItem('Fixed: Correct colors for GitLab icon on login page'),
+        ]),
+      ],
+    ),
     (
       '1.8.0',
       [

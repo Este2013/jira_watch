@@ -184,9 +184,10 @@ class AdfRenderer extends StatefulWidget {
             alignment: Alignment.center,
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
+              color: Theme.of(context).carouselViewTheme.backgroundColor,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Theme.of(context).dividerColor),
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              //
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,

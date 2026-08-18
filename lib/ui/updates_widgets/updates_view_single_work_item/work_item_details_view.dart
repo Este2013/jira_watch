@@ -455,85 +455,83 @@ class AttachmentPreview extends StatelessWidget {
   final dynamic a;
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: Builder(
-            builder: (context) {
-              String filetype = a['mimeType'];
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Expanded(
+        child: Builder(
+          builder: (context) {
+            String filetype = a['mimeType'];
 
-              if (filetype == 'text/plain') {
-                if (a['filename']?.endsWith('.md') ?? false) {
-                  return Center(
-                    child: Icon(Symbols.markdown, size: 48),
-                  );
-                }
+            if (filetype == 'text/plain') {
+              if (a['filename']?.endsWith('.md') ?? false) {
                 return Center(
-                  child: Icon(Symbols.text_fields, size: 48),
-                );
-              }
-              if (filetype == 'application/json') {
-                return Center(
-                  child: Icon(Symbols.file_json, size: 48, fill: 1),
-                );
-              }
-              if (filetype.startsWith('video')) {
-                return Center(
-                  child: Icon(Symbols.movie, size: 48),
-                );
-              }
-              if (['zip', '7z'].any(filetype.endsWith)) {
-                return Center(
-                  child: Icon(Symbols.folder_zip, size: 48),
-                );
-              }
-              if (a['thumbnail'] != null) {
-                return JiraAvatar(
-                  url: a['thumbnail'],
-                  boxFit: BoxFit.cover,
+                  child: Icon(Symbols.markdown, size: 48),
                 );
               }
               return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SizedBox(height: 12),
-                    Icon(Symbols.file_present_rounded, size: 48),
-                    Text(a['mimeType'], style: TextStyle(color: Theme.of(context).hintColor)),
-                  ],
-                ),
+                child: Icon(Symbols.text_fields, size: 48),
               );
-            },
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Builder(
-            builder: (context) {
-              String name = a['filename'];
-              String part1 = basenameWithoutExtension(name);
-              String part2 = extension(name);
-              if (part1.length > 5) {
-                part2 = '${part1.substring(part1.length - 3)}$part2';
-                part1 = part1.substring(0, part1.length - 3);
-              }
-              return Tooltip(
-                message: name,
-                child: Row(
-                  children: [
-                    Flexible(child: Text(part1, overflow: TextOverflow.ellipsis)),
-                    Text(part2, overflow: TextOverflow.ellipsis),
-                  ],
-                ),
+            }
+            if (filetype == 'application/json') {
+              return Center(
+                child: Icon(Symbols.file_json, size: 48, fill: 1),
               );
-            },
-          ),
+            }
+            if (filetype.startsWith('video')) {
+              return Center(
+                child: Icon(Symbols.movie, size: 48),
+              );
+            }
+            if (['zip', '7z'].any(filetype.endsWith)) {
+              return Center(
+                child: Icon(Symbols.folder_zip, size: 48),
+              );
+            }
+            if (a['thumbnail'] != null) {
+              return JiraAvatar(
+                url: a['thumbnail'],
+                boxFit: BoxFit.cover,
+              );
+            }
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(height: 12),
+                  Icon(Symbols.file_present_rounded, size: 48),
+                  Text(a['mimeType'], style: TextStyle(color: Theme.of(context).hintColor)),
+                ],
+              ),
+            );
+          },
         ),
-      ],
-    );
-  }
+      ),
+      Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Builder(
+          builder: (context) {
+            String name = a['filename'];
+            String part1 = basenameWithoutExtension(name);
+            String part2 = extension(name);
+            if (part1.length > 5) {
+              part2 = '${part1.substring(part1.length - 3)}$part2';
+              part1 = part1.substring(0, part1.length - 3);
+            }
+            return Tooltip(
+              message: name,
+              child: Row(
+                children: [
+                  Flexible(child: Text(part1, overflow: TextOverflow.ellipsis)),
+                  Text(part2, overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    ],
+  );
 }
 
 class AttachmentsDialog extends StatefulWidget {
