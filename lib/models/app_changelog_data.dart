@@ -7,16 +7,17 @@
 /// UI renders from it through extensions in `lib/ui/utils/app_changelog.dart`.
 library;
 
-/// Newest first. The order drives both the changelog dialog's paging and the
-/// version picker.
+/// Newest first. The order drives both the changelog dialog's paging and the version picker.
 final List<(String, List<ChangeLogSection>)> appChangeLog = [
   (
     '1.8.4',
     [
+      ChangeLogSection.features([
+        ChangeLogItem('Confluence view: Document is now given a max width'),
+      ]),
       ChangeLogSection.bugFixes([
-        ChangeLogItem(
-          'Added required "read_user" API scope in Gitlab connection page',
-        ),
+        ChangeLogItem('ADF renderer: mediaInline nodes did not render attachments'),
+        ChangeLogItem('Added required "read_user" API scope in Gitlab connection page'),
       ]),
     ],
   ),
@@ -28,9 +29,7 @@ final List<(String, List<ChangeLogSection>)> appChangeLog = [
         '1.8.3',
         [
           ChangeLogSection.features([
-            ChangeLogItem(
-              'Improved Gitlab connection page',
-            ),
+            ChangeLogItem('Improved Gitlab connection page'),
           ]),
         ],
       ),

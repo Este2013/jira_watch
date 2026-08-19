@@ -305,7 +305,7 @@ class _ConfluenceArticleViewState extends State<ConfluenceArticleView> with UiLo
             // does not stretch lines further than they read comfortably.
             // Scales with the same zoom as the text, so zooming in still
             // widens the column rather than immediately wrapping harder.
-            constraints: BoxConstraints(maxWidth: 1000 * scale),
+            constraints: BoxConstraints(maxWidth: 800 * scale),
             child: AdfRenderer(
               adf: page.adf!,
               attachments: const [],
@@ -325,8 +325,7 @@ class _ConfluenceArticleViewState extends State<ConfluenceArticleView> with UiLo
     );
   }
 
-  static String _shortDate(DateTime date) =>
-      '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  static String _shortDate(DateTime date) => '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
 }
 
 /// The strip under the article: who wrote it and how it has been received on
@@ -396,22 +395,16 @@ class _ReadingBarState extends State<_ReadingBar> {
               children: [
                 FutureBuilder<confluence.User?>(
                   future: _author,
-                  builder: (context, snapshot) => snapshot.data?.displayName == null
-                      ? const SizedBox.shrink()
-                      : _Fact(icon: Symbols.person, label: snapshot.data!.displayName!, style: small),
+                  builder: (context, snapshot) => snapshot.data?.displayName == null ? const SizedBox.shrink() : _Fact(icon: Symbols.person, label: snapshot.data!.displayName!, style: small),
                 ),
                 if (_status != null) _Fact(icon: Symbols.flag, label: _status!, style: small),
                 FutureBuilder<int?>(
                   future: _views,
-                  builder: (context, snapshot) => snapshot.data == null
-                      ? const SizedBox.shrink()
-                      : _Fact(icon: Symbols.visibility, label: '${snapshot.data} views', style: small),
+                  builder: (context, snapshot) => snapshot.data == null ? const SizedBox.shrink() : _Fact(icon: Symbols.visibility, label: '${snapshot.data} views', style: small),
                 ),
                 FutureBuilder<int?>(
                   future: _likes,
-                  builder: (context, snapshot) => snapshot.data == null || snapshot.data == 0
-                      ? const SizedBox.shrink()
-                      : _Fact(icon: Symbols.mood, label: '${snapshot.data}', style: small),
+                  builder: (context, snapshot) => snapshot.data == null || snapshot.data == 0 ? const SizedBox.shrink() : _Fact(icon: Symbols.mood, label: '${snapshot.data}', style: small),
                 ),
               ],
             ),
@@ -507,7 +500,11 @@ class _Message extends StatelessWidget {
         children: [
           Icon(icon, size: 40, color: Theme.of(context).hintColor),
           Text(title, style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
-          Text(detail, textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).hintColor)),
+          Text(
+            detail,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Theme.of(context).hintColor),
+          ),
         ],
       ),
     ),
