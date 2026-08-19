@@ -7,6 +7,7 @@ environment:
   sdk: ^3.11.0-93.1.beta
 
 dependencies:
+  animated_icon: ^1.0.0
   window_manager: ^0.5.1
   calendar_date_picker2: ^3.0.0
   charset: ^2.0.1

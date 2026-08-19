@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:animated_icon/animated_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/models/notification_center_model.dart';
-import 'package:material_symbols_icons/symbols.dart';
 
 /// The bell shown in the navigation rail, above the settings button.
 ///
@@ -19,18 +19,25 @@ class NotificationBellButton extends StatefulWidget {
   State<NotificationBellButton> createState() => _NotificationBellButtonState();
 }
 
-class _NotificationBellButtonState extends State<NotificationBellButton> with SingleTickerProviderStateMixin {
+class _NotificationBellButtonState extends State<NotificationBellButton> {
   final _link = LayerLink();
   OverlayEntry? _flyoutEntry;
   OverlayEntry? _bubbleEntry;
   Timer? _bubbleTimer;
+  Timer? _arrivalRingTimer;
 
-  late final AnimationController _wiggleCtrl;
+  /// [AnimateIcon] exposes no controller to replay its animation from code —
+  /// only a real tap or hover on its own internal InkWell triggers one. A
+  /// fresh key is the only way to make it play again on command: giving it a
+  /// new key remounts it from scratch, and [IconType.continueAnimation] is
+  /// the one mode that plays automatically on mount rather than waiting for
+  /// a gesture. See [_ring].
+  Key _bellKey = UniqueKey();
+  IconType _iconType = IconType.animatedOnTap;
 
   @override
   void initState() {
     super.initState();
-    _wiggleCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
     NotificationCenterModel().arrivalTick.addListener(_onArrival);
     NotificationCenterModel().loudArrival.addListener(_onLoudArrival);
   }
@@ -39,15 +46,39 @@ class _NotificationBellButtonState extends State<NotificationBellButton> with Si
   void dispose() {
     NotificationCenterModel().arrivalTick.removeListener(_onArrival);
     NotificationCenterModel().loudArrival.removeListener(_onLoudArrival);
+    _arrivalRingTimer?.cancel();
     _bubbleTimer?.cancel();
     _closeFlyout();
     _closeBubble();
-    _wiggleCtrl.dispose();
     super.dispose();
   }
 
   void _onArrival() {
-    if (mounted) _wiggleCtrl.forward(from: 0);
+    if (mounted) _ring();
+  }
+
+  /// Plays the bell's ring once for something that was not a click on it —
+  /// a new notification arriving while the reader is looking elsewhere.
+  ///
+  /// Remounts under [IconType.continueAnimation] just long enough for one
+  /// ring, then swaps back to the resting [IconType.animatedOnTap] before
+  /// continueAnimation's own auto-repeat would otherwise leave the bell
+  /// ringing forever. The delay is a generous estimate of the animation's
+  /// length rather than something read from it — there is no callback for
+  /// "this play finished" to hook into instead.
+  void _ring() {
+    _arrivalRingTimer?.cancel();
+    setState(() {
+      _bellKey = UniqueKey();
+      _iconType = IconType.continueAnimation;
+    });
+    _arrivalRingTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (!mounted) return;
+      setState(() {
+        _bellKey = UniqueKey();
+        _iconType = IconType.animatedOnTap;
+      });
+    });
   }
 
   void _onLoudArrival() {
@@ -93,10 +124,6 @@ class _NotificationBellButtonState extends State<NotificationBellButton> with Si
     _bubbleEntry = null;
   }
 
-  /// A quick back-and-forth wiggle rather than a full spin, damped so it
-  /// settles back to rest instead of stopping abruptly.
-  double _wiggleAngle(double t) => t <= 0 || t >= 1 ? 0 : math.sin(t * math.pi * 4) * (1 - t) * 0.3;
-
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: NotificationCenterModel(),
@@ -116,13 +143,24 @@ class _NotificationBellButtonState extends State<NotificationBellButton> with Si
 
       return CompositedTransformTarget(
         link: _link,
-        child: AnimatedBuilder(
-          animation: _wiggleCtrl,
-          builder: (context, child) => Transform.rotate(angle: _wiggleAngle(_wiggleCtrl.value), child: child),
-          child: IconButton(
-            tooltip: 'Notifications',
-            onPressed: _toggleFlyout,
-            icon: Badge.count(count: model.unreadCount, isLabelVisible: model.unreadCount > 0, child: const Icon(Symbols.notifications)),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Badge.count(
+            count: model.unreadCount,
+            isLabelVisible: model.unreadCount > 0,
+            child: AnimateIcon(
+              key: _bellKey,
+              animateIcon: AnimateIcons.bell,
+              iconType: _iconType,
+              height: 28,
+              width: 28,
+              color: IconTheme.of(context).color ?? Theme.of(context).colorScheme.onSurfaceVariant,
+              toolTip: 'Notifications',
+              // animatedOnTap already rings the bell itself before this runs —
+              // see AnimateIcon's own onTap handling — so this only needs to
+              // open the flyout.
+              onTap: _toggleFlyout,
+            ),
           ),
         ),
       );
@@ -133,7 +171,7 @@ class _NotificationBellButtonState extends State<NotificationBellButton> with Si
 /// The transparent full-screen tap target behind a flyout or bubble, plus the
 /// [CompositedTransformFollower] that pins [child] next to the bell — shared
 /// since both overlays close the same way: click elsewhere, or Escape.
-class _NotificationOverlayBarrier extends StatelessWidget {
+class _NotificationOverlayBarrier extends StatefulWidget {
   const _NotificationOverlayBarrier({required this.link, required this.onClose, required this.child});
 
   final LayerLink link;
@@ -141,11 +179,34 @@ class _NotificationOverlayBarrier extends StatelessWidget {
   final Widget child;
 
   @override
+  State<_NotificationOverlayBarrier> createState() => _NotificationOverlayBarrierState();
+}
+
+class _NotificationOverlayBarrierState extends State<_NotificationOverlayBarrier> {
+  final _focusNode = FocusNode(debugLabel: 'NotificationOverlay');
+
+  @override
+  void initState() {
+    super.initState();
+    // `autofocus` only claims focus when nothing in scope already has it —
+    // and the bell button just got tapped to open this, so it already does.
+    // Escape went nowhere as a result. Requesting explicitly always moves
+    // focus here regardless of what held it a moment ago.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focusNode.requestFocus());
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => Stack(
     children: [
-      Positioned.fill(child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: onClose)),
+      Positioned.fill(child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: widget.onClose)),
       CompositedTransformFollower(
-        link: link,
+        link: widget.link,
         showWhenUnlinked: false,
         // The bell sits near the bottom of the navigation rail, above
         // settings — anchoring the follower's bottom-left corner to the
@@ -156,17 +217,17 @@ class _NotificationOverlayBarrier extends StatelessWidget {
         followerAnchor: Alignment.bottomLeft,
         offset: const Offset(8, -8),
         child: Focus(
-          autofocus: true,
+          focusNode: _focusNode,
           onKeyEvent: (node, event) {
             if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
-              onClose();
+              widget.onClose();
               return KeyEventResult.handled;
             }
             return KeyEventResult.ignored;
           },
           // Absorbs its own taps so clicking inside the flyout or bubble does
           // not fall through to the full-screen barrier behind it.
-          child: GestureDetector(onTap: () {}, child: child),
+          child: GestureDetector(onTap: () {}, child: widget.child),
         ),
       ),
     ],

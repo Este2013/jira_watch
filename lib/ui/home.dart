@@ -228,6 +228,7 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
                 trailing: Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),
                   child: Column(
+                    spacing: 4,
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const NotificationBellButton(),
