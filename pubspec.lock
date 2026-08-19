@@ -662,7 +662,7 @@ packages:
     source: hosted
     version: "2.0.3"
   lottie:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: lottie
       sha256: "58dda9eee3f1b1fb9d490b0161635cffe93022b3b8ca0687e3df33a53620ead2"

@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:animated_icon/animated_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/models/notification_center_model.dart';
+import 'package:lottie/lottie.dart';
 
 /// The bell shown in the navigation rail, above the settings button.
 ///
@@ -21,19 +21,10 @@ class NotificationBellButton extends StatefulWidget {
 
 class _NotificationBellButtonState extends State<NotificationBellButton> {
   final _link = LayerLink();
+  final _bellKey = GlobalKey<_BellState>();
   OverlayEntry? _flyoutEntry;
   OverlayEntry? _bubbleEntry;
   Timer? _bubbleTimer;
-  Timer? _arrivalRingTimer;
-
-  /// [AnimateIcon] exposes no controller to replay its animation from code —
-  /// only a real tap or hover on its own internal InkWell triggers one. A
-  /// fresh key is the only way to make it play again on command: giving it a
-  /// new key remounts it from scratch, and [IconType.continueAnimation] is
-  /// the one mode that plays automatically on mount rather than waiting for
-  /// a gesture. See [_ring].
-  Key _bellKey = UniqueKey();
-  IconType _iconType = IconType.animatedOnTap;
 
   @override
   void initState() {
@@ -46,40 +37,13 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
   void dispose() {
     NotificationCenterModel().arrivalTick.removeListener(_onArrival);
     NotificationCenterModel().loudArrival.removeListener(_onLoudArrival);
-    _arrivalRingTimer?.cancel();
     _bubbleTimer?.cancel();
     _closeFlyout();
     _closeBubble();
     super.dispose();
   }
 
-  void _onArrival() {
-    if (mounted) _ring();
-  }
-
-  /// Plays the bell's ring once for something that was not a click on it —
-  /// a new notification arriving while the reader is looking elsewhere.
-  ///
-  /// Remounts under [IconType.continueAnimation] just long enough for one
-  /// ring, then swaps back to the resting [IconType.animatedOnTap] before
-  /// continueAnimation's own auto-repeat would otherwise leave the bell
-  /// ringing forever. The delay is a generous estimate of the animation's
-  /// length rather than something read from it — there is no callback for
-  /// "this play finished" to hook into instead.
-  void _ring() {
-    _arrivalRingTimer?.cancel();
-    setState(() {
-      _bellKey = UniqueKey();
-      _iconType = IconType.continueAnimation;
-    });
-    _arrivalRingTimer = Timer(const Duration(milliseconds: 1200), () {
-      if (!mounted) return;
-      setState(() {
-        _bellKey = UniqueKey();
-        _iconType = IconType.animatedOnTap;
-      });
-    });
-  }
+  void _onArrival() => _bellKey.currentState?.ring();
 
   void _onLoudArrival() {
     final notification = NotificationCenterModel().loudArrival.value;
@@ -95,7 +59,9 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
       return;
     }
     _closeBubble();
-    final entry = OverlayEntry(builder: (context) => _NotificationOverlayBarrier(link: _link, onClose: _closeFlyout, child: const _NotificationFlyout()));
+    final entry = OverlayEntry(
+      builder: (context) => _NotificationOverlayBarrier(link: _link, onClose: _closeFlyout, child: const _NotificationFlyout()),
+    );
     _flyoutEntry = entry;
     Overlay.of(context).insert(entry);
   }
@@ -108,7 +74,11 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
   void _showBubble(AppNotification notification) {
     _closeBubble();
     final entry = OverlayEntry(
-      builder: (context) => _NotificationOverlayBarrier(link: _link, onClose: _closeBubble, child: _LoudNotificationBubble(notification: notification)),
+      builder: (context) => _NotificationOverlayBarrier(
+        link: _link,
+        onClose: _closeBubble,
+        child: _LoudNotificationBubble(notification: notification),
+      ),
     );
     _bubbleEntry = entry;
     Overlay.of(context).insert(entry);
@@ -143,28 +113,84 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
 
       return CompositedTransformTarget(
         link: _link,
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Badge.count(
+        child: IconButton(
+          tooltip: 'Notifications',
+          onPressed: () {
+            _bellKey.currentState?.ring();
+            _toggleFlyout();
+          },
+          icon: Badge.count(
             count: model.unreadCount,
             isLabelVisible: model.unreadCount > 0,
-            child: AnimateIcon(
-              key: _bellKey,
-              animateIcon: AnimateIcons.bell,
-              iconType: _iconType,
-              height: 28,
-              width: 28,
-              color: IconTheme.of(context).color ?? Theme.of(context).colorScheme.onSurfaceVariant,
-              toolTip: 'Notifications',
-              // animatedOnTap already rings the bell itself before this runs —
-              // see AnimateIcon's own onTap handling — so this only needs to
-              // open the flyout.
-              onTap: _toggleFlyout,
-            ),
+            offset: const Offset(8, -4),
+            child: _Bell(key: _bellKey, color: IconTheme.of(context).color ?? Theme.of(context).colorScheme.onSurfaceVariant),
           ),
         ),
       );
     },
+  );
+}
+
+/// The bell glyph, driven directly through Lottie rather than through the
+/// animated_icon package's own [Widget] wrapper — which this still borrows
+/// the bundled bell animation from (see the asset path below), but whose
+/// wrapper does not support three things needed here: replaying the ring
+/// from code rather than only from a tap or hover on its own internal
+/// InkWell (it exposes no controller), a real [IconButton] hover halo (its
+/// InkWell hugs the icon's bounding box instead of a circular tap target),
+/// and an outline rather than a filled bell (its own recoloring always
+/// paints the interior solid, which reads as a much heavier weight than the
+/// thin outlined Material Symbols used everywhere else in the rail).
+class _Bell extends StatefulWidget {
+  const _Bell({super.key, required this.color});
+
+  final Color color;
+
+  @override
+  State<_Bell> createState() => _BellState();
+}
+
+class _BellState extends State<_Bell> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// Plays one ring from the start, restarting it if it is already ringing.
+  void ring() => _controller.forward(from: 0);
+
+  @override
+  Widget build(BuildContext context) => Lottie.asset(
+    'assets/bell.json',
+    package: 'animated_icon',
+    controller: _controller,
+    // The real duration, from the asset itself — nothing here has to guess
+    // at how long a ring takes, unlike replaying it via the package's own
+    // widget, which would have needed to.
+    onLoaded: (composition) => _controller.duration = composition.duration,
+    height: 24,
+    width: 24,
+    addRepaintBoundary: true,
+    // Same two group/fill key paths the animated_icon package's own widget
+    // recolors for this asset — reused here because they are known to cover
+    // the whole bell, just aimed at an outline instead of a fill.
+    delegates: LottieDelegates(
+      values: [
+        ValueDelegate.strokeColor(const ['lottie Outlines', 'Group 1', '**'], value: widget.color),
+        ValueDelegate.strokeColor(const ['lottie Outlines', 'Group 2', '**'], value: widget.color),
+        ValueDelegate.color(const ['lottie Outlines', 'Group 2', 'Fill 1'], value: const Color(0x00000000)),
+        ValueDelegate.color(const ['lottie Outlines', 'Group 1', 'Fill 1'], value: const Color(0x00000000)),
+      ],
+    ),
   );
 }
 
@@ -204,7 +230,9 @@ class _NotificationOverlayBarrierState extends State<_NotificationOverlayBarrier
   @override
   Widget build(BuildContext context) => Stack(
     children: [
-      Positioned.fill(child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: widget.onClose)),
+      Positioned.fill(
+        child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: widget.onClose),
+      ),
       CompositedTransformFollower(
         link: widget.link,
         showWhenUnlinked: false,
@@ -314,8 +342,7 @@ class _NotificationTile extends StatelessWidget {
                 spacing: 4,
                 children: [
                   Text(notification.title, style: TextStyle(fontWeight: notification.read ? FontWeight.normal : FontWeight.w600)),
-                  if (notification.subtitle != null)
-                    Text(notification.subtitle!, style: Theme.of(context).textTheme.bodySmall!.copyWith(color: hint)),
+                  if (notification.subtitle != null) Text(notification.subtitle!, style: Theme.of(context).textTheme.bodySmall!.copyWith(color: hint)),
                   if (notification.actions.isNotEmpty) _ActionsRow(actions: notification.actions),
                 ],
               ),
@@ -378,38 +405,50 @@ class _LoudNotificationBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(padding: const EdgeInsets.only(bottom: 16), child: CustomPaint(size: const Size(8, 14), painter: _BubbleTailPainter(color: color))),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: CustomPaint(
+              size: const Size(8, 14),
+              painter: _BubbleTailPainter(color: color),
+            ),
+          ),
           Material(
             elevation: 8,
             color: color,
             borderRadius: BorderRadius.circular(12),
             clipBehavior: Clip.antiAlias,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 320),
-              child: InkWell(
-                onTap: () {
-                  notification.read = true;
-                  notification.onTap?.call();
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 10,
-                    children: [
-                      if (notification.leading != null) notification.leading!,
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          spacing: 4,
-                          children: [
-                            Text(notification.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                            if (notification.subtitle != null) Text(notification.subtitle!, style: Theme.of(context).textTheme.bodySmall),
-                            if (notification.actions.isNotEmpty) _ActionsRow(actions: notification.actions),
-                          ],
+              // Nothing clips overlay content to the window automatically —
+              // without a height cap here, a bubble growing upward from an
+              // anchor already low in a short window has nothing stopping it
+              // from extending past the top edge instead of just scrolling.
+              constraints: BoxConstraints(maxWidth: 320, maxHeight: math.min(400, MediaQuery.sizeOf(context).height - 48)),
+              child: SingleChildScrollView(
+                child: InkWell(
+                  onTap: () {
+                    notification.read = true;
+                    notification.onTap?.call();
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      spacing: 10,
+                      children: [
+                        if (notification.leading != null) notification.leading!,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            spacing: 4,
+                            children: [
+                              Text(notification.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                              if (notification.subtitle != null) Text(notification.subtitle!, style: Theme.of(context).textTheme.bodySmall),
+                              if (notification.actions.isNotEmpty) _ActionsRow(actions: notification.actions),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
