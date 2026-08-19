@@ -298,18 +298,28 @@ class _ConfluenceArticleViewState extends State<ConfluenceArticleView> with UiLo
         // what make the article read as a document sitting in the app rather
         // than as another panel of it.
         padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
-        child: AdfRenderer(
-          adf: page.adf!,
-          attachments: const [],
-          mediaBuilder: confluenceMediaBuilder(page.id),
-          mediaInlineBuilder: confluenceMediaInlineBuilder(page.id),
-          macroBuilder: confluenceMacroBuilder(
-            page,
-            onOpen: (pageId, mode) => widget.onOpenLink?.call(pageId, mode),
+        child: Center(
+          child: ConstrainedBox(
+            // Confluence's own reading view keeps text to a centered column
+            // rather than the full page width; matched here so a wide window
+            // does not stretch lines further than they read comfortably.
+            // Scales with the same zoom as the text, so zooming in still
+            // widens the column rather than immediately wrapping harder.
+            constraints: BoxConstraints(maxWidth: 1000 * scale),
+            child: AdfRenderer(
+              adf: page.adf!,
+              attachments: const [],
+              mediaBuilder: confluenceMediaBuilder(page.id),
+              mediaInlineBuilder: confluenceMediaInlineBuilder(page.id),
+              macroBuilder: confluenceMacroBuilder(
+                page,
+                onOpen: (pageId, mode) => widget.onOpenLink?.call(pageId, mode),
+              ),
+              linkHandler: _handleLink,
+              linkTitleResolver: resolveConfluenceLinkTitle,
+              textScale: scale,
+            ),
           ),
-          linkHandler: _handleLink,
-          linkTitleResolver: resolveConfluenceLinkTitle,
-          textScale: scale,
         ),
       ),
     );
