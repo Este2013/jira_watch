@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:jira_watcher/dao/confluence/confluence_api.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// How a link the reader clicked should be opened.
 enum ConfluenceOpenMode {
@@ -90,6 +91,67 @@ Widget Function(BuildContext, Map<String, dynamic>, num) confluenceMediaBuilder(
           );
         }
         return _ZoomableImage(url: url, width: width, label: node['alt'] as String?);
+      },
+    );
+  };
+}
+
+/// Renders an attachment referenced from inside a sentence.
+///
+/// Same `fileId` lookup as [confluenceMediaBuilder], but the result has to fit
+/// on a text line: an image becomes a small thumbnail that opens full size,
+/// and anything else becomes a chip labelled with its filename that opens the
+/// file in the browser, since this app has no viewer for an arbitrary
+/// Confluence attachment.
+Widget Function(BuildContext, Map<String, dynamic>) confluenceMediaInlineBuilder(String pageId) {
+  return (context, attrs) {
+    final fileId = attrs['id'] as String?;
+    if (fileId == null || fileId.isEmpty) return const SizedBox.shrink();
+
+    return FutureBuilder<Map<String, ConfluenceMediaFile>>(
+      future: ConfluenceApi().mediaFiles(pageId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox.square(dimension: 14, child: CircularProgressIndicator(strokeWidth: 2));
+        }
+
+        final file = snapshot.data?[fileId];
+        if (file == null) {
+          // Same caveat as the block builder: an attachment can live on a
+          // different page than the one embedding it, which this does not follow.
+          return Tooltip(
+            message: 'This attachment is on another page, so it cannot be shown here.',
+            child: Icon(Symbols.attach_file_off, size: 16, color: Theme.of(context).hintColor),
+          );
+        }
+
+        if (file.isImage) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: InkWell(
+              onTap: () => showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  constraints: const BoxConstraints.expand(),
+                  title: Text(file.filename ?? 'Image'),
+                  content: InteractiveViewer(
+                    child: Center(child: JiraImage(url: file.url, boxFit: BoxFit.contain, width: 900)),
+                  ),
+                  actions: [TextButton(onPressed: Navigator.of(context).pop, child: const Text('Close'))],
+                ),
+              ),
+              child: JiraImage(url: file.url, boxFit: BoxFit.contain, width: 20),
+            ),
+          );
+        }
+
+        return ActionChip(
+          avatar: const Icon(Symbols.attach_file, size: 16),
+          label: Text(file.filename ?? 'Attachment'),
+          visualDensity: VisualDensity.compact,
+          tooltip: 'Open ${file.filename ?? 'this attachment'} in the browser',
+          onPressed: () => launchUrl(Uri.parse(file.url)),
+        );
       },
     );
   };

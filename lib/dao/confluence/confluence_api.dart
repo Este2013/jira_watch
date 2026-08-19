@@ -70,6 +70,34 @@ class ConfluencePageNode {
 /// A space's tree, and whether it is all of it.
 typedef ConfluenceTree = ({List<ConfluencePageNode> roots, bool truncated});
 
+/// One of a page's attachments, keyed in [ConfluenceApi.mediaFiles] by the
+/// `fileId` that ADF `media` and `mediaInline` nodes refer to it by.
+class ConfluenceMediaFile {
+  const ConfluenceMediaFile({
+    required this.fileId,
+    required this.url,
+    this.filename,
+    this.mediaType,
+    this.fileSize,
+  });
+
+  final String fileId;
+
+  /// Absolute download URL, ready for an authenticated fetch.
+  final String url;
+
+  /// The attachment's title, which is its filename in practice. Null for an
+  /// attachment Confluence reported without one.
+  final String? filename;
+
+  /// The mimetype, for deciding whether this is worth drawing as a picture.
+  final String? mediaType;
+
+  final int? fileSize;
+
+  bool get isImage => (mediaType ?? '').startsWith('image/');
+}
+
 /// The fields of a page listing the tree is built from, without the generated
 /// model — so the assembly below can be exercised without a Confluence.
 typedef ConfluenceListedPage = ({String id, String? title, String? parentId, int? position, bool openable});
@@ -659,27 +687,41 @@ class ConfluenceApi with GlobalLoggy {
 
   // ATTACHMENTS ///////////////////////////////////////////////////////////////
 
-  /// Maps a page's media ids to absolute download URLs.
+  /// Maps a page's media ids to its attachments.
   ///
   /// ADF media nodes carry a `fileId`, not a URL, so a page's images cannot be
   /// fetched without this lookup. Cached per page: a page with a dozen images
   /// would otherwise ask once per image while rendering.
-  final Map<String, Map<String, String>> _mediaUrlCache = {};
+  final Map<String, Map<String, ConfluenceMediaFile>> _mediaFileCache = {};
 
-  Future<Map<String, String>> mediaUrls(String pageId) async {
-    final cached = _mediaUrlCache[pageId];
+  Future<Map<String, ConfluenceMediaFile>> mediaFiles(String pageId) async {
+    final cached = _mediaFileCache[pageId];
     if (cached != null) return cached;
 
     final id = int.tryParse(pageId);
     if (id == null) return const {};
 
     final result = await attachmentsApi.getPageAttachments(id, limit: 250);
-    final urls = <String, String>{
+    final files = <String, ConfluenceMediaFile>{
       for (final attachment in result?.results ?? const <confluence.AttachmentBulk>[])
         if (attachment.fileId != null && attachment.downloadLink != null)
-          attachment.fileId!: webUrl(attachment.downloadLink) ?? attachment.downloadLink!,
+          attachment.fileId!: ConfluenceMediaFile(
+            fileId: attachment.fileId!,
+            url: webUrl(attachment.downloadLink) ?? attachment.downloadLink!,
+            filename: attachment.title,
+            mediaType: attachment.mediaType,
+            fileSize: attachment.fileSize,
+          ),
     };
-    return _mediaUrlCache[pageId] = urls;
+    return _mediaFileCache[pageId] = files;
+  }
+
+  /// Maps a page's media ids to absolute download URLs — the subset of
+  /// [mediaFiles] that image rendering needs, kept as its own call because
+  /// that is all most callers want.
+  Future<Map<String, String>> mediaUrls(String pageId) async {
+    final files = await mediaFiles(pageId);
+    return {for (final file in files.values) file.fileId: file.url};
   }
 
   // SEARCH ////////////////////////////////////////////////////////////////////

@@ -43,6 +43,7 @@ class AdfRenderer extends StatefulWidget {
     super.key,
     required this.adf,
     this.mediaBuilder,
+    this.mediaInlineBuilder,
     this.macroBuilder,
     this.linkHandler,
     this.linkTitleResolver,
@@ -63,6 +64,16 @@ class AdfRenderer extends StatefulWidget {
   /// attrs example (file):
   /// {"type":"file","id":"[uuid]","alt":"image.png","width":532,"height":477}
   final Widget Function(BuildContext context, Map<String, dynamic> attrs, num size)? mediaBuilder;
+
+  /// Builds a widget for a `mediaInline` node using its attrs, for a product
+  /// whose attachments cannot be resolved out of [attachments].
+  ///
+  /// Separate from [mediaBuilder] because the two want different shapes: a
+  /// `media` node is a block that gets a picture sized to the column, while a
+  /// `mediaInline` node sits inside a sentence and has to stay line-height
+  /// tall. Null falls back to matching the id against [attachments], which is
+  /// what a Jira work item wants.
+  final Widget Function(BuildContext context, Map<String, dynamic> attrs)? mediaInlineBuilder;
 
   /// Builds a widget for a macro this renderer cannot handle itself — anything
   /// needing data from the server it came from, like a list of a page's
@@ -291,6 +302,7 @@ class _AdfRendererState extends State<AdfRenderer> {
       listIndent: widget.listIndent,
       macroBuilder: widget.macroBuilder,
       mediaBuilder: widget.mediaBuilder ?? (context, node, size) => AdfRenderer.defaultMediaBuilder(node, context, widget.attachments ?? [], size),
+      mediaInlineBuilder: widget.mediaInlineBuilder,
       paragraphSpacing: widget.paragraphSpacing,
       textStyle: widget.textStyle,
       attachments: widget.attachments,
@@ -318,6 +330,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
   const _AdfRenderer({
     required this.adf,
     this.mediaBuilder,
+    this.mediaInlineBuilder,
     this.macroBuilder,
     this.linkHandler,
     this.linkTitleResolver,
@@ -339,6 +352,9 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
   /// attrs example (file):
   /// {"type":"file","id":"[uuid]","alt":"image.png","width":532,"height":477}
   final Widget Function(BuildContext context, Map<String, dynamic> attrs, num size)? mediaBuilder;
+
+  /// Builds a widget for a `mediaInline` node. See [AdfRenderer.mediaInlineBuilder].
+  final Widget Function(BuildContext context, Map<String, dynamic> attrs)? mediaInlineBuilder;
 
   final Widget? Function(BuildContext context, String macroKey, Map<String, dynamic> node)? macroBuilder;
 
@@ -1293,30 +1309,59 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     );
   }
 
+  /// Renders a `mediaInline` node — an attachment referenced from inside a
+  /// sentence rather than as a block of its own.
+  ///
+  /// `type` is optional on this node, unlike on `media`: Confluence emits
+  /// inline attachments as nothing but an `id` and a `collection`, so a missing
+  /// type means `file` rather than something unrenderable. Treating it as
+  /// unhandled threw during build, which takes down the whole document rather
+  /// than just the one chip.
   Widget? _buildMediaInline(BuildContext context, Map<String, dynamic> node, int indentLevel) {
     final attrs = (node['attrs'] ?? const <String, dynamic>{}) as Map<String, dynamic>;
-    if (attrs['type'] == 'file') {
-      // match ID with attachment
-      String id = attrs['id'];
+    final type = attrs['type'] as String?;
 
-      return FutureBuilder(
-        future: mediaIdToAttachment(id, attachments ?? []),
-        builder: (context, snapshot) {
-          return snapshot.hasData
-              ? ActionChip(
-                  avatar: Icon(Symbols.attach_file),
-                  label: Text((snapshot.data?['filename']).toString()),
-                  onPressed: snapshot.hasData ? () => showDialog(context: context, builder: (context) => AttachmentsDialog([snapshot.data!])) : null,
-                )
-              : CircularProgressIndicator();
-        },
-      );
-
-      // return JiraAvatar(url: attachment['content']);
-    } else {
-      throw Exception('Media node of type: ${node['type']} is not handled');
+    // 'link' is in the spec but carries no attachment to resolve, and anything
+    // else is a type this renderer has never seen. Neither is worth throwing
+    // over — a placeholder keeps the rest of the page readable.
+    if (type != null && type != 'file') {
+      loggy.warning('mediaInline of type "$type" is not handled; rendering a placeholder.');
+      return _inlineAttachmentPlaceholder(context, 'This inline attachment cannot be shown.');
     }
+
+    if (mediaInlineBuilder != null) return mediaInlineBuilder!(context, attrs);
+
+    final id = attrs['id'] as String?;
+    if (id == null || id.isEmpty) return _inlineAttachmentPlaceholder(context, 'This inline attachment has no id.');
+
+    return FutureBuilder(
+      future: mediaIdToAttachment(id, attachments ?? []),
+      builder: (context, snapshot) {
+        // hasData alone cannot tell "still resolving" from "resolved, but this
+        // id matches none of the document's attachments" — mediaIdToAttachment
+        // reports the latter as a null value, which would otherwise spin forever.
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox.square(dimension: 14, child: CircularProgressIndicator(strokeWidth: 2));
+        }
+
+        final attachment = snapshot.data as Map?;
+        if (attachment == null) return _inlineAttachmentPlaceholder(context, 'This attachment is no longer available.');
+
+        return ActionChip(
+          avatar: const Icon(Symbols.attach_file, size: 16),
+          label: Text('${attachment['filename'] ?? 'Attachment'}'),
+          visualDensity: VisualDensity.compact,
+          onPressed: () => showDialog(context: context, builder: (context) => AttachmentsDialog([attachment])),
+        );
+      },
+    );
   }
+
+  /// Stands in for an inline attachment that cannot be drawn, at roughly the size of the chip that would have been there.
+  Widget _inlineAttachmentPlaceholder(BuildContext context, String reason) => Tooltip(
+    message: reason,
+    child: Icon(Symbols.attach_file_off, size: 16, color: Theme.of(context).hintColor),
+  );
 
   Widget? _buildMediaGroup(BuildContext context, Map<String, dynamic> node, int indentLevel) {
     return Wrap(
