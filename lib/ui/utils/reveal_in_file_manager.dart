@@ -24,3 +24,29 @@ Future<void> revealInFileManager(File file) async {
     logError('Could not reveal ${file.path} in the file manager: $e');
   }
 }
+
+/// Opens [file] with whatever the OS has registered as its default handler.
+///
+/// Routed through the platform's own "open" verb rather than
+/// `launchUrl(Uri.file(...))`: url_launcher's desktop implementations treat a
+/// bare file path as something to hand to a browser-style opener, which is
+/// not guaranteed to be the same thing as "run this file the way Explorer's
+/// double-click would".
+Future<void> openInDefaultApp(File file) async {
+  try {
+    if (Platform.isWindows) {
+      // 'start' is a cmd builtin, not its own executable, and needs an empty
+      // title argument — otherwise a path containing spaces is parsed as the
+      // title instead of the target.
+      await Process.run('cmd', ['/c', 'start', '', file.path], runInShell: true);
+      return;
+    }
+    if (Platform.isMacOS) {
+      await Process.run('open', [file.path]);
+      return;
+    }
+    await Process.run('xdg-open', [file.path]);
+  } on Object catch (e) {
+    logError('Could not open ${file.path}: $e');
+  }
+}

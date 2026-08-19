@@ -5,17 +5,28 @@ import 'package:flutter/material.dart';
 import 'package:jira_watcher/dao/updates_dao.dart';
 import 'package:jira_watcher/dao/windows_self_update_dao.dart';
 import 'package:jira_watcher/models/app_update_model.dart';
+import 'package:jira_watcher/models/notification_center_model.dart';
 import 'package:jira_watcher/ui/utils/byte_format.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 
+const _updateNotificationId = 'app-update-available';
+
+/// The version this run has already posted a notification for — kept
+/// separately from the notification center itself so the daily silent check
+/// (see [scheduleDailyUpdateCheck]) can tell "still the same update as
+/// yesterday" from "a newer one just came out" and only re-announce the
+/// latter with a fresh arrival animation.
+String? _lastNotifiedUpdateVersion;
+
 Future<void> fetchNewUpdateDataAndShowResults(BuildContext context, String currentVersion, {bool alertIfNoNewVersion = true}) async {
   var data = await _fetchNewUpdateData(context, currentVersion: currentVersion, alertIfNoNewVersion: alertIfNoNewVersion);
   if (!data.$1) return;
   var newUpdate = data.$2!;
   if (!context.mounted) return;
+  _registerUpdateNotification(context, newUpdate, currentVersion);
   // Awaited so an in-flight download has an owner: previously this returned
   // immediately, leaving nothing holding the dialog's work.
   await showDialog(
@@ -25,6 +36,77 @@ Future<void> fetchNewUpdateDataAndShowResults(BuildContext context, String curre
     barrierDismissible: false,
     builder: (context) => NewUpdateAvailableDialog(update: newUpdate, currentVersion: currentVersion),
   );
+}
+
+/// Checks for an update without ever opening a dialog, posting a notification
+/// when one is found — what the daily background check (see
+/// [scheduleDailyUpdateCheck]) runs instead of the startup path's dialog.
+Future<void> runSilentUpdateCheck(BuildContext context, String currentVersion) async {
+  if (!context.mounted) return;
+  final data = await fetchNewUpdateData(context: context, currentVersion: currentVersion);
+  if (!data.$1) return;
+  if (!context.mounted) return;
+  _registerUpdateNotification(context, data.$2!, currentVersion);
+}
+
+/// Posts or refreshes the "an update is available" notification, whose tap
+/// target is the same dialog the startup check would have shown.
+///
+/// Only a version this run has not already announced re-triggers the bell's
+/// arrival animation and bubble; re-detecting the same version on a later
+/// daily check just keeps the existing entry's content current.
+void _registerUpdateNotification(BuildContext context, NewUpdateData update, String currentVersion) {
+  void openDialog() => showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => NewUpdateAvailableDialog(update: update, currentVersion: currentVersion),
+  );
+
+  final existing = NotificationCenterModel().byId(_updateNotificationId);
+  if (existing != null && _lastNotifiedUpdateVersion == update.version) {
+    existing.title = 'Version ${update.version} is available';
+    return;
+  }
+
+  _lastNotifiedUpdateVersion = update.version;
+  NotificationCenterModel().add(
+    AppNotification(
+      id: _updateNotificationId,
+      title: 'Version ${update.version} is available',
+      subtitle: update.isBeta ? 'Beta release' : null,
+      leading: const Icon(Symbols.system_update),
+      onTap: openDialog,
+    ),
+  );
+}
+
+Timer? _dailyUpdateCheckTimer;
+
+/// Runs [runSilentUpdateCheck] once a day at noon, starting from the next
+/// upcoming noon rather than from app launch — the startup path already
+/// checks immediately, so this is purely about catching a release that comes
+/// out while the app is left open for days at a time.
+void scheduleDailyUpdateCheck(BuildContext context, String currentVersion) {
+  _dailyUpdateCheckTimer?.cancel();
+
+  void runAndReschedule() {
+    runSilentUpdateCheck(context, currentVersion);
+    _dailyUpdateCheckTimer = Timer.periodic(const Duration(days: 1), (_) => runSilentUpdateCheck(context, currentVersion));
+  }
+
+  _dailyUpdateCheckTimer = Timer(_durationUntilNextNoon(), runAndReschedule);
+}
+
+void cancelDailyUpdateCheck() {
+  _dailyUpdateCheckTimer?.cancel();
+  _dailyUpdateCheckTimer = null;
+}
+
+Duration _durationUntilNextNoon() {
+  final now = DateTime.now();
+  var next = DateTime(now.year, now.month, now.day, 12);
+  if (!next.isAfter(now)) next = next.add(const Duration(days: 1));
+  return next.difference(now);
 }
 
 /// Offers a new release, and installs it if this platform can.

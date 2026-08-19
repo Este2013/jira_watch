@@ -214,7 +214,6 @@ class _GitLabArtifactBrowserDialogState extends State<GitLabArtifactBrowserDialo
   }
 
   Future<void> _downloadFile(String artifactPath, String fileName) => runGitLabDownload(
-    context,
     label: artifactPath,
     suggestedName: fileName,
     run: (destination, task) => GitLabDownloadService().downloadArtifactFile(

@@ -20,6 +20,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import 'utils/under_constuction_notice.dart';
 import 'utils/widgets/animated_icons.dart';
+import 'utils/widgets/notification_center.dart';
 
 enum HomePage {
   updates('Updates', Symbols.dashboard, 'View the latest changes made in projects you work on.'),
@@ -163,6 +164,8 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
 
     var lastVersion = SettingsModel().lastAppVersion;
     SettingsModel().appInfo.version.then((ver) {
+      if (!mounted) return;
+      scheduleDailyUpdateCheck(context, ver);
       if (isVersionStrictlyAbove(ver, baseline: lastVersion)) {
         WidgetsBinding.instance.addPostFrameCallback(
           (timeStamp) => showDialog(
@@ -176,6 +179,12 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
     });
 
     super.initState();
+  }
+
+  @override
+  void dispose() {
+    cancelDailyUpdateCheck();
+    super.dispose();
   }
 
   String currentPageSubtitle(HomePage currentPage) => currentPage.subtitle ?? 'No subtitle for this page, call the dev.';
@@ -218,11 +227,17 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
                 ],
                 trailing: Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),
-                  child: SettingsButton(
-                    childDialogBuilder: (context) {
-                      loggy.info('User opens the settings dialog from navigation rail');
-                      return SettingsDialog();
-                    },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const NotificationBellButton(),
+                      SettingsButton(
+                        childDialogBuilder: (context) {
+                          loggy.info('User opens the settings dialog from navigation rail');
+                          return SettingsDialog();
+                        },
+                      ),
+                    ],
                   ),
                 ),
               ),

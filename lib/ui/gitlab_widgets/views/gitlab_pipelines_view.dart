@@ -544,7 +544,6 @@ Future<void> runQuickDownload(
   }
 
   await runGitLabDownload(
-    context,
     label: '${rule.label}\n${match.path}',
     suggestedName: match.fileName,
     run: (destination, task) => GitLabDownloadService().downloadArtifactFile(
@@ -703,7 +702,6 @@ Future<void> downloadJobArchive(BuildContext context, GitLabProjectTab tab, Map<
   final jobId = job['id'] as int;
   final suggested = '${tab.name}-${job['name']}-$jobId.zip'.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
   await runGitLabDownload(
-    context,
     label: '${job['name']} artifacts archive',
     suggestedName: suggested,
     run: (destination, task) => GitLabDownloadService().downloadJobArchive(
