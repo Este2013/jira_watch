@@ -187,7 +187,7 @@ class _GitLabSettingsPageState extends State<GitLabSettingsPage> with UiLoggy {
             'In GitLab > User settings > Applications, add a new application;',
             'Copy and paste the above redirect URI on the website;',
             'Leave "Confidential" UNCHECKED;',
-            'Tick the "api" and "read_repository" scopes.',
+            'Tick the scopes:\n - "api"\n - "read_repository"\n - "read_user"',
             'Save the application, then copy its Application ID.',
             'Paste the Application ID above and press Connect.',
           ].indexed)
@@ -276,15 +276,9 @@ class _GitLabSettingsPageState extends State<GitLabSettingsPage> with UiLoggy {
       ),
       ListTile(
         title: Text('Granted scopes'),
-        trailing: Wrap(
-          spacing: 4,
-          children: [
-            for (final scope in tokens?.scopes ?? <String>{})
-              Chip(
-                label: Text(scope, style: TextStyle(fontSize: 11, fontFamily: 'RobotoMono')),
-                visualDensity: VisualDensity.compact,
-              ),
-          ],
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: _GrantedScopesRow(scopes: (tokens?.scopes ?? <String>{}).toList()..sort()),
         ),
       ),
       ListTile(
@@ -366,5 +360,68 @@ class _GitLabSettingsPageState extends State<GitLabSettingsPage> with UiLoggy {
         Expanded(child: Divider()),
       ],
     ),
+  );
+}
+
+/// Shows every granted scope on one line rather than wrapping, since a
+/// "Granted scopes" row that spills onto a second line reads as a layout bug
+/// rather than "there are just a lot of scopes". Whatever does not fit
+/// collapses into a single "+N" chip whose tooltip lists the rest, so nothing
+/// granted is ever actually hidden from view — just not all spelled out at
+/// once.
+class _GrantedScopesRow extends StatelessWidget {
+  const _GrantedScopesRow({required this.scopes});
+
+  final List<String> scopes;
+
+  static const _chipStyle = TextStyle(fontSize: 11, fontFamily: 'RobotoMono');
+
+  // A Chip's own padding around its label, plus the Wrap spacing before it —
+  // approximate, since a chip or two guessed slightly too wide just wraps to
+  // a second line rather than visibly overflowing.
+  static const _chipOverhead = 28.0;
+
+  double _labelWidth(String text) => (TextPainter(text: TextSpan(text: text, style: _chipStyle), textDirection: TextDirection.ltr)..layout()).width;
+
+  @override
+  Widget build(BuildContext context) {
+    if (scopes.isEmpty) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        if (!maxWidth.isFinite) return _chipRow(scopes, hiddenCount: 0);
+
+        final overflowWidth = _labelWidth('+${scopes.length}') + _chipOverhead;
+
+        var used = 0.0;
+        var visibleCount = scopes.length;
+        for (var i = 0; i < scopes.length; i++) {
+          final chipWidth = _labelWidth(scopes[i]) + _chipOverhead;
+          final remaining = scopes.length - i - 1;
+          final roomForOverflow = remaining > 0 ? overflowWidth : 0.0;
+          if (i > 0 && used + chipWidth + roomForOverflow > maxWidth) {
+            visibleCount = i;
+            break;
+          }
+          used += chipWidth;
+        }
+
+        return _chipRow(scopes.take(visibleCount).toList(), hiddenCount: scopes.length - visibleCount);
+      },
+    );
+  }
+
+  Widget _chipRow(List<String> visible, {required int hiddenCount}) => Wrap(
+    spacing: 4,
+    runSpacing: 4,
+    children: [
+      for (final scope in visible) Chip(label: Text(scope, style: _chipStyle), visualDensity: VisualDensity.compact),
+      if (hiddenCount > 0)
+        Tooltip(
+          message: scopes.skip(visible.length).join('\n'),
+          child: Chip(label: Text('+$hiddenCount', style: _chipStyle), visualDensity: VisualDensity.compact),
+        ),
+    ],
   );
 }

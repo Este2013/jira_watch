@@ -14,7 +14,7 @@ const int kGitLabDefaultOAuthPort = 47623;
 /// also avoids hosts that resolve `localhost` to ::1 while the listener is IPv4.
 String gitlabRedirectUri(int port) => 'http://127.0.0.1:$port/callback';
 
-const String kGitLabOAuthScopes = 'api read_repository';
+const String kGitLabOAuthScopes = 'api read_repository read_user';
 
 const String _callbackPath = '/callback';
 
