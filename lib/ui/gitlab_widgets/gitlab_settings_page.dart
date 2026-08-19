@@ -275,10 +275,10 @@ class _GitLabSettingsPageState extends State<GitLabSettingsPage> with UiLoggy {
         trailing: SelectableText(dao.host, style: Theme.of(context).textTheme.bodyMedium),
       ),
       ListTile(
-        title: Text('Granted scopes'),
+        title: Text('Required scopes'),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 4),
-          child: _GrantedScopesRow(scopes: (tokens?.scopes ?? <String>{}).toList()..sort()),
+          child: _ScopesRow(scopes: (tokens?.scopes ?? <String>{}).toList()..sort()),
         ),
       ),
       ListTile(
@@ -363,25 +363,33 @@ class _GitLabSettingsPageState extends State<GitLabSettingsPage> with UiLoggy {
   );
 }
 
-/// Shows every granted scope on one line rather than wrapping, since a
-/// "Granted scopes" row that spills onto a second line reads as a layout bug
+/// Shows every scope this app actually requests on one line rather than
+/// wrapping, since a row that spills onto a second line reads as a layout bug
 /// rather than "there are just a lot of scopes". Whatever does not fit
-/// collapses into a single "+N" chip whose tooltip lists the rest, so nothing
-/// granted is ever actually hidden from view — just not all spelled out at
-/// once.
-class _GrantedScopesRow extends StatelessWidget {
-  const _GrantedScopesRow({required this.scopes});
+/// collapses into a single "+N" chip whose tooltip lists the rest.
+///
+/// This can only ever list what [kGitLabOAuthScopes] asked for and GitLab
+/// granted back — not the full set of scopes ticked on the Application page
+/// in the browser, which is just the catalog that page's owner is allowed to
+/// request from, not what any particular token actually carries. There is no
+/// way for this app to read that catalog without an instance-admin token, so
+/// the label says "Required" rather than "Granted" to avoid promising a
+/// mirror of the browser page this can't deliver.
+class _ScopesRow extends StatelessWidget {
+  const _ScopesRow({required this.scopes});
 
   final List<String> scopes;
 
   static const _chipStyle = TextStyle(fontSize: 11, fontFamily: 'RobotoMono');
+  static const _spacing = 4.0;
 
-  // A Chip's own padding around its label, plus the Wrap spacing before it —
-  // approximate, since a chip or two guessed slightly too wide just wraps to
-  // a second line rather than visibly overflowing.
-  static const _chipOverhead = 28.0;
+  // A Chip's own padding/border around its label — generous on purpose, so a
+  // few pixels of measurement error still leaves room to spare instead of
+  // nudging the last chip past the edge.
+  static const _chipOverhead = 32.0;
 
-  double _labelWidth(String text) => (TextPainter(text: TextSpan(text: text, style: _chipStyle), textDirection: TextDirection.ltr)..layout()).width;
+  double _chipWidth(String label) =>
+      (TextPainter(text: TextSpan(text: label, style: _chipStyle), textDirection: TextDirection.ltr)..layout()).width + _chipOverhead;
 
   @override
   Widget build(BuildContext context) {
@@ -389,39 +397,45 @@ class _GrantedScopesRow extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final maxWidth = constraints.maxWidth;
-        if (!maxWidth.isFinite) return _chipRow(scopes, hiddenCount: 0);
+        if (!constraints.maxWidth.isFinite) return _row(scopes, hiddenCount: 0);
 
-        final overflowWidth = _labelWidth('+${scopes.length}') + _chipOverhead;
-
+        final overflowWidth = _chipWidth('+${scopes.length}');
         var used = 0.0;
         var visibleCount = scopes.length;
+
         for (var i = 0; i < scopes.length; i++) {
-          final chipWidth = _labelWidth(scopes[i]) + _chipOverhead;
+          final width = _chipWidth(scopes[i]) + (i == 0 ? 0 : _spacing);
           final remaining = scopes.length - i - 1;
-          final roomForOverflow = remaining > 0 ? overflowWidth : 0.0;
-          if (i > 0 && used + chipWidth + roomForOverflow > maxWidth) {
+          final roomForOverflow = remaining > 0 ? overflowWidth + _spacing : 0.0;
+          if (i > 0 && used + width + roomForOverflow > constraints.maxWidth) {
             visibleCount = i;
             break;
           }
-          used += chipWidth;
+          used += width;
         }
 
-        return _chipRow(scopes.take(visibleCount).toList(), hiddenCount: scopes.length - visibleCount);
+        return _row(scopes.take(visibleCount).toList(), hiddenCount: scopes.length - visibleCount);
       },
     );
   }
 
-  Widget _chipRow(List<String> visible, {required int hiddenCount}) => Wrap(
-    spacing: 4,
-    runSpacing: 4,
+  // A Row, not a Wrap: visibleCount is already chosen to fit, so nothing here
+  // should need to wrap — guaranteeing it outright reads better than a second
+  // line appearing whenever the fit estimate above is a little off.
+  Widget _row(List<String> visible, {required int hiddenCount}) => Row(
+    mainAxisSize: MainAxisSize.min,
     children: [
-      for (final scope in visible) Chip(label: Text(scope, style: _chipStyle), visualDensity: VisualDensity.compact),
-      if (hiddenCount > 0)
+      for (final scope in visible) ...[
+        if (scope != visible.first) const SizedBox(width: _spacing),
+        Chip(label: Text(scope, style: _chipStyle), visualDensity: VisualDensity.compact),
+      ],
+      if (hiddenCount > 0) ...[
+        if (visible.isNotEmpty) const SizedBox(width: _spacing),
         Tooltip(
           message: scopes.skip(visible.length).join('\n'),
           child: Chip(label: Text('+$hiddenCount', style: _chipStyle), visualDensity: VisualDensity.compact),
         ),
+      ],
     ],
   );
 }
