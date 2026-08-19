@@ -276,8 +276,9 @@ class _GitLabSettingsPageState extends State<GitLabSettingsPage> with UiLoggy {
       ),
       ListTile(
         title: Text('Required scopes'),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
+        trailing: Container(
+          alignment: .centerRight,
+          width: 250,
           child: _ScopesRow(scopes: (tokens?.scopes ?? <String>{}).toList()..sort()),
         ),
       ),
@@ -389,7 +390,11 @@ class _ScopesRow extends StatelessWidget {
   static const _chipOverhead = 32.0;
 
   double _chipWidth(String label) =>
-      (TextPainter(text: TextSpan(text: label, style: _chipStyle), textDirection: TextDirection.ltr)..layout()).width + _chipOverhead;
+      (TextPainter(
+        text: TextSpan(text: label, style: _chipStyle),
+        textDirection: TextDirection.ltr,
+      )..layout()).width +
+      _chipOverhead;
 
   @override
   Widget build(BuildContext context) {
@@ -427,13 +432,19 @@ class _ScopesRow extends StatelessWidget {
     children: [
       for (final scope in visible) ...[
         if (scope != visible.first) const SizedBox(width: _spacing),
-        Chip(label: Text(scope, style: _chipStyle), visualDensity: VisualDensity.compact),
+        Chip(
+          label: Text(scope, style: _chipStyle),
+          visualDensity: VisualDensity.compact,
+        ),
       ],
       if (hiddenCount > 0) ...[
         if (visible.isNotEmpty) const SizedBox(width: _spacing),
         Tooltip(
           message: scopes.skip(visible.length).join('\n'),
-          child: Chip(label: Text('+$hiddenCount', style: _chipStyle), visualDensity: VisualDensity.compact),
+          child: Chip(
+            label: Text('+$hiddenCount', style: _chipStyle),
+            visualDensity: VisualDensity.compact,
+          ),
         ),
       ],
     ],

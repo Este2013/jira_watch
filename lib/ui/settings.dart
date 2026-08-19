@@ -884,7 +884,7 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                   Row(
                     spacing: 8,
                     children: [
-                      Text('Test the Jira API client'),
+                      Text('Test Jira API client'),
                       Spacer(),
                       TextButton.icon(
                         icon: Icon(Symbols.api),
@@ -925,7 +925,7 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                   Row(
                     spacing: 8,
                     children: [
-                      Text('Test the GitLab connection'),
+                      Text('Test GitLab connection'),
                       Spacer(),
                       TextButton.icon(
                         icon: Icon(Symbols.fork_right),

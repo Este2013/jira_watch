@@ -168,20 +168,18 @@ Stream<String> diagnoseUpdateStaging() async* {
     return;
   }
   if (update == null) {
-    yield 'The server published no releases, so there is nothing to stage.';
+    yield '| The server published no releases, so there is nothing to stage.';
     return;
   }
 
-  yield 'Newest published: ${update.version}';
-  yield 'Archive URL: ${update.windowsAssetUri}';
+  yield '| Newest published: ${update.version}';
+  yield '| Archive URL: ${update.windowsAssetUri}';
   final publishedHash = update.windowsSha256;
-  yield publishedHash == null
-      ? 'No checksum published for this version — a real install would refuse it. Staging anyway to exercise the pipeline.'
-      : 'Published sha256: $publishedHash';
-  if (update.windowsSizeBytes != null) yield 'Published size: ${update.windowsSizeBytes} bytes';
+  yield publishedHash == null ? '| No checksum published for this version — a real install would refuse it. Staging anyway to exercise the pipeline.' : '| Published sha256: $publishedHash';
+  if (update.windowsSizeBytes != null) yield '| Published size: ${update.windowsSizeBytes} bytes';
 
   final staging = await dao.stagingRoot(update.version);
-  yield 'Staging under: ${staging.path}';
+  yield '| Staging under: ${staging.path}';
 
   final task = DownloadTask(label: update.version, destination: await dao.archiveFileFor(update.version));
   yield '';
@@ -197,18 +195,18 @@ Stream<String> diagnoseUpdateStaging() async* {
       requireChecksum: false,
     );
   } on Object catch (e) {
-    yield 'Download or verification failed: $e';
+    yield '| Download or verification failed: $e';
     return;
   }
 
   final size = await archive.length();
-  yield 'Downloaded $size bytes';
+  yield '| Downloaded $size bytes';
   final computed = await dao.hashOf(archive);
-  yield 'Computed sha256: $computed';
+  yield '| Computed sha256: $computed';
   if (publishedHash != null) {
-    yield publishedHash == computed ? 'Checksum matches ✓' : 'CHECKSUM MISMATCH — a real install would refuse this';
+    yield publishedHash == computed ? '| Checksum matches ✓' : 'CHECKSUM MISMATCH — a real install would refuse this';
   } else {
-    yield 'Nothing to compare against. This is the value that belongs in latest.json as x64Sha256.';
+    yield '| Nothing to compare against. This is the value that belongs in latest.json as x64Sha256.';
   }
 
   yield '';
@@ -217,21 +215,21 @@ Stream<String> diagnoseUpdateStaging() async* {
   try {
     root = await dao.extract(archive: archive, version: update.version);
   } on Object catch (e) {
-    yield 'Extraction failed: $e';
+    yield '| Extraction failed: $e';
     return;
   }
-  yield 'Payload root: ${root.path}';
+  yield '| Payload root: ${root.path}';
 
   yield '';
   yield 'Validating the extracted build...';
   try {
     dao.validatePayload(root);
   } on Object catch (e) {
-    yield 'Validation failed: $e';
+    yield '| Validation failed: $e';
     return;
   }
   for (final entry in WindowsSelfUpdateDao.requiredPayloadEntries) {
-    yield '  $entry present';
+    yield '|   $entry present';
   }
 
   yield '';
@@ -239,13 +237,13 @@ Stream<String> diagnoseUpdateStaging() async* {
   try {
     final outcome = await dao.selfTestStagedBinary(root: root, version: update.version);
     yield switch (outcome) {
-      SelfTestOutcome.passed => 'The staged build starts and exits cleanly ✓',
+      SelfTestOutcome.passed => '| The staged build starts and exits cleanly ✓',
       SelfTestOutcome.skippedUnsupported =>
-        'Skipped: ${update.version} predates ${WindowsSelfUpdateDao.selfTestSupportedFrom}, which introduced --self-test. '
-            'Running it would launch a second copy of the app rather than smoke-testing it.',
+        '| Skipped: ${update.version} predates ${WindowsSelfUpdateDao.selfTestSupportedFrom}, which introduced --self-test. '
+            '| Running it would launch a second copy of the app rather than smoke-testing it.',
     };
   } on Object catch (e) {
-    yield 'Self-test failed: $e';
+    yield '| Self-test failed: $e';
     return;
   }
 
@@ -253,10 +251,10 @@ Stream<String> diagnoseUpdateStaging() async* {
   yield 'Cleaning up staging...';
   try {
     await dao.clearStaging(update.version);
-    yield 'Removed ${staging.path}';
+    yield '| Removed ${staging.path}';
   } on Object catch (e) {
     logWarning('Could not clear update staging: $e');
-    yield 'Could not remove staging (harmless, it is under temp): $e';
+    yield '| Could not remove staging (harmless, it is under temp): $e';
   }
 
   yield '';

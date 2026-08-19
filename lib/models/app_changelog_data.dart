@@ -11,106 +11,124 @@ library;
 /// version picker.
 final List<(String, List<ChangeLogSection>)> appChangeLog = [
   (
-    '1.8.3',
+    '1.8.4',
     [
-      ChangeLogSection.features([
+      ChangeLogSection.bugFixes([
         ChangeLogItem(
-          'Improved Gitlab connection page',
+          'Added required "read_user" API scope in Gitlab connection page',
         ),
       ]),
     ],
   ),
 
   ...[
-    (
-      '1.8.2',
-      [
-        ChangeLogSection.features([
-          ChangeLogItem(
-            'GitLab view',
-            subItems: [
-              ChangeLogItem('Visual adjustments'),
-              ChangeLogItem('Can now give icons to favorite branches'),
-            ],
-          ),
-        ]),
-        ChangeLogSection.bugFixes([
-          ChangeLogItem('Jira ADF Renderer can now show text/plain attachments'),
-          ChangeLogItem('Snackbars would cover the settings button'),
-          ChangeLogItem('Correct colors for GitLab icon on login page'),
-          ChangeLogItem('Can now type in Gitlab search fields without text selection changing'),
-        ]),
-      ],
-    ),
-    (
-      '1.8.1',
-      [
-        ChangeLogSection.features([
-          ChangeLogItem('GitLab view: can select branches as favorites for quick filtering'),
-        ]),
-        ChangeLogSection.bugFixes([
-          ChangeLogItem('Fixed: Snackbars would cover the settings button'),
-          ChangeLogItem('Fixed: Correct colors for GitLab icon on login page'),
-        ]),
-      ],
-    ),
-    (
-      '1.8.0',
-      [
-        ChangeLogSection.features([
-          ChangeLogItem('Added Confluence viewer'),
-          ChangeLogItem('QoL changes for Gitlab view'),
-        ]),
-      ],
-    ),
-    (
-      '1.7.3',
-      [
-        ChangeLogSection.features([
-          ChangeLogItem('This release is there to make sure updating works starting from 1.7.2'),
-        ]),
-      ],
-    ),
-    (
-      '1.7.2',
-      [
-        ChangeLogSection.features([
-          ChangeLogItem('Changed install icon'),
-          ChangeLogItem('This release is there to make sure updating works starting from 1.7.1'),
-        ]),
-      ],
-    ),
-    (
-      '1.7.1',
-      [
-        ChangeLogSection.features([
-          ChangeLogItem('🦊 Adapted some UI for GitLab view'),
-        ]),
-      ],
-    ),
-    (
-      '1.7.0',
-      [
-        ChangeLogSection.features([
-          ChangeLogItem('🦊 GitLab integration!'),
-          ChangeLogItem('All "Add to tasks" buttons now show how many tasks already reference the work item'),
-          ChangeLogItem('Can now copy link to work item as well as just the key'),
-          ChangeLogItem('Added multi-select options in updates view'),
-          ChangeLogItem('Assignee is now shown at the start of update view items'),
-          ChangeLogItem('Can now sort To Do Tasks'),
-        ]),
+    // 1.8.x
+    ...[
+      (
+        '1.8.3',
+        [
+          ChangeLogSection.features([
+            ChangeLogItem(
+              'Improved Gitlab connection page',
+            ),
+          ]),
+        ],
+      ),
+      (
+        '1.8.2',
+        [
+          ChangeLogSection.features([
+            ChangeLogItem(
+              'GitLab view',
+              subItems: [
+                ChangeLogItem('Visual adjustments'),
+                ChangeLogItem('Can now give icons to favorite branches'),
+              ],
+            ),
+          ]),
+          ChangeLogSection.bugFixes([
+            ChangeLogItem('Jira ADF Renderer can now show text/plain attachments'),
+            ChangeLogItem('Snackbars would cover the settings button'),
+            ChangeLogItem('Correct colors for GitLab icon on login page'),
+            ChangeLogItem('Can now type in Gitlab search fields without text selection changing'),
+          ]),
+        ],
+      ),
+      (
+        '1.8.1',
+        [
+          ChangeLogSection.features([
+            ChangeLogItem('GitLab view: can select branches as favorites for quick filtering'),
+          ]),
+          ChangeLogSection.bugFixes([
+            ChangeLogItem('Fixed: Snackbars would cover the settings button'),
+            ChangeLogItem('Fixed: Correct colors for GitLab icon on login page'),
+          ]),
+        ],
+      ),
+      (
+        '1.8.0',
+        [
+          ChangeLogSection.features([
+            ChangeLogItem('Added Confluence viewer'),
+            ChangeLogItem('QoL changes for Gitlab view'),
+          ]),
+        ],
+      ),
+    ],
 
-        ChangeLogSection.bugFixes([
-          ChangeLogItem('Fixed wrong spacing between style nodes in ADF renderer'),
-          ChangeLogItem('Fixed wrong alignment in bullet list when items were not plain text'),
-          ChangeLogItem('Fixed some text could not be highlighted in the ADF renders of bullet lists'),
-        ]),
-        ChangeLogSection.chores([
-          ChangeLogItem('Bumped version number.'),
-          ChangeLogItem('Updated icon styling'),
-        ]),
-      ],
-    ),
+    // 1.7.x
+    ...[
+      (
+        '1.7.3',
+        [
+          ChangeLogSection.features([
+            ChangeLogItem('This release is there to make sure updating works starting from 1.7.2'),
+          ]),
+        ],
+      ),
+      (
+        '1.7.2',
+        [
+          ChangeLogSection.features([
+            ChangeLogItem('Changed install icon'),
+            ChangeLogItem('This release is there to make sure updating works starting from 1.7.1'),
+          ]),
+        ],
+      ),
+      (
+        '1.7.1',
+        [
+          ChangeLogSection.features([
+            ChangeLogItem('🦊 Adapted some UI for GitLab view'),
+          ]),
+        ],
+      ),
+      (
+        '1.7.0',
+        [
+          ChangeLogSection.features([
+            ChangeLogItem('🦊 GitLab integration!'),
+            ChangeLogItem('All "Add to tasks" buttons now show how many tasks already reference the work item'),
+            ChangeLogItem('Can now copy link to work item as well as just the key'),
+            ChangeLogItem('Added multi-select options in updates view'),
+            ChangeLogItem('Assignee is now shown at the start of update view items'),
+            ChangeLogItem('Can now sort To Do Tasks'),
+          ]),
+
+          ChangeLogSection.bugFixes([
+            ChangeLogItem('Fixed wrong spacing between style nodes in ADF renderer'),
+            ChangeLogItem('Fixed wrong alignment in bullet list when items were not plain text'),
+            ChangeLogItem('Fixed some text could not be highlighted in the ADF renders of bullet lists'),
+          ]),
+          ChangeLogSection.chores([
+            ChangeLogItem('Bumped version number.'),
+            ChangeLogItem('Updated icon styling'),
+          ]),
+        ],
+      ),
+    ],
+
     (
       '1.6.0',
       [
