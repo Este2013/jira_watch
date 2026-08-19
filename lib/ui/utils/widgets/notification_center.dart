@@ -147,8 +147,13 @@ class _NotificationOverlayBarrier extends StatelessWidget {
       CompositedTransformFollower(
         link: link,
         showWhenUnlinked: false,
+        // The bell sits near the bottom of the navigation rail, above
+        // settings — anchoring the follower's bottom-left corner to the
+        // bell's top-right one grows it upward from there instead of
+        // downward, which is what a flyout of any real length needs to avoid
+        // running off the bottom of the window.
         targetAnchor: Alignment.topRight,
-        followerAnchor: Alignment.topLeft,
+        followerAnchor: Alignment.bottomLeft,
         offset: const Offset(8, -8),
         child: Focus(
           autofocus: true,
@@ -178,7 +183,10 @@ class _NotificationFlyout extends StatelessWidget {
     borderRadius: BorderRadius.circular(12),
     clipBehavior: Clip.antiAlias,
     child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 380, maxHeight: 480),
+      // Capped by the window's own height too: growing upward from the bell
+      // avoids running off the bottom, but a short window (or a long enough
+      // notification list) could still push the top off-screen without this.
+      constraints: BoxConstraints(maxWidth: 380, maxHeight: math.min(480, MediaQuery.sizeOf(context).height - 48)),
       child: ListenableBuilder(
         listenable: NotificationCenterModel(),
         builder: (context, _) {
@@ -301,11 +309,15 @@ class _LoudNotificationBubble extends StatelessWidget {
 
     return ListenableBuilder(
       listenable: notification,
+      // Aligned to the row's bottom, not its top: the bubble grows upward
+      // from the bell (see the follower anchors in _NotificationOverlayBarrier),
+      // so the bell itself sits just below the bubble's bottom edge, which is
+      // where the tail needs to be to still look like it is pointing at it.
       builder: (context, _) => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(padding: const EdgeInsets.only(top: 16), child: CustomPaint(size: const Size(8, 14), painter: _BubbleTailPainter(color: color))),
+          Padding(padding: const EdgeInsets.only(bottom: 16), child: CustomPaint(size: const Size(8, 14), painter: _BubbleTailPainter(color: color))),
           Material(
             elevation: 8,
             color: color,
