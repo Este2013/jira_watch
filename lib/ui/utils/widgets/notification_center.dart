@@ -129,7 +129,10 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
             count: model.unreadCount,
             isLabelVisible: model.unreadCount > 0,
             offset: const Offset(8, -4),
-            child: BellIcon(key: _bellKey, color: bellColor),
+            child: AnimatedSize(
+              duration: Durations.short4,
+              child: BellIcon(key: _bellKey, color: bellColor),
+            ),
           ),
         ),
       );
@@ -181,8 +184,8 @@ class _BellIconState extends State<BellIcon> with SingleTickerProviderStateMixin
     // The real duration, from the asset itself — nothing here has to guess
     // at how long a ring takes.
     onLoaded: (composition) => _controller.duration = composition.duration,
-    height: 24,
-    width: 24,
+    height: 26,
+    width: 26,
     addRepaintBoundary: true,
     // Two recursive wildcards rather than one: color only recolors fill
     // content, strokeColor only recolors stroke content, and an outlined

@@ -965,6 +965,7 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                         IconButton(
                           tooltip: 'Test icon render',
                           icon: Icon(Symbols.draw),
+                          color: Colors.amber,
                           onPressed: () => Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (context) => Scaffold(
