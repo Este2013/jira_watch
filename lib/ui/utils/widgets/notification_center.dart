@@ -180,6 +180,7 @@ class _BellState extends State<_Bell> with SingleTickerProviderStateMixin {
     height: 24,
     width: 24,
     addRepaintBoundary: true,
+
     // Same two group/fill key paths the animated_icon package's own widget
     // recolors for this asset — reused here because they are known to cover
     // the whole bell, just aimed at an outline instead of a fill.

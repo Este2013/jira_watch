@@ -127,6 +127,12 @@ class NotificationCenterModel extends ChangeNotifier {
   /// next time something else changes.
   final ValueNotifier<AppNotification?> loudArrival = ValueNotifier(null);
 
+  /// Replays the bell's arrival ring without adding anything — a pure
+  /// animation check, e.g. from the advanced settings diagnostics row, useful
+  /// on its own only once at least one notification exists to keep the bell
+  /// visible.
+  void ring() => arrivalTick.value++;
+
   AppNotification? byId(String id) {
     for (final n in _items) {
       if (n.id == id) return n;

@@ -10,6 +10,7 @@ import 'package:jira_watcher/dao/jira/jira_diagnostic.dart';
 import 'package:jira_watcher/dao/updates_dao.dart';
 import 'package:jira_watcher/models/app_update_model.dart';
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/models/notification_center_model.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_images.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_logo.dart';
 import 'package:jira_watcher/ui/gitlab_widgets/gitlab_settings_page.dart';
@@ -18,6 +19,7 @@ import 'package:jira_watcher/ui/utils/app_changelog.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
+import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
 import 'package:jira_watcher/ui/utils/widgets/dialog_widgets.dart/action_buttons.dart';
 import 'package:jira_watcher/ui/utils/widgets/github_button.dart';
 import 'package:jira_watcher/utils/local_auth.dart';
@@ -942,6 +944,23 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                       ),
                     ],
                   ),
+                  Row(
+                    spacing: 8,
+                    children: [
+                      Text('Test notification center'),
+                      Spacer(),
+                      IconButton(
+                        tooltip: 'Ring the bell',
+                        icon: Icon(Symbols.notifications),
+                        onPressed: NotificationCenterModel().ring,
+                      ),
+                      IconButton(
+                        tooltip: 'Create a test notification',
+                        icon: Icon(Symbols.add_alert),
+                        onPressed: () => _createDiagnosticNotification(context),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -993,6 +1012,30 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
     // ignore: use_build_context_synchronously
     data = await fetchNewUpdateData(context: context, currentVersion: await currentVersion);
     yield 'Found the following:\nIs a new version available? => ${data.$1}\nWhat is that version\'s number? => ${data.$2}\nChangelog:\n${JsonEncoder.withIndent('    ').convert(data.$2?.toJson())}';
+  }
+
+  /// Posts a throwaway, loud notification with a working action and tap
+  /// target, so the notification center itself — bell, badge, flyout,
+  /// bubble — can be exercised without waiting on a real update or download.
+  void _createDiagnosticNotification(BuildContext context) {
+    final id = 'diagnostic-${DateTime.now().microsecondsSinceEpoch}';
+    NotificationCenterModel().add(
+      AppNotification(
+        id: id,
+        title: 'Test notification',
+        subtitle: 'Created from Advanced settings at ${TimeOfDay.now().format(context)}',
+        leading: const Icon(Symbols.science),
+        loud: true,
+        actions: [
+          AppNotificationAction(
+            label: 'Dismiss',
+            icon: Symbols.close,
+            onPressed: () => NotificationCenterModel().remove(id),
+          ),
+        ],
+        onTap: () => showAppSnackBar(context, const SnackBar(content: Text('Test notification tapped'))),
+      ),
+    );
   }
 }
 
