@@ -137,20 +137,16 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
   );
 }
 
-/// The bell glyph, driven directly through Lottie rather than through the
-/// animated_icon package's own [Widget] wrapper — which this still borrows
-/// the bundled bell animation from (see the asset path below), but whose
-/// wrapper does not support two things needed here: replaying the ring from
-/// code rather than only from a tap or hover on its own internal InkWell (it
-/// exposes no controller), and a real [IconButton] hover halo (its InkWell
-/// hugs the icon's bounding box instead of a circular tap target).
+/// The bell glyph, driven directly through Lottie.
 ///
-/// Stays a filled bell rather than an outline: the asset itself has no
-/// stroke content at all, only two filled shapes (confirmed by inspecting
-/// the bundled bell.json directly) — there is no line art to fall back on
-/// once the fill is removed, only empty space. An outline would mean hand
-/// authoring stroke shapes into the asset, not something a runtime recolor
-/// can produce.
+/// Its own copy of the animation lives at assets/icons/bell.json rather than
+/// borrowing the animated_icon package's bundled one — that package is no
+/// longer a dependency at all, since this was the only thing using it and
+/// [Lottie.asset] alone can play the file just as well. Owning the file also
+/// means it can be hand-edited (to add real stroke art for an outline, for
+/// one) without waiting on an upstream release: the original has no stroke
+/// content at all, only two filled shapes, so there is currently no line art
+/// to fall back on once the fill is removed — only empty space.
 class _Bell extends StatefulWidget {
   const _Bell({super.key, required this.color});
 
@@ -180,21 +176,19 @@ class _BellState extends State<_Bell> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) => Lottie.asset(
-    'assets/bell.json',
-    package: 'animated_icon',
+    'assets/icons/bell.json',
     controller: _controller,
     // The real duration, from the asset itself — nothing here has to guess
-    // at how long a ring takes, unlike replaying it via the package's own
-    // widget, which would have needed to.
+    // at how long a ring takes.
     onLoaded: (composition) => _controller.duration = composition.duration,
     height: 24,
     width: 24,
     addRepaintBoundary: true,
-    // A single recursive wildcard rather than the animated_icon package's own
-    // two hand-picked group paths — broader, so it is not thrown off by
-    // exactly how many groups a given asset happens to have, and safe here
-    // since every fill in this asset is fully opaque already; only the hue
-    // changes, not the coverage a matte layer elsewhere might depend on.
+    // A single recursive wildcard covers every fill in the composition
+    // regardless of how the asset's groups end up named or how many of them
+    // there are — handy since this file may itself change by hand. Safe
+    // because every fill here is fully opaque already; only the hue changes,
+    // not the coverage a matte layer elsewhere might depend on.
     delegates: LottieDelegates(
       values: [
         ValueDelegate.color(const ['**'], value: widget.color),
@@ -414,13 +408,6 @@ class _LoudNotificationBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Padding(
-          //   padding: const EdgeInsets.only(bottom: 16),
-          //   child: CustomPaint(
-          //     size: const Size(8, 14),
-          //     painter: _BubbleTailPainter(color: color),
-          //   ),
-          // ),
           Material(
             elevation: 8,
             color: color,
@@ -467,25 +454,4 @@ class _LoudNotificationBubble extends StatelessWidget {
       ),
     );
   }
-}
-
-/// A small leftward-pointing triangle, matching the bubble's fill color, so
-/// the bubble reads as anchored to the bell rather than floating nearby.
-class _BubbleTailPainter extends CustomPainter {
-  const _BubbleTailPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = Path()
-      ..moveTo(size.width, 0)
-      ..lineTo(0, size.height / 2)
-      ..lineTo(size.width, size.height)
-      ..close();
-    canvas.drawPath(path, Paint()..color = color);
-  }
-
-  @override
-  bool shouldRepaint(covariant _BubbleTailPainter oldDelegate) => oldDelegate.color != color;
 }
