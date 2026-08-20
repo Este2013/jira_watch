@@ -99,7 +99,10 @@ class _AddTagDialogState extends State<AddTagDialog> {
   }
 
   Future<void> _pickPendingIcon() async {
-    final picked = await showDialog<String>(context: context, builder: (context) => GitLabBranchIconPickerDialog(selected: _pendingIconName ?? 'label'));
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (context) => GitLabBranchIconPickerDialog(selected: _pendingIconName ?? 'label'),
+    );
     if (picked != null) setState(() => _pendingIconName = picked);
   }
 
@@ -146,7 +149,10 @@ class _AddTagDialogState extends State<AddTagDialog> {
                   onPressed: _pickPendingIcon,
                 ),
               ),
-              onSubmitted: _add,
+              onSubmitted: (v) {
+                _add(v);
+                Navigator.of(context).pop();
+              },
             ),
             if (_loadingTicketTags) const LinearProgressIndicator(),
             if (reused.isNotEmpty) ...[

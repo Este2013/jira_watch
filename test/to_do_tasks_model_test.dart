@@ -83,6 +83,26 @@ void main() {
       expect(controller!.tags.list, ['a', 'b']);
     });
 
+    test('allTasksListenable notifies on a field changing, not just add/remove', () async {
+      // Regression: toDoTasksControllers alone only notifies on its own
+      // structural changes, since an individual controller's field mutating
+      // is a different ChangeNotifier entirely — a filtered view (the main
+      // list's top-level-only filter, a task's own subtasks list) that only
+      // listened to toDoTasksControllers would not refresh when, say, a
+      // child's parentId was cleared.
+      await ToDoTasksModel().isReady;
+      final task = await ToDoTasksModel().createNewTask(title: 'listenable-test');
+      final controller = ToDoTasksModel().byId(task.id)!;
+
+      var notified = false;
+      ToDoTasksModel().allTasksListenable.addListener(() => notified = true);
+
+      controller.isComplete.value = true;
+      expect(notified, isTrue);
+
+      ToDoTasksModel().deleteTaskById(task.id);
+    });
+
     test('allUsedTags reflects every task, deduplicated and sorted', () async {
       await ToDoTasksModel().isReady;
       final a = await ToDoTasksModel().createNewTask(title: 'a', tags: ['zebra', 'bug']);

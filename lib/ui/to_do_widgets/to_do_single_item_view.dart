@@ -37,7 +37,7 @@ class _TaskDetailNavigatorState extends State<TaskDetailNavigator> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: DataModel().todoTasks.toDoTasksControllers,
+    animation: DataModel().todoTasks.allTasksListenable,
     builder: (context, _) {
       // A task along the path can vanish out from under this view — deleted,
       // or unparented by a drag elsewhere — in which case the path is
@@ -115,7 +115,7 @@ class SingleTaskView extends StatefulWidget {
 }
 
 class _SingleTaskViewState extends State<SingleTaskView> {
-  late bool takingNotes, linkingItems, usingTimeline, usingTags;
+  late bool takingNotes, linkingItems, usingTimeline, usingTags, usingSubtasks;
 
   @override
   void initState() {
@@ -123,6 +123,7 @@ class _SingleTaskViewState extends State<SingleTaskView> {
     linkingItems = widget.taskController.linkedWorkItems.isNotEmpty;
     usingTimeline = widget.taskController.events.isNotEmpty;
     usingTags = widget.taskController.tags.isNotEmpty;
+    usingSubtasks = ToDoTasksModel().childrenOf(widget.taskController.id).isNotEmpty;
     super.initState();
   }
 
@@ -240,6 +241,18 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                               showDialog(context: context, builder: (context) => AddTagDialog(taskController: widget.taskController)).then(
                                 (_) => setState(() {
                                   usingTags = widget.taskController.tags.isNotEmpty;
+                                }),
+                              );
+                            },
+                          ),
+                        if (!usingSubtasks)
+                          ActionChip(
+                            avatar: Icon(Symbols.subdirectory_arrow_right),
+                            label: Text('Add a subtask'),
+                            onPressed: () {
+                              showDialog(context: context, builder: (context) => _AddSubtaskDialog(parentId: widget.taskController.id)).then(
+                                (_) => setState(() {
+                                  usingSubtasks = ToDoTasksModel().childrenOf(widget.taskController.id).isNotEmpty;
                                 }),
                               );
                             },
@@ -415,58 +428,64 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                         ),
                       ),
                     ],
-                    // Always shown, unlike notes/links/timeline/tags: a
-                    // task's place in the hierarchy is structural, not
-                    // something to opt into.
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16),
-                      child: Row(
-                        spacing: 8,
-                        children: [
-                          Text('Subtasks', style: Theme.of(context).textTheme.titleMedium),
-                          Spacer(),
-                          TextButton.icon(
-                            icon: Icon(Symbols.subdirectory_arrow_right),
-                            label: Text('Add a subtask'),
-                            onPressed: () => showDialog(context: context, builder: (context) => _AddSubtaskDialog(parentId: widget.taskController.id)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    AnimatedBuilder(
-                      animation: DataModel().todoTasks.toDoTasksControllers,
-                      builder: (context, child) {
-                        final children = ToDoTasksModel().childrenOf(widget.taskController.id);
-                        return Column(
+                    if (usingSubtasks) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Row(
+                          spacing: 8,
                           children: [
-                            if (children.isEmpty) Text('No subtasks yet'),
-                            for (final childController in children)
-                              AnimatedBuilder(
-                                animation: childController,
-                                builder: (context, _) {
-                                  final childCategoryData = ToDoTask.categoryDataFrom(childController.category.value);
-                                  return ListTile(
-                                    key: Key('Subtask ${childController.id} of task ${widget.taskController.id}'),
-                                    leading: Icon(childCategoryData.$2, color: childCategoryData.$3),
-                                    title: Text(
-                                      childController.title.text.isEmpty ? 'no title' : childController.title.text,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: childController.isComplete.value ? TextStyle(decoration: TextDecoration.lineThrough) : null,
-                                    ),
-                                    trailing: IconButton(
-                                      tooltip: 'Remove from this task',
-                                      icon: Icon(Symbols.link_off, size: 20),
-                                      onPressed: () => ToDoTasksModel().setParent(childController.id, null),
-                                    ),
-                                    onTap: () => widget.onOpenChild?.call(childController.id),
-                                  );
-                                },
-                              ),
+                            Text('Subtasks', style: Theme.of(context).textTheme.titleMedium),
+                            Spacer(),
+                            TextButton.icon(
+                              icon: Icon(Symbols.subdirectory_arrow_right),
+                              label: Text('Add a subtask'),
+                              onPressed: () => showDialog(context: context, builder: (context) => _AddSubtaskDialog(parentId: widget.taskController.id)),
+                            ),
                           ],
-                        );
-                      },
-                    ),
+                        ),
+                      ),
+                      AnimatedBuilder(
+                        // Not just structural add/remove: a child's own
+                        // parentId clearing (the "Remove from this task"
+                        // button below) is a field changing on an already-
+                        // known controller, invisible to toDoTasksControllers
+                        // alone — this used to only actually disappear once
+                        // something else forced a rebuild, e.g. reopening
+                        // the task.
+                        animation: DataModel().todoTasks.allTasksListenable,
+                        builder: (context, child) {
+                          final children = ToDoTasksModel().childrenOf(widget.taskController.id);
+                          return Column(
+                            children: [
+                              if (children.isEmpty) Text('No subtasks yet'),
+                              for (final childController in children)
+                                AnimatedBuilder(
+                                  animation: childController,
+                                  builder: (context, _) {
+                                    final childCategoryData = ToDoTask.categoryDataFrom(childController.category.value);
+                                    return ListTile(
+                                      key: Key('Subtask ${childController.id} of task ${widget.taskController.id}'),
+                                      leading: Icon(childCategoryData.$2, color: childCategoryData.$3),
+                                      title: Text(
+                                        childController.title.text.isEmpty ? 'no title' : childController.title.text,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: childController.isComplete.value ? TextStyle(decoration: TextDecoration.lineThrough) : null,
+                                      ),
+                                      trailing: IconButton(
+                                        tooltip: 'Remove from this task',
+                                        icon: Icon(Symbols.link_off, size: 20),
+                                        onPressed: () => ToDoTasksModel().setParent(childController.id, null),
+                                      ),
+                                      onTap: () => widget.onOpenChild?.call(childController.id),
+                                    );
+                                  },
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
                     DateDisplay('Created', date: widget.taskController.dateAdded),
                   ]
                   .expand(

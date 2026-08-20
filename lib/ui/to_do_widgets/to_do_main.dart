@@ -13,19 +13,30 @@ import 'to_do_single_item_view.dart';
 
 /// Splits [rawSearch] into the `#tag` tokens it names and whatever ordinary
 /// text is left over, for the task list's combined tag + free-text search —
-/// `#bug fix the thing #urgent` means "tagged bug AND urgent, containing
-/// 'fix the thing'".
+/// `#bug fix the thing #"code review"` means "tagged bug AND code review,
+/// containing 'fix the thing'". A tag with spaces needs the quoted
+/// `#"..."` form (see [_TodoSearchField]); a single-word one can skip the
+/// quotes, and either form is accepted here regardless of which one a
+/// particular tag was originally typed with.
 (List<String> tags, String freeText) parseTaskSearch(String rawSearch) {
-  final tags = RegExp(r'#(\S+)').allMatches(rawSearch).map((m) => m.group(1)!.toLowerCase()).toList();
-  final freeText = rawSearch.replaceAll(RegExp(r'#\S+'), '').trim().toLowerCase();
+  final pattern = RegExp(r'#"([^"]*)"|#(\S+)');
+  final tags = pattern.allMatches(rawSearch).map((m) => (m.group(1) ?? m.group(2))!.toLowerCase()).where((t) => t.isNotEmpty).toList();
+  final freeText = rawSearch.replaceAll(pattern, '').trim().toLowerCase();
   return (tags, freeText);
 }
 
-/// The task list's search field. A plain [TextField] except for one thing:
-/// typing `#` opens a dropdown of every tag currently in use, matching
-/// whatever has been typed of the current `#token` so far — accepting a
-/// suggestion completes just that token, leaving the rest of the query (a
-/// previous `#tag`, or ordinary search text) alone.
+/// The task list's search field. A plain [TextField] except for two things:
+///
+/// - Typing `#` immediately inserts a pair of quotes and places the caret
+///   between them (`#"|"`), so a space typed while naming the tag does not
+///   end it early — spaces are exactly what most multi-word tags are made
+///   of. Deleting back to a bare `#` (or moving the caret past the closing
+///   quote) drops back to no active token, same as before.
+/// - While the caret is inside those quotes, a dropdown suggests every tag
+///   currently in use matching whatever has been typed so far; accepting one
+///   replaces just the quoted contents and moves the caret to just after the
+///   closing quote, ready to keep typing ordinary search text or another
+///   `#"tag"`.
 class _TodoSearchField extends StatefulWidget {
   const _TodoSearchField({required this.controller});
 
@@ -46,25 +57,60 @@ class _TodoSearchFieldState extends State<_TodoSearchField> {
   /// actually typed, which is exactly what was stripping the # before.
   TextEditingValue? _lastFieldValue;
 
+  /// Guards [_autoQuoteOnHash] against reacting to the very edit it makes —
+  /// without it, inserting the quote pair would notify this same listener
+  /// again for that insertion.
+  bool _insertingQuotes = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_autoQuoteOnHash);
+  }
+
   @override
   void dispose() {
+    widget.controller.removeListener(_autoQuoteOnHash);
     _focusNode.dispose();
     super.dispose();
   }
 
-  /// The `#tag` token touching the caret in [value], if any: where it starts
-  /// in the full text, and what has been typed of it so far. Null once the
-  /// token is "closed" (a space typed after it), so finishing one tag and
-  /// typing ordinary text afterwards does not keep completing the old one.
-  (int start, String query)? _activeTagToken(TextEditingValue value) {
+  /// The moment a bare `#` is typed, pairs it with quotes and parks the
+  /// caret between them. Left alone if the `#` is already followed by a
+  /// quote — otherwise this would double up every time some other listener
+  /// (or this widget rebuilding) merely reads the controller.
+  void _autoQuoteOnHash() {
+    if (_insertingQuotes) return;
+    final value = widget.controller.value;
+    final caret = value.selection.baseOffset;
+    if (caret <= 0 || caret > value.text.length) return;
+    if (value.text[caret - 1] != '#') return;
+    if (caret < value.text.length && value.text[caret] == '"') return;
+
+    _insertingQuotes = true;
+    final before = value.text.substring(0, caret);
+    final after = value.text.substring(caret);
+    widget.controller.value = TextEditingValue(text: '$before""$after', selection: TextSelection.collapsed(offset: caret + 1));
+    _insertingQuotes = false;
+  }
+
+  /// The `#"..."` tag token the caret is inside, if any: the index of the
+  /// `#`, and what has been typed between its quotes so far. Null once the
+  /// caret has moved past the closing quote — [_autoQuoteOnHash] means there
+  /// is essentially always one to find by the time there is anything to
+  /// search for, but a manually-deleted closing quote is tolerated too,
+  /// treating the caret itself as the boundary.
+  (int hashIndex, String query)? _activeTagToken(TextEditingValue value) {
     final caret = value.selection.baseOffset;
     if (caret < 0 || caret > value.text.length) return null;
     final upToCaret = value.text.substring(0, caret);
     final hashAt = upToCaret.lastIndexOf('#');
-    if (hashAt < 0) return null;
-    final token = upToCaret.substring(hashAt + 1);
-    if (token.contains(' ')) return null;
-    return (hashAt, token);
+    if (hashAt < 0 || hashAt + 1 >= value.text.length || value.text[hashAt + 1] != '"') return null;
+    final closing = value.text.indexOf('"', hashAt + 2);
+    if (closing >= 0 && caret > closing) return null;
+    final queryEnd = closing >= 0 ? closing : caret;
+    if (caret > queryEnd) return null;
+    return (hashAt, value.text.substring(hashAt + 2, queryEnd));
   }
 
   @override
@@ -84,11 +130,12 @@ class _TodoSearchFieldState extends State<_TodoSearchField> {
       if (cached == null) return;
       final active = _activeTagToken(cached);
       if (active == null) return;
-      final (start, query) = active;
+      final (hashAt, _) = active;
       final text = cached.text;
-      final before = text.substring(0, start);
-      final after = text.substring(start + 1 + query.length);
-      final completed = '$before#$tag ';
+      final closing = text.indexOf('"', hashAt + 2);
+      final before = text.substring(0, hashAt);
+      final after = closing >= 0 ? text.substring(closing + 1) : '';
+      final completed = '$before#"$tag" ';
       widget.controller.value = TextEditingValue(text: '$completed$after', selection: TextSelection.collapsed(offset: completed.length));
     },
     fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) => TextField(
@@ -219,7 +266,7 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: DataModel().todoTasks.toDoTasksControllers,
+    animation: DataModel().todoTasks.allTasksListenable,
     builder: (context, _) {
       bool isAnyTaskSelected = selectedTaskID != null && DataModel().todoTasks.toDoTasksControllers.list.any((t) => selectedTaskID == t.id);
 
@@ -371,6 +418,11 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                       animation: searchController,
                       builder: (context, _) {
                         var list = DataModel().todoTasks.toDoTasksControllers.list
+                            // A task with a parent shows up under that
+                            // task's own Subtasks section instead — listed
+                            // here too would just be the same task in two
+                            // places.
+                            .where((t) => t.parentId.value == null)
                             .where(
                               (t) => !filterOutCompletedTasks || !t.isComplete.value,
                             )

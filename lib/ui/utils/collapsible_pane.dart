@@ -126,124 +126,111 @@ class _CollapsibleSidePaneState extends State<CollapsibleSidePane> {
   /// the first frame, animating a full slide on every single rebuild.
   bool? _lastIsNarrow;
 
-  /// Collapsing unmounts whatever [widget.left] was actually showing —
-  /// `showLeft` below turns it into a bare `SizedBox.shrink()` once the
-  /// slide finishes — and with it, whatever inside that content held
-  /// keyboard focus (typically an autofocused search field). Key events are
-  /// dispatched from the current primary focus up through its ancestors, so
-  /// once that focus is gone with nothing in this subtree to replace it,
-  /// Ctrl+B stops reaching [CallbackShortcuts] below entirely: it can
-  /// collapse the pane once, but never expand it again. This node exists
-  /// purely so something inside this widget still holds focus afterwards.
-  final _shortcutFocusNode = FocusNode(debugLabel: 'CollapsibleSidePane shortcuts anchor', skipTraversal: true);
-
   @override
   void initState() {
     super.initState();
     controller = widget.controller ?? CollapsibleSidePaneController();
-    controller.addListener(_reclaimFocusIfCollapsed);
+    // A Focus/CallbackShortcuts-based binding for Ctrl+B turned out to
+    // depend on *something* inside this subtree always holding keyboard
+    // focus — key events dispatch from the current primary focus up through
+    // its ancestors, and clicking genuinely non-focusable space (empty
+    // background, a bare Text widget) leaves nothing in this subtree in that
+    // chain at all, so the shortcut silently stopped reaching this widget
+    // the moment focus landed anywhere like that. A raw handler sidesteps
+    // the focus tree entirely — it fires on every key event regardless of
+    // what, if anything, currently has focus.
+    HardwareKeyboard.instance.addHandler(_handleKey);
   }
 
   @override
   void dispose() {
-    controller.removeListener(_reclaimFocusIfCollapsed);
-    _shortcutFocusNode.dispose();
+    HardwareKeyboard.instance.removeHandler(_handleKey);
     super.dispose();
   }
 
-  void _reclaimFocusIfCollapsed() {
-    if (controller.state) return;
-    // Deferred past the collapse animation, not just this frame: the old
-    // focus holder is only actually removed once the slide finishes and
-    // showLeft flips to false, and stealing focus any earlier would just
-    // lose to it once it's disposed anyway.
-    Future.delayed(widget.animationDuration + const Duration(milliseconds: 50), () {
-      if (mounted && !controller.state) _shortcutFocusNode.requestFocus();
-    });
+  bool _handleKey(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    if (event.logicalKey != LogicalKeyboardKey.keyB || !HardwareKeyboard.instance.isControlPressed) return false;
+    controller.toggle();
+    return true;
   }
 
   @override
-  Widget build(BuildContext context) => Focus(
-    focusNode: _shortcutFocusNode,
-    child: CallbackShortcuts(
-      bindings: {LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyB): controller.toggle},
-      child: AnimatedBuilder(
-        animation: controller,
-        builder: (context, _) {
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final bool isNarrow = constraints.maxWidth < widget.breakpoint;
-              final bool crossedBreakpoint = _lastIsNarrow != null && _lastIsNarrow != isNarrow;
-              _lastIsNarrow = isNarrow;
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: controller,
+    builder: (context, _) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final bool isNarrow = constraints.maxWidth < widget.breakpoint;
+          final bool crossedBreakpoint = _lastIsNarrow != null && _lastIsNarrow != isNarrow;
+          _lastIsNarrow = isNarrow;
 
-              // Deferred: reportLayoutMode can change controller.state, which
-              // this AnimatedBuilder listens to — doing that synchronously
-              // inside this very build would try to rebuild while building.
-              WidgetsBinding.instance.addPostFrameCallback((_) => controller.reportLayoutMode(isNarrow));
+          // Deferred: reportLayoutMode can change controller.state, which
+          // this AnimatedBuilder listens to — doing that synchronously
+          // inside this very build would try to rebuild while building.
+          WidgetsBinding.instance.addPostFrameCallback((_) => controller.reportLayoutMode(isNarrow));
 
-              final double targetWidth = controller.state ? widget.leftWidth : 0;
-              // A breakpoint crossing snaps straight to the target width
-              // instead of sliding through it — the slide is for a deliberate
-              // toggle within the same mode, not for a resize.
-              final double startWidth = crossedBreakpoint ? targetWidth : (controller.state ? 0 : widget.leftWidth);
+          final double targetWidth = controller.state ? widget.leftWidth : 0;
+          // A breakpoint crossing snaps straight to the target width
+          // instead of sliding through it — the slide is for a deliberate
+          // toggle within the same mode, not for a resize.
+          final double startWidth = crossedBreakpoint ? targetWidth : (controller.state ? 0 : widget.leftWidth);
 
-              var tweenAnimationBuilder = TweenAnimationBuilder<double>(
-                key: Key('animatedPanel'),
-                tween: Tween<double>(begin: startWidth, end: targetWidth),
-                duration: widget.animationDuration,
-                curve: widget.animationCurve,
-                builder: (context, w, _) {
-                  // Only show the heavy/overflow-prone widget when the pane is essentially open.
-                  final bool showLeft = w > widget.leftWidth * 0.98;
+          var tweenAnimationBuilder = TweenAnimationBuilder<double>(
+            key: Key('animatedPanel'),
+            tween: Tween<double>(begin: startWidth, end: targetWidth),
+            duration: widget.animationDuration,
+            curve: widget.animationCurve,
+            builder: (context, w, _) {
+              // Only show the heavy/overflow-prone widget when the pane is essentially open.
+              final bool showLeft = w > widget.leftWidth * 0.98;
 
-                  return Row(
-                    mainAxisSize: .min,
-                    children: [
-                      SizedBox(
-                        width: w,
-                        child: ClipRect(
-                          child: showLeft ? widget.left : const SizedBox.shrink(),
-                        ),
-                      ),
-                      if (w > 8) const VerticalDivider(width: 1),
-                    ],
-                  );
-                },
-              );
-
-              if (isNarrow) {
-                return Stack(
-                  children: [
-                    Positioned.fill(child: widget.right),
-                    if (controller.state)
-                      Positioned.fill(
-                        child: GestureDetector(
-                          onTap: () {
-                            controller.collapse();
-                          },
-                          child: Container(color: Colors.black.withAlpha(100)),
-                        ),
-                      ),
-                    Positioned.fill(
-                      left: 0,
-                      child: Align(
-                        alignment: .centerLeft,
-                        child: Material(child: tweenAnimationBuilder),
-                      ),
-                    ),
-                  ],
-                );
-              }
               return Row(
+                mainAxisSize: .min,
                 children: [
-                  tweenAnimationBuilder,
-                  Expanded(child: widget.right),
+                  SizedBox(
+                    width: w,
+                    child: ClipRect(
+                      child: showLeft ? widget.left : const SizedBox.shrink(),
+                    ),
+                  ),
+                  if (w > 8) const VerticalDivider(width: 1),
                 ],
               );
             },
           );
+
+          if (isNarrow) {
+            return Stack(
+              children: [
+                Positioned.fill(child: widget.right),
+                if (controller.state)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      onTap: () {
+                        controller.collapse();
+                      },
+                      child: Container(color: Colors.black.withAlpha(100)),
+                    ),
+                  ),
+                Positioned.fill(
+                  left: 0,
+                  child: Align(
+                    alignment: .centerLeft,
+                    child: Material(child: tweenAnimationBuilder),
+                  ),
+                ),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              tweenAnimationBuilder,
+              Expanded(child: widget.right),
+            ],
+          );
         },
-      ),
-    ),
+      );
+    },
   );
 }

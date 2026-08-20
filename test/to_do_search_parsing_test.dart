@@ -32,5 +32,23 @@ void main() {
       expect(tags, isEmpty);
       expect(freeText, isEmpty);
     });
+
+    test('a quoted tag can contain spaces', () {
+      final (tags, freeText) = parseTaskSearch('#"code review" fix the thing');
+      expect(tags, ['code review']);
+      expect(freeText, 'fix the thing');
+    });
+
+    test('quoted and bare tags can be mixed', () {
+      final (tags, freeText) = parseTaskSearch('#"code review" #bug fix the thing');
+      expect(tags, ['code review', 'bug']);
+      expect(freeText, 'fix the thing');
+    });
+
+    test('an empty quoted tag (still being typed) contributes nothing', () {
+      final (tags, freeText) = parseTaskSearch('#"" fix the thing');
+      expect(tags, isEmpty);
+      expect(freeText, 'fix the thing');
+    });
   });
 }

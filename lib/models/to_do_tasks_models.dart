@@ -57,6 +57,16 @@ class ToDoTasksModel with GlobalLoggy {
   /// that way, since picking an icon for every single tag would be tedious.
   late final ObservableList<TaskTagIcon> tagIconRegistry;
 
+  /// Notifies on anything that could change which tasks a filtered view
+  /// (the main list's top-level-only filter, a task's own subtasks list)
+  /// should be showing — not just [toDoTasksControllers] adding or removing
+  /// a task, but any task's own field changing too, [ToDoTask.parentId] most
+  /// of all. [toDoTasksControllers] alone only notifies on structural
+  /// changes (its own add/remove/clear), since that is genuinely a
+  /// different [ObservableList] from any of the individual controllers it
+  /// holds — an existing controller's field mutating is invisible to it.
+  Listenable get allTasksListenable => Listenable.merge([toDoTasksControllers, ...toDoTasksControllers.list]);
+
   late Future<bool> isReady;
   Future<bool> _getReady() async {
     loggy.info('Getting cache ready');
