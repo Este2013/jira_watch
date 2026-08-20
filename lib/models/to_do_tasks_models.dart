@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/settings_model.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_branch_icons.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:observable_datasets/observable_list.dart';
@@ -47,6 +48,15 @@ class ToDoTasksModel with GlobalLoggy {
   // late final ObservableList<ToDoTask>? toDoTasksCache;
   late final ObservableList<ToDoTaskEditingController> toDoTasksControllers;
 
+  /// Custom categories (id >= 0) a task's [ToDoTask.category] can point at,
+  /// on top of the built-in [DefaultTaskCategory] values (id < 0).
+  late final ObservableList<CustomTaskCategory> customCategories;
+
+  /// Tag -> icon name, for tags a reader has chosen an icon for. A tag with
+  /// no entry here just shows without one — most tags are expected to stay
+  /// that way, since picking an icon for every single tag would be tedious.
+  late final ObservableList<TaskTagIcon> tagIconRegistry;
+
   late Future<bool> isReady;
   Future<bool> _getReady() async {
     loggy.info('Getting cache ready');
@@ -55,15 +65,27 @@ class ToDoTasksModel with GlobalLoggy {
       loggy.warning('_toDoDataFile does not exist. Initializing cache to []');
       // toDoTasksCache = ObservableList();
       toDoTasksControllers = ObservableList();
+      customCategories = ObservableList();
+      tagIconRegistry = ObservableList();
     } else {
       var raw = await file.readAsString();
 
-      List data = raw.trim().isEmpty ? [] : jsonDecode(raw)?['taskList'] ?? [];
+      final decoded = raw.trim().isEmpty ? null : jsonDecode(raw) as Map<String, dynamic>?;
+      List data = decoded?['taskList'] ?? [];
       // toDoTasksCache = ObservableList.from(data.map((e) => ToDoTask.fromJson(e)));
       toDoTasksControllers = ObservableList.from(data.map((e) => ToDoTaskEditingController.fromToDoTask(ToDoTask.fromJson(e))));
       for (var ctrl in toDoTasksControllers.list) {
         ctrl.addListener(saveToDoTasksCache);
       }
+
+      // Both absent from any file saved before this feature existed —
+      // defaulting to empty is exactly what "no custom categories/tag icons
+      // yet" should look like.
+      final customCategoriesRaw = decoded?['customCategories'] as List? ?? [];
+      customCategories = ObservableList.from(customCategoriesRaw.map((e) => CustomTaskCategory.fromJson((e as Map).cast<String, dynamic>())));
+
+      final tagIconsRaw = decoded?['tagIcons'] as List? ?? [];
+      tagIconRegistry = ObservableList.from(tagIconsRaw.map((e) => TaskTagIcon.fromJson((e as Map).cast<String, dynamic>())));
     }
     return true;
   }
@@ -75,6 +97,8 @@ class ToDoTasksModel with GlobalLoggy {
     List<String>? workItemKeys,
     int categoryID = -1,
     List<ToDoTaskEvent>? events,
+    List<String>? tags,
+    int? parentId,
   }) async {
     loggy.info('Creating a new task');
     var cacheIsReady = await isReady;
@@ -84,7 +108,17 @@ class ToDoTasksModel with GlobalLoggy {
     }
     // int validId = toDoTasksCache!.list.fold(0, (v, t) => v = max(v, t.id)) + 1;
     int validId = toDoTasksControllers.list.fold(0, (v, t) => v = max(v, t.id)) + 1;
-    var task = ToDoTask(id: validId, title: title, notes: notes, linkedWorkItems: workItemKeys ?? [], category: categoryID, dateAdded: DateTime.now(), events: events ?? []);
+    var task = ToDoTask(
+      id: validId,
+      title: title,
+      notes: notes,
+      linkedWorkItems: workItemKeys ?? [],
+      category: categoryID,
+      dateAdded: DateTime.now(),
+      events: events ?? [],
+      tags: tags ?? [],
+      parentId: (parentId != null && !wouldCreateCycle(validId, parentId)) ? parentId : null,
+    );
     _deletedTodoIds.remove(validId);
     var toDoTaskEditingController = ToDoTaskEditingController.fromToDoTask(task);
     toDoTaskEditingController.addListener(saveToDoTasksCache);
@@ -154,6 +188,12 @@ class ToDoTasksModel with GlobalLoggy {
     if (idx >= 0) {
       var task = toDoTasksControllers.removeAt(idx);
       _deletedTodoIds.add(task.id);
+      // Orphan its children rather than deleting a whole subtree by
+      // accident — losing one task the reader meant to delete is a
+      // nuisance; silently losing its children too would be much worse.
+      for (final child in toDoTasksControllers.list.where((t) => t.parentId.value == id)) {
+        child.parentId.value = null;
+      }
     } else {
       loggy.warning('Task $id was not found.');
     }
@@ -182,8 +222,118 @@ class ToDoTasksModel with GlobalLoggy {
     return file.writeAsString(
       JsonEncoder.withIndent(' ' * 4).convert({
         'taskList': toDoTasksControllers.list.map((e) => e.toToDoTask().toJson()).toList(),
+        'customCategories': customCategories.list.map((e) => e.toJson()).toList(),
+        'tagIcons': tagIconRegistry.list.map((e) => e.toJson()).toList(),
       }),
     );
+  }
+
+  // LOOKUPS AND HIERARCHY //////////////////////////////////////////////////
+
+  ToDoTaskEditingController? byId(int id) {
+    for (final t in toDoTasksControllers.list) {
+      if (t.id == id) return t;
+    }
+    return null;
+  }
+
+  List<ToDoTaskEditingController> childrenOf(int? parentId) => toDoTasksControllers.list.where((t) => t.parentId.value == parentId).toList();
+
+  /// Whether giving [taskId] a parent of [newParentId] would create a cycle
+  /// — including making a task its own parent. Checked by walking
+  /// [newParentId]'s own ancestor chain: if it ever reaches [taskId], then
+  /// [newParentId] is currently a descendant of [taskId], and the new edge
+  /// would close a loop back to it.
+  bool wouldCreateCycle(int taskId, int? newParentId) {
+    if (newParentId == null) return false;
+    if (newParentId == taskId) return true;
+
+    var current = byId(newParentId);
+    final visited = <int>{};
+    while (current != null) {
+      if (!visited.add(current.id)) return false; // a loop elsewhere already; not this call's problem to fix
+      final parentId = current.parentId.value;
+      if (parentId == null) return false;
+      if (parentId == taskId) return true;
+      current = byId(parentId);
+    }
+    return false;
+  }
+
+  /// Sets [taskId]'s parent to [newParentId], refusing anything that would
+  /// create a cycle. Returns whether the change went through.
+  bool setParent(int taskId, int? newParentId) {
+    if (wouldCreateCycle(taskId, newParentId)) return false;
+    final task = byId(taskId);
+    if (task == null) return false;
+    task.parentId.value = newParentId;
+    saveToDoTasksCache();
+    return true;
+  }
+
+  // TAGS //////////////////////////////////////////////////////////////////
+
+  /// Every distinct tag at least one task currently carries, for the
+  /// "already used" half of tag autosuggest.
+  List<String> get allUsedTags {
+    final tags = <String>{};
+    for (final t in toDoTasksControllers.list) {
+      tags.addAll(t.tags.list);
+    }
+    return tags.toList()..sort();
+  }
+
+  IconData? iconForTag(String tag) {
+    for (final entry in tagIconRegistry.list) {
+      if (entry.tag == tag) return gitLabBranchIcon(entry.iconName);
+    }
+    return null;
+  }
+
+  void setTagIcon(String tag, String iconName) {
+    final idx = tagIconRegistry.list.indexWhere((t) => t.tag == tag);
+    if (idx >= 0) {
+      tagIconRegistry[idx] = TaskTagIcon(tag: tag, iconName: iconName);
+    } else {
+      tagIconRegistry.add(TaskTagIcon(tag: tag, iconName: iconName));
+    }
+    saveToDoTasksCache();
+  }
+
+  void removeTagIcon(String tag) {
+    tagIconRegistry.removeWhere((t, _) => t.tag == tag);
+    saveToDoTasksCache();
+  }
+
+  // CUSTOM CATEGORIES /////////////////////////////////////////////////////
+
+  CustomTaskCategory? customCategoryById(int id) {
+    for (final c in customCategories.list) {
+      if (c.id == id) return c;
+    }
+    return null;
+  }
+
+  /// The next free custom category id — custom ones start at 0 and count up,
+  /// leaving every negative id to the built-in [DefaultTaskCategory] values.
+  int nextCustomCategoryId() => customCategories.list.fold(-1, (v, c) => max(v, c.id)) + 1;
+
+  void addOrUpdateCustomCategory(CustomTaskCategory category) {
+    final idx = customCategories.list.indexWhere((c) => c.id == category.id);
+    if (idx >= 0) {
+      customCategories[idx] = category;
+    } else {
+      customCategories.add(category);
+    }
+    saveToDoTasksCache();
+  }
+
+  /// Deletes a custom category. Tasks still pointing at it fall back to "For
+  /// later" — see [ToDoTask.categoryDataFrom] — rather than being left
+  /// referencing nothing.
+  void deleteCustomCategory(int id) {
+    customCategories.removeWhere((c, _) => c.id == id);
+    saveToDoTasksCache();
   }
 }
 
@@ -196,6 +346,8 @@ class ToDoTaskEditingController extends ChangeNotifier {
   late final ValueNotifier<DateTime?> toDoBefore;
   late final ObservableList<String> linkedWorkItems;
   late final ObservableList<ToDoTaskEvent> events;
+  late final ObservableList<String> tags;
+  late final ValueNotifier<int?> parentId;
 
   ToDoTaskEditingController({
     required this.id,
@@ -207,6 +359,8 @@ class ToDoTaskEditingController extends ChangeNotifier {
     required this.isComplete,
     required this.category,
     required this.events,
+    required this.tags,
+    required this.parentId,
   }) {
     title.addListener(notifyListeners);
     notes.addListener(notifyListeners);
@@ -215,6 +369,8 @@ class ToDoTaskEditingController extends ChangeNotifier {
     toDoBefore.addListener(notifyListeners);
     linkedWorkItems.addListener(notifyListeners);
     events.addListener(notifyListeners);
+    tags.addListener(notifyListeners);
+    parentId.addListener(notifyListeners);
   }
 
   factory ToDoTaskEditingController.fromToDoTask(ToDoTask task) => ToDoTaskEditingController(
@@ -227,6 +383,8 @@ class ToDoTaskEditingController extends ChangeNotifier {
     isComplete: ValueNotifier(task.isComplete),
     category: ValueNotifier(task.category),
     events: ObservableList.from(task.events),
+    tags: ObservableList.from(task.tags),
+    parentId: ValueNotifier(task.parentId),
   );
   ToDoTask toToDoTask() => ToDoTask(
     id: id,
@@ -238,6 +396,8 @@ class ToDoTaskEditingController extends ChangeNotifier {
     isComplete: isComplete.value,
     category: category.value,
     events: List.from(events.list),
+    tags: List.from(tags.list),
+    parentId: parentId.value,
   );
 
   void modify(ToDoTask newTaskData) {
@@ -250,6 +410,9 @@ class ToDoTaskEditingController extends ChangeNotifier {
     linkedWorkItems.addAll(newTaskData.linkedWorkItems);
     events.reset();
     events.addAll(newTaskData.events);
+    tags.reset();
+    tags.addAll(newTaskData.tags);
+    parentId.value = newTaskData.parentId;
   }
 }
 
@@ -269,6 +432,15 @@ class ToDoTask {
   /// If this list is empty, the category "For later" is used.
   int category;
 
+  /// Free-form labels, searchable via `#tag` in the task list's search field.
+  /// Absent from a task saved before this existed, which reads back as [].
+  List<String> tags;
+
+  /// The id of this task's parent, or null for a top-level task. A task can
+  /// have at most one parent; see [ToDoTasksModel.wouldCreateCycle] for what
+  /// stops a parent/child edge from closing a loop.
+  int? parentId;
+
   ToDoTask({
     required this.id,
     this.title,
@@ -279,6 +451,8 @@ class ToDoTask {
     this.isComplete = false,
     this.category = -1,
     required this.events,
+    this.tags = const [],
+    this.parentId,
   });
 
   Map<String, dynamic> toJson() => {
@@ -291,6 +465,8 @@ class ToDoTask {
     'isComplete': isComplete,
     'category': category,
     'events': events.map((e) => e.toJson()).toList(),
+    'tags': tags,
+    'parentId': parentId,
   };
 
   factory ToDoTask.fromJson(Map<String, dynamic> json) {
@@ -303,6 +479,9 @@ class ToDoTask {
     final workItemsRaw = json['tickets'];
     final workItems = workItemsRaw is List ? workItemsRaw.map((e) => e.toString()).toList() : <String>[];
 
+    final tagsRaw = json['tags'];
+    final tags = tagsRaw is List ? tagsRaw.map((e) => e.toString()).toList() : <String>[];
+
     return ToDoTask(
       id: json['id'],
       title: json['title']?.toString(),
@@ -313,6 +492,8 @@ class ToDoTask {
       isComplete: json['isComplete'] ?? false,
       category: json['category'] ?? -1,
       events: (json['events'] as List?)?.map((e) => ToDoTaskEvent.fromJson(e)).toList() ?? [],
+      tags: tags,
+      parentId: json['parentId'] as int?,
     );
   }
 
@@ -328,8 +509,54 @@ class ToDoTask {
         cat.color,
       );
     }
-    throw UnimplementedError(); // TODO custom categories
+    // A custom category deleted out from under a task it is still assigned
+    // to (or, before this existed, any id >= 0 at all) falls back to "For
+    // later" rather than throwing — the same graceful-degradation rule the
+    // rest of this app's custom-icon lookups already follow.
+    CustomTaskCategory? custom;
+    for (final c in ToDoTasksModel().customCategories.list) {
+      if (c.id == categoryID) {
+        custom = c;
+        break;
+      }
+    }
+    if (custom == null) return categoryDataFrom(DefaultTaskCategory.forLater.id);
+    return (custom.label, gitLabBranchIcon(custom.iconName), null);
   }
+}
+
+/// A user-defined task category/status: a label and an icon, id >= 0.
+class CustomTaskCategory {
+  final int id;
+  String label;
+
+  /// A key into [gitLabBranchIconChoices], resolved with [gitLabBranchIcon].
+  String iconName;
+
+  CustomTaskCategory({required this.id, required this.label, required this.iconName});
+
+  Map<String, dynamic> toJson() => {'id': id, 'label': label, 'iconName': iconName};
+
+  factory CustomTaskCategory.fromJson(Map<String, dynamic> json) => CustomTaskCategory(
+    id: json['id'] as int,
+    label: json['label'] as String? ?? 'Untitled status',
+    iconName: (json['iconName'] as String?)?.trim().isNotEmpty == true ? json['iconName'] as String : 'label',
+  );
+}
+
+/// A tag's chosen icon — see [ToDoTasksModel.tagIconRegistry].
+class TaskTagIcon {
+  String tag;
+  String iconName;
+
+  TaskTagIcon({required this.tag, required this.iconName});
+
+  Map<String, dynamic> toJson() => {'tag': tag, 'iconName': iconName};
+
+  factory TaskTagIcon.fromJson(Map<String, dynamic> json) => TaskTagIcon(
+    tag: json['tag'] as String,
+    iconName: (json['iconName'] as String?)?.trim().isNotEmpty == true ? json['iconName'] as String : 'label',
+  );
 }
 
 class ToDoTaskEvent {
