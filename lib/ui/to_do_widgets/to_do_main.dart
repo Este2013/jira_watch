@@ -397,7 +397,7 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                               animation: taskController,
                               builder: (context, child) {
                                 var categoryData = ToDoTask.categoryDataFrom(taskController.category.value);
-                                return ListTile(
+                                final tile = ListTile(
                                   key: Key('ListTile of task #${taskController.id}'),
                                   title: Text(
                                     taskController.title.text.isEmpty ? 'no title' : taskController.title.text,
@@ -467,6 +467,36 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                                   selected: taskController.id == selectedTaskID,
                                   onTap: () => _onTaskTap(taskController.id, visibleOrder),
                                 );
+
+                                // Long-press-drag a task onto another to make
+                                // it that task's child. onWillAcceptWithDetails
+                                // is also what gives the drop target its
+                                // highlight, so a drag that would create a
+                                // cycle (or land on itself) never lights up as
+                                // droppable in the first place.
+                                return DragTarget<int>(
+                                  onWillAcceptWithDetails: (details) =>
+                                      details.data != taskController.id && !ToDoTasksModel().wouldCreateCycle(details.data, taskController.id),
+                                  onAcceptWithDetails: (details) => ToDoTasksModel().setParent(details.data, taskController.id),
+                                  builder: (context, candidateData, rejectedData) => Container(
+                                    decoration: candidateData.isNotEmpty
+                                        ? BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2))
+                                        : null,
+                                    child: LongPressDraggable<int>(
+                                      data: taskController.id,
+                                      feedback: Material(
+                                        elevation: 4,
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                          child: Text(taskController.title.text.isEmpty ? 'no title' : taskController.title.text),
+                                        ),
+                                      ),
+                                      childWhenDragging: Opacity(opacity: 0.4, child: tile),
+                                      child: tile,
+                                    ),
+                                  ),
+                                );
                               },
                             );
                           },
@@ -530,10 +560,7 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                           padding: const EdgeInsets.all(16),
                           child: Center(
                             child: isAnyTaskSelected
-                                ? SingleTaskView(
-                                    DataModel().todoTasks.toDoTasksControllers.list.firstWhere((t) => t.id == selectedTaskID),
-                                    key: ValueKey(selectedTaskID),
-                                  )
+                                ? TaskDetailNavigator(rootTaskId: selectedTaskID!, key: ValueKey(selectedTaskID))
                                 : Text('← Select a task in the list to your left to start working on it'),
                           ),
                         ),

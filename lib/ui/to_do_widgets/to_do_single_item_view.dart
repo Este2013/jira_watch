@@ -13,13 +13,102 @@ import 'package:jira_watcher/ui/utils/widgets/dialog_widgets.dart/action_buttons
 import 'package:jira_watcher/ui/utils/widgets/morphing_buttons.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+/// Wraps [SingleTaskView] with a breadcrumb bar tracking every ancestor along
+/// the current drill-down path, not just the immediate parent — so jumping
+/// back to any earlier task is one click regardless of how deep [onOpenChild]
+/// has gone.
+class TaskDetailNavigator extends StatefulWidget {
+  const TaskDetailNavigator({super.key, required this.rootTaskId});
+
+  final int rootTaskId;
+
+  @override
+  State<TaskDetailNavigator> createState() => _TaskDetailNavigatorState();
+}
+
+class _TaskDetailNavigatorState extends State<TaskDetailNavigator> {
+  late List<int> _path;
+
+  @override
+  void initState() {
+    super.initState();
+    _path = [widget.rootTaskId];
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: DataModel().todoTasks.toDoTasksControllers,
+    builder: (context, _) {
+      // A task along the path can vanish out from under this view — deleted,
+      // or unparented by a drag elsewhere — in which case the path is
+      // truncated right before the first gap rather than showing a jumbled
+      // remainder or crashing on a missing controller.
+      final controllers = <ToDoTaskEditingController>[];
+      for (final id in _path) {
+        final controller = ToDoTasksModel().byId(id);
+        if (controller == null) break;
+        controllers.add(controller);
+      }
+      if (controllers.isEmpty) {
+        return const Center(child: Text('This task no longer exists.'));
+      }
+      if (controllers.length != _path.length) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _path = controllers.map((c) => c.id).toList());
+        });
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (controllers.length > 1)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  for (final (index, controller) in controllers.indexed) ...[
+                    if (index > 0) const Padding(padding: EdgeInsets.symmetric(horizontal: 2), child: Icon(Symbols.chevron_right, size: 16)),
+                    TextButton(
+                      style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                      // The last breadcrumb is where we already are.
+                      onPressed: index == controllers.length - 1 ? null : () => setState(() => _path = _path.sublist(0, index + 1)),
+                      child: Text(
+                        controller.title.text.isEmpty ? 'no title' : controller.title.text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          Expanded(
+            child: SingleTaskView(
+              controllers.last,
+              key: ValueKey(controllers.last.id),
+              onOpenChild: (childId) => setState(() => _path = [..._path, childId]),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 class SingleTaskView extends StatefulWidget {
   const SingleTaskView(
     this.taskController, {
     super.key,
+    this.onOpenChild,
   });
 
   final ToDoTaskEditingController taskController;
+
+  /// Called when the reader taps a subtask to drill into it — see
+  /// [TaskDetailNavigator], which is what actually owns the drill-down path
+  /// this just reports into.
+  final ValueChanged<int>? onOpenChild;
 
   @override
   State<SingleTaskView> createState() => _SingleTaskViewState();
@@ -326,6 +415,58 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                         ),
                       ),
                     ],
+                    // Always shown, unlike notes/links/timeline/tags: a
+                    // task's place in the hierarchy is structural, not
+                    // something to opt into.
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Row(
+                        spacing: 8,
+                        children: [
+                          Text('Subtasks', style: Theme.of(context).textTheme.titleMedium),
+                          Spacer(),
+                          TextButton.icon(
+                            icon: Icon(Symbols.subdirectory_arrow_right),
+                            label: Text('Add a subtask'),
+                            onPressed: () => showDialog(context: context, builder: (context) => _AddSubtaskDialog(parentId: widget.taskController.id)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    AnimatedBuilder(
+                      animation: DataModel().todoTasks.toDoTasksControllers,
+                      builder: (context, child) {
+                        final children = ToDoTasksModel().childrenOf(widget.taskController.id);
+                        return Column(
+                          children: [
+                            if (children.isEmpty) Text('No subtasks yet'),
+                            for (final childController in children)
+                              AnimatedBuilder(
+                                animation: childController,
+                                builder: (context, _) {
+                                  final childCategoryData = ToDoTask.categoryDataFrom(childController.category.value);
+                                  return ListTile(
+                                    key: Key('Subtask ${childController.id} of task ${widget.taskController.id}'),
+                                    leading: Icon(childCategoryData.$2, color: childCategoryData.$3),
+                                    title: Text(
+                                      childController.title.text.isEmpty ? 'no title' : childController.title.text,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: childController.isComplete.value ? TextStyle(decoration: TextDecoration.lineThrough) : null,
+                                    ),
+                                    trailing: IconButton(
+                                      tooltip: 'Remove from this task',
+                                      icon: Icon(Symbols.link_off, size: 20),
+                                      onPressed: () => ToDoTasksModel().setParent(childController.id, null),
+                                    ),
+                                    onTap: () => widget.onOpenChild?.call(childController.id),
+                                  );
+                                },
+                              ),
+                          ],
+                        );
+                      },
+                    ),
                     DateDisplay('Created', date: widget.taskController.dateAdded),
                   ]
                   .expand(
@@ -506,4 +647,121 @@ Map<T, List<S>> groupBy<S, T>(Iterable<S> values, T Function(S) key) {
     (map[key(element)] ??= []).add(element);
   }
   return map;
+}
+
+/// Creates a brand new subtask, or links an existing task as one — both
+/// giving the task [parentId].
+///
+/// The "existing task" list only ever shows tasks that are actually valid to
+/// pick: not the parent itself, not something already a child of it, and
+/// not something picking it would turn into a cycle (see
+/// [ToDoTasksModel.wouldCreateCycle]) — filtered out rather than shown
+/// disabled, so every visible entry is simply safe to tap.
+class _AddSubtaskDialog extends StatefulWidget {
+  const _AddSubtaskDialog({required this.parentId});
+
+  final int parentId;
+
+  @override
+  State<_AddSubtaskDialog> createState() => _AddSubtaskDialogState();
+}
+
+class _AddSubtaskDialogState extends State<_AddSubtaskDialog> {
+  late TextEditingController _title;
+  late TextEditingController _search;
+
+  @override
+  void initState() {
+    super.initState();
+    _title = TextEditingController();
+    _search = TextEditingController();
+    _search.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _createNew() async {
+    final title = _title.text.trim();
+    if (title.isEmpty) return;
+    await ToDoTasksModel().createNewTask(title: title, parentId: widget.parentId);
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  void _linkExisting(int existingId) {
+    ToDoTasksModel().setParent(existingId, widget.parentId);
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _search.text.trim().toLowerCase();
+    final candidates = DataModel().todoTasks.toDoTasksControllers.list.where((t) {
+      if (t.id == widget.parentId) return false;
+      if (t.parentId.value == widget.parentId) return false;
+      if (ToDoTasksModel().wouldCreateCycle(t.id, widget.parentId)) return false;
+      return query.isEmpty || t.title.text.toLowerCase().contains(query);
+    }).toList();
+
+    return AlertDialog(
+      title: const Text('Add a subtask'),
+      constraints: const BoxConstraints(maxWidth: 460, maxHeight: 560),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: [
+            Row(
+              spacing: 8,
+              children: [
+                Expanded(
+                  child: TextField(
+                    autofocus: true,
+                    controller: _title,
+                    decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'New subtask title'),
+                    onSubmitted: (_) => _createNew(),
+                  ),
+                ),
+                FilledButton(onPressed: _createNew, child: const Text('Create')),
+              ],
+            ),
+            const Divider(),
+            Text('Or link an existing task', style: Theme.of(context).textTheme.labelMedium),
+            TextField(
+              controller: _search,
+              decoration: const InputDecoration(border: OutlineInputBorder(), prefixIcon: Icon(Symbols.search)),
+            ),
+            Flexible(
+              child: SizedBox(
+                height: 260,
+                child: candidates.isEmpty
+                    ? const Center(child: Text('No matching tasks'))
+                    : ListView.builder(
+                        itemCount: candidates.length,
+                        itemBuilder: (context, index) {
+                          final t = candidates[index];
+                          final categoryData = ToDoTask.categoryDataFrom(t.category.value);
+                          return ListTile(
+                            dense: true,
+                            leading: Icon(categoryData.$2, color: categoryData.$3),
+                            title: Text(t.title.text.isEmpty ? 'no title' : t.title.text, maxLines: 1, overflow: TextOverflow.ellipsis),
+                            onTap: () => _linkExisting(t.id),
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [CancelButton()],
+    );
+  }
 }
