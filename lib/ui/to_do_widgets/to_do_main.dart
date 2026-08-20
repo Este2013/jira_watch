@@ -150,6 +150,13 @@ class TodoPage extends StatefulWidget {
 class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin {
   int? selectedTaskID;
 
+  /// Additional tasks selected via Ctrl/Ctrl+Shift-click, for the mass
+  /// actions toolbar. Kept separate from [selectedTaskID] — a plain click
+  /// still means "show this one in the detail pane", not "select exactly
+  /// this one for a mass action".
+  final Set<int> _multiSelected = {};
+  int? _selectionAnchorId;
+
   bool filterOutCompletedTasks = true;
   int? showCategory;
   late CollapsibleSidePaneController collapsibleSidePaneController;
@@ -194,12 +201,23 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
 
       var leftPane = Column(
         children: [
-          // List settings
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              spacing: 8,
-              children: [
+          if (_multiSelected.isNotEmpty)
+            _MassActionsToolbar(
+              selectedCount: _multiSelected.length,
+              onAddTag: _massAddTag,
+              onChangeCategory: _massChangeCategory,
+              onMarkComplete: () => _massSetComplete(true),
+              onReopen: () => _massSetComplete(false),
+              onDelete: _massDelete,
+              onClear: () => setState(() => _multiSelected.clear()),
+            )
+          else
+            // List settings
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                spacing: 8,
+                children: [
                 TextButton.icon(
                   onPressed: createNewTask,
                   label: Text('New task'),
@@ -370,6 +388,7 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                             return 0;
                           },
                         );
+                        final visibleOrder = list.map((t) => t.id).toList();
                         return ListView.builder(
                           itemCount: list.length,
                           itemBuilder: (context, index) {
@@ -444,10 +463,9 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                                       ),
                                     ],
                                   ),
+                                  tileColor: _multiSelected.contains(taskController.id) ? Theme.of(context).colorScheme.secondaryContainer : null,
                                   selected: taskController.id == selectedTaskID,
-                                  onTap: () => setState(() {
-                                    selectedTaskID = taskController.id;
-                                  }),
+                                  onTap: () => _onTaskTap(taskController.id, visibleOrder),
                                 );
                               },
                             );
@@ -536,6 +554,215 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
       selectedTaskID = newTask.id;
     }),
   );
+
+  /// A plain click opens the task and clears any mass-selection; Ctrl-click
+  /// toggles this one task in or out of it; Ctrl+Shift-click extends it from
+  /// the last-clicked task through this one, matching how a file explorer's
+  /// list selection works. [visibleOrder] is whatever the list is currently
+  /// showing, in its current sort/filter order — the range a shift-click
+  /// spans depends on that, not on task id or creation order.
+  void _onTaskTap(int taskId, List<int> visibleOrder) => setState(() {
+    final shift = HardwareKeyboard.instance.isShiftPressed;
+    final ctrl = HardwareKeyboard.instance.isControlPressed;
+
+    if (shift && _selectionAnchorId != null && visibleOrder.contains(_selectionAnchorId)) {
+      final anchorIndex = visibleOrder.indexOf(_selectionAnchorId!);
+      final targetIndex = visibleOrder.indexOf(taskId);
+      final lo = anchorIndex < targetIndex ? anchorIndex : targetIndex;
+      final hi = anchorIndex < targetIndex ? targetIndex : anchorIndex;
+      _multiSelected.addAll(visibleOrder.sublist(lo, hi + 1));
+      return;
+    }
+
+    if (ctrl) {
+      if (!_multiSelected.remove(taskId)) _multiSelected.add(taskId);
+      _selectionAnchorId = taskId;
+      return;
+    }
+
+    _multiSelected.clear();
+    selectedTaskID = taskId;
+    _selectionAnchorId = taskId;
+  });
+
+  Future<void> _massChangeCategory() async {
+    final picked = await showDialog<int>(context: context, builder: (context) => EditToDoTaskCategoryDialog());
+    if (picked == null) return;
+    for (final id in _multiSelected) {
+      DataModel().todoTasks.byId(id)?.category.value = picked;
+    }
+  }
+
+  Future<void> _massAddTag() async {
+    final tags = await showDialog<List<String>>(context: context, builder: (context) => _MassTagDialog(taskIds: _multiSelected.toList()));
+    if (tags == null || tags.isEmpty) return;
+    for (final id in _multiSelected) {
+      final controller = DataModel().todoTasks.byId(id);
+      if (controller == null) continue;
+      for (final tag in tags) {
+        if (!controller.tags.list.contains(tag)) controller.tags.add(tag);
+      }
+    }
+  }
+
+  void _massSetComplete(bool complete) => setState(() {
+    for (final id in _multiSelected) {
+      DataModel().todoTasks.byId(id)?.isComplete.value = complete;
+    }
+  });
+
+  Future<void> _massDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete ${_multiSelected.length} tasks?'),
+        content: const Text('They\'ll be gone forever! And that\'s a long time ☹️'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('No! Go back!')),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error, foregroundColor: Theme.of(context).colorScheme.onError),
+            onPressed: () => Navigator.of(context).pop(true),
+            icon: const Icon(Symbols.delete_forever),
+            label: const Text('DELETE THEM.'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    for (final id in _multiSelected.toList()) {
+      ToDoTasksModel().deleteTaskById(id);
+    }
+    setState(() => _multiSelected.clear());
+  }
+}
+
+/// The mass-actions toolbar shown instead of the usual "New task" row while
+/// [selectedCount] tasks are multi-selected.
+class _MassActionsToolbar extends StatelessWidget {
+  const _MassActionsToolbar({
+    required this.selectedCount,
+    required this.onAddTag,
+    required this.onChangeCategory,
+    required this.onMarkComplete,
+    required this.onReopen,
+    required this.onDelete,
+    required this.onClear,
+  });
+
+  final int selectedCount;
+  final VoidCallback onAddTag;
+  final VoidCallback onChangeCategory;
+  final VoidCallback onMarkComplete;
+  final VoidCallback onReopen;
+  final VoidCallback onDelete;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(8.0),
+    child: Row(
+      spacing: 4,
+      children: [
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: Text('$selectedCount selected')),
+        Spacer(),
+        IconButton(tooltip: 'Add a tag to all', icon: const Icon(Symbols.sell), onPressed: onAddTag),
+        IconButton(tooltip: 'Change status', icon: const Icon(Symbols.label), onPressed: onChangeCategory),
+        IconButton(tooltip: 'Mark complete', icon: const Icon(Symbols.verified), onPressed: onMarkComplete),
+        IconButton(tooltip: 'Reopen', icon: const Icon(Symbols.verified_off), onPressed: onReopen),
+        IconButton(
+          tooltip: 'Delete',
+          icon: Icon(Symbols.delete_forever, color: Theme.of(context).colorScheme.error),
+          onPressed: onDelete,
+        ),
+        IconButton(tooltip: 'Clear selection', icon: const Icon(Symbols.close), onPressed: onClear),
+      ],
+    ),
+  );
+}
+
+/// Picks one or more tags to add to every task in a mass action — the same
+/// "already used" suggestions [AddTagDialog] offers, minus the linked-work-item
+/// section, since a batch of tasks does not share one obvious set of tickets
+/// to source suggestions from.
+class _MassTagDialog extends StatefulWidget {
+  const _MassTagDialog({required this.taskIds});
+
+  final List<int> taskIds;
+
+  @override
+  State<_MassTagDialog> createState() => _MassTagDialogState();
+}
+
+class _MassTagDialogState extends State<_MassTagDialog> {
+  final Set<String> _picked = {};
+  late final TextEditingController _search;
+
+  @override
+  void initState() {
+    super.initState();
+    _search = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _addFromField(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return;
+    setState(() {
+      _picked.add(trimmed);
+      _search.clear();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final suggestions = DataModel().todoTasks.allUsedTags;
+    return AlertDialog(
+      title: Text('Add a tag to ${widget.taskIds.length} tasks'),
+      constraints: const BoxConstraints(maxWidth: 420),
+      content: SizedBox(
+        width: 380,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: [
+            TextField(
+              autofocus: true,
+              controller: _search,
+              decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Tag name'),
+              onSubmitted: _addFromField,
+            ),
+            if (_picked.isNotEmpty)
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [for (final tag in _picked) InputChip(label: Text(tag), onDeleted: () => setState(() => _picked.remove(tag)))],
+              ),
+            if (suggestions.isNotEmpty) ...[
+              Text('Already used', style: Theme.of(context).textTheme.labelMedium),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final tag in suggestions.where((t) => !_picked.contains(t)))
+                    ActionChip(label: Text(tag), onPressed: () => setState(() => _picked.add(tag))),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        CancelButton(),
+        FilledButton(onPressed: () => Navigator.of(context).pop(_picked.toList()), child: const Text('Apply')),
+      ],
+    );
+  }
 }
 
 /// Dialog to link one or more Jira work items to a (new or existing) to-do task.
