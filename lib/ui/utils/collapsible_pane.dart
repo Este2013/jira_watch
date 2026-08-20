@@ -126,91 +126,124 @@ class _CollapsibleSidePaneState extends State<CollapsibleSidePane> {
   /// the first frame, animating a full slide on every single rebuild.
   bool? _lastIsNarrow;
 
+  /// Collapsing unmounts whatever [widget.left] was actually showing —
+  /// `showLeft` below turns it into a bare `SizedBox.shrink()` once the
+  /// slide finishes — and with it, whatever inside that content held
+  /// keyboard focus (typically an autofocused search field). Key events are
+  /// dispatched from the current primary focus up through its ancestors, so
+  /// once that focus is gone with nothing in this subtree to replace it,
+  /// Ctrl+B stops reaching [CallbackShortcuts] below entirely: it can
+  /// collapse the pane once, but never expand it again. This node exists
+  /// purely so something inside this widget still holds focus afterwards.
+  final _shortcutFocusNode = FocusNode(debugLabel: 'CollapsibleSidePane shortcuts anchor', skipTraversal: true);
+
   @override
   void initState() {
     super.initState();
     controller = widget.controller ?? CollapsibleSidePaneController();
+    controller.addListener(_reclaimFocusIfCollapsed);
   }
 
   @override
-  Widget build(BuildContext context) => CallbackShortcuts(
-    bindings: {LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyB): controller.toggle},
-    child: AnimatedBuilder(
-      animation: controller,
-      builder: (context, _) {
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final bool isNarrow = constraints.maxWidth < widget.breakpoint;
-            final bool crossedBreakpoint = _lastIsNarrow != null && _lastIsNarrow != isNarrow;
-            _lastIsNarrow = isNarrow;
+  void dispose() {
+    controller.removeListener(_reclaimFocusIfCollapsed);
+    _shortcutFocusNode.dispose();
+    super.dispose();
+  }
 
-            // Deferred: reportLayoutMode can change controller.state, which
-            // this AnimatedBuilder listens to — doing that synchronously
-            // inside this very build would try to rebuild while building.
-            WidgetsBinding.instance.addPostFrameCallback((_) => controller.reportLayoutMode(isNarrow));
+  void _reclaimFocusIfCollapsed() {
+    if (controller.state) return;
+    // Deferred past the collapse animation, not just this frame: the old
+    // focus holder is only actually removed once the slide finishes and
+    // showLeft flips to false, and stealing focus any earlier would just
+    // lose to it once it's disposed anyway.
+    Future.delayed(widget.animationDuration + const Duration(milliseconds: 50), () {
+      if (mounted && !controller.state) _shortcutFocusNode.requestFocus();
+    });
+  }
 
-            final double targetWidth = controller.state ? widget.leftWidth : 0;
-            // A breakpoint crossing snaps straight to the target width
-            // instead of sliding through it — the slide is for a deliberate
-            // toggle within the same mode, not for a resize.
-            final double startWidth = crossedBreakpoint ? targetWidth : (controller.state ? 0 : widget.leftWidth);
+  @override
+  Widget build(BuildContext context) => Focus(
+    focusNode: _shortcutFocusNode,
+    child: CallbackShortcuts(
+      bindings: {LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyB): controller.toggle},
+      child: AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) {
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final bool isNarrow = constraints.maxWidth < widget.breakpoint;
+              final bool crossedBreakpoint = _lastIsNarrow != null && _lastIsNarrow != isNarrow;
+              _lastIsNarrow = isNarrow;
 
-            var tweenAnimationBuilder = TweenAnimationBuilder<double>(
-              key: Key('animatedPanel'),
-              tween: Tween<double>(begin: startWidth, end: targetWidth),
-              duration: widget.animationDuration,
-              curve: widget.animationCurve,
-              builder: (context, w, _) {
-                // Only show the heavy/overflow-prone widget when the pane is essentially open.
-                final bool showLeft = w > widget.leftWidth * 0.98;
+              // Deferred: reportLayoutMode can change controller.state, which
+              // this AnimatedBuilder listens to — doing that synchronously
+              // inside this very build would try to rebuild while building.
+              WidgetsBinding.instance.addPostFrameCallback((_) => controller.reportLayoutMode(isNarrow));
 
-                return Row(
-                  mainAxisSize: .min,
+              final double targetWidth = controller.state ? widget.leftWidth : 0;
+              // A breakpoint crossing snaps straight to the target width
+              // instead of sliding through it — the slide is for a deliberate
+              // toggle within the same mode, not for a resize.
+              final double startWidth = crossedBreakpoint ? targetWidth : (controller.state ? 0 : widget.leftWidth);
+
+              var tweenAnimationBuilder = TweenAnimationBuilder<double>(
+                key: Key('animatedPanel'),
+                tween: Tween<double>(begin: startWidth, end: targetWidth),
+                duration: widget.animationDuration,
+                curve: widget.animationCurve,
+                builder: (context, w, _) {
+                  // Only show the heavy/overflow-prone widget when the pane is essentially open.
+                  final bool showLeft = w > widget.leftWidth * 0.98;
+
+                  return Row(
+                    mainAxisSize: .min,
+                    children: [
+                      SizedBox(
+                        width: w,
+                        child: ClipRect(
+                          child: showLeft ? widget.left : const SizedBox.shrink(),
+                        ),
+                      ),
+                      if (w > 8) const VerticalDivider(width: 1),
+                    ],
+                  );
+                },
+              );
+
+              if (isNarrow) {
+                return Stack(
                   children: [
-                    SizedBox(
-                      width: w,
-                      child: ClipRect(
-                        child: showLeft ? widget.left : const SizedBox.shrink(),
+                    Positioned.fill(child: widget.right),
+                    if (controller.state)
+                      Positioned.fill(
+                        child: GestureDetector(
+                          onTap: () {
+                            controller.collapse();
+                          },
+                          child: Container(color: Colors.black.withAlpha(100)),
+                        ),
+                      ),
+                    Positioned.fill(
+                      left: 0,
+                      child: Align(
+                        alignment: .centerLeft,
+                        child: Material(child: tweenAnimationBuilder),
                       ),
                     ),
-                    if (w > 8) const VerticalDivider(width: 1),
                   ],
                 );
-              },
-            );
-
-            if (isNarrow) {
-              return Stack(
+              }
+              return Row(
                 children: [
-                  Positioned.fill(child: widget.right),
-                  if (controller.state)
-                    Positioned.fill(
-                      child: GestureDetector(
-                        onTap: () {
-                          controller.collapse();
-                        },
-                        child: Container(color: Colors.black.withAlpha(100)),
-                      ),
-                    ),
-                  Positioned.fill(
-                    left: 0,
-                    child: Align(
-                      alignment: .centerLeft,
-                      child: Material(child: tweenAnimationBuilder),
-                    ),
-                  ),
+                  tweenAnimationBuilder,
+                  Expanded(child: widget.right),
                 ],
               );
-            }
-            return Row(
-              children: [
-                tweenAnimationBuilder,
-                Expanded(child: widget.right),
-              ],
-            );
-          },
-        );
-      },
+            },
+          );
+        },
+      ),
     ),
   );
 }

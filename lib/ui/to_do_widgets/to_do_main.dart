@@ -38,6 +38,14 @@ class _TodoSearchField extends StatefulWidget {
 class _TodoSearchFieldState extends State<_TodoSearchField> {
   final _focusNode = FocusNode();
 
+  /// The field's value as of the last [optionsBuilder] call — captured
+  /// because by the time [onSelected] fires, RawAutocomplete's own _select()
+  /// has already overwritten the live controller with just the picked
+  /// option's bare text (see its source); reading the controller fresh
+  /// inside onSelected sees that overwrite already applied, not what was
+  /// actually typed, which is exactly what was stripping the # before.
+  TextEditingValue? _lastFieldValue;
+
   @override
   void dispose() {
     _focusNode.dispose();
@@ -64,6 +72,7 @@ class _TodoSearchFieldState extends State<_TodoSearchField> {
     textEditingController: widget.controller,
     focusNode: _focusNode,
     optionsBuilder: (value) {
+      _lastFieldValue = value;
       final active = _activeTagToken(value);
       if (active == null) return const Iterable<String>.empty();
       final query = active.$2.toLowerCase();
@@ -71,10 +80,12 @@ class _TodoSearchFieldState extends State<_TodoSearchField> {
     },
     displayStringForOption: (tag) => tag,
     onSelected: (tag) {
-      final active = _activeTagToken(widget.controller.value);
+      final cached = _lastFieldValue;
+      if (cached == null) return;
+      final active = _activeTagToken(cached);
       if (active == null) return;
       final (start, query) = active;
-      final text = widget.controller.text;
+      final text = cached.text;
       final before = text.substring(0, start);
       final after = text.substring(start + 1 + query.length);
       final completed = '$before#$tag ';
@@ -84,6 +95,11 @@ class _TodoSearchFieldState extends State<_TodoSearchField> {
       autofocus: true,
       controller: controller,
       focusNode: focusNode,
+      // RawAutocomplete's arrow-key handling (bound around this field
+      // regardless of what optionsViewBuilder does) only moves its internal
+      // highlighted index — Enter has to be wired to onFieldSubmitted
+      // explicitly, or nothing actually confirms that highlighted option.
+      onSubmitted: (_) => onFieldSubmitted(),
       decoration: InputDecoration(border: OutlineInputBorder(), icon: Icon(Symbols.search), hint: Text('Search by title, notes, linked work items, or #tag')),
     ),
     optionsViewBuilder: (context, onSelected, options) => Align(
@@ -100,11 +116,19 @@ class _TodoSearchFieldState extends State<_TodoSearchField> {
             itemBuilder: (context, index) {
               final tag = options.elementAt(index);
               final icon = DataModel().todoTasks.iconForTag(tag);
-              return ListTile(
-                dense: true,
-                leading: Icon(icon ?? Symbols.sell, size: 18),
-                title: Text(tag),
-                onTap: () => onSelected(tag),
+              // Arrow-key navigation already moves this index internally;
+              // reading it here — an InheritedNotifier, so this context
+              // rebuilds on its own whenever it changes — is what makes that
+              // visible at all.
+              final highlighted = AutocompleteHighlightedOption.of(context) == index;
+              return Container(
+                color: highlighted ? Theme.of(context).colorScheme.primaryContainer : null,
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(icon ?? Symbols.sell, size: 18),
+                  title: Text(tag),
+                  onTap: () => onSelected(tag),
+                ),
               );
             },
           ),
@@ -473,23 +497,33 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                                 // is also what gives the drop target its
                                 // highlight, so a drag that would create a
                                 // cycle (or land on itself) never lights up as
-                                // droppable in the first place.
-                                return DragTarget<int>(
-                                  onWillAcceptWithDetails: (details) =>
-                                      details.data != taskController.id && !ToDoTasksModel().wouldCreateCycle(details.data, taskController.id),
-                                  onAcceptWithDetails: (details) => ToDoTasksModel().setParent(details.data, taskController.id),
+                                // droppable in the first place. Dragging a
+                                // task that is part of the current
+                                // multi-selection moves every selected task,
+                                // not just the one row long-pressed.
+                                final draggedIds = _multiSelected.contains(taskController.id) && _multiSelected.length > 1
+                                    ? _multiSelected.toList()
+                                    : [taskController.id];
+
+                                return DragTarget<List<int>>(
+                                  onWillAcceptWithDetails: (details) => _canReparentOnto(details.data, taskController.id),
+                                  onAcceptWithDetails: (details) => _reparentAllOnto(details.data, taskController.id),
                                   builder: (context, candidateData, rejectedData) => Container(
                                     decoration: candidateData.isNotEmpty
                                         ? BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2))
                                         : null,
-                                    child: LongPressDraggable<int>(
-                                      data: taskController.id,
+                                    child: LongPressDraggable<List<int>>(
+                                      data: draggedIds,
                                       feedback: Material(
                                         elevation: 4,
                                         borderRadius: BorderRadius.circular(8),
                                         child: Padding(
                                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                          child: Text(taskController.title.text.isEmpty ? 'no title' : taskController.title.text),
+                                          child: Text(
+                                            draggedIds.length > 1
+                                                ? '${draggedIds.length} selected tasks'
+                                                : (taskController.title.text.isEmpty ? 'no title' : taskController.title.text),
+                                          ),
                                         ),
                                       ),
                                       childWhenDragging: Opacity(opacity: 0.4, child: tile),
@@ -560,7 +594,25 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                           padding: const EdgeInsets.all(16),
                           child: Center(
                             child: isAnyTaskSelected
-                                ? TaskDetailNavigator(rootTaskId: selectedTaskID!, key: ValueKey(selectedTaskID))
+                                // Dropping a task here makes it a child of
+                                // whichever task is currently open, so
+                                // reparenting onto something is not limited
+                                // to whatever else happens to be visible (and
+                                // in range to drag onto) in the list on the
+                                // left.
+                                ? DragTarget<List<int>>(
+                                    onWillAcceptWithDetails: (details) => _canReparentOnto(details.data, selectedTaskID!),
+                                    onAcceptWithDetails: (details) => _reparentAllOnto(details.data, selectedTaskID!),
+                                    builder: (context, candidateData, rejectedData) => Container(
+                                      decoration: candidateData.isNotEmpty
+                                          ? BoxDecoration(
+                                              border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2),
+                                              borderRadius: BorderRadius.circular(8),
+                                            )
+                                          : null,
+                                      child: TaskDetailNavigator(rootTaskId: selectedTaskID!, key: ValueKey(selectedTaskID)),
+                                    ),
+                                  )
                                 : Text('← Select a task in the list to your left to start working on it'),
                           ),
                         ),
@@ -611,6 +663,22 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
     selectedTaskID = taskId;
     _selectionAnchorId = taskId;
   });
+
+  /// Whether dropping [draggedIds] onto [targetId] would do anything at
+  /// all — true as soon as at least one of them is actually eligible (not
+  /// the target itself, not a cycle), which is also what decides whether a
+  /// drop target lights up while something hovers over it. A drop that goes
+  /// through only reparents whichever of [draggedIds] are actually eligible;
+  /// see [_reparentAllOnto].
+  bool _canReparentOnto(List<int> draggedIds, int targetId) =>
+      draggedIds.any((id) => id != targetId && !ToDoTasksModel().wouldCreateCycle(id, targetId));
+
+  void _reparentAllOnto(List<int> draggedIds, int targetId) {
+    for (final id in draggedIds) {
+      if (id == targetId) continue;
+      ToDoTasksModel().setParent(id, targetId);
+    }
+  }
 
   Future<void> _massChangeCategory() async {
     final picked = await showDialog<int>(context: context, builder: (context) => EditToDoTaskCategoryDialog());

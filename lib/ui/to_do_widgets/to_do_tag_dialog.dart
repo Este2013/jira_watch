@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/to_do_tasks_models.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_branch_icons.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 /// Fetches the Jira labels and component names of [workItemKeys], for the
@@ -52,6 +53,13 @@ class _AddTagDialogState extends State<AddTagDialog> {
   Set<String> _ticketTags = {};
   bool _loadingTicketTags = true;
 
+  /// An icon staged via the leading button, applied to whatever tag ends up
+  /// being added next — whether that is the typed text or a suggestion chip,
+  /// which is what lets this also re-icon a recommended tag rather than only
+  /// ever apply to a freshly-typed one. Reset after each add so it does not
+  /// leak onto an unrelated tag added afterwards.
+  String? _pendingIconName;
+
   @override
   void initState() {
     super.initState();
@@ -80,9 +88,19 @@ class _AddTagDialogState extends State<AddTagDialog> {
     // ObservableList.contains is typed to int regardless of the list's own
     // element type — a quirk of that package, not something to work around
     // by casting; .list is a plain List<String> and does not have it.
-    if (trimmed.isEmpty || widget.taskController.tags.list.contains(trimmed)) return;
-    widget.taskController.tags.add(trimmed);
-    _search.clear();
+    if (trimmed.isEmpty) return;
+    if (!widget.taskController.tags.list.contains(trimmed)) widget.taskController.tags.add(trimmed);
+    final stagedIcon = _pendingIconName;
+    if (stagedIcon != null) ToDoTasksModel().setTagIcon(trimmed, stagedIcon);
+    setState(() {
+      _search.clear();
+      _pendingIconName = null;
+    });
+  }
+
+  Future<void> _pickPendingIcon() async {
+    final picked = await showDialog<String>(context: context, builder: (context) => GitLabBranchIconPickerDialog(selected: _pendingIconName ?? 'label'));
+    if (picked != null) setState(() => _pendingIconName = picked);
   }
 
   @override
@@ -119,7 +137,15 @@ class _AddTagDialogState extends State<AddTagDialog> {
             TextField(
               autofocus: true,
               controller: _search,
-              decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Tag name'),
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: 'Tag name',
+                prefixIcon: IconButton(
+                  tooltip: 'Choose an icon for this tag',
+                  icon: Icon(gitLabBranchIcon(_pendingIconName ?? 'label')),
+                  onPressed: _pickPendingIcon,
+                ),
+              ),
               onSubmitted: _add,
             ),
             if (_loadingTicketTags) const LinearProgressIndicator(),
@@ -149,7 +175,18 @@ class _AddTagDialogState extends State<AddTagDialog> {
           ],
         ),
       ),
-      actions: [FilledButton(onPressed: Navigator.of(context).pop, child: const Text('Done'))],
+      actions: [
+        FilledButton(
+          // Whatever is still typed but never got submitted (no Enter, no
+          // suggestion tapped) would otherwise be silently dropped — Done
+          // means "I'm finished", not "throw away what I just typed".
+          onPressed: () {
+            _add(_search.text);
+            Navigator.of(context).pop();
+          },
+          child: const Text('Done'),
+        ),
+      ],
     );
   }
 }
