@@ -21,7 +21,7 @@ class NotificationBellButton extends StatefulWidget {
 
 class _NotificationBellButtonState extends State<NotificationBellButton> {
   final _link = LayerLink();
-  final _bellKey = GlobalKey<_BellState>();
+  final _bellKey = GlobalKey<_BellIconState>();
   OverlayEntry? _flyoutEntry;
   OverlayEntry? _bubbleEntry;
   Timer? _bubbleTimer;
@@ -129,7 +129,7 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
             count: model.unreadCount,
             isLabelVisible: model.unreadCount > 0,
             offset: const Offset(8, -4),
-            child: _Bell(key: _bellKey, color: bellColor),
+            child: BellIcon(key: _bellKey, color: bellColor),
           ),
         ),
       );
@@ -147,16 +147,16 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
 /// one) without waiting on an upstream release: the original has no stroke
 /// content at all, only two filled shapes, so there is currently no line art
 /// to fall back on once the fill is removed — only empty space.
-class _Bell extends StatefulWidget {
-  const _Bell({super.key, required this.color});
+class BellIcon extends StatefulWidget {
+  const BellIcon({super.key, required this.color});
 
   final Color color;
 
   @override
-  State<_Bell> createState() => _BellState();
+  State<BellIcon> createState() => _BellIconState();
 }
 
-class _BellState extends State<_Bell> with SingleTickerProviderStateMixin {
+class _BellIconState extends State<BellIcon> with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
   @override
@@ -176,7 +176,7 @@ class _BellState extends State<_Bell> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) => Lottie.asset(
-    'assets/icons/bell.json',
+    'assets/icons/bell-outlined-balanced.json',
     controller: _controller,
     // The real duration, from the asset itself — nothing here has to guess
     // at how long a ring takes.
@@ -184,14 +184,18 @@ class _BellState extends State<_Bell> with SingleTickerProviderStateMixin {
     height: 24,
     width: 24,
     addRepaintBoundary: true,
-    // A single recursive wildcard covers every fill in the composition
-    // regardless of how the asset's groups end up named or how many of them
-    // there are — handy since this file may itself change by hand. Safe
-    // because every fill here is fully opaque already; only the hue changes,
-    // not the coverage a matte layer elsewhere might depend on.
+    // Two recursive wildcards rather than one: color only recolors fill
+    // content, strokeColor only recolors stroke content, and an outlined
+    // hand-edit of this asset can carry either or both (bell-outlined-balanced.json
+    // currently has one leftover fill alongside its three strokes). Covering
+    // both regardless of how the asset's groups end up named, or how many of
+    // them there are, means a future hand-edit does not need this code
+    // touched too. Safe since every fill/stroke here is fully opaque already;
+    // only the hue changes, not the coverage a matte layer might depend on.
     delegates: LottieDelegates(
       values: [
         ValueDelegate.color(const ['**'], value: widget.color),
+        ValueDelegate.strokeColor(const ['**'], value: widget.color),
       ],
     ),
   );

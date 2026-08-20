@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:fading_edge_scrollview/fading_edge_scrollview.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:jira_watcher/dao/gitlab_dao.dart';
@@ -22,6 +23,7 @@ import 'package:jira_watcher/ui/utils/json_viewer.dart';
 import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
 import 'package:jira_watcher/ui/utils/widgets/dialog_widgets.dart/action_buttons.dart';
 import 'package:jira_watcher/ui/utils/widgets/github_button.dart';
+import 'package:jira_watcher/ui/utils/widgets/notification_center.dart';
 import 'package:jira_watcher/utils/local_auth.dart';
 import 'package:jira_watcher/utils/string_utils.dart';
 import 'package:loggy/loggy.dart';
@@ -959,6 +961,25 @@ class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                         icon: Icon(Symbols.add_alert),
                         onPressed: () => _createDiagnosticNotification(context),
                       ),
+                      if (kDebugMode)
+                        IconButton(
+                          tooltip: 'Test icon render',
+                          icon: Icon(Symbols.draw),
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => Scaffold(
+                                appBar: AppBar(
+                                  title: Text('Test icon rendering'),
+                                ),
+                                body: Center(
+                                  child: BellIcon(
+                                    color: Theme.of(context).brightness == Brightness.light ? Colors.black : Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ],
