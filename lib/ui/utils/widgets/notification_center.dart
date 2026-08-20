@@ -111,6 +111,12 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
         return const SizedBox.shrink();
       }
 
+      final railTheme = Theme.of(context).navigationRailTheme;
+      // Matches whatever the rest of the rail's icons are colored — the same
+      // muted tone as the settings gear below it, not whatever the ambient
+      // IconTheme happens to resolve to outside the rail's own destinations.
+      final bellColor = railTheme.unselectedIconTheme?.color ?? Theme.of(context).colorScheme.onSurfaceVariant;
+
       return CompositedTransformTarget(
         link: _link,
         child: IconButton(
@@ -123,7 +129,7 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
             count: model.unreadCount,
             isLabelVisible: model.unreadCount > 0,
             offset: const Offset(8, -4),
-            child: _Bell(key: _bellKey, color: IconTheme.of(context).color ?? Theme.of(context).colorScheme.onSurfaceVariant),
+            child: _Bell(key: _bellKey, color: bellColor),
           ),
         ),
       );
@@ -134,13 +140,17 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
 /// The bell glyph, driven directly through Lottie rather than through the
 /// animated_icon package's own [Widget] wrapper — which this still borrows
 /// the bundled bell animation from (see the asset path below), but whose
-/// wrapper does not support three things needed here: replaying the ring
-/// from code rather than only from a tap or hover on its own internal
-/// InkWell (it exposes no controller), a real [IconButton] hover halo (its
-/// InkWell hugs the icon's bounding box instead of a circular tap target),
-/// and an outline rather than a filled bell (its own recoloring always
-/// paints the interior solid, which reads as a much heavier weight than the
-/// thin outlined Material Symbols used everywhere else in the rail).
+/// wrapper does not support two things needed here: replaying the ring from
+/// code rather than only from a tap or hover on its own internal InkWell (it
+/// exposes no controller), and a real [IconButton] hover halo (its InkWell
+/// hugs the icon's bounding box instead of a circular tap target).
+///
+/// Stays a filled bell rather than an outline: the asset itself has no
+/// stroke content at all, only two filled shapes (confirmed by inspecting
+/// the bundled bell.json directly) — there is no line art to fall back on
+/// once the fill is removed, only empty space. An outline would mean hand
+/// authoring stroke shapes into the asset, not something a runtime recolor
+/// can produce.
 class _Bell extends StatefulWidget {
   const _Bell({super.key, required this.color});
 
@@ -180,16 +190,14 @@ class _BellState extends State<_Bell> with SingleTickerProviderStateMixin {
     height: 24,
     width: 24,
     addRepaintBoundary: true,
-
-    // Same two group/fill key paths the animated_icon package's own widget
-    // recolors for this asset — reused here because they are known to cover
-    // the whole bell, just aimed at an outline instead of a fill.
+    // A single recursive wildcard rather than the animated_icon package's own
+    // two hand-picked group paths — broader, so it is not thrown off by
+    // exactly how many groups a given asset happens to have, and safe here
+    // since every fill in this asset is fully opaque already; only the hue
+    // changes, not the coverage a matte layer elsewhere might depend on.
     delegates: LottieDelegates(
       values: [
-        ValueDelegate.strokeColor(const ['lottie Outlines', 'Group 1', '**'], value: widget.color),
-        ValueDelegate.strokeColor(const ['lottie Outlines', 'Group 2', '**'], value: widget.color),
-        ValueDelegate.color(const ['lottie Outlines', 'Group 2', 'Fill 1'], value: const Color(0x00000000)),
-        ValueDelegate.color(const ['lottie Outlines', 'Group 1', 'Fill 1'], value: const Color(0x00000000)),
+        ValueDelegate.color(const ['**'], value: widget.color),
       ],
     ),
   );
@@ -406,13 +414,13 @@ class _LoudNotificationBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: CustomPaint(
-              size: const Size(8, 14),
-              painter: _BubbleTailPainter(color: color),
-            ),
-          ),
+          // Padding(
+          //   padding: const EdgeInsets.only(bottom: 16),
+          //   child: CustomPaint(
+          //     size: const Size(8, 14),
+          //     painter: _BubbleTailPainter(color: color),
+          //   ),
+          // ),
           Material(
             elevation: 8,
             color: color,
