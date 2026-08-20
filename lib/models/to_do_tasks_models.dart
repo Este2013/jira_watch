@@ -284,8 +284,16 @@ class ToDoTasksModel with GlobalLoggy {
   }
 
   IconData? iconForTag(String tag) {
+    final name = iconNameForTag(tag);
+    return name == null ? null : gitLabBranchIcon(name);
+  }
+
+  /// The raw icon name a tag was given, if any — what a picker dialog needs
+  /// to preselect the current choice, as opposed to [iconForTag]'s resolved
+  /// [IconData].
+  String? iconNameForTag(String tag) {
     for (final entry in tagIconRegistry.list) {
-      if (entry.tag == tag) return gitLabBranchIcon(entry.iconName);
+      if (entry.tag == tag) return entry.iconName;
     }
     return null;
   }

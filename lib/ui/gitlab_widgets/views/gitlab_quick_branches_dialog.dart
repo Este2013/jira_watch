@@ -233,53 +233,6 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
     }
   }
 
-  Future<void> _pickFromFullList() async {
-    final picked = await showDialog<String>(
-      context: context,
-      builder: (context) => GitLabBranchIconPickerDialog(selected: _iconName),
-    );
-    if (picked != null) setState(() => _iconName = picked);
-  }
-
-  Widget _iconPicker(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    // The current icon is always offered even when it is not one of the
-    // quick-select defaults — picked via the full list, it should still show
-    // as selected here rather than looking like nothing was chosen.
-    final quickNames = gitLabBranchQuickIconNames.contains(_iconName)
-        ? gitLabBranchQuickIconNames
-        : [...gitLabBranchQuickIconNames, _iconName];
-
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        for (final name in quickNames)
-          InkWell(
-            borderRadius: BorderRadius.circular(8),
-            onTap: () => setState(() => _iconName = name),
-            child: Container(
-              width: 36,
-              height: 36,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: name == _iconName ? colors.primaryContainer : null,
-                border: name == _iconName ? Border.all(color: colors.primary) : null,
-              ),
-              child: Icon(gitLabBranchIcon(name), fill: name == _iconName ? 1 : 0),
-            ),
-          ),
-        IconButton(
-          tooltip: 'More icons…',
-          icon: const Icon(Symbols.more_horiz),
-          onPressed: _pickFromFullList,
-        ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text(widget.rule.label.isEmpty ? 'New favorite branch' : 'Edit favorite branch'),
@@ -296,7 +249,7 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
             decoration: const InputDecoration(labelText: 'Label', helperText: 'Shown on the chip'),
             onChanged: (_) => setState(() {}),
           ),
-          _iconPicker(context),
+          IconChoiceRow(selected: _iconName, onChanged: (name) => setState(() => _iconName = name)),
           SegmentedButton<GitLabBranchMatchType>(
             segments: [
               for (final type in GitLabBranchMatchType.values) ButtonSegment(value: type, label: Text(type.label)),

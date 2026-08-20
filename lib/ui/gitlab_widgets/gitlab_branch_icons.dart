@@ -167,9 +167,11 @@ const Map<String, IconData> gitLabBranchIconChoices = {
   'card_giftcard': Symbols.card_giftcard,
 };
 
-/// A handful of icons offered directly in the rule editor, without opening the
-/// full picker — chosen for what a favorite branch is usually named after:
-/// releases, hotfixes, work in progress, and the default star.
+/// A handful of icons offered directly, without opening the full picker —
+/// chosen for what a favorite branch is usually named after: releases,
+/// hotfixes, work in progress, and the default star. Also reused as-is
+/// wherever else something needs an icon from this same list (a to-do tag,
+/// a custom task category) — see [IconChoiceRow].
 const List<String> gitLabBranchQuickIconNames = [
   'star',
   'bolt',
@@ -185,6 +187,68 @@ const List<String> gitLabBranchQuickIconNames = [
 /// not in [gitLabBranchIconChoices] — including names a future version of the
 /// app might add that this build has never heard of.
 IconData gitLabBranchIcon(String name) => gitLabBranchIconChoices[name] ?? Symbols.star;
+
+/// A row of quick-pick icon choices plus a "More icons…" button that opens
+/// [GitLabBranchIconPickerDialog] for the rest.
+///
+/// The one icon-choice UI for anything that lets a reader pick from
+/// [gitLabBranchIconChoices] — a GitLab favorite branch originally, and now
+/// also a to-do tag or a custom task category, which have nothing to do with
+/// GitLab branches themselves but want the exact same picker.
+class IconChoiceRow extends StatelessWidget {
+  const IconChoiceRow({super.key, required this.selected, required this.onChanged});
+
+  /// The currently-chosen icon name.
+  final String selected;
+
+  final ValueChanged<String> onChanged;
+
+  Future<void> _pickFromFullList(BuildContext context) async {
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (context) => GitLabBranchIconPickerDialog(selected: selected),
+    );
+    if (picked != null) onChanged(picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    // The current icon is always offered even when it is not one of the
+    // quick-select defaults — picked via the full list, it should still show
+    // as selected here rather than looking like nothing was chosen.
+    final quickNames = gitLabBranchQuickIconNames.contains(selected) ? gitLabBranchQuickIconNames : [...gitLabBranchQuickIconNames, selected];
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        for (final name in quickNames)
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => onChanged(name),
+            child: Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                color: name == selected ? colors.primaryContainer : null,
+                border: name == selected ? Border.all(color: colors.primary) : null,
+              ),
+              child: Icon(gitLabBranchIcon(name), fill: name == selected ? 1 : 0),
+            ),
+          ),
+        IconButton(
+          tooltip: 'More icons…',
+          icon: const Icon(Symbols.more_horiz),
+          onPressed: () => _pickFromFullList(context),
+        ),
+      ],
+    );
+  }
+}
 
 /// Lets the reader search the full icon list by typing part of its name.
 class GitLabBranchIconPickerDialog extends StatefulWidget {

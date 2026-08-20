@@ -3,12 +3,116 @@ import 'package:flutter/services.dart';
 import 'package:jira_watcher/models/jira_work_item_data.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/to_do_tasks_models.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_branch_icons.dart';
 import 'package:jira_watcher/ui/utils/collapsible_pane.dart';
 import 'package:jira_watcher/ui/utils/widgets/dialog_widgets.dart/action_buttons.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'to_do_single_item_view.dart';
+
+/// Splits [rawSearch] into the `#tag` tokens it names and whatever ordinary
+/// text is left over, for the task list's combined tag + free-text search —
+/// `#bug fix the thing #urgent` means "tagged bug AND urgent, containing
+/// 'fix the thing'".
+(List<String> tags, String freeText) parseTaskSearch(String rawSearch) {
+  final tags = RegExp(r'#(\S+)').allMatches(rawSearch).map((m) => m.group(1)!.toLowerCase()).toList();
+  final freeText = rawSearch.replaceAll(RegExp(r'#\S+'), '').trim().toLowerCase();
+  return (tags, freeText);
+}
+
+/// The task list's search field. A plain [TextField] except for one thing:
+/// typing `#` opens a dropdown of every tag currently in use, matching
+/// whatever has been typed of the current `#token` so far — accepting a
+/// suggestion completes just that token, leaving the rest of the query (a
+/// previous `#tag`, or ordinary search text) alone.
+class _TodoSearchField extends StatefulWidget {
+  const _TodoSearchField({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  State<_TodoSearchField> createState() => _TodoSearchFieldState();
+}
+
+class _TodoSearchFieldState extends State<_TodoSearchField> {
+  final _focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  /// The `#tag` token touching the caret in [value], if any: where it starts
+  /// in the full text, and what has been typed of it so far. Null once the
+  /// token is "closed" (a space typed after it), so finishing one tag and
+  /// typing ordinary text afterwards does not keep completing the old one.
+  (int start, String query)? _activeTagToken(TextEditingValue value) {
+    final caret = value.selection.baseOffset;
+    if (caret < 0 || caret > value.text.length) return null;
+    final upToCaret = value.text.substring(0, caret);
+    final hashAt = upToCaret.lastIndexOf('#');
+    if (hashAt < 0) return null;
+    final token = upToCaret.substring(hashAt + 1);
+    if (token.contains(' ')) return null;
+    return (hashAt, token);
+  }
+
+  @override
+  Widget build(BuildContext context) => RawAutocomplete<String>(
+    textEditingController: widget.controller,
+    focusNode: _focusNode,
+    optionsBuilder: (value) {
+      final active = _activeTagToken(value);
+      if (active == null) return const Iterable<String>.empty();
+      final query = active.$2.toLowerCase();
+      return DataModel().todoTasks.allUsedTags.where((tag) => tag.toLowerCase().contains(query));
+    },
+    displayStringForOption: (tag) => tag,
+    onSelected: (tag) {
+      final active = _activeTagToken(widget.controller.value);
+      if (active == null) return;
+      final (start, query) = active;
+      final text = widget.controller.text;
+      final before = text.substring(0, start);
+      final after = text.substring(start + 1 + query.length);
+      final completed = '$before#$tag ';
+      widget.controller.value = TextEditingValue(text: '$completed$after', selection: TextSelection.collapsed(offset: completed.length));
+    },
+    fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) => TextField(
+      autofocus: true,
+      controller: controller,
+      focusNode: focusNode,
+      decoration: InputDecoration(border: OutlineInputBorder(), icon: Icon(Symbols.search), hint: Text('Search by title, notes, linked work items, or #tag')),
+    ),
+    optionsViewBuilder: (context, onSelected, options) => Align(
+      alignment: Alignment.topLeft,
+      child: Material(
+        elevation: 4,
+        borderRadius: BorderRadius.circular(8),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 220, maxWidth: 320),
+          child: ListView.builder(
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            itemCount: options.length,
+            itemBuilder: (context, index) {
+              final tag = options.elementAt(index);
+              final icon = DataModel().todoTasks.iconForTag(tag);
+              return ListTile(
+                dense: true,
+                leading: Icon(icon ?? Symbols.sell, size: 18),
+                title: Text(tag),
+                onTap: () => onSelected(tag),
+              );
+            },
+          ),
+        ),
+      ),
+    ),
+  );
+}
 
 enum _TodoPageSortMode {
   creationNewer(Symbols.clock_arrow_down, 'Newer first'),
@@ -121,21 +225,24 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                         ],
                       ),
                     ),
-                    for (var c in DefaultTaskCategory.values.where(
-                      (cat) => DataModel().todoTasks.toDoTasksControllers.list.any(
-                        (e) => e.category.value == cat.id,
-                      ),
-                    ))
+                    for (var categoryId in {
+                      ...DefaultTaskCategory.values.map((c) => c.id),
+                      ...DataModel().todoTasks.customCategories.list.map((c) => c.id),
+                    }.where((id) => DataModel().todoTasks.toDoTasksControllers.list.any((e) => e.category.value == id)))
                       PopupMenuItem<String>(
-                        value: c.id.toString(),
-
-                        child: Row(
-                          spacing: 16,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(c.icon, color: c.color),
-                            Text(c.displayName),
-                          ],
+                        value: categoryId.toString(),
+                        child: Builder(
+                          builder: (context) {
+                            final categoryData = ToDoTask.categoryDataFrom(categoryId);
+                            return Row(
+                              spacing: 16,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(categoryData.$2, color: categoryData.$3),
+                                Text(categoryData.$1),
+                              ],
+                            );
+                          },
                         ),
                       ),
                   ],
@@ -186,11 +293,7 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
           Divider(),
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              autofocus: true,
-              controller: searchController,
-              decoration: InputDecoration(border: OutlineInputBorder(), icon: Icon(Symbols.search), hint: Text('Search by title, notes, or linked work items')),
-            ),
+            child: _TodoSearchField(controller: searchController),
           ),
           // Task list
           Expanded(
@@ -231,14 +334,18 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                             )
                             .where(
                               (e) {
-                                String search = searchController.text.toLowerCase();
-                                return search.isEmpty ||
-                                    e.title.text.toLowerCase().contains(search) ||
-                                    e.notes.text.toLowerCase().contains(search) ||
+                                final (tags, freeText) = parseTaskSearch(searchController.text);
+                                if (tags.isNotEmpty) {
+                                  final taskTags = e.tags.list.map((t) => t.toLowerCase()).toSet();
+                                  if (!tags.every(taskTags.contains)) return false;
+                                }
+                                return freeText.isEmpty ||
+                                    e.title.text.toLowerCase().contains(freeText) ||
+                                    e.notes.text.toLowerCase().contains(freeText) ||
                                     e.linkedWorkItems.list
                                         .map((e) => e.toLowerCase())
                                         .any(
-                                          (e2) => e2.contains(search),
+                                          (e2) => e2.contains(freeText),
                                         );
                               },
                             )
@@ -534,28 +641,23 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
                           ),
                           Builder(
                             builder: (context) {
-                              if (categoryID < 0) {
-                                // default icons
-                                DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == categoryID, orElse: () => DefaultTaskCategory.forLater);
-                                return IconButton(
-                                  tooltip: cat.displayName,
-                                  icon: Icon(cat.icon, color: cat.color),
-                                  onPressed: () =>
-                                      showDialog<int>(
-                                        context: context,
-                                        builder: (context) => EditToDoTaskCategoryDialog(),
-                                      ).then(
-                                        (value) {
-                                          if (value == null) return;
-                                          setState(() {
-                                            categoryID = value;
-                                          });
-                                        },
-                                      ),
-                                );
-                              }
-                              // TODO custom categories
-                              throw UnimplementedError();
+                              final categoryData = ToDoTask.categoryDataFrom(categoryID);
+                              return IconButton(
+                                tooltip: categoryData.$1,
+                                icon: Icon(categoryData.$2, color: categoryData.$3),
+                                onPressed: () =>
+                                    showDialog<int>(
+                                      context: context,
+                                      builder: (context) => EditToDoTaskCategoryDialog(),
+                                    ).then(
+                                      (value) {
+                                        if (value == null) return;
+                                        setState(() {
+                                          categoryID = value;
+                                        });
+                                      },
+                                    ),
+                              );
                             },
                           ),
                         ],
@@ -723,17 +825,30 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
   }
 }
 
-class EditToDoTaskCategoryDialog extends StatelessWidget {
-  const EditToDoTaskCategoryDialog({
-    super.key,
-  });
+class EditToDoTaskCategoryDialog extends StatefulWidget {
+  const EditToDoTaskCategoryDialog({super.key});
+
+  @override
+  State<EditToDoTaskCategoryDialog> createState() => _EditToDoTaskCategoryDialogState();
+}
+
+class _EditToDoTaskCategoryDialogState extends State<EditToDoTaskCategoryDialog> {
+  Future<void> _createOrEditCustom({CustomTaskCategory? edited}) async {
+    final result = await showDialog<CustomTaskCategory>(
+      context: context,
+      builder: (context) => _CustomCategoryEditorDialog(edited: edited),
+    );
+    if (result == null || !mounted) return;
+    ToDoTasksModel().addOrUpdateCustomCategory(result);
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text('Choose a task category'),
     content: SizedBox(
-      width: 300,
-      height: 300,
+      width: 340,
+      height: 340,
       child: GridView.count(
         crossAxisCount: 3,
         children: [
@@ -755,9 +870,125 @@ class EditToDoTaskCategoryDialog extends StatelessWidget {
                 ),
               ),
             ),
-          // TODO custom categories
+          for (var cat in ToDoTasksModel().customCategories.list)
+            GridTile(
+              footer: Text(
+                cat.label,
+                style: Theme.of(context).textTheme.bodySmall,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  InkWell(
+                    onTap: () => Navigator.of(context).pop(cat.id),
+                    child: Icon(gitLabBranchIcon(cat.iconName), size: 48, fill: 1),
+                  ),
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: IconButton(
+                      tooltip: 'Edit this status',
+                      iconSize: 16,
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Symbols.edit),
+                      onPressed: () => _createOrEditCustom(edited: cat),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          GridTile(
+            footer: Text(
+              'New status',
+              style: Theme.of(context).textTheme.bodySmall,
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+            ),
+            child: InkWell(
+              onTap: () => _createOrEditCustom(),
+              child: const Icon(Symbols.add, size: 48),
+            ),
+          ),
         ],
       ),
     ),
+  );
+}
+
+/// Creates or edits a [CustomTaskCategory] — a label and an icon from
+/// [IconChoiceRow]. Pops the finished category, or null if cancelled.
+class _CustomCategoryEditorDialog extends StatefulWidget {
+  const _CustomCategoryEditorDialog({this.edited});
+
+  final CustomTaskCategory? edited;
+
+  @override
+  State<_CustomCategoryEditorDialog> createState() => _CustomCategoryEditorDialogState();
+}
+
+class _CustomCategoryEditorDialogState extends State<_CustomCategoryEditorDialog> {
+  late TextEditingController _label;
+  late String _iconName;
+
+  @override
+  void initState() {
+    super.initState();
+    _label = TextEditingController(text: widget.edited?.label ?? '');
+    _iconName = widget.edited?.iconName ?? 'label';
+  }
+
+  @override
+  void dispose() {
+    _label.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.edited == null ? 'New status' : 'Edit status'),
+    constraints: const BoxConstraints(maxWidth: 420),
+    content: SizedBox(
+      width: 380,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 12,
+        children: [
+          TextField(
+            controller: _label,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'Label'),
+            onChanged: (_) => setState(() {}),
+          ),
+          IconChoiceRow(selected: _iconName, onChanged: (name) => setState(() => _iconName = name)),
+        ],
+      ),
+    ),
+    actions: [
+      if (widget.edited != null)
+        TextButton(
+          style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+          onPressed: () {
+            ToDoTasksModel().deleteCustomCategory(widget.edited!.id);
+            Navigator.of(context).pop();
+          },
+          child: const Text('Delete'),
+        ),
+      CancelButton(),
+      FilledButton(
+        onPressed: _label.text.trim().isEmpty
+            ? null
+            : () => Navigator.of(context).pop(
+                CustomTaskCategory(
+                  id: widget.edited?.id ?? ToDoTasksModel().nextCustomCategoryId(),
+                  label: _label.text.trim(),
+                  iconName: _iconName,
+                ),
+              ),
+        child: const Text('Save'),
+      ),
+    ],
   );
 }

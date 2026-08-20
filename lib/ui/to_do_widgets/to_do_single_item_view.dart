@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/to_do_tasks_models.dart';
+import 'package:jira_watcher/ui/gitlab_widgets/gitlab_branch_icons.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
+import 'package:jira_watcher/ui/to_do_widgets/to_do_tag_dialog.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_work_item_search.dart';
 import 'package:jira_watcher/ui/utils/labelled_text_presenter.dart';
@@ -24,14 +26,21 @@ class SingleTaskView extends StatefulWidget {
 }
 
 class _SingleTaskViewState extends State<SingleTaskView> {
-  late bool takingNotes, linkingItems, usingTimeline;
+  late bool takingNotes, linkingItems, usingTimeline, usingTags;
 
   @override
   void initState() {
     takingNotes = widget.taskController.notes.text.trim().isNotEmpty;
     linkingItems = widget.taskController.linkedWorkItems.isNotEmpty;
     usingTimeline = widget.taskController.events.isNotEmpty;
+    usingTags = widget.taskController.tags.isNotEmpty;
     super.initState();
+  }
+
+  Future<void> _pickTagIcon(String tag) async {
+    final currentName = ToDoTasksModel().iconNameForTag(tag) ?? 'label';
+    final picked = await showDialog<String>(context: context, builder: (context) => GitLabBranchIconPickerDialog(selected: currentName));
+    if (picked != null) ToDoTasksModel().setTagIcon(tag, picked);
   }
 
   void save() => ToDoTasksModel().editTask(widget.taskController.toToDoTask());
@@ -65,33 +74,27 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                         AnimatedBuilder(
                           animation: widget.taskController.category,
                           builder: (context, _) {
-                            int category = widget.taskController.category.value;
-                            if (category < 0) {
-                              // default icons
-                              DefaultTaskCategory cat = DefaultTaskCategory.values.firstWhere((c) => c.id == widget.taskController.category.value, orElse: () => DefaultTaskCategory.forLater);
-                              return IconButton(
-                                icon: Row(
-                                  spacing: 8,
-                                  children: [
-                                    Icon(cat.icon, color: cat.color, fill: 1),
-                                    Text(cat.displayName, style: Theme.of(context).textTheme.titleMedium),
-                                  ],
-                                ),
-                                onPressed: () =>
-                                    showDialog<int>(
-                                      context: context,
-                                      builder: (context) => EditToDoTaskCategoryDialog(),
-                                    ).then(
-                                      (value) {
-                                        if (value == null) return;
-                                        widget.taskController.category.value = value;
-                                        ToDoTasksModel().editTask(widget.taskController.toToDoTask());
-                                      },
-                                    ),
-                              );
-                            }
-                            // TODO custom categories
-                            throw UnimplementedError();
+                            final categoryData = ToDoTask.categoryDataFrom(widget.taskController.category.value);
+                            return IconButton(
+                              icon: Row(
+                                spacing: 8,
+                                children: [
+                                  Icon(categoryData.$2, color: categoryData.$3, fill: 1),
+                                  Text(categoryData.$1, style: Theme.of(context).textTheme.titleMedium),
+                                ],
+                              ),
+                              onPressed: () =>
+                                  showDialog<int>(
+                                    context: context,
+                                    builder: (context) => EditToDoTaskCategoryDialog(),
+                                  ).then(
+                                    (value) {
+                                      if (value == null) return;
+                                      widget.taskController.category.value = value;
+                                      ToDoTasksModel().editTask(widget.taskController.toToDoTask());
+                                    },
+                                  ),
+                            );
                           },
                         ),
                       ],
@@ -137,6 +140,18 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                                     usingTimeline = true;
                                   });
                                 },
+                              );
+                            },
+                          ),
+                        if (!usingTags)
+                          ActionChip(
+                            avatar: Icon(Symbols.sell),
+                            label: Text('Add tags'),
+                            onPressed: () {
+                              showDialog(context: context, builder: (context) => AddTagDialog(taskController: widget.taskController)).then(
+                                (_) => setState(() {
+                                  usingTags = widget.taskController.tags.isNotEmpty;
+                                }),
                               );
                             },
                           ),
@@ -271,6 +286,41 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                                         widget.taskController.events[id] = value;
                                       },
                                     ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (usingTags) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Row(
+                          spacing: 8,
+                          children: [
+                            Text('Tags', style: Theme.of(context).textTheme.titleMedium),
+                            Spacer(),
+                            TextButton.icon(
+                              icon: Icon(Symbols.sell),
+                              label: Text('Add a tag'),
+                              onPressed: () => showDialog(context: context, builder: (context) => AddTagDialog(taskController: widget.taskController)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      AnimatedBuilder(
+                        animation: widget.taskController.tags,
+                        builder: (context, child) => Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            if (widget.taskController.tags.list.isEmpty) Text('No tags yet'),
+                            for (final tag in widget.taskController.tags.list)
+                              InputChip(
+                                avatar: Icon(ToDoTasksModel().iconForTag(tag) ?? Symbols.sell, size: 16),
+                                label: Text(tag),
+                                tooltip: 'Change this tag\'s icon',
+                                onPressed: () => _pickTagIcon(tag),
+                                onDeleted: () => widget.taskController.tags.remove(tag),
                               ),
                           ],
                         ),
