@@ -1,4 +1,11 @@
 {
+    "1.9.0": {
+        "changelog": "✨ Features:\n ᛫ Confluence view: Document is now given a max width\n ᛫ To-do-tasks improvements:\n     ᛫ Tasks can now have subtasks\n     ᛫ Tasks can be tagged\n     ᛫ Search now understands tags as well as free text\n         ᛫ Search for #tag, or #\"a multi-word tag\", with autocomplete\n         ᛫ Search also brings up subtasks\n     ᛫ Ctrl/Ctrl+Shift-click to multi-select tasks and mass-edit them\n     ᛫ Added custom task statuses\n     ᛫ CTRL+B toggles the sidebar\n\n🪲 Bug fixes\n ᛫ ADF renderer: mediaInline nodes did not render attachments\n ᛫ Added required \"read_user\" API scope in Gitlab connection page",
+        "x64": "v1.9.0/Binaries (x64).zip",
+        "x64Url": "https://github.com/Este2013/jira_watch/releases/download/v1.9.0/jira_watch-1.9.0-windows-x64.zip",
+        "x64Sha256": "f500d71380b47c9dfdc71ebd3d2289303bb48ccc37aa4e6d64701b87b4ffd128",
+        "x64Size": 37993221
+    },
     "1.8.3": {
         "changelog": "✨ Features:\n ᛫ Improved Gitlab connection page",
         "x64": "v1.8.3/Binaries (x64).zip",
