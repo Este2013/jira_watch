@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:html/parser.dart' as html_parser;
+import 'package:http/http.dart' as http;
+import 'package:jira_platform_api/api.dart' hide Icon;
 import 'package:jira_watcher/dao/jira/jira_auth.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -233,6 +235,16 @@ class _JiraImageState extends State<JiraImage> {
   Future<Widget> _loadImg(String url) async {
     // TODO FIX #json&ips (see readme)
 
+    final uri = Uri.parse(url);
+    final jiraUri = ApiClient().basePath;
+
+    final headers = <String, String>{
+      'Accept': 'image/*,*/*;q=0.8',
+    };
+
+    if (uri.host == jiraUri) {
+      headers['Authorization'] = JiraAuth().authHeader;
+    }
     // 2️⃣ Fetch via cacheManager; it returns a File from disk or network
     final file = await jiraAvatarCacheManager.getSingleFile(
       url,
@@ -266,10 +278,25 @@ class _JiraImageState extends State<JiraImage> {
         ),
       );
     } else if (mimeType.startsWith('image/')) {
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': JiraAuth().authHeader,
+          'Accept': '*/*',
+        },
+      );
+      print(response.statusCode);
+      print(response.headers);
+      print(response.bodyBytes.length);
+      print(response.bodyBytes.take(32).toList());
       return Image.memory(
         bytes,
         width: widget.width ?? double.maxFinite,
         fit: widget.boxFit,
+        errorBuilder: (_, error, stack) {
+          print('decode error: $error');
+          return Text('$error');
+        },
       );
     } else {
       throw Exception('Unsupported content type: $mimeType');
