@@ -10,10 +10,27 @@ library;
 /// Newest first. The order drives both the changelog dialog's paging and the version picker.
 final List<(String, List<ChangeLogSection>)> appChangeLog = [
   (
-    '1.8.4',
+    '1.9.0',
     [
       ChangeLogSection.features([
         ChangeLogItem('Confluence view: Document is now given a max width'),
+        ChangeLogItem(
+          'To-do-tasks improvements:',
+          subItems: [
+            ChangeLogItem('Tasks can now have subtasks'),
+            ChangeLogItem('Tasks can be tagged'),
+            ChangeLogItem(
+              'Search now understands tags as well as free text',
+              subItems: [
+                ChangeLogItem('Search for #tag, or #"a multi-word tag", with autocomplete'),
+                ChangeLogItem('Search also brings up subtasks'),
+              ],
+            ),
+            ChangeLogItem('Ctrl/Ctrl+Shift-click to multi-select tasks and mass-edit them'),
+            ChangeLogItem('Added custom task statuses'),
+            ChangeLogItem('CTRL+B toggles the sidebar'),
+          ],
+        ),
       ]),
       ChangeLogSection.bugFixes([
         ChangeLogItem('ADF renderer: mediaInline nodes did not render attachments'),

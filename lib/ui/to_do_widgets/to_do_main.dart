@@ -90,7 +90,10 @@ class _TodoSearchFieldState extends State<_TodoSearchField> {
     _insertingQuotes = true;
     final before = value.text.substring(0, caret);
     final after = value.text.substring(caret);
-    widget.controller.value = TextEditingValue(text: '$before""$after', selection: TextSelection.collapsed(offset: caret + 1));
+    widget.controller.value = TextEditingValue(
+      text: '$before""$after',
+      selection: TextSelection.collapsed(offset: caret + 1),
+    );
     _insertingQuotes = false;
   }
 
@@ -136,7 +139,10 @@ class _TodoSearchFieldState extends State<_TodoSearchField> {
       final before = text.substring(0, hashAt);
       final after = closing >= 0 ? text.substring(closing + 1) : '';
       final completed = '$before#"$tag" ';
-      widget.controller.value = TextEditingValue(text: '$completed$after', selection: TextSelection.collapsed(offset: completed.length));
+      widget.controller.value = TextEditingValue(
+        text: '$completed$after',
+        selection: TextSelection.collapsed(offset: completed.length),
+      );
     },
     fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) => TextField(
       autofocus: true,
@@ -146,8 +152,20 @@ class _TodoSearchFieldState extends State<_TodoSearchField> {
       // regardless of what optionsViewBuilder does) only moves its internal
       // highlighted index — Enter has to be wired to onFieldSubmitted
       // explicitly, or nothing actually confirms that highlighted option.
-      onSubmitted: (_) => onFieldSubmitted(),
-      decoration: InputDecoration(border: OutlineInputBorder(), icon: Icon(Symbols.search), hint: Text('Search by title, notes, linked work items, or #tag')),
+      //
+      // TextField defaults to TextInputAction.done, which unfocuses before
+      // this callback even runs — requesting focus back here is the
+      // documented way to cancel that pending unfocus (see EditableText's
+      // _finalizeEditing).
+      onSubmitted: (_) {
+        onFieldSubmitted();
+        focusNode.requestFocus();
+      },
+      decoration: InputDecoration(
+        border: OutlineInputBorder(),
+        icon: Icon(Symbols.search),
+        hint: Text('Search by title, notes, linked work items, or #tag'),
+      ),
     ),
     optionsViewBuilder: (context, onSelected, options) => Align(
       alignment: Alignment.topLeft,
@@ -228,6 +246,13 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
   final Set<int> _multiSelected = {};
   int? _selectionAnchorId;
 
+  /// The full ancestor chain down to [selectedTaskID], set when opening a
+  /// task from a search match that isn't itself a root task — so the detail
+  /// pane's breadcrumbs open already drilled down to it, same as if it had
+  /// been reached by clicking through its parents one at a time. Null (just
+  /// show [selectedTaskID] alone) for an ordinary root-task click.
+  List<int>? _selectedTaskDrillPath;
+
   bool filterOutCompletedTasks = true;
   int? showCategory;
   late CollapsibleSidePaneController collapsibleSidePaneController;
@@ -289,96 +314,96 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
               child: Row(
                 spacing: 8,
                 children: [
-                TextButton.icon(
-                  onPressed: createNewTask,
-                  label: Text('New task'),
-                  icon: Icon(Symbols.add),
-                ),
-                Spacer(),
-                PopupMenuButton<String>(
-                  icon: Badge(
-                    label: Text('1'),
-                    isLabelVisible: showCategory != null,
-                    child: Icon(Symbols.filter_alt),
+                  TextButton.icon(
+                    onPressed: createNewTask,
+                    label: Text('New task'),
+                    icon: Icon(Symbols.add),
                   ),
-                  tooltip: 'Filter by category',
-                  itemBuilder: (context) => <PopupMenuEntry<String>>[
-                    PopupMenuItem<String>(
-                      value: '',
-                      child: Row(
-                        spacing: 16,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Symbols.hide_source),
-                          Text('All categories'),
-                        ],
-                      ),
+                  Spacer(),
+                  PopupMenuButton<String>(
+                    icon: Badge(
+                      label: Text('1'),
+                      isLabelVisible: showCategory != null,
+                      child: Icon(Symbols.filter_alt),
                     ),
-                    for (var categoryId in {
-                      ...DefaultTaskCategory.values.map((c) => c.id),
-                      ...DataModel().todoTasks.customCategories.list.map((c) => c.id),
-                    }.where((id) => DataModel().todoTasks.toDoTasksControllers.list.any((e) => e.category.value == id)))
+                    tooltip: 'Filter by category',
+                    itemBuilder: (context) => <PopupMenuEntry<String>>[
                       PopupMenuItem<String>(
-                        value: categoryId.toString(),
-                        child: Builder(
-                          builder: (context) {
-                            final categoryData = ToDoTask.categoryDataFrom(categoryId);
-                            return Row(
-                              spacing: 16,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(categoryData.$2, color: categoryData.$3),
-                                Text(categoryData.$1),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-                  ],
-
-                  onSelected: (value) => setState(() {
-                    if (value.isEmpty) {
-                      showCategory = null;
-                    } else {
-                      showCategory = int.parse(value);
-                    }
-                  }),
-                ),
-                PopupMenuButton<_TodoPageSortMode>(
-                  icon: Icon(sortMode.icondata),
-                  tooltip: 'Sort (${sortMode.displayName})',
-                  initialValue: sortMode,
-                  itemBuilder: (context) => <PopupMenuEntry<_TodoPageSortMode>>[
-                    for (var v in _TodoPageSortMode.values)
-                      PopupMenuItem(
-                        value: v,
+                        value: '',
                         child: Row(
                           spacing: 16,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(v.icondata),
-                            Text(v.displayName),
+                            Icon(Symbols.hide_source),
+                            Text('All categories'),
                           ],
                         ),
                       ),
-                  ],
+                      for (var categoryId in {
+                        ...DefaultTaskCategory.values.map((c) => c.id),
+                        ...DataModel().todoTasks.customCategories.list.map((c) => c.id),
+                      }.where((id) => DataModel().todoTasks.toDoTasksControllers.list.any((e) => e.category.value == id)))
+                        PopupMenuItem<String>(
+                          value: categoryId.toString(),
+                          child: Builder(
+                            builder: (context) {
+                              final categoryData = ToDoTask.categoryDataFrom(categoryId);
+                              return Row(
+                                spacing: 16,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(categoryData.$2, color: categoryData.$3),
+                                  Text(categoryData.$1),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                    ],
 
-                  onSelected: (value) => setState(() {
-                    sortMode = value;
-                  }),
-                ),
-                IconButton(
-                  tooltip: 'Show${filterOutCompletedTasks ? '' : 'ing'} completed tasks',
-                  onPressed: () => setState(() {
-                    filterOutCompletedTasks = !filterOutCompletedTasks;
-                  }),
-                  isSelected: !filterOutCompletedTasks,
-                  selectedIcon: Icon(Symbols.verified),
-                  icon: Icon(Symbols.verified_off),
-                ),
-              ],
+                    onSelected: (value) => setState(() {
+                      if (value.isEmpty) {
+                        showCategory = null;
+                      } else {
+                        showCategory = int.parse(value);
+                      }
+                    }),
+                  ),
+                  PopupMenuButton<_TodoPageSortMode>(
+                    icon: Icon(sortMode.icondata),
+                    tooltip: 'Sort (${sortMode.displayName})',
+                    initialValue: sortMode,
+                    itemBuilder: (context) => <PopupMenuEntry<_TodoPageSortMode>>[
+                      for (var v in _TodoPageSortMode.values)
+                        PopupMenuItem(
+                          value: v,
+                          child: Row(
+                            spacing: 16,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(v.icondata),
+                              Text(v.displayName),
+                            ],
+                          ),
+                        ),
+                    ],
+
+                    onSelected: (value) => setState(() {
+                      sortMode = value;
+                    }),
+                  ),
+                  IconButton(
+                    tooltip: 'Show${filterOutCompletedTasks ? '' : 'ing'} completed tasks',
+                    onPressed: () => setState(() {
+                      filterOutCompletedTasks = !filterOutCompletedTasks;
+                    }),
+                    isSelected: !filterOutCompletedTasks,
+                    selectedIcon: Icon(Symbols.verified),
+                    icon: Icon(Symbols.verified_off),
+                  ),
+                ],
+              ),
             ),
-          ),
           Divider(),
           Padding(
             padding: const EdgeInsets.all(8.0),
@@ -417,29 +442,33 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                       key: Key('list filters: {cat:$showCategory, filtercompleted:$filterOutCompletedTasks, sort:$sortMode}'),
                       animation: searchController,
                       builder: (context, _) {
+                        final (searchTags, searchFreeText) = parseTaskSearch(searchController.text);
+                        final isSearching = searchTags.isNotEmpty || searchFreeText.isNotEmpty;
                         var list = DataModel().todoTasks.toDoTasksControllers.list
-                            // A task with a parent shows up under that
-                            // task's own Subtasks section instead — listed
-                            // here too would just be the same task in two
-                            // places.
-                            .where((t) => t.parentId.value == null)
+                            // A task with a parent normally shows up under
+                            // that task's own Subtasks section instead —
+                            // listed here too would just be the same task in
+                            // two places. While actively searching though, a
+                            // matching subtask should surface here directly
+                            // rather than staying hidden inside a parent
+                            // that may not even match itself.
+                            .where((t) => isSearching || t.parentId.value == null)
                             .where(
                               (t) => !filterOutCompletedTasks || !t.isComplete.value,
                             )
                             .where(
                               (e) {
-                                final (tags, freeText) = parseTaskSearch(searchController.text);
-                                if (tags.isNotEmpty) {
+                                if (searchTags.isNotEmpty) {
                                   final taskTags = e.tags.list.map((t) => t.toLowerCase()).toSet();
-                                  if (!tags.every(taskTags.contains)) return false;
+                                  if (!searchTags.every(taskTags.contains)) return false;
                                 }
-                                return freeText.isEmpty ||
-                                    e.title.text.toLowerCase().contains(freeText) ||
-                                    e.notes.text.toLowerCase().contains(freeText) ||
+                                return searchFreeText.isEmpty ||
+                                    e.title.text.toLowerCase().contains(searchFreeText) ||
+                                    e.notes.text.toLowerCase().contains(searchFreeText) ||
                                     e.linkedWorkItems.list
                                         .map((e) => e.toLowerCase())
                                         .any(
-                                          (e2) => e2.contains(freeText),
+                                          (e2) => e2.contains(searchFreeText),
                                         );
                               },
                             )
@@ -473,6 +502,24 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                               animation: taskController,
                               builder: (context, child) {
                                 var categoryData = ToDoTask.categoryDataFrom(taskController.category.value);
+                                // For a search-surfaced subtask, the chain
+                                // from its root ancestor down to itself —
+                                // [taskController.id] alone for a root task.
+                                // Doubles as both the "Subtask of X" subtitle
+                                // source and the path the detail pane's
+                                // breadcrumbs should open already drilled
+                                // into, so tapping it lands exactly where
+                                // clicking through its parents one at a time
+                                // would have.
+                                final ancestorPath = [taskController.id];
+                                var current = taskController;
+                                while (current.parentId.value != null) {
+                                  final parent = ToDoTasksModel().byId(current.parentId.value!);
+                                  if (parent == null) break;
+                                  ancestorPath.insert(0, parent.id);
+                                  current = parent;
+                                }
+                                final rootController = ancestorPath.length > 1 ? ToDoTasksModel().byId(ancestorPath.first) : null;
                                 final tile = ListTile(
                                   key: Key('ListTile of task #${taskController.id}'),
                                   title: Text(
@@ -481,12 +528,13 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                                     overflow: TextOverflow.ellipsis,
                                     style: taskController.isComplete.value ? TextStyle(decoration: TextDecoration.lineThrough) : null,
                                   ),
-                                  // subtitle: SingleChildScrollView(
-                                  //   child: Text(
-                                  //     taskController.linkedWorkItems.isEmpty ? 'No linked work items' : taskController.linkedWorkItems.list.join(', '),
-                                  //     overflow: .ellipsis,
-                                  //   ),
-                                  // ),
+                                  subtitle: rootController == null
+                                      ? null
+                                      : Text(
+                                          'Subtask of ${rootController.title.text.isEmpty ? 'no title' : rootController.title.text}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                   leading: IconButton(
                                     icon: Icon(categoryData.$2),
                                     color: categoryData.$3,
@@ -541,7 +589,7 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                                   ),
                                   tileColor: _multiSelected.contains(taskController.id) ? Theme.of(context).colorScheme.secondaryContainer : null,
                                   selected: taskController.id == selectedTaskID,
-                                  onTap: () => _onTaskTap(taskController.id, visibleOrder),
+                                  onTap: () => _onTaskTap(taskController.id, visibleOrder, ancestorPath: ancestorPath),
                                 );
 
                                 // Long-press-drag a task onto another to make
@@ -553,17 +601,13 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                                 // task that is part of the current
                                 // multi-selection moves every selected task,
                                 // not just the one row long-pressed.
-                                final draggedIds = _multiSelected.contains(taskController.id) && _multiSelected.length > 1
-                                    ? _multiSelected.toList()
-                                    : [taskController.id];
+                                final draggedIds = _multiSelected.contains(taskController.id) && _multiSelected.length > 1 ? _multiSelected.toList() : [taskController.id];
 
                                 return DragTarget<List<int>>(
                                   onWillAcceptWithDetails: (details) => _canReparentOnto(details.data, taskController.id),
                                   onAcceptWithDetails: (details) => _reparentAllOnto(details.data, taskController.id),
                                   builder: (context, candidateData, rejectedData) => Container(
-                                    decoration: candidateData.isNotEmpty
-                                        ? BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2))
-                                        : null,
+                                    decoration: candidateData.isNotEmpty ? BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2)) : null,
                                     child: LongPressDraggable<List<int>>(
                                       data: draggedIds,
                                       feedback: Material(
@@ -572,9 +616,7 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                                         child: Padding(
                                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                           child: Text(
-                                            draggedIds.length > 1
-                                                ? '${draggedIds.length} selected tasks'
-                                                : (taskController.title.text.isEmpty ? 'no title' : taskController.title.text),
+                                            draggedIds.length > 1 ? '${draggedIds.length} selected tasks' : (taskController.title.text.isEmpty ? 'no title' : taskController.title.text),
                                           ),
                                         ),
                                       ),
@@ -605,6 +647,7 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                     (timeStamp) {
                       setState(() {
                         selectedTaskID = null;
+                        _selectedTaskDrillPath = null;
                       });
                     },
                   );
@@ -662,7 +705,11 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
                                               borderRadius: BorderRadius.circular(8),
                                             )
                                           : null,
-                                      child: TaskDetailNavigator(rootTaskId: selectedTaskID!, key: ValueKey(selectedTaskID)),
+                                      child: TaskDetailNavigator(
+                                        rootTaskId: selectedTaskID!,
+                                        initialPath: _selectedTaskDrillPath,
+                                        key: ValueKey('$selectedTaskID:${_selectedTaskDrillPath?.join(",")}'),
+                                      ),
                                     ),
                                   )
                                 : Text('← Select a task in the list to your left to start working on it'),
@@ -683,6 +730,7 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
   void createNewTask() => ToDoTasksModel().createNewTask().then(
     (newTask) => setState(() {
       selectedTaskID = newTask.id;
+      _selectedTaskDrillPath = null;
     }),
   );
 
@@ -692,7 +740,12 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
   /// list selection works. [visibleOrder] is whatever the list is currently
   /// showing, in its current sort/filter order — the range a shift-click
   /// spans depends on that, not on task id or creation order.
-  void _onTaskTap(int taskId, List<int> visibleOrder) => setState(() {
+  ///
+  /// [ancestorPath] is the chain from the clicked task's root ancestor down
+  /// to itself (just `[taskId]` for a root task, longer for a search-matched
+  /// subtask) — a plain click opens the detail pane already drilled down
+  /// that whole chain, rather than only on the root.
+  void _onTaskTap(int taskId, List<int> visibleOrder, {List<int>? ancestorPath}) => setState(() {
     final shift = HardwareKeyboard.instance.isShiftPressed;
     final ctrl = HardwareKeyboard.instance.isControlPressed;
 
@@ -712,7 +765,8 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
     }
 
     _multiSelected.clear();
-    selectedTaskID = taskId;
+    selectedTaskID = ancestorPath != null && ancestorPath.isNotEmpty ? ancestorPath.first : taskId;
+    _selectedTaskDrillPath = ancestorPath != null && ancestorPath.length > 1 ? ancestorPath : null;
     _selectionAnchorId = taskId;
   });
 
@@ -722,8 +776,7 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
   /// drop target lights up while something hovers over it. A drop that goes
   /// through only reparents whichever of [draggedIds] are actually eligible;
   /// see [_reparentAllOnto].
-  bool _canReparentOnto(List<int> draggedIds, int targetId) =>
-      draggedIds.any((id) => id != targetId && !ToDoTasksModel().wouldCreateCycle(id, targetId));
+  bool _canReparentOnto(List<int> draggedIds, int targetId) => draggedIds.any((id) => id != targetId && !ToDoTasksModel().wouldCreateCycle(id, targetId));
 
   void _reparentAllOnto(List<int> draggedIds, int targetId) {
     for (final id in draggedIds) {
@@ -741,14 +794,22 @@ class _TodoPageState extends State<TodoPage> with SingleTickerProviderStateMixin
   }
 
   Future<void> _massAddTag() async {
-    final tags = await showDialog<List<String>>(context: context, builder: (context) => _MassTagDialog(taskIds: _multiSelected.toList()));
-    if (tags == null || tags.isEmpty) return;
+    final result = await showDialog<(List<String>, Map<String, String>)>(
+      context: context,
+      builder: (context) => _MassTagDialog(taskIds: _multiSelected.toList()),
+    );
+    if (result == null) return;
+    final (tags, tagIcons) = result;
+    if (tags.isEmpty) return;
     for (final id in _multiSelected) {
       final controller = DataModel().todoTasks.byId(id);
       if (controller == null) continue;
       for (final tag in tags) {
         if (!controller.tags.list.contains(tag)) controller.tags.add(tag);
       }
+    }
+    for (final entry in tagIcons.entries) {
+      ToDoTasksModel().setTagIcon(entry.key, entry.value);
     }
   }
 
@@ -842,6 +903,12 @@ class _MassTagDialog extends StatefulWidget {
 
 class _MassTagDialogState extends State<_MassTagDialog> {
   final Set<String> _picked = {};
+
+  /// Icon staged for whichever tag is picked next — same staging-then-reset
+  /// pattern as [AddTagDialog]'s `_pendingIconName`, applied via
+  /// [ToDoTasksModel.setTagIcon] once a tag is actually picked.
+  String? _pendingIconName;
+  final Map<String, String> _tagIcons = {};
   late final TextEditingController _search;
 
   @override
@@ -856,11 +923,14 @@ class _MassTagDialogState extends State<_MassTagDialog> {
     super.dispose();
   }
 
-  void _addFromField(String value) {
-    final trimmed = value.trim();
+  void _pick(String tag) {
+    final trimmed = tag.trim();
     if (trimmed.isEmpty) return;
     setState(() {
       _picked.add(trimmed);
+      final icon = _pendingIconName;
+      if (icon != null) _tagIcons[trimmed] = icon;
+      _pendingIconName = null;
       _search.clear();
     });
   }
@@ -882,13 +952,28 @@ class _MassTagDialogState extends State<_MassTagDialog> {
               autofocus: true,
               controller: _search,
               decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Tag name'),
-              onSubmitted: _addFromField,
+              onSubmitted: _pick,
+            ),
+            Text('Icon for the next tag added', style: Theme.of(context).textTheme.labelMedium),
+            IconChoiceRow(
+              selected: _pendingIconName ?? 'label',
+              onChanged: (name) => setState(() => _pendingIconName = name),
             ),
             if (_picked.isNotEmpty)
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
-                children: [for (final tag in _picked) InputChip(label: Text(tag), onDeleted: () => setState(() => _picked.remove(tag)))],
+                children: [
+                  for (final tag in _picked)
+                    InputChip(
+                      avatar: Icon(gitLabBranchIcon(_tagIcons[tag] ?? DataModel().todoTasks.iconNameForTag(tag) ?? 'label'), size: 16),
+                      label: Text(tag),
+                      onDeleted: () => setState(() {
+                        _picked.remove(tag);
+                        _tagIcons.remove(tag);
+                      }),
+                    ),
+                ],
               ),
             if (suggestions.isNotEmpty) ...[
               Text('Already used', style: Theme.of(context).textTheme.labelMedium),
@@ -897,7 +982,11 @@ class _MassTagDialogState extends State<_MassTagDialog> {
                 runSpacing: 6,
                 children: [
                   for (final tag in suggestions.where((t) => !_picked.contains(t)))
-                    ActionChip(label: Text(tag), onPressed: () => setState(() => _picked.add(tag))),
+                    ActionChip(
+                      avatar: Icon(gitLabBranchIcon(DataModel().todoTasks.iconNameForTag(tag) ?? 'label'), size: 16),
+                      label: Text(tag),
+                      onPressed: () => _pick(tag),
+                    ),
                 ],
               ),
             ],
@@ -906,7 +995,7 @@ class _MassTagDialogState extends State<_MassTagDialog> {
       ),
       actions: [
         CancelButton(),
-        FilledButton(onPressed: () => Navigator.of(context).pop(_picked.toList()), child: const Text('Apply')),
+        FilledButton(onPressed: () => Navigator.of(context).pop((_picked.toList(), _tagIcons)), child: const Text('Apply')),
       ],
     );
   }

@@ -18,9 +18,14 @@ import 'package:material_symbols_icons/symbols.dart';
 /// back to any earlier task is one click regardless of how deep [onOpenChild]
 /// has gone.
 class TaskDetailNavigator extends StatefulWidget {
-  const TaskDetailNavigator({super.key, required this.rootTaskId});
+  const TaskDetailNavigator({super.key, required this.rootTaskId, this.initialPath});
 
   final int rootTaskId;
+
+  /// The full chain from [rootTaskId] down to whatever task should already
+  /// be open — e.g. a search result several levels deep. Falls back to
+  /// just `[rootTaskId]` when absent or malformed.
+  final List<int>? initialPath;
 
   @override
   State<TaskDetailNavigator> createState() => _TaskDetailNavigatorState();
@@ -29,11 +34,38 @@ class TaskDetailNavigator extends StatefulWidget {
 class _TaskDetailNavigatorState extends State<TaskDetailNavigator> {
   late List<int> _path;
 
+  /// The deepest path reached along the current branch — always agrees with
+  /// [_path] wherever both have an entry, and always at least as long.
+  /// Stepping back up via the breadcrumbs only shortens [_path]; this keeps
+  /// remembering what was open past that point, so the trailing chevron can
+  /// offer it again as a one-click way back down. Only replaced outright —
+  /// starting over from wherever [_path] is at that point — once a
+  /// genuinely different child is chosen instead.
+  late List<int> _history;
+
   @override
   void initState() {
     super.initState();
-    _path = [widget.rootTaskId];
+    final initial = widget.initialPath;
+    _path = (initial != null && initial.isNotEmpty && initial.first == widget.rootTaskId) ? initial : [widget.rootTaskId];
+    _history = List.of(_path);
   }
+
+  bool _agreesWithHistory(List<int> path) {
+    if (_history.length < path.length) return false;
+    for (var i = 0; i < path.length; i++) {
+      if (_history[i] != path[i]) return false;
+    }
+    return true;
+  }
+
+  /// Navigates to [newPath]. When it still follows [_history], whatever it
+  /// remembers past [newPath] is left alone; otherwise [newPath] becomes the
+  /// new remembered branch, discarding what used to be remembered past it.
+  void _goTo(List<int> newPath) => setState(() {
+    _path = newPath;
+    if (!_agreesWithHistory(newPath)) _history = List.of(newPath);
+  });
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -53,41 +85,145 @@ class _TaskDetailNavigatorState extends State<TaskDetailNavigator> {
         return const Center(child: Text('This task no longer exists.'));
       }
       if (controllers.length != _path.length) {
+        final truncated = controllers.map((c) => c.id).toList();
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) setState(() => _path = controllers.map((c) => c.id).toList());
+          if (!mounted) return;
+          setState(() {
+            _path = truncated;
+            // A vanished task shouldn't linger as a rememberable next step.
+            if (!_agreesWithHistory(truncated)) _history = List.of(truncated);
+          });
         });
       }
+
+      // The remembered continuation past what's currently shown, resolved to
+      // real controllers same as [controllers] itself — rendered as its own
+      // clickable breadcrumb segments (see [ghostCount] below) rather than
+      // only reachable through the trailing chevron's dropdown, so hopping
+      // straight back down to it is one click on its name, not two.
+      final ghostControllers = <ToDoTaskEditingController>[];
+      for (var i = controllers.length; i < _history.length; i++) {
+        final controller = ToDoTasksModel().byId(_history[i]);
+        if (controller == null) break;
+        ghostControllers.add(controller);
+      }
+      final segments = [...controllers, ...ghostControllers];
+      final trailingChildren = ToDoTasksModel().childrenOf(segments.last.id);
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (controllers.length > 1)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  for (final (index, controller) in controllers.indexed) ...[
-                    if (index > 0) const Padding(padding: EdgeInsets.symmetric(horizontal: 2), child: Icon(Symbols.chevron_right, size: 16)),
-                    TextButton(
-                      style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-                      // The last breadcrumb is where we already are.
-                      onPressed: index == controllers.length - 1 ? null : () => setState(() => _path = _path.sublist(0, index + 1)),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                for (final (index, segment) in segments.indexed) ...[
+                  // Windows Explorer-style: the chevron between two
+                  // breadcrumb segments is itself clickable, opening every
+                  // other subtask at that same layer (i.e. every other
+                  // child of the segment before it) so jumping sideways to
+                  // a sibling doesn't require walking back up first. Works
+                  // the same whether either side is a currently-open segment
+                  // or one of the remembered [ghostControllers].
+                  if (index > 0)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: PopupMenuButton<int>(
+                        tooltip: 'Other subtasks of ${segments[index - 1].title.text.isEmpty ? 'no title' : segments[index - 1].title.text}',
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(Symbols.chevron_right, size: 16),
+                        itemBuilder: (context) => [
+                          for (final sibling in ToDoTasksModel().childrenOf(segments[index - 1].id))
+                            PopupMenuItem(
+                              value: sibling.id,
+                              child: Row(
+                                spacing: 8,
+                                children: [
+                                  Icon(sibling.id == segment.id ? Symbols.check : null, size: 16),
+                                  Expanded(
+                                    child: Text(
+                                      sibling.title.text.isEmpty ? 'no title' : sibling.title.text,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                        onSelected: (siblingId) => _goTo([...segments.sublist(0, index).map((c) => c.id), siblingId]),
+                      ),
+                    ),
+                  if (index == controllers.length - 1)
+                    // Where we already are — outlined rather than flat so it
+                    // reads as the current position at a glance, even though
+                    // (like the others) it's disabled either way.
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+                      onPressed: null,
                       child: Text(
-                        controller.title.text.isEmpty ? 'no title' : controller.title.text,
+                        segment.title.text.isEmpty ? 'no title' : segment.title.text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    )
+                  else
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        // A remembered-but-not-yet-reopened segment reads as
+                        // a step forward waiting to be taken, not a place
+                        // already visited — same idea as a browser's grayed-
+                        // out forward button, just inline in the breadcrumbs.
+                        foregroundColor: index >= controllers.length ? Theme.of(context).colorScheme.outline : null,
+                      ),
+                      // An ancestor behind the current position or a
+                      // remembered descendant ahead of it — either way, a
+                      // click away.
+                      onPressed: () => _goTo(segments.sublist(0, index + 1).map((c) => c.id).toList()),
+                      child: Text(
+                        segment.title.text.isEmpty ? 'no title' : segment.title.text,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ],
                 ],
-              ),
+                // A trailing chevron for the deepest segment's own children —
+                // present even at the root with nothing opened yet, so
+                // drilling in doesn't require first finding the Subtasks
+                // section below.
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: PopupMenuButton<int>(
+                    tooltip: trailingChildren.isEmpty
+                        ? 'No subtasks yet'
+                        : 'Subtasks of ${segments.last.title.text.isEmpty ? 'no title' : segments.last.title.text}',
+                    enabled: trailingChildren.isNotEmpty,
+                    padding: EdgeInsets.zero,
+                    icon: Icon(Symbols.chevron_right, size: 16, color: trailingChildren.isEmpty ? Theme.of(context).disabledColor : null),
+                    itemBuilder: (context) => [
+                      for (final child in trailingChildren)
+                        PopupMenuItem(
+                          value: child.id,
+                          child: Text(
+                            child.title.text.isEmpty ? 'no title' : child.title.text,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onSelected: (childId) => _goTo([...segments.map((c) => c.id), childId]),
+                  ),
+                ),
+              ],
             ),
+          ),
           Expanded(
             child: SingleTaskView(
               controllers.last,
               key: ValueKey(controllers.last.id),
-              onOpenChild: (childId) => setState(() => _path = [..._path, childId]),
+              onOpenChild: (childId) => _goTo([..._path, childId]),
             ),
           ),
         ],
