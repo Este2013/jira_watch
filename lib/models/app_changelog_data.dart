@@ -16,7 +16,13 @@ final List<(String, List<ChangeLogSection>)> appChangeLog = [
         ChangeLogItem(''),
       ]),
       ChangeLogSection.bugFixes([
-        ChangeLogItem('ADF renderer', subItems: [ChangeLogItem('No longer applies code mark until the end of the line')]),
+        ChangeLogItem(
+          'ADF renderer',
+          subItems: [
+            ChangeLogItem('No longer applies code mark until the end of the line'),
+            ChangeLogItem('Bullet items with inner mediaInline (or other composite elements) are correctly aligned'),
+          ],
+        ),
       ]),
     ],
   ),

@@ -234,6 +234,92 @@ class AdfRenderer extends StatefulWidget {
   }
 }
 
+/// A code block's rendered lines, plus the hover-revealed control in its
+/// top-right corner for toggling how overly-long lines are handled.
+///
+/// Defaults to the un-wrapped, horizontally-scrollable mode most code
+/// viewers use — a long line (a stack trace, a URL) stays on one line and
+/// the block scrolls sideways to it, rather than forcing every other line
+/// to wrap around it. The button is lit in that default mode; clicking it
+/// switches to wrapping lines to the block's width instead, with no
+/// horizontal scroll, and the button goes unlit.
+class _CodeBlockView extends StatefulWidget {
+  const _CodeBlockView({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  State<_CodeBlockView> createState() => _CodeBlockViewState();
+}
+
+class _CodeBlockViewState extends State<_CodeBlockView> {
+  bool _hovering = false;
+  bool _scrollable = true;
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final content = Column(crossAxisAlignment: CrossAxisAlignment.start, children: widget.children);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: _scrollable
+                // IntrinsicWidth sizes the column to its widest line's
+                // unwrapped width — exactly the width at which none of its
+                // text needs to soft-wrap — and the scroll view then
+                // handles whatever of that overflows the visible area. The
+                // scrollbar is pinned visible rather than only-on-drag —
+                // otherwise there'd be no hint the block scrolls at all
+                // until a reader stumbled onto dragging it.
+                ? Scrollbar(
+                    controller: _scrollController,
+                    thumbVisibility: true,
+                    child: SingleChildScrollView(
+                      controller: _scrollController,
+                      scrollDirection: Axis.horizontal,
+                      child: IntrinsicWidth(child: content),
+                    ),
+                  )
+                : content,
+          ),
+          if (_hovering)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: Tooltip(
+                message: _scrollable ? 'Wrap long lines instead of scrolling' : 'Scroll long lines instead of wrapping',
+                child: Material(
+                  color: _scrollable ? colors.primary : colors.surfaceContainerHighest,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => setState(() => _scrollable = !_scrollable),
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Icon(Symbols.wrap_text, size: 18, color: _scrollable ? colors.onPrimary : colors.onSurfaceVariant),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AdfRendererState extends State<AdfRenderer> {
   /// Every heading in the document, in order, each with a key of its own.
   late List<AdfHeading> _headings;
@@ -932,13 +1018,10 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
 
     return Card(
       color: t.surfaceContainerHighest,
-      child: Padding(
-        padding: EdgeInsetsGeometry.all(16),
-        child: Column(
-          children: [
-            for (var c in node['content'] as List) _buildNode(context, c, 0, transferStyle: TextStyle(fontFamily: 'RobotoMono')),
-          ].where((element) => element != null).toList().cast(),
-        ),
+      child: _CodeBlockView(
+        children: [
+          for (var c in node['content'] as List) _buildNode(context, c, 0, transferStyle: TextStyle(fontFamily: 'RobotoMono')),
+        ].where((element) => element != null).toList().cast(),
       ),
     );
   }
@@ -1207,16 +1290,33 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
 
     final bulletLine = paragraphs.isNotEmpty ? _buildParagraph(context, paragraphs.first) : const SizedBox.shrink();
 
-    final bulletRow = RichText(
-      textScaler: MediaQuery.textScalerOf(context),
-      text: TextSpan(
-        children: [
-          WidgetSpan(child: SizedBox(width: indentLevel * listIndent)),
-          if (marker == null) BulletListBulletSpan(indent: 1) else TextSpan(text: marker, style: Theme.of(context).textTheme.bodyMedium),
-          WidgetSpan(child: SizedBox(width: bulletGap)),
-          WidgetSpan(child: bulletLine),
-        ],
-      ),
+    // A Row, not one RichText with the paragraph as a WidgetSpan — a
+    // WidgetSpan wraps to the next line as a single indivisible unit, so a
+    // paragraph too long to fit the remainder of the bullet's line would
+    // drop to its own line full-width, under the bullet, rather than
+    // wrapping in place alongside it. Expanded instead confines the
+    // paragraph to this same indented column from its first line on, so
+    // every wrapped line lines up under the first one, not under the
+    // bullet.
+    //
+    // Baseline, not start, alignment: an inline card or emoji taller than
+    // plain text can appear right in the first line, inflating that line's
+    // box upward above the actual text. Aligning to the top of that box
+    // would leave the bullet floating above the text instead of next to it
+    // — baseline alignment keeps it level with the text itself regardless
+    // of anything tall sharing that line.
+    final bulletRow = Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        SizedBox(width: indentLevel * listIndent),
+        if (marker == null)
+          SelectableText('•', style: Theme.of(context).textTheme.bodyMedium)
+        else
+          Text(marker, style: Theme.of(context).textTheme.bodyMedium),
+        SizedBox(width: bulletGap),
+        Expanded(child: bulletLine),
+      ],
     );
 
     final below = <Widget>[];
@@ -1615,21 +1715,6 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
   String toPlainText(Map? document) {
     if (document == null) return 'null';
     return (document['content'] as List).map((c) => _buildPlainTextNode(c, 0)).join('\n');
-  }
-}
-
-class BulletListBulletSpan extends WidgetSpan {
-  BulletListBulletSpan({this.indent = 1}) : super(child: SelectableText('•'), alignment: .middle);
-
-  final int indent;
-
-  @override
-  void computeToPlainText(
-    StringBuffer buffer, {
-    bool includeSemanticsLabels = true,
-    bool includePlaceholders = true,
-  }) {
-    buffer.write('\n${"\t" * indent} ');
   }
 }
 
