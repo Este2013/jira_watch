@@ -1112,11 +1112,12 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
 
   List<InlineSpan> _buildInlineSpans(BuildContext context, List<Map<String, dynamic>> content, {TextStyle? style}) {
     final spans = <InlineSpan>[];
+    var defaultTextStyle = style ?? _defaultTextStyle(context);
     for (final node in content) {
       if (node['type'] == 'text') {
         final text = _textOf(node);
         final marks = _asList(node['marks']);
-        style ??= _defaultTextStyle(context);
+        style = defaultTextStyle;
         GestureRecognizer? recognizer;
 
         for (final mark in marks) {
