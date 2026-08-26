@@ -1,4 +1,11 @@
 {
+    "1.9.1": {
+        "changelog": "✨ Features:\n ᛫ A tooltip shows epic name in the project/epic/work item URL\n\n🪲 Bug fixes\n ᛫ Selected work item from Updates view no longer pops up as a dialog when reducing window width in another view\n ᛫ Long work item titles no longer clip out in their view\n ᛫ Update list tile no longer overflows when space is tight\n ᛫ ADF renderer\n     ᛫ No longer applies code mark until the end of the line\n     ᛫ Bullet items with inner mediaInline (or other composite elements) are correctly aligned",
+        "x64": "v1.9.1/Binaries (x64).zip",
+        "x64Url": "https://github.com/Este2013/jira_watch/releases/download/v1.9.1/jira_watch-1.9.1-windows-x64.zip",
+        "x64Sha256": "ef1f666829488c3024bd9cf49e290744e52767fe2db0587d5ab9d420dde4bad0",
+        "x64Size": 37994840
+    },
     "1.9.0": {
         "changelog": "✨ Features:\n ᛫ Confluence view: Document is now given a max width\n ᛫ To-do-tasks improvements:\n     ᛫ Tasks can now have subtasks\n     ᛫ Tasks can be tagged\n     ᛫ Search now understands tags as well as free text\n         ᛫ Search for #tag, or #\"a multi-word tag\", with autocomplete\n         ᛫ Search also brings up subtasks\n     ᛫ Ctrl/Ctrl+Shift-click to multi-select tasks and mass-edit them\n     ᛫ Added custom task statuses\n     ᛫ CTRL+B toggles the sidebar\n\n🪲 Bug fixes\n ᛫ ADF renderer: mediaInline nodes did not render attachments\n ᛫ Added required \"read_user\" API scope in Gitlab connection page",
         "x64": "v1.9.0/Binaries (x64).zip",
