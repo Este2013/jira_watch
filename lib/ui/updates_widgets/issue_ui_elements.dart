@@ -21,6 +21,7 @@ class WorkItemBadge extends StatefulWidget {
     this.copyable = false,
     this.compact = false,
     this.workItemKeyForDialog,
+    this.tooltipMessage,
   });
 
   final int badgeSize;
@@ -29,6 +30,12 @@ class WorkItemBadge extends StatefulWidget {
   final String? workItemKeyForDialog;
   final String? iconUrl;
   final bool copyable, compact;
+
+  /// Shown on hover over the whole badge, e.g. the full project name when
+  /// [compact] has hidden it, or a parent issue's title. Null/empty shows
+  /// no tooltip at all — not every badge needs one (the label itself is
+  /// already right there when not [compact]).
+  final String? tooltipMessage;
 
   @override
   State<WorkItemBadge> createState() => _WorkItemBadgeState();
@@ -41,16 +48,13 @@ class _WorkItemBadgeState extends State<WorkItemBadge> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final content = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (widget.iconUrl != null)
-          Tooltip(
-            message: (widget.compact) ? widget.label : '',
-            child: SizedBox.square(
-              dimension: widget.badgeSize.toDouble(),
-              child: JiraAvatar(url: widget.iconUrl!),
-            ),
+          SizedBox.square(
+            dimension: widget.badgeSize.toDouble(),
+            child: JiraAvatar(url: widget.iconUrl!),
           ),
         const SizedBox(width: 4),
 
@@ -144,6 +148,8 @@ class _WorkItemBadgeState extends State<WorkItemBadge> {
           ),
       ],
     );
+    final tooltip = widget.tooltipMessage;
+    return tooltip == null || tooltip.isEmpty ? content : Tooltip(message: tooltip, child: content);
   }
 }
 
@@ -167,6 +173,19 @@ class _WorkItemLinkWithParentsRowState extends State<WorkItemLinkWithParentsRow>
     return null;
   }
 
+  /// Roughly how wide [text] renders in the ambient [DefaultTextStyle] —
+  /// only ever used to compare against the space this row actually has, to
+  /// decide whether the project name has room, never to lay anything out
+  /// directly.
+  double _textWidth(BuildContext context, String text) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: DefaultTextStyle.of(context).style),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    return painter.width;
+  }
+
   @override
   Widget build(BuildContext context) {
     final workItem = widget.workItem;
@@ -180,50 +199,99 @@ class _WorkItemLinkWithParentsRowState extends State<WorkItemLinkWithParentsRow>
     final projectIconUrl = project['avatarUrls']?['${badgeSize}x$badgeSize'] ?? project['iconUrl'];
     final parentKey = parent?['key'];
     final parentIconUrl = parent?['fields']?['issuetype']?['iconUrl'];
+    final parentTitle = parent?['fields']?['summary'] as String?;
 
     final issueKey = workItem['key'] ?? '';
 
-    return Row(
-      children: [
-        // Project badge
-        if (projectIconUrl != null) ...[
-          WorkItemBadge(
-            projectName,
-            iconUrl: projectIconUrl,
-            badgeSize: badgeSize,
-            compact: widget.compact,
-          ),
-          const SizedBox(width: 6),
-          const Text('/'),
-          const SizedBox(width: 6),
-        ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // A rough estimate of what this row needs to show a given
+        // combination of segments in full — badge icon + gap, then its
+        // label (skipped for a folded segment, which still keeps its icon
+        // and the separator after it), then the " / " separator. Only ever
+        // compared against the space actually available, never used to lay
+        // anything out directly.
+        const iconAndGap = 16 + 4.0;
+        const separator = 6 + 12 + 6.0;
+        // The issue key badge's copy/link icons only appear on hover, but
+        // this has to budget for that expanded width up front regardless —
+        // there's no rebuild-on-hover here to react to it appearing later,
+        // and that's exactly what was causing the overflow they reported:
+        // the row fit right up until a reader actually hovered it.
+        const maxCopyAreaWidth = 4 + 24 + 24 + 4.0;
+        double neededWidth({required bool foldProject, required bool foldParent}) {
+          double w = 0;
+          if (projectIconUrl != null) w += iconAndGap + (foldProject ? 0 : _textWidth(context, projectName)) + separator;
+          if (parentKey != null && !widget.compact) w += iconAndGap + (foldParent ? 0 : _textWidth(context, parentKey)) + separator;
+          return w + iconAndGap + _textWidth(context, issueKey) + maxCopyAreaWidth;
+        }
 
-        // Parent badge, if any
-        if (parentKey != null && !widget.compact) ...[
-          WorkItemBadge(
-            parentKey,
-            key: Key(parentKey),
-            iconUrl: parentIconUrl,
-            url: _workItemUrl(parentKey),
-            workItemKeyForDialog: parentKey,
-            badgeSize: badgeSize,
-            compact: widget.compact,
-          ),
-          const SizedBox(width: 6),
-          const Text('/'),
-          const SizedBox(width: 6),
-        ],
+        // Folding the project name to just its icon is the first thing to
+        // give under space pressure — it's the segment a reader needs
+        // least, since the epic and issue key are what actually identify
+        // this specific item. The epic only follows suit once folding the
+        // project name alone still isn't enough; it never folds on its own
+        // while the project name is still shown in full.
+        final fitsInFull = neededWidth(foldProject: false, foldParent: false) <= constraints.maxWidth;
+        final fitsProjectFolded = neededWidth(foldProject: true, foldParent: false) <= constraints.maxWidth;
+        final collapseProject = !fitsInFull;
+        final collapseParent = !fitsInFull && !fitsProjectFolded;
 
-        // Your existing work item key + copy-on-hover
-        WorkItemBadge(
-          issueKey,
-          key: Key(issueKey),
-          iconUrl: fields?['issuetype']?['iconUrl'],
-          url: _workItemUrl(issueKey),
-          badgeSize: badgeSize,
-          copyable: true,
-        ),
-      ],
+        return Row(
+          // min, not the Row default of max — this only has a meaningful
+          // maxWidth to react to once its caller actually bounds it (see
+          // JiraWorkItemPreviewItem, which wraps this in a ConstrainedBox);
+          // sizing to max there would claim that whole budget even when the
+          // badges themselves need far less of it, stealing room the status
+          // chip/time-ago area next to it needs.
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Project badge
+            if (projectIconUrl != null) ...[
+              WorkItemBadge(
+                projectName,
+                iconUrl: projectIconUrl,
+                badgeSize: badgeSize,
+                compact: widget.compact || collapseProject,
+                tooltipMessage: collapseProject ? projectName : null,
+              ),
+              const SizedBox(width: 6),
+              const Text('/'),
+              const SizedBox(width: 6),
+            ],
+
+            // Parent badge, if any
+            if (parentKey != null && !widget.compact) ...[
+              WorkItemBadge(
+                parentKey,
+                key: Key(parentKey),
+                iconUrl: parentIconUrl,
+                url: _workItemUrl(parentKey),
+                workItemKeyForDialog: parentKey,
+                badgeSize: badgeSize,
+                compact: widget.compact || collapseParent,
+                // Folded, the key itself is hidden along with the label —
+                // the tooltip is all that's left to identify it by, so it
+                // takes over showing the key too, not just the title.
+                tooltipMessage: collapseParent ? (parentTitle != null && parentTitle.isNotEmpty ? '$parentKey — $parentTitle' : '$parentKey') : parentTitle,
+              ),
+              const SizedBox(width: 6),
+              const Text('/'),
+              const SizedBox(width: 6),
+            ],
+
+            // Your existing work item key + copy-on-hover
+            WorkItemBadge(
+              issueKey,
+              key: Key(issueKey),
+              iconUrl: fields?['issuetype']?['iconUrl'],
+              url: _workItemUrl(issueKey),
+              badgeSize: badgeSize,
+              copyable: true,
+            ),
+          ],
+        );
+      },
     );
   }
 }

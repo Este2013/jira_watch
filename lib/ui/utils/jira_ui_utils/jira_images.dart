@@ -285,16 +285,16 @@ class _JiraImageState extends State<JiraImage> {
           'Accept': '*/*',
         },
       );
-      print(response.statusCode);
-      print(response.headers);
-      print(response.bodyBytes.length);
-      print(response.bodyBytes.take(32).toList());
+      // print(response.statusCode);
+      // print(response.headers);
+      // print(response.bodyBytes.length);
+      // print(response.bodyBytes.take(32).toList());
       return Image.memory(
         bytes,
         width: widget.width ?? double.maxFinite,
         fit: widget.boxFit,
         errorBuilder: (_, error, stack) {
-          print('decode error: $error');
+          // print('decode error: $error');
           return Text('$error');
         },
       );

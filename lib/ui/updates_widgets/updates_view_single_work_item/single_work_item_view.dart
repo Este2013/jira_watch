@@ -91,76 +91,106 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
       builder: (context, asyncSnapshot) {
         if (asyncSnapshot.hasData) {
           var workItem = asyncSnapshot.data!;
-          return DefaultTabController(
-            length: tabs.length,
+          final summary = workItem['fields']['summary']?.toString() ?? 'null';
+          final titleStyle = Theme.of(context).textTheme.titleLarge ?? const TextStyle(fontSize: 22);
 
-            child: Scaffold(
-              backgroundColor: widget.isPartOfDialog ? Colors.transparent : null,
-              appBar: AppBar(
-                backgroundColor: widget.isPartOfDialog ? Colors.transparent : null,
-                toolbarHeight: kToolbarHeight + 10,
-                title: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    DefaultTextStyle(
-                      style: Theme.of(context).textTheme.bodyMedium ?? TextStyle(),
-                      child: Row(
-                        children: [
-                          WorkItemLinkWithParentsRow(workItem),
+          // LayoutBuilder rather than MediaQuery for the available width —
+          // this view is also shown at a fixed width inside
+          // SingleJiraWorkItemDialog, narrower or wider than the actual
+          // window, and MediaQuery would measure the wrong box there.
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              // What's left for the title once the back button and the
+              // "..." menu take their share — an estimate, not an exact
+              // figure, but only used to decide whether the summary needs
+              // one line or two; maxLines below is what actually keeps it
+              // from ever growing past that regardless.
+              final availableTitleWidth = max(160.0, constraints.maxWidth - 240);
+              final titleLineMetrics = (TextPainter(
+                text: TextSpan(text: summary, style: titleStyle),
+                textDirection: Directionality.of(context),
+                textScaler: MediaQuery.textScalerOf(context),
+                maxLines: 3,
+              )..layout(maxWidth: availableTitleWidth)).computeLineMetrics();
+              final titleLineHeight = titleLineMetrics.isNotEmpty ? titleLineMetrics.first.height : (titleStyle.fontSize ?? 22) * 1.2;
+              final isTitleTruncated = titleLineMetrics.length > 2;
+              final titleText = Text(summary, style: titleStyle, maxLines: 2, overflow: TextOverflow.ellipsis);
 
-                          JiraWorkItemStatusIndicator(issue: workItem),
-                        ],
-                      ),
-                    ),
-                    SelectableText(workItem['fields']['summary'] ?? 'null'),
-                  ],
-                ),
-                actionsPadding: EdgeInsets.only(right: 8),
-                actions: [
-                  MenuAnchor(
-                    menuChildren: [
-                      MenuItemButton(
-                        onPressed: () => keepForLater(context),
-                        leadingIcon: Transform.rotate(
-                          angle: pi / 4,
-                          child: const Icon(Symbols.keep),
+              return DefaultTabController(
+                length: tabs.length,
+
+                child: Scaffold(
+                  backgroundColor: widget.isPartOfDialog ? Colors.transparent : null,
+                  appBar: AppBar(
+                    backgroundColor: widget.isPartOfDialog ? Colors.transparent : null,
+                    // Tall enough for a one-line title as before; grows by
+                    // exactly one more line's height when the summary needs
+                    // a second one, rather than letting it clip.
+                    toolbarHeight: kToolbarHeight + 10 + (titleLineMetrics.length.clamp(1, 2) - 1) * titleLineHeight,
+                    title: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        DefaultTextStyle(
+                          style: Theme.of(context).textTheme.bodyMedium ?? TextStyle(),
+                          child: Row(
+                            children: [
+                              WorkItemLinkWithParentsRow(workItem),
+
+                              JiraWorkItemStatusIndicator(issue: workItem),
+                            ],
+                          ),
                         ),
-                        child: const Text('Keep for later'),
-                      ),
-                      MenuItemButton(
-                        onPressed: () => addToTasks(context),
-                        leadingIcon: const Icon(Symbols.assignment_add),
-                        child: AddToTasksLabel(workItem: widget.workItem),
-                      ),
-                      MenuItemButton(
-                        onPressed: () => viewInBrowser(context),
-                        leadingIcon: const Icon(Symbols.open_in_browser),
-                        child: const Text('View in browser'),
+                        isTitleTruncated ? Tooltip(message: summary, child: titleText) : titleText,
+                      ],
+                    ),
+                    actionsPadding: EdgeInsets.only(right: 8),
+                    actions: [
+                      MenuAnchor(
+                        menuChildren: [
+                          MenuItemButton(
+                            onPressed: () => keepForLater(context),
+                            leadingIcon: Transform.rotate(
+                              angle: pi / 4,
+                              child: const Icon(Symbols.keep),
+                            ),
+                            child: const Text('Keep for later'),
+                          ),
+                          MenuItemButton(
+                            onPressed: () => addToTasks(context),
+                            leadingIcon: const Icon(Symbols.assignment_add),
+                            child: AddToTasksLabel(workItem: widget.workItem),
+                          ),
+                          MenuItemButton(
+                            onPressed: () => viewInBrowser(context),
+                            leadingIcon: const Icon(Symbols.open_in_browser),
+                            child: const Text('View in browser'),
+                          ),
+                        ],
+                        builder: (context, controller, child) {
+                          return IconButton(
+                            icon: const Icon(Symbols.more_vert),
+                            onPressed: () {
+                              controller.isOpen ? controller.close() : controller.open();
+                            },
+                          );
+                        },
                       ),
                     ],
-                    builder: (context, controller, child) {
-                      return IconButton(
-                        icon: const Icon(Symbols.more_vert),
-                        onPressed: () {
-                          controller.isOpen ? controller.close() : controller.open();
-                        },
-                      );
-                    },
+                    bottom: TabBar(tabs: tabs, controller: tabController),
                   ),
-                ],
-                bottom: TabBar(tabs: tabs, controller: tabController),
-              ),
-              body: TabBarView(
-                controller: tabController,
-                physics: NeverScrollableScrollPhysics(),
-                children: [
-                  HistoryPage(workItem: workItem),
-                  CommentsPage(workItem: workItem),
-                  JiraWorkItemDetailsView(workItem: workItem),
-                  AdvancedDataView(workItem: workItem),
-                ],
-              ),
-            ),
+                  body: TabBarView(
+                    controller: tabController,
+                    physics: NeverScrollableScrollPhysics(),
+                    children: [
+                      HistoryPage(workItem: workItem),
+                      CommentsPage(workItem: workItem),
+                      JiraWorkItemDetailsView(workItem: workItem),
+                      AdvancedDataView(workItem: workItem),
+                    ],
+                  ),
+                ),
+              );
+            },
           );
         }
         return Center(child: CircularProgressIndicator());

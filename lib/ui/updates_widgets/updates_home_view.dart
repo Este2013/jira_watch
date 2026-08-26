@@ -272,7 +272,16 @@ class _UpdatesPageState extends State<UpdatesPage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         double minSizeForLargeView = 1200;
-        if (isAllowedToShowIssueDialog && !isIssueDialogShown && selectedWorkItem != null && minSizeForLargeView >= constraints.maxWidth && (ModalRoute.of(context)?.isCurrent ?? true)) {
+        // This page sits inside an IndexedStack alongside every other tab
+        // (GitLab, To do, ...), which keeps it mounted and this LayoutBuilder
+        // rebuilding even while some other tab is the one actually on
+        // screen — Visibility.of is what tells the two apart, so resizing
+        // the window while on another tab can't pop this dialog open over
+        // it. ModalRoute.of(context)?.isCurrent alone doesn't catch this:
+        // every tab shares the one route the IndexedStack lives in, so it
+        // only ever guards against a dialog already open on top, not
+        // against this tab being the hidden one.
+        if (isAllowedToShowIssueDialog && !isIssueDialogShown && selectedWorkItem != null && minSizeForLargeView >= constraints.maxWidth && Visibility.of(context) && (ModalRoute.of(context)?.isCurrent ?? true)) {
           // there is a selection AND
           // size is too small for side-by-side AND
           // there is no open dialog
@@ -1009,90 +1018,114 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  WorkItemLinkWithParentsRow(widget.workItem, compact: showAsCompact),
-                                  const SizedBox(width: 8),
-                                  // Middle region. The status chip slides between the left
-                                  // edge (expanded) and the right edge (compact) of this
-                                  // region. An invisible placeholder reserves the chip's
-                                  // resting spot so the overlaid chip never overlaps text.
-                                  Expanded(
-                                    child: Stack(
-                                      alignment: Alignment.center,
-                                      children: [
-                                        Row(
-                                          children: showAsCompact
-                                              ? [
-                                                  Expanded(
-                                                    child: Text(
-                                                      summary,
-                                                      style: Theme.of(context).textTheme.titleMedium,
-                                                      maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Visibility(
-                                                    visible: false,
-                                                    maintainSize: true,
-                                                    maintainAnimation: true,
-                                                    maintainState: true,
-                                                    child: JiraWorkItemStatusIndicator(issue: widget.workItem),
-                                                  ),
-                                                ]
-                                              : [
-                                                  Visibility(
-                                                    visible: false,
-                                                    maintainSize: true,
-                                                    maintainAnimation: true,
-                                                    maintainState: true,
-                                                    child: JiraWorkItemStatusIndicator(issue: widget.workItem),
-                                                  ),
-                                                  const Spacer(),
-                                                  TimeAgoDisplay(timeStr: updated),
-                                                  Text(
-                                                    ', by ',
-                                                    style: TextStyle(fontSize: 12, color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300]),
-                                                  ),
-                                                ],
+                              LayoutBuilder(
+                                builder: (context, rowConstraints) {
+                                  // A Row's non-flex children always get an
+                                  // unbounded max width to report their own
+                                  // natural size, no matter how tight the
+                                  // Row itself is — which is why
+                                  // WorkItemLinkWithParentsRow's own
+                                  // overflow handling never saw a real
+                                  // number to react to and this row just
+                                  // overflowed instead. Bounding it
+                                  // explicitly here, with the space known to
+                                  // be reserved for its neighbours
+                                  // subtracted out, is what actually lets it
+                                  // collapse the project name before this
+                                  // row runs out of room.
+                                  const gapsAndUpdaterAvatar = 8.0 + 8.0 + 24.0;
+                                  const minStatusAndTimeArea = 160.0;
+                                  final availableForBreadcrumb = max(80.0, rowConstraints.maxWidth - gapsAndUpdaterAvatar - minStatusAndTimeArea);
+
+                                  return Row(
+                                    children: [
+                                      ConstrainedBox(
+                                        constraints: BoxConstraints(maxWidth: availableForBreadcrumb),
+                                        child: WorkItemLinkWithParentsRow(widget.workItem, compact: showAsCompact),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      // Middle region. The status chip slides between the left
+                                      // edge (expanded) and the right edge (compact) of this
+                                      // region. An invisible placeholder reserves the chip's
+                                      // resting spot so the overlaid chip never overlaps text.
+                                      Expanded(
+                                        child: Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            Row(
+                                              children: showAsCompact
+                                                  ? [
+                                                      Expanded(
+                                                        child: Text(
+                                                          summary,
+                                                          style: Theme.of(context).textTheme.titleMedium,
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Visibility(
+                                                        visible: false,
+                                                        maintainSize: true,
+                                                        maintainAnimation: true,
+                                                        maintainState: true,
+                                                        child: JiraWorkItemStatusIndicator(issue: widget.workItem),
+                                                      ),
+                                                    ]
+                                                  : [
+                                                      Visibility(
+                                                        visible: false,
+                                                        maintainSize: true,
+                                                        maintainAnimation: true,
+                                                        maintainState: true,
+                                                        child: JiraWorkItemStatusIndicator(issue: widget.workItem),
+                                                      ),
+                                                      const Spacer(),
+                                                      TimeAgoDisplay(timeStr: updated),
+                                                      Text(
+                                                        ', by ',
+                                                        style: TextStyle(fontSize: 12, color: Theme.of(context).brightness == Brightness.light ? Colors.grey[700] : Colors.grey[300]),
+                                                      ),
+                                                    ],
+                                            ),
+                                            AnimatedAlign(
+                                              duration: Durations.medium1,
+                                              curve: Curves.easeInOut,
+                                              alignment: showAsCompact ? Alignment.centerRight : Alignment.centerLeft,
+                                              child: JiraWorkItemStatusIndicator(issue: widget.workItem),
+                                            ),
+                                          ],
                                         ),
-                                        AnimatedAlign(
-                                          duration: Durations.medium1,
-                                          curve: Curves.easeInOut,
-                                          alignment: showAsCompact ? Alignment.centerRight : Alignment.centerLeft,
-                                          child: JiraWorkItemStatusIndicator(issue: widget.workItem),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      SizedBox.square(
+                                        dimension: 24,
+                                        child: Builder(
+                                          builder: (context) {
+                                            var updatorData = lastEditWasAComment
+                                                ? widget.workItem.fields!['comment']['comments'].last['author']
+                                                : lastUpdateData == null
+                                                ? fields['creator']
+                                                : lastUpdateData['author'];
+                                            return ClipRRect(
+                                              borderRadius: BorderRadiusGeometry.circular(10000),
+                                              child: Tooltip(
+                                                message: showAsCompact
+                                                    ? '${updatorData['displayName']}\n${(lastUpdateData == null && !lastEditWasAComment)
+                                                          ? 'Created this issue'
+                                                          : (lastEditWasAComment)
+                                                          ? 'Commented'
+                                                          : 'Changed ${((lastUpdateData['items'] as List).firstOrNull?['field'])}'}\n${timeAgo(timeStr: updated)}'
+                                                    : updatorData['displayName'],
+                                                child: JiraAvatar(key: Key(widget.workItem['id']), url: updatorData['avatarUrls']['32x32']),
+                                              ),
+                                            );
+                                          },
                                         ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  SizedBox.square(
-                                    dimension: 24,
-                                    child: Builder(
-                                      builder: (context) {
-                                        var updatorData = lastEditWasAComment
-                                            ? widget.workItem.fields!['comment']['comments'].last['author']
-                                            : lastUpdateData == null
-                                            ? fields['creator']
-                                            : lastUpdateData['author'];
-                                        return ClipRRect(
-                                          borderRadius: BorderRadiusGeometry.circular(10000),
-                                          child: Tooltip(
-                                            message: showAsCompact
-                                                ? '${updatorData['displayName']}\n${(lastUpdateData == null && !lastEditWasAComment)
-                                                      ? 'Created this issue'
-                                                      : (lastEditWasAComment)
-                                                      ? 'Commented'
-                                                      : 'Changed ${((lastUpdateData['items'] as List).firstOrNull?['field'])}'}\n${timeAgo(timeStr: updated)}'
-                                                : updatorData['displayName'],
-                                            child: JiraAvatar(key: Key(widget.workItem['id']), url: updatorData['avatarUrls']['32x32']),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ],
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
                               if (!showAsCompact)
                                 Row(

@@ -13,9 +13,12 @@ final List<(String, List<ChangeLogSection>)> appChangeLog = [
     '1.9.1',
     [
       ChangeLogSection.features([
-        ChangeLogItem(''),
+        ChangeLogItem('A tooltip shows epic name in the project/epic/work item URL'),
       ]),
       ChangeLogSection.bugFixes([
+        ChangeLogItem('Selected work item from Updates view no longer pops up as a dialog when reducing window width in another view'),
+        ChangeLogItem('Long work item titles no longer clip out in their view'),
+        ChangeLogItem('Update list tile no longer overflows when space is tight'),
         ChangeLogItem(
           'ADF renderer',
           subItems: [
