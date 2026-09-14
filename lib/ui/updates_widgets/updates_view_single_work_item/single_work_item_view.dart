@@ -20,6 +20,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 // ignore: unused_import
 import '../../utils/under_constuction_notice.dart';
+import 'custom_fields_view.dart';
 import 'work_item_comments_view.dart';
 import 'work_item_details_view.dart';
 
@@ -276,7 +277,7 @@ class AdvancedDataView extends StatelessWidget {
           tabs: [
             Tab(text: 'Full json'),
             Tab(text: 'Default fields'),
-            Tab(text: '🚧 Custom fields'),
+            Tab(text: 'Custom fields'),
           ],
         ),
         Expanded(
@@ -286,7 +287,7 @@ class AdvancedDataView extends StatelessWidget {
               children: [
                 JsonWorkItemView(workItem: workItem),
                 FieldsTable(workItem),
-                UnderConstructionNotice(),
+                CustomFieldsDebugView(workItem: workItem),
               ],
             ),
           ),

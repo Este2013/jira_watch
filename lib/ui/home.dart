@@ -44,6 +44,15 @@ enum HomePage {
   };
 }
 
+/// Which top-level page [HomeScreen] is currently showing.
+///
+/// Lets code elsewhere in the app switch tabs programmatically — e.g. a Jira
+/// Development card wants to land on a specific project in the GitLab tab —
+/// without needing a handle on [HomeScreen]'s own state. [HomeScreen] treats
+/// this as its source of truth rather than keeping a separate local field,
+/// so the rail and this notifier can never disagree about which page is showing.
+final ValueNotifier<HomePage> currentHomePage = ValueNotifier(HomePage.updates);
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -52,12 +61,14 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with UiLoggy {
-  HomePage _currentPage = HomePage.updates;
+  HomePage get _currentPage => currentHomePage.value;
+
+  void _onCurrentPageChanged() => setState(() {});
 
   void _onRailSelect(int index) {
     final page = HomePage.values[index];
     loggy.info('User selected "${page.title}" tab (#$index)');
-    setState(() => _currentPage = page);
+    currentHomePage.value = page;
   }
 
   /// The one list that cannot be generated from [HomePage], so it is isolated
@@ -151,6 +162,8 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
 
   @override
   void initState() {
+    currentHomePage.addListener(_onCurrentPageChanged);
+
     // A rolled-back update would otherwise be invisible: the app simply reopens
     // on the old version with no explanation.
     if (updateAftermath.hadFailure) {
@@ -183,6 +196,7 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
 
   @override
   void dispose() {
+    currentHomePage.removeListener(_onCurrentPageChanged);
     cancelDailyUpdateCheck();
     super.dispose();
   }

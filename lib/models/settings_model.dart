@@ -42,6 +42,15 @@ class SettingsModel with GlobalLoggy {
         useCompactJiraWorkItemDisplay.value = prefs.getString('use_compact_ticket_display') ?? 'When issue was read';
         useCompactJiraWorkItemDisplay.addListener(() => prefs.setString('use_compact_ticket_display', useCompactJiraWorkItemDisplay.value));
 
+        // Null (unset) means "ask every time" — only ever becomes true, via
+        // the Development card's own "Always" choice; there is no UI to set
+        // it back to null/ask again short of clearing app data.
+        openGitlabLinksExternally.value = prefs.getBool('open_gitlab_links_externally');
+        openGitlabLinksExternally.addListener(() {
+          final value = openGitlabLinksExternally.value;
+          if (value != null) prefs.setBool('open_gitlab_links_externally', value);
+        });
+
         // CONFLUENCE
         confluenceTextScale.value = prefs.getDouble('confluence_text_scale') ?? 1.0;
         confluenceTextScale.addListener(() => prefs.setDouble('confluence_text_scale', confluenceTextScale.value));
@@ -126,6 +135,11 @@ class SettingsModel with GlobalLoggy {
   final ValueNotifier<bool> markAsReadOnOpen = ValueNotifier(true);
 
   final ValueNotifier<String> useCompactJiraWorkItemDisplay = ValueNotifier('When issue was read');
+
+  /// A Development card's branch/repo link, when it isn't one this app can
+  /// open in its own GitLab view: null asks each time ("just this once" vs
+  /// "always"), true always opens straight in the browser without asking.
+  final ValueNotifier<bool?> openGitlabLinksExternally = ValueNotifier(null);
 
   /// How much larger to render a Confluence article's text. Global rather than
   /// per tab: someone who wants bigger text wants it everywhere, and a setting

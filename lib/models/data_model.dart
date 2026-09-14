@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:csv/csv.dart';
+import 'package:jira_platform_api/api.dart' as jira;
 import 'package:jira_watcher/dao/jira/jira_api.dart';
 import 'package:jira_watcher/models/jira_work_item_data.dart';
 import 'package:jira_watcher/models/confluence_tabs_model.dart';
@@ -12,7 +13,6 @@ import 'package:jira_watcher/models/to_do_tasks_models.dart';
 import 'package:loggy/loggy.dart';
 import 'package:path/path.dart' as path;
 import 'dart:io';
-
 
 /// Accessor to cached data.
 ///
@@ -75,6 +75,27 @@ class DataModel with GlobalLoggy {
   Future fetchSingleProject(String code, {List<String>? expand}) {
     // TODO missing cache check
     return jiraApi.project(code, expand: expand);
+  }
+
+  // FIELDS ///////////////////////////////////////////////////////////////////////
+
+  Map<String, jira.FieldDetails>? _fieldMetadataCache;
+
+  /// Every field this site knows about, keyed by id (e.g. `customfield_10056`)
+  /// — cached, since it only changes when an admin adds/removes a field, not
+  /// per issue.
+  Future<Map<String, jira.FieldDetails>> fieldMetadata({bool refresh = false}) async {
+    if (_fieldMetadataCache != null && !refresh) {
+      return _fieldMetadataCache!;
+    }
+
+    final fields = await jiraApi.allFields();
+    final result = {
+      for (final field in fields)
+        if (field.id != null) field.id!: field,
+    };
+    _fieldMetadataCache = result;
+    return result;
   }
 
   // WORK ITEMS /////////////////////////////////////////////////////////////////////

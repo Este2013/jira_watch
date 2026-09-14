@@ -60,6 +60,8 @@ class JiraApi with GlobalLoggy {
   jira.IssueCommentsApi get comments => jira.IssueCommentsApi(client);
   jira.IssueWorklogsApi get worklogs => jira.IssueWorklogsApi(client);
   jira.IssueAttachmentsApi get attachments => jira.IssueAttachmentsApi(client);
+  jira.IssueFieldsApi get fieldsApi => jira.IssueFieldsApi(client);
+  jira.IssueRemoteLinksApi get remoteLinksApi => jira.IssueRemoteLinksApi(client);
   agile.BoardApi get boards => agile.BoardApi(agileClient);
   agile.SprintApi get sprints => agile.SprintApi(agileClient);
 
@@ -215,17 +217,86 @@ class JiraApi with GlobalLoggy {
     return _decode(response);
   }
 
+  // REMOTE LINKS //////////////////////////////////////////////////////////////
+
+  /// This issue's "Web Links" — added via Jira's own Link > paste-a-URL
+  /// flow. Entirely separate from `issuelinks` (issue-to-issue links,
+  /// already part of the issue's own `fields`) and from custom fields, so
+  /// this is its own endpoint.
+  ///
+  /// Raw JSON, not the generated typed response: the spec's `200` schema
+  /// for this endpoint is a single object rather than the array the API
+  /// actually returns, so the generated `getRemoteIssueLinks()` decodes
+  /// wrong — `getRemoteIssueLinksWithHttpInfo` sidesteps that.
+  Future<List<dynamic>> remoteLinks(String issueIdOrKey) async {
+    final response = await remoteLinksApi.getRemoteIssueLinksWithHttpInfo(issueIdOrKey);
+    if (response.statusCode != 200) {
+      loggy.warning('GET /issue/$issueIdOrKey/remotelink returned ${response.statusCode}');
+      return const [];
+    }
+    return jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+  }
+
+  // DEVELOPMENT (dev-status) ////////////////////////////////////////////////////
+
+  /// Branch/commit/pull-request/build detail behind a "Development" field's
+  /// summary. Jira's dev-status API — undocumented, not part of the public
+  /// REST spec, so there is no generated client for it, no guarantee this
+  /// endpoint or its parameters stay stable, and no confirmed set of valid
+  /// [applicationType] values; it is whatever key the field's own summary
+  /// reported this data under. Returns null on anything unexpected rather
+  /// than throwing — every caller treats that identically to "no detail
+  /// available", falling back to the summary counts alone.
+  Future<Map<String, dynamic>?> developmentDetail({required String issueId, required String applicationType, required String dataType}) async {
+    final site = JiraAuth().siteUrl;
+    if (site == null) return null;
+    final uri = Uri.parse(
+      '$site/rest/dev-status/1.0/issue/detail',
+    ).replace(queryParameters: {'issueId': issueId, 'applicationType': applicationType, 'dataType': dataType});
+    try {
+      final response = await authenticatedGet(uri);
+      if (response.statusCode != 200) {
+        loggy.warning('GET /rest/dev-status/1.0/issue/detail ($dataType via $applicationType) returned ${response.statusCode}');
+        return null;
+      }
+      return jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+    } on Object catch (e) {
+      loggy.warning('GET /rest/dev-status/1.0/issue/detail ($dataType via $applicationType) failed: $e');
+      return null;
+    }
+  }
+
+  // FIELDS ////////////////////////////////////////////////////////////////////
+
+  /// Every field this site knows about — built in and custom — with each
+  /// one's display name and schema (type). Raw issue JSON only ever carries
+  /// a custom field's id (`customfield_10056`); this is what turns that back
+  /// into something a reader recognizes and a renderer knows how to format.
+  /// Typed, unlike most of this class's conveniences — [FieldDetails]
+  /// already fully describes this response, no ADF-shaped surprises here.
+  Future<List<jira.FieldDetails>> allFields() async {
+    try {
+      return await fieldsApi.getFields() ?? const [];
+    } on jira.ApiException catch (e) {
+      loggy.warning('GET /field returned ${e.code}: ${e.message}');
+      return const [];
+    }
+  }
+
   // RAW ///////////////////////////////////////////////////////////////////////
 
   /// An authenticated GET at an arbitrary URL on the site.
   ///
   /// For content the API describes only as a link — attachment bodies, media —
   /// where there is no typed operation to call.
-  Future<http.Response> authenticatedGet(Uri uri, {Map<String, String>? headers}) => http.get(uri, headers: {
-    'Authorization': JiraAuth().authHeader,
-    'Accept': '*/*',
-    ...?headers,
-  });
+  Future<http.Response> authenticatedGet(Uri uri, {Map<String, String>? headers}) => http.get(
+    uri,
+    headers: {
+      'Authorization': JiraAuth().authHeader,
+      'Accept': '*/*',
+      ...?headers,
+    },
+  );
 
   /// Decoded as UTF-8 explicitly: Jira serves summaries and comments containing
   /// non-ASCII, and `response.body` would decode them as latin-1.

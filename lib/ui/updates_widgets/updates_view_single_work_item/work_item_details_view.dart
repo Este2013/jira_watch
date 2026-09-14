@@ -25,6 +25,7 @@ import 'package:path/path.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../issue_ui_elements.dart';
+import 'custom_fields_view.dart';
 import 'single_work_item_view.dart';
 
 class JiraWorkItemDetailsView extends StatelessWidget {
@@ -94,13 +95,18 @@ class JiraWorkItemDetailsView extends StatelessWidget {
           if (workItem.fields!['description'] != null) DescriptionLikeField('Description', contentData: workItem.fields!['description'], attachments: (workItem.fields!['attachment'] as List)),
           if (workItem.fields!['environment'] != null) DescriptionLikeField('Environment', contentData: workItem.fields!['environment'], attachments: (workItem.fields!['attachment'] as List)),
           if (workItem.fields!['attachment'] != null && (workItem.fields!['attachment'] as List).isNotEmpty) AttachmentsField(attachmentsData: workItem.fields!['attachment']),
-          if (workItem.fields?['issuelinks'] != null && workItem.fields!['issuelinks'].isNotEmpty) IssueLinksField(issueLinksData: (workItem.fields!['issuelinks']! as List).cast()),
+          RelatedWorkItemsSection(workItem: workItem),
 
           DateDisplay('Created${workItem.fields!['creator']?['displayName'] != null ? " by ${workItem.fields!['creator']['displayName']}" : ''}', dateString: workItem.fields!['created']),
           if (workItem.fields?['updated'] != null) DateDisplay('Updated', dateString: workItem.fields!['updated']),
           if (workItem.fields?['resolutiondate'] != null) DateDisplay('Resolution date', dateString: workItem.fields!['resolutiondate']),
           if (workItem.fields?['statuscategorychangedate'] != null) DateDisplay('Last status category change', dateString: workItem.fields!['statuscategorychangedate']),
           if (workItem.fields?['lastViewed'] != null) DateDisplay('Last viewed', dateString: workItem.fields!['lastViewed']),
+
+          // Proof of concept: every customfield_* actually set on this issue,
+          // generically labelled and formatted by its schema type. See
+          // CustomFieldsSection's own doc comment for the reasoning.
+          CustomFieldsSection(workItem: workItem),
         ].expand((w) => [w, SizedBox(height: 8)]).toList(),
       ),
     );
@@ -779,31 +785,88 @@ class _AttachmentsDialogState extends State<AttachmentsDialog> {
   }
 }
 
-class IssueLinksField extends StatelessWidget {
-  const IssueLinksField({super.key, required this.issueLinksData});
-  final List<Map> issueLinksData;
+/// "Related work items": issue-to-issue links (already in this issue's own
+/// `fields`, available immediately) plus Web Links (a separate endpoint,
+/// fetched here) — combined into one panel since they're both, from a
+/// reader's point of view, just "other things this issue points to".
+class RelatedWorkItemsSection extends StatelessWidget {
+  const RelatedWorkItemsSection({super.key, required this.workItem});
+  final JiraWorkItemData workItem;
 
   @override
   Widget build(BuildContext context) {
-    // type name => type data and list of links
-    Map<String, (Map, List)> typesSplitData = {};
+    final issueLinksData = ((workItem.fields?['issuelinks'] as List?) ?? const []).cast<Map>();
+    final issueKey = workItem.key;
 
-    for (var section in issueLinksData) {
-      String sectionName = section['type']['name'];
-      if (!typesSplitData.containsKey(sectionName)) {
-        typesSplitData[sectionName] = (section['type'], []);
-      }
-      typesSplitData[sectionName]!.$2.add((section.containsKey('inwardIssue') ? 'in' : 'out', section['inwardIssue'] ?? section['outwardIssue']));
-    }
+    return FutureBuilder<List<dynamic>>(
+      future: issueKey == null ? Future.value(const []) : JiraApi().remoteLinks(issueKey),
+      builder: (context, snapshot) {
+        final webLinks = snapshot.data ?? const [];
+        // Nothing to show once loaded (or nothing that was ever going to
+        // change once it does, with no issue links to show meanwhile).
+        if (issueLinksData.isEmpty && webLinks.isEmpty) return const SizedBox.shrink();
 
-    return ExpandablePanel(
-      'Related work items',
-      content: Column(
-        spacing: 16,
-        children: [
-          for (var section in typesSplitData.entries) IssueLinkSection(section.value.$1, section.value.$2),
-        ],
+        // type name => type data and list of links
+        Map<String, (Map, List)> typesSplitData = {};
+        for (var section in issueLinksData) {
+          String sectionName = section['type']['name'];
+          if (!typesSplitData.containsKey(sectionName)) {
+            typesSplitData[sectionName] = (section['type'], []);
+          }
+          typesSplitData[sectionName]!.$2.add((section.containsKey('inwardIssue') ? 'in' : 'out', section['inwardIssue'] ?? section['outwardIssue']));
+        }
+
+        return ExpandablePanel(
+          'Related work items',
+          content: Column(
+            spacing: 16,
+            children: [
+              for (var section in typesSplitData.entries) IssueLinkSection(section.value.$1, section.value.$2),
+              if (webLinks.isNotEmpty)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('Web links', style: Theme.of(context).textTheme.titleSmall),
+                    SizedBox(height: 4),
+                    for (final link in webLinks) WebLinkTile(link as Map),
+                  ],
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class WebLinkTile extends StatelessWidget {
+  const WebLinkTile(this.data, {super.key});
+  final Map data;
+
+  @override
+  Widget build(BuildContext context) {
+    final object = (data['object'] as Map?) ?? const {};
+    final url = object['url']?.toString();
+    final title = object['title']?.toString() ?? url ?? 'Untitled link';
+    final iconUrl = (object['icon'] as Map?)?['url16x16']?.toString();
+
+    return ListTile(
+      leading: iconUrl != null ? SizedBox.square(dimension: 20, child: JiraAvatar(url: iconUrl)) : const Icon(Symbols.link),
+      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: url == null
+          ? null
+          : Text(
+              url,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: Theme.of(context).hintColor),
+            ),
+      trailing: IconButton(
+        onPressed: url == null ? null : () => launchUrl(Uri.parse(url)),
+        icon: const Icon(Symbols.open_in_new),
+        tooltip: 'Open in browser',
       ),
+      onTap: url == null ? null : () => launchUrl(Uri.parse(url)),
     );
   }
 }
