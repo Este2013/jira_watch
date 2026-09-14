@@ -7,6 +7,8 @@ import 'custom_fields_view.dart';
 import 'development_field_view.dart';
 import 'work_item_details_view.dart';
 
+typedef DetailsPropertyBuilder = Widget Function(BuildContext context, {required bool collapsed});
+
 /// One thing the Details tab can show, and that the reader can move, group
 /// or hide.
 ///
@@ -58,7 +60,11 @@ class DetailsProperty {
   /// track of, and which would be alarming to have vanish.
   final bool canHide;
 
-  final WidgetBuilder build;
+  /// Builds the property. [collapsed] asks a property that renders as an
+  /// expandable panel to start closed — what a pinned row wants, since it
+  /// is a strip to glance at rather than somewhere to unfold a document.
+  /// Properties with nothing to collapse ignore it.
+  final DetailsPropertyBuilder build;
 
   /// Whether this can be lifted into a pinned row at the top of the tab.
   /// The footer stays the footer, and a full-width section has no business
@@ -103,7 +109,7 @@ List<DetailsProperty> buildDetailsProperties(JiraWorkItemData workItem, Map<Stri
       name: 'Attachments',
       hasValue: !isEmptyJiraValue(attachments),
       canHide: false,
-      build: (context) => AttachmentsField(attachmentsData: attachments),
+      build: (context, {required collapsed}) => AttachmentsField(attachmentsData: attachments, startCollapsed: collapsed),
     ),
     DetailsProperty(
       id: 'issuelinks',
@@ -114,7 +120,7 @@ List<DetailsProperty> buildDetailsProperties(JiraWorkItemData workItem, Map<Stri
       hasValue: true,
       isFullWidth: true,
       canHide: false,
-      build: (context) => RelatedWorkItemsSection(workItem: workItem),
+      build: (context, {required collapsed}) => RelatedWorkItemsSection(workItem: workItem),
     ),
     ..._customFieldProperties(workItem, metadata, attachments),
     _dateProperty(fields, id: 'created', name: creator == null ? 'Created' : 'Created by $creator'),
@@ -133,7 +139,7 @@ DetailsProperty _dateProperty(Map fields, {required String id, required String n
     name: name,
     hasValue: hasValue,
     isFooter: true,
-    build: (context) => hasValue ? DateDisplay(name, dateString: dateString) : _EmptyProperty(name: name),
+    build: (context, {required collapsed}) => hasValue ? DateDisplay(name, dateString: dateString) : _EmptyProperty(name: name),
   );
 }
 
@@ -156,12 +162,23 @@ List<DetailsProperty> _customFieldProperties(JiraWorkItemData workItem, Map<Stri
         name: name,
         hasValue: hasValue,
         isLocked: kind == CustomFieldRenderKind.development,
-        build: (context) {
+        build: (context, {required collapsed}) {
           if (!hasValue) return _EmptyProperty(name: name);
           if (kind == CustomFieldRenderKind.development) {
-            return DevelopmentFieldCard(label: name, summary: DevelopmentFieldSummary.parse(value as String)!, workItem: workItem);
+            return DevelopmentFieldCard(
+              label: name,
+              summary: DevelopmentFieldSummary.parse(value as String)!,
+              workItem: workItem,
+              startCollapsed: collapsed,
+            );
           }
-          return CustomFieldValue(fieldId: fieldId, value: value, metadata: fieldMetadata, attachments: attachments);
+          return CustomFieldValue(
+            fieldId: fieldId,
+            value: value,
+            metadata: fieldMetadata,
+            attachments: attachments,
+            startCollapsed: collapsed,
+          );
         },
       ),
     );

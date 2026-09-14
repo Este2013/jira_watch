@@ -433,9 +433,13 @@ class DescriptionLikeField extends StatelessWidget {
 }
 
 class AttachmentsField extends StatelessWidget {
-  const AttachmentsField({super.key, this.attachmentsData});
+  const AttachmentsField({super.key, this.attachmentsData, this.startCollapsed = false});
 
   final dynamic attachmentsData;
+
+  /// Starts closed where the carousel would otherwise dominate whatever it
+  /// has been placed in — a pinned row, chiefly.
+  final bool startCollapsed;
 
   @override
   Widget build(BuildContext context) {
@@ -443,6 +447,7 @@ class AttachmentsField extends StatelessWidget {
     var attachments = attachmentsData as List;
     return ExpandablePanel(
       'Attachments (${attachments.length})',
+      isInitiallyExpanded: !startCollapsed,
       content: SizedBox(
         height: 150,
         child: CarouselView(

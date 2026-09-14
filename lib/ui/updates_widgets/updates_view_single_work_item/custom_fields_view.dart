@@ -116,12 +116,16 @@ CustomFieldRenderKind classifyCustomField(dynamic value, jira.FieldDetails? meta
 /// multi-value field) share the same schema `type: "array"` regardless of
 /// what's actually inside.
 class CustomFieldValue extends StatelessWidget {
-  const CustomFieldValue({super.key, required this.fieldId, required this.value, required this.metadata, this.attachments});
+  const CustomFieldValue({super.key, required this.fieldId, required this.value, required this.metadata, this.attachments, this.startCollapsed = false});
 
   final String fieldId;
   final dynamic value;
   final jira.FieldDetails? metadata;
   final List? attachments;
+
+  /// Starts a rich-text field closed where a whole document would otherwise
+  /// take over whatever it has been placed in — a pinned row, chiefly.
+  final bool startCollapsed;
 
   String get _label => metadata?.name ?? fieldId;
 
@@ -136,6 +140,7 @@ class CustomFieldValue extends StatelessWidget {
       // doesn't distinguish a rich-text field from a plain multi-line one).
       CustomFieldRenderKind.adf => ExpandablePanel(
         _label,
+        isInitiallyExpanded: !startCollapsed,
         content: AdfRenderer(adf: (v as Map).cast<String, dynamic>(), attachments: attachments),
       ),
 

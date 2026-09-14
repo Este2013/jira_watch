@@ -137,8 +137,8 @@ class _PinnedSlot extends StatelessWidget {
             child: Text(property.name),
           ),
         ),
-        childWhenDragging: Opacity(opacity: 0.4, child: DetailsPropertyTile(property: property, isPinned: true)),
-        child: DetailsPropertyTile(property: property, isPinned: true),
+        childWhenDragging: Opacity(opacity: 0.4, child: DetailsPropertyTile(property: property, isPinned: true, collapsed: true)),
+        child: DetailsPropertyTile(property: property, isPinned: true, collapsed: true),
       ),
     ),
   );
@@ -220,15 +220,19 @@ class DetailsPropertiesSection extends StatelessWidget {
 /// nothing overlaps what you are reading, nothing shifts under the cursor,
 /// and it is where the rest of the app already puts per-item actions.
 class DetailsPropertyTile extends StatelessWidget {
-  const DetailsPropertyTile({super.key, required this.property, this.isPinned = false});
+  const DetailsPropertyTile({super.key, required this.property, this.isPinned = false, this.collapsed = false});
 
   final DetailsProperty property;
   final bool isPinned;
 
+  /// Passed to the property: a pinned row asks for panels closed, since it
+  /// is a strip to glance at rather than somewhere to unfold a document.
+  final bool collapsed;
+
   @override
   Widget build(BuildContext context) => GestureDetector(
     onSecondaryTapDown: (details) => _showMenu(context, details),
-    child: property.build(context),
+    child: property.build(context, collapsed: collapsed),
   );
 
   void _showMenu(BuildContext context, TapDownDetails details) {

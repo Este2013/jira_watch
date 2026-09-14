@@ -35,11 +35,15 @@ const Map<String, (String, IconData)> _categoryLabels = {
 ///   doesn't look like what's expected, rather than showing nothing at all
 ///   for the whole field.
 class DevelopmentFieldCard extends StatelessWidget {
-  const DevelopmentFieldCard({super.key, required this.label, required this.summary, required this.workItem});
+  const DevelopmentFieldCard({super.key, required this.label, required this.summary, required this.workItem, this.startCollapsed = false});
 
   final String label;
   final DevelopmentFieldSummary summary;
   final JiraWorkItemData workItem;
+
+  /// Starts closed where its categories would otherwise take over whatever
+  /// it has been placed in — a pinned row, chiefly.
+  final bool startCollapsed;
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +53,7 @@ class DevelopmentFieldCard extends StatelessWidget {
 
     return ExpandablePanel(
       label,
+      isInitiallyExpanded: !startCollapsed,
       suffix: !summary.isStale
           ? null
           : Tooltip(
