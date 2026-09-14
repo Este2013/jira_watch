@@ -59,6 +59,11 @@ class DetailsProperty {
   final bool canHide;
 
   final WidgetBuilder build;
+
+  /// Whether this can be lifted into a pinned row at the top of the tab.
+  /// The footer stays the footer, and a full-width section has no business
+  /// in a row of columns.
+  bool get canPin => !isFullWidth && !isFooter;
 }
 
 /// Field keys the Details tab lays out itself, above anything the reader

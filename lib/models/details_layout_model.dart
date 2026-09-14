@@ -8,6 +8,85 @@ import 'package:loggy/loggy.dart';
 import 'package:observable_datasets/observable_list.dart';
 import 'package:path/path.dart' as path;
 
+/// The arithmetic of [DetailsLayoutModel.pinnedRows], kept apart from the
+/// model that stores them: rows in, rows out, no singleton and no file, so
+/// the fiddly part — which index means what once a property has been lifted
+/// out of the row it is moving within — can be reasoned about and tested on
+/// its own.
+///
+/// Every operation returns a fresh structure and drops rows left empty; a
+/// row nobody is in is not a row, and settling that here means no caller
+/// has to wonder whether its removal emptied something.
+abstract final class PinnedRows {
+  static bool contains(List<List<String>> rows, String propertyId) => rows.any((row) => row.contains(propertyId));
+
+  /// Pins to the end of the last row, starting one if nothing is pinned yet
+  /// — where a reader watching the top of the page would expect a newly
+  /// pinned field to land.
+  static List<List<String>> pin(List<List<String>> rows, String propertyId) {
+    if (contains(rows, propertyId)) return _clean(rows);
+    final next = _mutable(rows);
+    if (next.isEmpty) {
+      next.add([propertyId]);
+    } else {
+      next.last.add(propertyId);
+    }
+    return _clean(next);
+  }
+
+  static List<List<String>> pinToNewRow(List<List<String>> rows, String propertyId) {
+    final next = _withoutProperty(rows, propertyId)..add([propertyId]);
+    return _clean(next);
+  }
+
+  static List<List<String>> unpin(List<List<String>> rows, String propertyId) => _clean(_withoutProperty(rows, propertyId));
+
+  /// Moves an already-pinned property to [toIndex] of [toRow], or to a row
+  /// of its own when [toRow] is past the last one. Anything not already
+  /// pinned is left alone.
+  ///
+  /// [toIndex] is read against the rows as they look on screen, before the
+  /// property is lifted out of them — so a move rightwards within one row
+  /// has to account for its own removal, which is the off-by-one every
+  /// reorder gets wrong once.
+  static List<List<String>> move(List<List<String>> rows, String propertyId, {required int toRow, required int toIndex}) {
+    final next = _mutable(rows);
+
+    var fromRow = -1;
+    var fromIndex = -1;
+    for (var row = 0; row < next.length; row++) {
+      final index = next[row].indexOf(propertyId);
+      if (index == -1) continue;
+      fromRow = row;
+      fromIndex = index;
+      break;
+    }
+    if (fromRow == -1) return _clean(next);
+
+    next[fromRow].removeAt(fromIndex);
+    var targetIndex = toIndex;
+    if (fromRow == toRow && fromIndex < toIndex) targetIndex--;
+
+    if (toRow < 0 || toRow >= next.length) {
+      next.add([propertyId]);
+    } else {
+      next[toRow].insert(targetIndex.clamp(0, next[toRow].length), propertyId);
+    }
+    return _clean(next);
+  }
+
+  static List<List<String>> _mutable(List<List<String>> rows) => [
+    for (final row in rows) [...row],
+  ];
+
+  static List<List<String>> _withoutProperty(List<List<String>> rows, String propertyId) => _mutable(rows)..forEach((row) => row.remove(propertyId));
+
+  static List<List<String>> _clean(List<List<String>> rows) => [
+    for (final row in rows)
+      if (row.isNotEmpty) List<String>.from(row),
+  ];
+}
+
 /// How the reader has arranged the issue Details tab.
 ///
 /// One layout, shared by every issue — the fields a given project happens to
@@ -58,8 +137,33 @@ class DetailsLayoutModel with GlobalLoggy {
   /// particular ticket happens to have left blank.
   final ValueNotifier<bool> showEmptyProperties = ValueNotifier(false);
 
+  /// Properties lifted out of the list below and up to the top of the tab,
+  /// as rows of ids laid side by side — the row is the unit, because that
+  /// is what the existing assignee/priority row looks like and what someone
+  /// pinning a field is asking for more of.
+  ///
+  /// Held whole and replaced whole: a notifier only fires when its value
+  /// changes identity, and nesting observable lists to catch edits inside a
+  /// row would cost more than rebuilding a handful of string lists.
+  final ValueNotifier<List<List<String>>> pinnedRows = ValueNotifier(const []);
+
   /// Everything a view of this layout has to rebuild for.
-  Listenable get listenable => Listenable.merge([hiddenPropertyIds, showEmptyProperties]);
+  Listenable get listenable => Listenable.merge([hiddenPropertyIds, showEmptyProperties, pinnedRows]);
+
+  bool isPinned(String propertyId) => PinnedRows.contains(pinnedRows.value, propertyId);
+
+  void pin(String propertyId) => _setPinnedRows(PinnedRows.pin(pinnedRows.value, propertyId));
+
+  void pinToNewRow(String propertyId) => _setPinnedRows(PinnedRows.pinToNewRow(pinnedRows.value, propertyId));
+
+  void unpin(String propertyId) => _setPinnedRows(PinnedRows.unpin(pinnedRows.value, propertyId));
+
+  void movePinned(String propertyId, {required int toRow, required int toIndex}) => _setPinnedRows(PinnedRows.move(pinnedRows.value, propertyId, toRow: toRow, toIndex: toIndex));
+
+  void _setPinnedRows(List<List<String>> rows) {
+    pinnedRows.value = rows;
+    requestSave();
+  }
 
   // ObservableList's own contains/remove are typed to int whatever the
   // list holds — a quirk of that package. `.list` is a plain List<String>
@@ -97,6 +201,10 @@ class DetailsLayoutModel with GlobalLoggy {
       final data = jsonDecode(raw) as Map<String, dynamic>;
       hiddenPropertyIds.addAll((data['hiddenPropertyIds'] as List? ?? const []).map((e) => e.toString()));
       showEmptyProperties.value = data['showEmptyProperties'] as bool? ?? false;
+      pinnedRows.value = [
+        for (final row in data['pinnedRows'] as List? ?? const [])
+          if (row is List && row.isNotEmpty) [for (final id in row) id.toString()],
+      ];
     } on Object catch (e) {
       loggy.error('details_layout.json could not be read ($e). Starting from the default layout.');
     }
@@ -112,6 +220,7 @@ class DetailsLayoutModel with GlobalLoggy {
           'schemaVersion': _schemaVersion,
           'showEmptyProperties': showEmptyProperties.value,
           'hiddenPropertyIds': hiddenPropertyIds.list,
+          'pinnedRows': pinnedRows.value,
         }),
       );
     } on Object catch (e) {

@@ -24,8 +24,12 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:jira_platform_api/api.dart' as jira;
+import 'package:jira_watcher/models/details_layout_model.dart';
+
 import '../issue_ui_elements.dart';
 import 'details_layout_view.dart';
+import 'details_properties.dart';
 import 'single_work_item_view.dart';
 
 class JiraWorkItemDetailsView extends StatelessWidget {
@@ -37,6 +41,23 @@ class JiraWorkItemDetailsView extends StatelessWidget {
       return Text('No fields were found');
     }
 
+    // Resolved once, here, rather than inside each arrangeable section:
+    // both of them describe the same set of properties, and the pinned rows
+    // above Description and the list below it have to agree about which
+    // ones are already spoken for.
+    return FutureBuilder<Map<String, jira.FieldDetails>>(
+      future: DataModel().fieldMetadata(),
+      builder: (context, snapshot) {
+        final metadata = snapshot.data ?? const <String, jira.FieldDetails>{};
+        return ListenableBuilder(
+          listenable: DetailsLayoutModel().listenable,
+          builder: (context, _) => _buildDetails(context, buildDetailsProperties(workItem, metadata), metadata),
+        );
+      },
+    );
+  }
+
+  Widget _buildDetails(BuildContext context, List<DetailsProperty> properties, Map<String, jira.FieldDetails> metadata) {
     bool labels = workItem.fields?['labels'] != null && workItem.fields!['labels'].isNotEmpty;
     bool components = workItem.fields?['components'] != null && workItem.fields!['components'].isNotEmpty;
     return Padding(
@@ -92,12 +113,15 @@ class JiraWorkItemDetailsView extends StatelessWidget {
               ),
             ],
           ),
+          // Whatever the reader has lifted up here, above the long-form
+          // documents where it can be read at a glance.
+          DetailsPinnedSection(properties: properties),
           if (workItem.fields!['description'] != null) DescriptionLikeField('Description', contentData: workItem.fields!['description'], attachments: (workItem.fields!['attachment'] as List)),
           if (workItem.fields!['environment'] != null) DescriptionLikeField('Environment', contentData: workItem.fields!['environment'], attachments: (workItem.fields!['attachment'] as List)),
           // Everything from here down — attachments, links, the dates, and
           // every custom field — is arranged by the reader rather than by
           // this list. See DetailsPropertiesSection.
-          DetailsPropertiesSection(workItem: workItem),
+          DetailsPropertiesSection(properties: properties, metadata: metadata),
         ].expand((w) => [w, SizedBox(height: 8)]).toList(),
       ),
     );
