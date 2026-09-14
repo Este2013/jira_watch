@@ -6,6 +6,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:jira_watcher/models/details_layout_model.dart';
 import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
 
+import 'details_groups_view.dart';
 import 'details_properties.dart';
 
 /// The properties the reader has lifted to the top of the tab, as rows laid
@@ -194,14 +195,15 @@ class DetailsPropertiesSection extends StatelessWidget {
 
     // The dates stay where they have always been: last, in their own order,
     // below everything the reader arranges.
-    final arranged = visible.where((p) => !p.isFooter);
+    final arranged = visible.where((p) => !p.isFooter).toList();
     final footer = visible.where((p) => p.isFooter);
+    final groups = layout.resolvedGroups([for (final property in arranged) property.id]);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 8,
       children: [
-        for (final property in arranged) DetailsPropertyTile(key: Key(property.id), property: property),
+        DetailsGroupsView(groups: groups, propertiesById: {for (final property in arranged) property.id: property}),
         if (footer.isNotEmpty)
           const Padding(
             padding: EdgeInsets.only(top: 24, bottom: 8),
@@ -220,10 +222,25 @@ class DetailsPropertiesSection extends StatelessWidget {
 /// nothing overlaps what you are reading, nothing shifts under the cursor,
 /// and it is where the rest of the app already puts per-item actions.
 class DetailsPropertyTile extends StatelessWidget {
-  const DetailsPropertyTile({super.key, required this.property, this.isPinned = false, this.collapsed = false});
+  const DetailsPropertyTile({
+    super.key,
+    required this.property,
+    this.isPinned = false,
+    this.collapsed = false,
+    this.group,
+    this.groups = const [],
+  });
 
   final DetailsProperty property;
   final bool isPinned;
+
+  /// The group this property is rendered in, when it is in the arrangeable
+  /// zone — null in a pinned row, where groups do not apply.
+  final PropertyGroup? group;
+
+  /// The resolved groups this property's menu would act on. Mutations are
+  /// expressed against what is on screen, implicit groups included.
+  final List<PropertyGroup> groups;
 
   /// Passed to the property: a pinned row asks for panels closed, since it
   /// is a strip to glance at rather than somewhere to unfold a document.
@@ -266,6 +283,27 @@ class DetailsPropertyTile extends StatelessWidget {
               enabled: property.canPin,
               onSelected: (_) => layout.pinToNewRow(property.id),
             ),
+          ],
+          if (group case final group?) ...[
+            const MenuDivider(),
+            MenuItem(
+              label: const Text('Move to its own group'),
+              icon: const Icon(Symbols.move_group),
+              // Nothing to move out of when it is already alone.
+              enabled: !property.isLocked && group.propertyIds.length > 1,
+              onSelected: (_) => layout.movePropertyToOwnGroup(groups, property.id),
+            ),
+            MenuItem(
+              label: Text(group.name.isEmpty ? 'Name this group' : 'Rename "${group.name}"'),
+              icon: const Icon(Symbols.edit),
+              onSelected: (_) => renameGroupDialog(context, groups, group),
+            ),
+            for (final width in GroupWidth.values)
+              MenuItem(
+                label: Text(width.label),
+                icon: Icon(group.width == width ? Symbols.check : Symbols.width_normal),
+                onSelected: (_) => layout.setGroupWidth(groups, group.id, width),
+              ),
           ],
           const MenuDivider(),
           MenuItem(
