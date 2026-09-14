@@ -71,6 +71,24 @@ enum CustomFieldRenderKind {
   final String description;
 }
 
+/// Whether a field value has nothing to say, so the Details tab can treat
+/// it as absent rather than drawing a row that reads as broken.
+///
+/// Null is the obvious case, but a field is just as often present and
+/// empty: an option list nobody picked from, an empty object, or the
+/// literal `{}` some integrations write in place of one. Jira itself
+/// distinguishes these; a reader has no reason to.
+bool isEmptyJiraValue(dynamic value) {
+  if (value == null) return true;
+  if (value is String) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty || trimmed == '{}' || trimmed == '[]';
+  }
+  if (value is Iterable) return value.isEmpty;
+  if (value is Map) return value.isEmpty;
+  return false;
+}
+
 /// Decides how a custom field's value would be rendered, from its actual
 /// shape first and [metadata]'s schema only where shape alone is ambiguous
 /// (a plain string could be a date, or just text) — see [CustomFieldValue]
@@ -315,6 +333,10 @@ class _CustomFieldDebugTile extends StatelessWidget {
             children: [
               _InfoChip('renders as: ${kind.description}'),
               _InfoChip('Dart type: ${value.runtimeType}'),
+              // Why a field with a value in it is nonetheless treated as
+              // blank by the Details tab — otherwise the two views look
+              // like they disagree.
+              if (isEmptyJiraValue(value)) const _InfoChip('counts as: empty'),
               if (schema?.type != null) _InfoChip('schema.type: ${schema!.type}'),
               if (schema?.custom != null) _InfoChip('schema.custom: ${schema!.custom}'),
               if (schema?.items != null) _InfoChip('schema.items: ${schema!.items}'),

@@ -31,9 +31,10 @@ class DetailsProperty {
   /// name from Jira's field metadata rather than its raw id.
   final String name;
 
-  /// Whether this issue actually has anything to show here. False ones are
-  /// only rendered when the reader asks to see empty properties, so that a
-  /// group can be arranged around a field this particular ticket left blank.
+  /// Whether this issue actually has anything to show here — absent, but
+  /// also present-and-empty (see [isEmptyJiraValue]). False ones are only
+  /// rendered when the reader asks to see empty properties, so that a group
+  /// can be arranged around a field this particular ticket left blank.
   final bool hasValue;
 
   /// Never tiled beside anything else. Related work items is the one of
@@ -95,7 +96,7 @@ List<DetailsProperty> buildDetailsProperties(JiraWorkItemData workItem, Map<Stri
     DetailsProperty(
       id: 'attachment',
       name: 'Attachments',
-      hasValue: attachments.isNotEmpty,
+      hasValue: !isEmptyJiraValue(attachments),
       canHide: false,
       build: (context) => AttachmentsField(attachmentsData: attachments),
     ),
@@ -121,12 +122,13 @@ List<DetailsProperty> buildDetailsProperties(JiraWorkItemData workItem, Map<Stri
 
 DetailsProperty _dateProperty(Map fields, {required String id, required String name}) {
   final dateString = fields[id];
+  final hasValue = !isEmptyJiraValue(dateString);
   return DetailsProperty(
     id: id,
     name: name,
-    hasValue: dateString != null,
+    hasValue: hasValue,
     isFooter: true,
-    build: (context) => dateString == null ? _EmptyProperty(name: name) : DateDisplay(name, dateString: dateString),
+    build: (context) => hasValue ? DateDisplay(name, dateString: dateString) : _EmptyProperty(name: name),
   );
 }
 
@@ -142,14 +144,15 @@ List<DetailsProperty> _customFieldProperties(JiraWorkItemData workItem, Map<Stri
     if (kind == CustomFieldRenderKind.hiddenOpaque || kind == CustomFieldRenderKind.hiddenRedundant) return;
 
     final name = fieldMetadata?.name ?? fieldId;
+    final hasValue = !isEmptyJiraValue(value);
     properties.add(
       DetailsProperty(
         id: fieldId,
         name: name,
-        hasValue: value != null,
+        hasValue: hasValue,
         isLocked: kind == CustomFieldRenderKind.development,
         build: (context) {
-          if (value == null) return _EmptyProperty(name: name);
+          if (!hasValue) return _EmptyProperty(name: name);
           if (kind == CustomFieldRenderKind.development) {
             return DevelopmentFieldCard(label: name, summary: DevelopmentFieldSummary.parse(value as String)!, workItem: workItem);
           }

@@ -6,8 +6,10 @@ import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/de
 void main() {
   JiraWorkItemData issueWith(Map<String, dynamic> fields) => JiraWorkItemData({'id': '1', 'key': 'TEST-1', 'fields': fields});
 
-  jira.FieldDetails named(String name, {String? custom}) =>
-      jira.FieldDetails(name: name, schema: jira.JsonTypeBean(type: 'string', custom: custom));
+  jira.FieldDetails named(String name, {String? custom}) => jira.FieldDetails(
+    name: name,
+    schema: jira.JsonTypeBean(type: 'string', custom: custom),
+  );
 
   group('buildDetailsProperties', () {
     test('offers the built-in properties even when this issue has no value for them', () {
@@ -23,7 +25,11 @@ void main() {
 
     test('never offers a field the Details tab lays out itself', () {
       final properties = buildDetailsProperties(
-        issueWith({'created': '2026-01-01T00:00:00.000+0100', 'assignee': {'accountId': 'x'}, 'description': {'type': 'doc', 'content': []}}),
+        issueWith({
+          'created': '2026-01-01T00:00:00.000+0100',
+          'assignee': {'accountId': 'x'},
+          'description': {'type': 'doc', 'content': []},
+        }),
         const {},
       );
 
@@ -39,6 +45,34 @@ void main() {
 
       expect(byId['customfield_11101']?.name, 'Team');
       expect(byId['customfield_99999']?.name, 'customfield_99999');
+    });
+
+    test('counts a present-but-empty value as no value', () {
+      // A field can be set to something that says nothing: an empty list of
+      // options, an empty object, or the "{}" some integrations write.
+      final properties = buildDetailsProperties(
+        issueWith({
+          'created': 'x',
+          'customfield_10001': <dynamic>[],
+          'customfield_10002': <String, dynamic>{},
+          'customfield_10003': '{}',
+          'customfield_10004': '   ',
+          'customfield_10005': 'actually says something',
+        }),
+        const {},
+      );
+      final byId = {for (final p in properties) p.id: p};
+
+      expect(byId['customfield_10001']?.hasValue, isFalse);
+      expect(byId['customfield_10002']?.hasValue, isFalse);
+      expect(byId['customfield_10003']?.hasValue, isFalse);
+      expect(byId['customfield_10004']?.hasValue, isFalse);
+      expect(byId['customfield_10005']?.hasValue, isTrue);
+    });
+
+    test('counts an empty attachment list as no value', () {
+      final properties = buildDetailsProperties(issueWith({'created': 'x', 'attachment': <dynamic>[]}), const {});
+      expect({for (final p in properties) p.id: p}['attachment']?.hasValue, isFalse);
     });
 
     test('includes unset custom fields, marked as having no value', () {
@@ -93,8 +127,7 @@ void main() {
     });
 
     test('marks Related work items full width and a Development field locked', () {
-      const developmentValue =
-          '{repository={count=1, dataType=repository}, json={"cachedValue":{"summary":{"repository":{"overall":{"count":1,"dataType":"repository"},"byInstanceType":{}}}},"isStale":false}}';
+      const developmentValue = '{repository={count=1, dataType=repository}, json={"cachedValue":{"summary":{"repository":{"overall":{"count":1,"dataType":"repository"},"byInstanceType":{}}}},"isStale":false}}';
       final properties = buildDetailsProperties(
         issueWith({'created': 'x', 'customfield_10000': developmentValue}),
         {'customfield_10000': named('Development')},

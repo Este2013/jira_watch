@@ -45,14 +45,22 @@ class DetailsPropertiesSection extends StatelessWidget {
             final byId = {for (final property in properties) property.id: property};
             final hiddenNames = {for (final id in hiddenIds) id: byId[id]?.name ?? metadata[id]?.name ?? id};
 
+            // The dates stay where they have always been: last, in their
+            // own order, below everything the reader arranges.
+            final arranged = visible.where((p) => !p.isFooter);
+            final footer = visible.where((p) => p.isFooter);
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: 8,
               children: [
-                // The dates stay where they have always been: last, in
-                // their own order, below everything the reader arranges.
-                for (final property in visible.where((p) => !p.isFooter)) DetailsPropertyTile(key: Key(property.id), property: property),
-                for (final property in visible.where((p) => p.isFooter)) DetailsPropertyTile(key: Key(property.id), property: property),
+                for (final property in arranged) DetailsPropertyTile(key: Key(property.id), property: property),
+                if (footer.isNotEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 24, bottom: 8),
+                    child: Divider(height: 1),
+                  ),
+                for (final property in footer) DetailsPropertyTile(key: Key(property.id), property: property),
                 DetailsLayoutFooter(hiddenNames: hiddenNames),
               ],
             );
