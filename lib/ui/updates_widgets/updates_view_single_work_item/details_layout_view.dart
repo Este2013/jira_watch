@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_context_menu/flutter_context_menu.dart';
 import 'package:jira_platform_api/api.dart' as jira;
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/details_layout_model.dart';
 import 'package:jira_watcher/models/jira_work_item_data.dart';
+import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
 
 import 'details_properties.dart';
 
@@ -47,7 +49,10 @@ class DetailsPropertiesSection extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: 8,
               children: [
-                for (final property in visible) DetailsPropertyTile(key: Key(property.id), property: property),
+                // The dates stay where they have always been: last, in
+                // their own order, below everything the reader arranges.
+                for (final property in visible.where((p) => !p.isFooter)) DetailsPropertyTile(key: Key(property.id), property: property),
+                for (final property in visible.where((p) => p.isFooter)) DetailsPropertyTile(key: Key(property.id), property: property),
                 DetailsLayoutFooter(hiddenNames: hiddenNames),
               ],
             );
@@ -58,70 +63,55 @@ class DetailsPropertiesSection extends StatelessWidget {
   }
 }
 
-/// One property, with the controls for rearranging it revealed on hover.
+/// One property, with its own right-click menu.
 ///
-/// Hover rather than an edit mode, and a small button rather than a whole
-/// draggable surface: the tab stays readable, and nothing moves because a
-/// click landed slightly off.
-class DetailsPropertyTile extends StatefulWidget {
+/// A context menu rather than a button that appears over the content:
+/// nothing overlaps what you are reading, nothing shifts under the cursor,
+/// and it is where the rest of the app already puts per-item actions.
+class DetailsPropertyTile extends StatelessWidget {
   const DetailsPropertyTile({super.key, required this.property});
 
   final DetailsProperty property;
 
   @override
-  State<DetailsPropertyTile> createState() => _DetailsPropertyTileState();
-}
+  Widget build(BuildContext context) => GestureDetector(
+    onSecondaryTapDown: (details) => _showMenu(context, details),
+    child: property.build(context),
+  );
 
-class _DetailsPropertyTileState extends State<DetailsPropertyTile> {
-  bool _hovering = false;
-
-  @override
-  Widget build(BuildContext context) => MouseRegion(
-    onEnter: (_) => setState(() => _hovering = true),
-    onExit: (_) => setState(() => _hovering = false),
-    child: Stack(
-      children: [
-        widget.property.build(context),
-        if (_hovering)
-          Positioned(
-            top: 0,
-            right: 0,
-            child: PropertyActionButton(
-              icon: Symbols.visibility_off,
-              tooltip: 'Hide "${widget.property.name}" on every issue',
-              onPressed: () => DetailsLayoutModel().hide(widget.property.id),
-            ),
+  void _showMenu(BuildContext context, TapDownDetails details) {
+    showContextMenu(
+      context,
+      onItemSelected: (_) {},
+      contextMenu: ContextMenu(
+        position: details.globalPosition,
+        entries: <ContextMenuEntry>[
+          MenuItem(label: Center(child: Text(property.name)), enabled: false),
+          const MenuDivider(),
+          MenuItem(
+            label: const Text('Hide on every issue'),
+            icon: const Icon(Symbols.visibility_off),
+            // Shown disabled rather than left out, so it is clear this
+            // section is deliberately not hideable rather than the menu
+            // being broken.
+            enabled: property.canHide,
+            onSelected: (_) => _hide(context),
           ),
-      ],
-    ),
-  );
-}
-
-/// Sized to sit in the corner of even a single line of text without
-/// covering it or forcing the row taller.
-class PropertyActionButton extends StatelessWidget {
-  const PropertyActionButton({super.key, required this.icon, required this.tooltip, required this.onPressed});
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) => Tooltip(
-    message: tooltip,
-    child: Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.92),
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onPressed,
-        child: Padding(
-          padding: const EdgeInsets.all(3),
-          child: Icon(icon, size: 14),
-        ),
+        ],
       ),
-    ),
-  );
+    );
+  }
+
+  void _hide(BuildContext context) {
+    DetailsLayoutModel().hide(property.id);
+    showAppSnackBar(
+      context,
+      SnackBar(
+        content: Text('Hid "${property.name}" on every issue'),
+        action: SnackBarAction(label: 'Undo', onPressed: () => DetailsLayoutModel().restore(property.id)),
+      ),
+    );
+  }
 }
 
 /// The layout's own controls, at the bottom of the tab: whether to show

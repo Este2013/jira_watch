@@ -65,7 +65,34 @@ void main() {
       expect(properties.map((p) => p.id), isNot(contains('customfield_10002')));
     });
 
-    test('marks Links full width and a Development field locked', () {
+    test('keeps the dates as the footer, and nothing else in it', () {
+      final properties = buildDetailsProperties(
+        issueWith({'created': 'x', 'updated': 'y', 'attachment': [], 'customfield_11101': 'a value'}),
+        {'customfield_11101': named('Team')},
+      );
+
+      expect(
+        properties.where((p) => p.isFooter).map((p) => p.id),
+        ['created', 'updated', 'resolutiondate', 'statuscategorychangedate', 'lastViewed'],
+      );
+      expect(properties.where((p) => !p.isFooter).map((p) => p.id), ['attachment', 'issuelinks', 'customfield_11101']);
+    });
+
+    test('refuses to let attachments or related work items be hidden', () {
+      final properties = buildDetailsProperties(
+        issueWith({'created': 'x', 'customfield_11101': 'a value'}),
+        {'customfield_11101': named('Team')},
+      );
+      final byId = {for (final p in properties) p.id: p};
+
+      expect(byId['attachment']?.canHide, isFalse);
+      expect(byId['issuelinks']?.canHide, isFalse);
+      // Everything else is fair game.
+      expect(byId['customfield_11101']?.canHide, isTrue);
+      expect(byId['created']?.canHide, isTrue);
+    });
+
+    test('marks Related work items full width and a Development field locked', () {
       const developmentValue =
           '{repository={count=1, dataType=repository}, json={"cachedValue":{"summary":{"repository":{"overall":{"count":1,"dataType":"repository"},"byInstanceType":{}}}},"isStale":false}}';
       final properties = buildDetailsProperties(

@@ -21,6 +21,8 @@ class DetailsProperty {
     required this.build,
     this.isFullWidth = false,
     this.isLocked = false,
+    this.isFooter = false,
+    this.canHide = true,
   });
 
   final String id;
@@ -34,14 +36,26 @@ class DetailsProperty {
   /// group can be arranged around a field this particular ticket left blank.
   final bool hasValue;
 
-  /// Never tiled beside anything else. Links is the one of these: it is a
-  /// list of rows, and a half-width column of them reads badly.
+  /// Never tiled beside anything else. Related work items is the one of
+  /// these: it is a list of rows, and a half-width column of them reads
+  /// badly.
   final bool isFullWidth;
 
   /// Rendered as a unit the reader cannot rearrange the insides of —
   /// Development, and any other integration whose card is really an external
   /// app's own view rather than a Jira field.
   final bool isLocked;
+
+  /// Belongs to the run of dates at the very bottom of the tab. Those stay
+  /// where they are: they are the issue's own provenance rather than
+  /// something to arrange, and reading them in a group beside a custom
+  /// field would be stranger than leaving them be.
+  final bool isFooter;
+
+  /// False for the sections that carry an issue's actual substance —
+  /// attachments and links — which there is never a good reason to lose
+  /// track of, and which would be alarming to have vanish.
+  final bool canHide;
 
   final WidgetBuilder build;
 }
@@ -63,9 +77,9 @@ const fixedDetailsFieldKeys = {
   'environment',
 };
 
-/// Every property this issue can show, in the order they appeared before any
-/// of this was arrangeable: attachments, links, the creation/update dates,
-/// then custom fields by name.
+/// Every property this issue can show: the arrangeable ones first —
+/// attachments, links, then custom fields by name — and the dates that make
+/// up the footer last.
 ///
 /// [metadata] is Jira's field metadata, which supplies custom field names;
 /// while it is still loading an empty map is fine — those fields fall back
@@ -82,24 +96,26 @@ List<DetailsProperty> buildDetailsProperties(JiraWorkItemData workItem, Map<Stri
       id: 'attachment',
       name: 'Attachments',
       hasValue: attachments.isNotEmpty,
+      canHide: false,
       build: (context) => AttachmentsField(attachmentsData: attachments),
     ),
     DetailsProperty(
       id: 'issuelinks',
-      name: 'Links',
+      name: 'Related work items',
       // Web links are fetched separately and arrive after this is built, so
       // emptiness isn't knowable here; the section hides itself once it
       // knows it has nothing, which is the only moment anyone can tell.
       hasValue: true,
       isFullWidth: true,
+      canHide: false,
       build: (context) => RelatedWorkItemsSection(workItem: workItem),
     ),
+    ..._customFieldProperties(workItem, metadata, attachments),
     _dateProperty(fields, id: 'created', name: creator == null ? 'Created' : 'Created by $creator'),
     _dateProperty(fields, id: 'updated', name: 'Updated'),
     _dateProperty(fields, id: 'resolutiondate', name: 'Resolution date'),
     _dateProperty(fields, id: 'statuscategorychangedate', name: 'Last status category change'),
     _dateProperty(fields, id: 'lastViewed', name: 'Last viewed'),
-    ..._customFieldProperties(workItem, metadata, attachments),
   ];
 }
 
@@ -109,6 +125,7 @@ DetailsProperty _dateProperty(Map fields, {required String id, required String n
     id: id,
     name: name,
     hasValue: dateString != null,
+    isFooter: true,
     build: (context) => dateString == null ? _EmptyProperty(name: name) : DateDisplay(name, dateString: dateString),
   );
 }
