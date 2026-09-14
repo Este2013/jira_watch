@@ -91,58 +91,6 @@ CustomFieldRenderKind classifyCustomField(dynamic value, jira.FieldDetails? meta
   return CustomFieldRenderKind.fallbackJson;
 }
 
-/// A proof-of-concept "Custom fields" panel for the Details tab: every
-/// `customfield_*` value actually set on this issue, labelled with its real
-/// name (from [DataModel.fieldMetadata], not the raw id) and formatted
-/// according to its schema — the point being to prove a handful of Jira's
-/// different field shapes (plain text, numbers, single/multi option, users,
-/// dates, rich text, arbitrary arrays) all render sensibly, before any
-/// per-field customization is built on top of this.
-class CustomFieldsSection extends StatelessWidget {
-  const CustomFieldsSection({super.key, required this.workItem});
-
-  final JiraWorkItemData workItem;
-
-  @override
-  Widget build(BuildContext context) {
-    final values = workItem.customFields;
-    if (values.isEmpty) return const SizedBox.shrink();
-
-    return FutureBuilder<Map<String, jira.FieldDetails>>(
-      future: DataModel().fieldMetadata(),
-      builder: (context, snapshot) {
-        final metadata = snapshot.data ?? const {};
-        const hiddenKinds = {CustomFieldRenderKind.hiddenOpaque, CustomFieldRenderKind.hiddenRedundant};
-        final entries = values.entries.where((e) => !hiddenKinds.contains(classifyCustomField(e.value, metadata[e.key]))).toList()..sort((a, b) => (metadata[a.key]?.name ?? a.key).compareTo(metadata[b.key]?.name ?? b.key));
-        if (entries.isEmpty) return const SizedBox.shrink();
-
-        return ExpandablePanel(
-          'Custom fields (${entries.length})',
-          content: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 12,
-            children: [for (final entry in entries) _buildField(context, entry.key, entry.value, metadata[entry.key])],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildField(BuildContext context, String fieldId, dynamic value, jira.FieldDetails? metadata) {
-    if (classifyCustomField(value, metadata) == CustomFieldRenderKind.development) {
-      final summary = DevelopmentFieldSummary.parse(value as String)!;
-      return DevelopmentFieldCard(key: Key(fieldId), label: metadata?.name ?? fieldId, summary: summary, workItem: workItem);
-    }
-    return CustomFieldValue(
-      key: Key(fieldId),
-      fieldId: fieldId,
-      value: value,
-      metadata: metadata,
-      attachments: workItem.fields?['attachment'] as List?,
-    );
-  }
-}
-
 /// One custom field's label + value, formatted according to its value's
 /// actual shape — [metadata]'s schema type is used for the label and to
 /// pick a date format, but the shape checks below are what really decide

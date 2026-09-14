@@ -25,7 +25,7 @@ import 'package:path/path.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../issue_ui_elements.dart';
-import 'custom_fields_view.dart';
+import 'details_layout_view.dart';
 import 'single_work_item_view.dart';
 
 class JiraWorkItemDetailsView extends StatelessWidget {
@@ -94,19 +94,10 @@ class JiraWorkItemDetailsView extends StatelessWidget {
           ),
           if (workItem.fields!['description'] != null) DescriptionLikeField('Description', contentData: workItem.fields!['description'], attachments: (workItem.fields!['attachment'] as List)),
           if (workItem.fields!['environment'] != null) DescriptionLikeField('Environment', contentData: workItem.fields!['environment'], attachments: (workItem.fields!['attachment'] as List)),
-          if (workItem.fields!['attachment'] != null && (workItem.fields!['attachment'] as List).isNotEmpty) AttachmentsField(attachmentsData: workItem.fields!['attachment']),
-          RelatedWorkItemsSection(workItem: workItem),
-
-          DateDisplay('Created${workItem.fields!['creator']?['displayName'] != null ? " by ${workItem.fields!['creator']['displayName']}" : ''}', dateString: workItem.fields!['created']),
-          if (workItem.fields?['updated'] != null) DateDisplay('Updated', dateString: workItem.fields!['updated']),
-          if (workItem.fields?['resolutiondate'] != null) DateDisplay('Resolution date', dateString: workItem.fields!['resolutiondate']),
-          if (workItem.fields?['statuscategorychangedate'] != null) DateDisplay('Last status category change', dateString: workItem.fields!['statuscategorychangedate']),
-          if (workItem.fields?['lastViewed'] != null) DateDisplay('Last viewed', dateString: workItem.fields!['lastViewed']),
-
-          // Proof of concept: every customfield_* actually set on this issue,
-          // generically labelled and formatted by its schema type. See
-          // CustomFieldsSection's own doc comment for the reasoning.
-          CustomFieldsSection(workItem: workItem),
+          // Everything from here down — attachments, links, the dates, and
+          // every custom field — is arranged by the reader rather than by
+          // this list. See DetailsPropertiesSection.
+          DetailsPropertiesSection(workItem: workItem),
         ].expand((w) => [w, SizedBox(height: 8)]).toList(),
       ),
     );
