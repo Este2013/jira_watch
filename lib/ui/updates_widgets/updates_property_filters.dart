@@ -9,8 +9,8 @@ import 'package:material_symbols_icons/symbols.dart';
 
 /// One property filter in the updates bar: a chip saying what it narrows to,
 /// which opens a searchable list of the values Jira suggests for that field.
-class PropertyFilterButton extends StatelessWidget {
-  const PropertyFilterButton({super.key, required this.filter, required this.onChanged, this.onRemove});
+class PropertyFilterButton extends StatefulWidget {
+  const PropertyFilterButton({super.key, required this.filter, required this.onChanged, this.onRemove, this.openOnShow = false});
 
   final UpdatesPropertyFilter filter;
 
@@ -21,25 +21,49 @@ class PropertyFilterButton extends StatelessWidget {
   /// are furniture, and emptying them is how they are turned off.
   final VoidCallback? onRemove;
 
+  /// Opens the value panel as soon as this chip appears, for a filter the user
+  /// has just added and is obviously about to pick from.
+  final bool openOnShow;
+
   @override
-  Widget build(BuildContext context) => MenuAnchor(
-    // A panel rather than a list of menu items: the value list has its own
-    // search field, and is long often enough that it has to scroll.
-    menuChildren: [_FilterValuePicker(filter: filter, onChanged: onChanged)],
-    builder: (context, controller, child) => InputChip(
-      label: Text(filter.isActive ? '${filter.label}: ${filter.summary}' : filter.label),
-      tooltip: filter.isActive ? filter.values.map(filter.labelFor).join(', ') : 'Filter by ${filter.label}',
-      avatar: Icon(filter.isActive ? Symbols.filter_alt : Symbols.arrow_drop_down, fill: filter.isActive ? 1 : 0),
-      selected: filter.isActive,
-      showCheckmark: false,
-      onPressed: () => controller.isOpen ? controller.close() : controller.open(),
-      // One affordance, whichever undo makes sense: clear what is picked, or —
-      // once there is nothing left to clear — take the custom filter away.
-      onDeleted: filter.isActive ? () => onChanged(const {}, const {}) : onRemove,
-      deleteIcon: const Icon(Symbols.close, size: 16),
-      deleteButtonTooltipMessage: filter.isActive ? 'Clear' : 'Remove this filter',
-    ),
-  );
+  State<PropertyFilterButton> createState() => _PropertyFilterButtonState();
+}
+
+class _PropertyFilterButtonState extends State<PropertyFilterButton> {
+  final _menuController = MenuController();
+
+  @override
+  void initState() {
+    super.initState();
+    // After the frame: the anchor has no overlay to open into until it has been
+    // laid out once.
+    if (widget.openOnShow) SchedulerBinding.instance.addPostFrameCallback((_) => _menuController.open());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filter = widget.filter;
+    final onChanged = widget.onChanged;
+    return MenuAnchor(
+      controller: _menuController,
+      // A panel rather than a list of menu items: the value list has its own
+      // search field, and is long often enough that it has to scroll.
+      menuChildren: [_FilterValuePicker(filter: filter, onChanged: onChanged)],
+      builder: (context, controller, child) => InputChip(
+        label: Text(filter.isActive ? '${filter.label}: ${filter.summary}' : filter.label),
+        tooltip: filter.isActive ? filter.values.map(filter.labelFor).join(', ') : 'Filter by ${filter.label}',
+        avatar: Icon(filter.isActive ? Symbols.filter_alt : Symbols.arrow_drop_down, fill: filter.isActive ? 1 : 0),
+        selected: filter.isActive,
+        showCheckmark: false,
+        onPressed: () => controller.isOpen ? controller.close() : controller.open(),
+        // One affordance, whichever undo makes sense: clear what is picked, or —
+        // once there is nothing left to clear — take the custom filter away.
+        onDeleted: filter.isActive ? () => onChanged(const {}, const {}) : widget.onRemove,
+        deleteIcon: const Icon(Symbols.close, size: 16),
+        deleteButtonTooltipMessage: filter.isActive ? 'Clear' : 'Remove this filter',
+      ),
+    );
+  }
 }
 
 /// The value list behind a [PropertyFilterButton].
@@ -180,22 +204,29 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
                     padding: EdgeInsets.all(24),
                     child: Center(child: CircularProgressIndicator()),
                   )
-                : ListView(
-                    shrinkWrap: true,
+                // A scrolling Column rather than a ListView: a menu asks its
+                // children for their intrinsic size, and a lazy viewport
+                // throws rather than answer — it would have to build every
+                // child to know, which is the one thing it exists to avoid.
+                : SingleChildScrollView(
                     padding: const EdgeInsets.only(bottom: 8),
-                    children: [
-                      for (final (value, label) in stranded) _valueTile(value, label),
-                      if (!isSearching) _valueTile(UpdatesPropertyFilter.emptyValue, 'No value', subtitle: 'Items where ${widget.filter.label.toLowerCase()} is not set'),
-                      for (final (value, label) in _suggestions) _valueTile(value, label),
-                      if (_suggestions.isEmpty && !_isLoading)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Text(
-                            isSearching ? 'Nothing matches' : 'Jira suggests no values for this field',
-                            style: TextStyle(color: Theme.of(context).hintColor),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final (value, label) in stranded) _valueTile(value, label),
+                        if (!isSearching) _valueTile(UpdatesPropertyFilter.emptyValue, 'No value', subtitle: 'Items where ${widget.filter.label.toLowerCase()} is not set'),
+                        for (final (value, label) in _suggestions) _valueTile(value, label),
+                        if (_suggestions.isEmpty && !_isLoading)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            child: Text(
+                              isSearching ? 'Nothing matches' : 'Jira suggests no values for this field',
+                              style: TextStyle(color: Theme.of(context).hintColor),
+                            ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
           ),
           if (_values.isNotEmpty)

@@ -730,6 +730,10 @@ class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
   Object? timeFilter;
   UpdatesFilters propertyFilters = UpdatesFilters.empty;
 
+  /// A filter just added from the picker, whose panel opens by itself — adding
+  /// one is only ever the first half of picking a value with it.
+  String? _justAddedField;
+
   @override
   void initState() {
     super.initState();
@@ -822,12 +826,20 @@ class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
                     PropertyFilterButton(
                       key: ValueKey(filter.field),
                       filter: filter,
+                      openOnShow: filter.field == _justAddedField,
                       onChanged: (values, labels) => _setPropertyFilters(propertyFilters.withValues(filter.field, values, valueLabels: labels)),
                       onRemove: filter.isDefault ? null : () => _setPropertyFilters(propertyFilters.remove(filter.field)),
                     ),
                   AddPropertyFilterButton(
                     existingFields: {for (final filter in propertyFilters.filters) filter.field},
-                    onAdd: (filter) => _setPropertyFilters(propertyFilters.add(filter)),
+                    onAdd: (filter) {
+                      _justAddedField = filter.field;
+                      _setPropertyFilters(propertyFilters.add(filter));
+                      // Only the chip built right now opens itself; forgetting
+                      // the field afterwards keeps a later rebuild from
+                      // re-opening the panel behind the user's back.
+                      SchedulerBinding.instance.addPostFrameCallback((_) => _justAddedField = null);
+                    },
                   ),
                   if (propertyFilters.activeCount > 1)
                     TextButton.icon(
@@ -862,12 +874,40 @@ Future<String?> _projectName(String projectCode) => _projectNameCache.putIfAbsen
 
 /// The project tabs above the updates list: a combined "All" feed followed by
 /// one tab per starred project, exactly one of them active.
+/// The project tabs above the updates list: a home tab for the combined feed
+/// followed by one tab per starred project, exactly one of them active.
 class UpdatesProjectTabStrip extends StatelessWidget {
   const UpdatesProjectTabStrip({super.key, required this.activeProject, required this.onSelect});
 
-  /// The active project's code, or null while the "All" tab is selected.
+  /// The active project's code, or null while the home tab is selected.
   final String? activeProject;
   final void Function(String? projectCode) onSelect;
+
+  /// Unstars a project, which is what closing its tab means — the same thing
+  /// the projects settings page does, undoable from the snack bar rather than
+  /// by finding it again in a list of every project on the site.
+  void _close(BuildContext context, String projectCode) {
+    final starred = [...?SettingsModel().starredProjects.value];
+    final index = starred.indexOf(projectCode);
+    if (index < 0) return;
+
+    SettingsModel().starredProjects.value = [...starred]..removeAt(index);
+    showAppSnackBar(
+      context,
+      SnackBar(
+        content: Text('$projectCode is no longer one of your projects'),
+        action: SnackBarAction(
+          label: 'Undo',
+          // Back where it was, so undoing does not quietly reshuffle the strip.
+          onPressed: () {
+            final current = [...?SettingsModel().starredProjects.value];
+            if (current.contains(projectCode)) return;
+            SettingsModel().starredProjects.value = current..insert(index.clamp(0, current.length), projectCode);
+          },
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -882,9 +922,8 @@ class UpdatesProjectTabStrip extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               children: [
                 _ProjectTab(
-                  label: 'All',
-                  tooltip: 'Updates across every starred project',
-                  leading: const Icon(Symbols.inbox, size: 16),
+                  tooltip: 'Updates across every one of your projects',
+                  leading: const Icon(Symbols.home, size: 18),
                   isActive: activeProject == null,
                   onTap: () => onSelect(null),
                 ),
@@ -904,6 +943,7 @@ class UpdatesProjectTabStrip extends StatelessWidget {
                     ),
                     isActive: activeProject == projectCode,
                     onTap: () => onSelect(projectCode),
+                    onClose: () => _close(context, projectCode),
                   ),
               ],
             ),
@@ -924,18 +964,21 @@ class UpdatesProjectTabStrip extends StatelessWidget {
   }
 }
 
-class _ProjectTab extends StatelessWidget {
+class _ProjectTab extends StatefulWidget {
   const _ProjectTab({
     super.key,
-    required this.label,
     required this.tooltip,
     required this.leading,
     required this.isActive,
     required this.onTap,
+    this.label,
     this.tooltipFuture,
+    this.onClose,
   });
 
-  final String label;
+  /// What the tab reads; a tab with none is its icon alone, which is how the
+  /// home tab stays out of the way of the projects.
+  final String? label;
   final String tooltip;
 
   /// A nicer tooltip once it resolves (the project's name); [tooltip] stands in
@@ -945,25 +988,57 @@ class _ProjectTab extends StatelessWidget {
   final bool isActive;
   final VoidCallback onTap;
 
+  /// Closes the tab, if it can be closed at all.
+  final VoidCallback? onClose;
+
+  @override
+  State<_ProjectTab> createState() => _ProjectTabState();
+}
+
+class _ProjectTabState extends State<_ProjectTab> {
+  bool _hovered = false;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // The close button only shows where it is being aimed at, so a strip of
+    // tabs is not a row of crosses.
+    final showClose = widget.onClose != null && (widget.isActive || _hovered);
+
     final content = ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 80, maxWidth: 180),
+      constraints: widget.label == null ? const BoxConstraints() : const BoxConstraints(minWidth: 80, maxWidth: 180),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: EdgeInsets.only(left: 12, right: widget.onClose == null ? 12 : 4),
         child: Row(
           children: [
-            leading,
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontWeight: isActive ? FontWeight.w600 : null),
+            widget.leading,
+            if (widget.label case final label?) ...[
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontWeight: widget.isActive ? FontWeight.w600 : null),
+                ),
               ),
-            ),
+            ],
+            // Held open whether or not the button is showing, so a tab does not
+            // resize under the pointer as it arrives.
+            if (widget.onClose != null)
+              SizedBox(
+                width: 24,
+                child: showClose
+                    ? IconButton(
+                        icon: const Icon(Symbols.close),
+                        iconSize: 16,
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(),
+                        tooltip: 'Remove from your projects',
+                        onPressed: widget.onClose,
+                      )
+                    : null,
+              ),
           ],
         ),
       ),
@@ -971,22 +1046,26 @@ class _ProjectTab extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(right: 2),
-      child: Material(
-        color: isActive ? scheme.surfaceContainerHighest : Colors.transparent,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-        child: InkWell(
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: Material(
+          color: widget.isActive ? scheme.surfaceContainerHighest : Colors.transparent,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-          onTap: onTap,
-          child: tooltipFuture == null
-              ? Tooltip(message: tooltip, waitDuration: const Duration(milliseconds: 600), child: content)
-              : FutureBuilder<String?>(
-                  future: tooltipFuture,
-                  builder: (context, snapshot) => Tooltip(
-                    message: snapshot.data ?? tooltip,
-                    waitDuration: const Duration(milliseconds: 600),
-                    child: content,
+          child: InkWell(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+            onTap: widget.onTap,
+            child: widget.tooltipFuture == null
+                ? Tooltip(message: widget.tooltip, waitDuration: const Duration(milliseconds: 600), child: content)
+                : FutureBuilder<String?>(
+                    future: widget.tooltipFuture,
+                    builder: (context, snapshot) => Tooltip(
+                      message: snapshot.data ?? widget.tooltip,
+                      waitDuration: const Duration(milliseconds: 600),
+                      child: content,
+                    ),
                   ),
-                ),
+          ),
         ),
       ),
     );
