@@ -16,6 +16,8 @@ import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/si
 import 'package:jira_watcher/models/jira_work_item_data.dart';
 import 'package:jira_watcher/dao/jira/jira_auth.dart';
 import 'package:jira_watcher/models/settings_model.dart';
+import 'package:jira_watcher/models/updates_filters.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_property_filters.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
 import 'package:jira_watcher/ui/settings.dart';
 import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
@@ -48,6 +50,9 @@ class _UpdatesPageState extends State<UpdatesPage> {
   /// every starred project (the "All" tab).
   String? activeProject;
   dynamic timeFilter;
+
+  /// The property filters (status, assignee, …) narrowing the query.
+  UpdatesFilters propertyFilters = UpdatesFilters.empty;
 
   JiraWorkItemData? selectedWorkItem;
 
@@ -105,6 +110,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
     // Set any eventual filters from the previous session
     var filters = SettingsModel().filters.value;
     activeProject = activeProjectFromFilters(filters);
+    propertyFilters = UpdatesFilters.fromJson(filters['property_filters']);
 
     timeFilter = filters['time_filter'];
     if (timeFilter is List) {
@@ -112,9 +118,10 @@ class _UpdatesPageState extends State<UpdatesPage> {
     }
 
     _filterBar = UpdatesFilterBar(
-      onFiltersChanged: (project, tf) {
+      onFiltersChanged: (project, tf, properties) {
         activeProject = project;
         timeFilter = tf;
+        propertyFilters = properties;
         _resetAndFetchFirstPage();
       },
       onRefresh: _resetAndFetchFirstPage,
@@ -167,6 +174,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
             pageSize: pageSize,
             pageIndex: pageShown,
             filterByProjectCodes: activeProject == null ? null : [activeProject!],
+            extraClauses: propertyFilters.clauses,
             before: beforeDateTime,
             after: afterDateTime,
             nextPageToken: nextPageToken,
@@ -710,7 +718,7 @@ String? activeProjectFromFilters(Map filters) {
 class UpdatesFilterBar extends StatefulWidget {
   const UpdatesFilterBar({super.key, required this.onFiltersChanged, required this.onRefresh});
 
-  final void Function(String? activeProject, Object? timeFilter) onFiltersChanged;
+  final void Function(String? activeProject, Object? timeFilter, UpdatesFilters propertyFilters) onFiltersChanged;
   final Future<void> Function() onRefresh;
 
   @override
@@ -720,12 +728,14 @@ class UpdatesFilterBar extends StatefulWidget {
 class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
   String? activeProject;
   Object? timeFilter;
+  UpdatesFilters propertyFilters = UpdatesFilters.empty;
 
   @override
   void initState() {
     super.initState();
     final filters = SettingsModel().filters.value;
     activeProject = activeProjectFromFilters(filters);
+    propertyFilters = UpdatesFilters.fromJson(filters['property_filters']);
     timeFilter = filters['time_filter'];
     if (timeFilter is List) {
       timeFilter = (timeFilter as List).map((f) => DateTime.parse(f)).toList();
@@ -755,6 +765,7 @@ class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
   void _saveFilters() {
     final filters = <String, dynamic>{};
     filters['active_project'] = activeProject;
+    filters['property_filters'] = propertyFilters.toJson();
     if (timeFilter is String?) {
       filters['time_filter'] = timeFilter;
     } else {
@@ -767,13 +778,26 @@ class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
     if (projectCode == activeProject) return;
     setState(() => activeProject = projectCode);
     _saveFilters();
-    widget.onFiltersChanged(activeProject, timeFilter);
+    widget.onFiltersChanged(activeProject, timeFilter, propertyFilters);
   }
 
   void _setTimeFilter(dynamic data) {
     setState(() => timeFilter = data);
     _saveFilters();
-    widget.onFiltersChanged(activeProject, timeFilter);
+    widget.onFiltersChanged(activeProject, timeFilter, propertyFilters);
+  }
+
+  void _setPropertyFilters(UpdatesFilters filters) {
+    if (filters.clauses.join(' AND ') == propertyFilters.clauses.join(' AND ')) {
+      // Nothing the query would notice — a filter added but not yet picked
+      // from, say. Save it (the bar remembers it) without refetching.
+      setState(() => propertyFilters = filters);
+      _saveFilters();
+      return;
+    }
+    setState(() => propertyFilters = filters);
+    _saveFilters();
+    widget.onFiltersChanged(activeProject, timeFilter, propertyFilters);
   }
 
   @override
@@ -786,8 +810,34 @@ class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
         padding: const EdgeInsets.symmetric(vertical: 8.0),
         child: Row(
           spacing: 8,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Spacer(),
+            Expanded(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  for (final filter in propertyFilters.filters)
+                    PropertyFilterButton(
+                      key: ValueKey(filter.field),
+                      filter: filter,
+                      onChanged: (values, labels) => _setPropertyFilters(propertyFilters.withValues(filter.field, values, valueLabels: labels)),
+                      onRemove: filter.isDefault ? null : () => _setPropertyFilters(propertyFilters.remove(filter.field)),
+                    ),
+                  AddPropertyFilterButton(
+                    existingFields: {for (final filter in propertyFilters.filters) filter.field},
+                    onAdd: (filter) => _setPropertyFilters(propertyFilters.add(filter)),
+                  ),
+                  if (propertyFilters.activeCount > 1)
+                    TextButton.icon(
+                      icon: const Icon(Symbols.filter_alt_off, size: 16),
+                      label: const Text('Clear filters'),
+                      onPressed: () => _setPropertyFilters(propertyFilters.cleared()),
+                    ),
+                ],
+              ),
+            ),
             TimeFilterDropdown(
               init: timeFilter ?? 'all time',
               save: _setTimeFilter,

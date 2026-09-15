@@ -100,13 +100,21 @@ class DataModel with GlobalLoggy {
 
   // WORK ITEMS /////////////////////////////////////////////////////////////////////
 
-  Future<(Iterable<JiraWorkItemData>, bool, String?)> fetchLastUpdatedWorkItems({int maxResults = 0, String? nextPageToken, DateTime? before, DateTime? after, List<String>? filterByProjectCodes}) {
+  Future<(Iterable<JiraWorkItemData>, bool, String?)> fetchLastUpdatedWorkItems({
+    int maxResults = 0,
+    String? nextPageToken,
+    DateTime? before,
+    DateTime? after,
+    List<String>? filterByProjectCodes,
+    List<String> extraClauses = const [],
+  }) {
     // TODO missing cache check
     return jiraApi.lastUpdatedWorkItems(
       maxResults: maxResults,
       before: before,
       after: after,
       filterByProjectCodes: filterByProjectCodes,
+      extraClauses: extraClauses,
       nextPageToken: nextPageToken,
     );
   }
@@ -118,6 +126,7 @@ class DataModel with GlobalLoggy {
     DateTime? before,
     DateTime? after,
     List<String>? filterByProjectCodes,
+    List<String> extraClauses = const [],
   }) {
     // TODO missing cache check
     return fetchLastUpdatedWorkItems(
@@ -126,6 +135,7 @@ class DataModel with GlobalLoggy {
       before: before,
       after: after,
       filterByProjectCodes: filterByProjectCodes,
+      extraClauses: extraClauses,
     );
   }
 

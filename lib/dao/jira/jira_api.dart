@@ -62,6 +62,7 @@ class JiraApi with GlobalLoggy {
   jira.IssueAttachmentsApi get attachments => jira.IssueAttachmentsApi(client);
   jira.IssueFieldsApi get fieldsApi => jira.IssueFieldsApi(client);
   jira.IssueRemoteLinksApi get remoteLinksApi => jira.IssueRemoteLinksApi(client);
+  jira.JQLApi get jql => jira.JQLApi(client);
   agile.BoardApi get boards => agile.BoardApi(agileClient);
   agile.SprintApi get sprints => agile.SprintApi(agileClient);
 
@@ -160,6 +161,9 @@ class JiraApi with GlobalLoggy {
 
   /// The updates list: work items ordered by recency, one page at a time.
   ///
+  /// [extraClauses] are ANDed in as-is — the property filters build them, and
+  /// they are the one part of the query this method does not write itself.
+  ///
   /// Returns the items, whether this was the last page, and the token for the
   /// next one.
   Future<(Iterable<JiraWorkItemData>, bool, String?)> lastUpdatedWorkItems({
@@ -167,6 +171,7 @@ class JiraApi with GlobalLoggy {
     DateTime? before,
     DateTime? after,
     List<String>? filterByProjectCodes,
+    List<String> extraClauses = const [],
     String? nextPageToken,
   }) async {
     final starred = SettingsModel().starredProjects.value?.toSet() ?? {};
@@ -177,6 +182,7 @@ class JiraApi with GlobalLoggy {
       if (keys.isNotEmpty) 'project in ($keys)',
       if (before != null) 'updated <= "${_jiraDate(before)}"',
       if (after != null) 'updated >= "${_jiraDate(after)}"',
+      ...extraClauses,
     ];
     final jql = '${clauses.join(' AND ')} ORDER BY updated DESC';
 
@@ -192,6 +198,49 @@ class JiraApi with GlobalLoggy {
     final now = DateTime.now();
     final issues = (data['issues'] as List? ?? const []).map((e) => JiraWorkItemData(e, lastCacheUpdate: now));
     return (issues, data['isLast'] as bool? ?? true, data['nextPageToken'] as String?);
+  }
+
+  // JQL AUTOCOMPLETE //////////////////////////////////////////////////////////
+
+  /// The values Jira itself would suggest for [fieldName] in a JQL query,
+  /// optionally narrowed to those matching [query].
+  ///
+  /// Each suggestion carries the literal to put in the query (`value`) and what
+  /// to show the user (`displayName`) — the two differ wherever a field is
+  /// backed by ids, which is exactly where filtering by display name would
+  /// break on a rename. Site-wide rather than per-project: this endpoint takes
+  /// no project, so a project tab narrows the results, not the suggestions.
+  ///
+  /// Returns nothing rather than throwing when the field cannot be
+  /// autocompleted (Jira answers 400 for those), which the picker shows as an
+  /// empty list.
+  Future<List<jira.AutoCompleteSuggestion>> fieldSuggestions(String fieldName, {String? query}) async {
+    try {
+      final data = await jql.getFieldAutoCompleteForQueryString(
+        fieldName: fieldName,
+        fieldValue: (query == null || query.isEmpty) ? null : query,
+      );
+      return data?.results ?? const [];
+    } on jira.ApiException catch (e) {
+      loggy.warning('No autocomplete for JQL field $fieldName: ${e.code}');
+      return const [];
+    }
+  }
+
+  List<jira.FieldReferenceData>? _jqlFieldsCache;
+
+  /// Every field this site can be queried by, as Jira's own query editor lists
+  /// them — the menu behind the custom property filter. Cached: it only moves
+  /// when an admin adds or removes a field.
+  Future<List<jira.FieldReferenceData>> jqlFields({bool refresh = false}) async {
+    if (_jqlFieldsCache != null && !refresh) return _jqlFieldsCache!;
+    try {
+      final data = await jql.getAutoComplete();
+      return _jqlFieldsCache = data?.visibleFieldNames ?? const [];
+    } on jira.ApiException catch (e) {
+      loggy.warning('GET /jql/autocompletedata returned ${e.code}');
+      return const [];
+    }
   }
 
   // PROJECTS //////////////////////////////////////////////////////////////////
