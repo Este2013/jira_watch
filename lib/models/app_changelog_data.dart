@@ -13,16 +13,8 @@ final List<(String, List<ChangeLogSection>)> appChangeLog = [
     '1.9.2',
     [
       ChangeLogSection.features([
-        ChangeLogItem(
-          'Jira custom fields are now shown in ticket details',
-          subItems: [
-            ChangeLogItem('Labelled from Jira\'s own field metadata, and formatted by what the value actually is (rich text, user, option, multi-value, date...)'),
-            ChangeLogItem('The Development field gets its own card: branches, commits, pull requests and builds, with a jump into this app\'s GitLab view'),
-            ChangeLogItem('Web links appear under Related work items'),
-            ChangeLogItem('Fields with nothing useful to say (Rank, Epic Link, third-party time-in-status blobs) are hidden automatically'),
-            ChangeLogItem('The Debug tab\'s Custom fields section explains how each field, including empty ones, was classified'),
-          ],
-        ),
+        ChangeLogItem('Web links appear under Related work items'),
+        ChangeLogItem('Jira custom fields are now shown in ticket details'),
         ChangeLogItem(
           'Ticket details layout can now be customized',
           subItems: [
@@ -32,23 +24,15 @@ final List<(String, List<ChangeLogSection>)> appChangeLog = [
           ],
         ),
         ChangeLogItem(
-          'Updates view: projects are now tabs, like the GitLab view',
+          'Updates view: ',
           subItems: [
-            ChangeLogItem('A home tab shows the combined feed of every starred project'),
-            ChangeLogItem('Close a project\'s tab to unstar it, with an undo snackbar'),
-          ],
-        ),
-        ChangeLogItem(
-          'Updates view: filter the list by Status, Assignee, Type, Priority, Labels, or any other property',
-          subItems: [
-            ChangeLogItem('Each filter offers Jira\'s own smart values (currentUser(), openSprints()...) alongside its usual suggestions'),
-            ChangeLogItem('Write the filter as JQL instead, with live autocomplete and validation against Jira; the two stay in sync both ways'),
+            ChangeLogItem('Projects are now organized in tabs'),
+            ChangeLogItem('Filter the list by Status, Assignee, Type, Priority, Labels, any custom property, and even JQL'),
           ],
         ),
       ]),
       ChangeLogSection.bugFixes([
         ChangeLogItem('Opening a ticket whose id Jira sends as a string rather than a number no longer crashes the app'),
-        ChangeLogItem('Valid JQL typed into the new filter field no longer crashes the app on Enter'),
       ]),
     ],
   ),
