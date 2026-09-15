@@ -48,6 +48,59 @@ void main() {
     });
   });
 
+  group('JQL functions as values', () {
+    const user = 'com.atlassian.jira.user.ApplicationUser';
+
+    test('a no-argument function of the right type fits', () {
+      expect(jqlFunctionFits(call: 'currentUser()', functionTypes: [user], fieldTypes: [user]), isTrue);
+    });
+
+    test('a function needing an argument does not', () {
+      expect(jqlFunctionFits(call: 'membersOf("")', functionTypes: [user], fieldTypes: [user]), isFalse);
+    });
+
+    test('a function returning something else does not', () {
+      expect(jqlFunctionFits(call: 'openSprints()', functionTypes: ['com.atlassian.greenhopper.service.sprint.Sprint'], fieldTypes: [user]), isFalse);
+    });
+
+    test('reaches the query as a call, not as a quoted string', () {
+      final filter = UpdatesPropertyFilter(
+        field: 'assignee',
+        label: 'Assignee',
+        values: {UpdatesPropertyFilter.function('currentUser()')},
+      );
+      expect(filter.clause, 'assignee in (currentUser())');
+    });
+
+    test('mixes with literals', () {
+      final filter = UpdatesPropertyFilter(
+        field: 'assignee',
+        label: 'Assignee',
+        values: {UpdatesPropertyFilter.function('currentUser()'), '5b10a2'},
+      );
+      expect(filter.clause, 'assignee in (currentUser(), "5b10a2")');
+    });
+
+    test('is named by its call when nothing better was remembered', () {
+      final filter = UpdatesPropertyFilter(
+        field: 'assignee',
+        label: 'Assignee',
+        values: {UpdatesPropertyFilter.function('currentUser()')},
+      );
+      expect(filter.summary, 'currentUser()');
+      expect(filter.copyWith(valueLabels: {UpdatesPropertyFilter.function('currentUser()'): 'Me'}).summary, 'Me');
+    });
+
+    test('still widens for unset values', () {
+      final filter = UpdatesPropertyFilter(
+        field: 'assignee',
+        label: 'Assignee',
+        values: {UpdatesPropertyFilter.function('currentUser()'), UpdatesPropertyFilter.emptyValue},
+      );
+      expect(filter.clause, '(assignee in (currentUser()) OR assignee is EMPTY)');
+    });
+  });
+
   group('value names', () {
     const filter = UpdatesPropertyFilter(
       field: 'assignee',
@@ -139,9 +192,7 @@ void main() {
     });
 
     test('clearing empties every filter without dropping any', () {
-      final filters = UpdatesFilters.empty
-          .withValues('status', {'Open'})
-          .add(const UpdatesPropertyFilter(field: 'cf[10061]', label: 'Team', values: {'Core'}));
+      final filters = UpdatesFilters.empty.withValues('status', {'Open'}).add(const UpdatesPropertyFilter(field: 'cf[10061]', label: 'Team', values: {'Core'}));
       final cleared = filters.cleared();
       expect(cleared.filters.map((f) => f.field), filters.filters.map((f) => f.field));
       expect(cleared.clauses, isEmpty);
@@ -173,16 +224,16 @@ void main() {
     });
 
     test('a default keeps being a default even when it was saved as one more entry', () {
-      final resolved = UpdatesFilters.resolve(const [UpdatesPropertyFilter(field: 'status', label: 'Status', values: {'Open'})]);
+      final resolved = UpdatesFilters.resolve(const [
+        UpdatesPropertyFilter(field: 'status', label: 'Status', values: {'Open'}),
+      ]);
       expect(resolved.byField('status')!.isDefault, isTrue);
     });
   });
 
   group('UpdatesFilters JSON', () {
     test('round-trips what was picked', () {
-      final filters = UpdatesFilters.empty
-          .withValues('status', {'Open', 'In Progress'})
-          .add(const UpdatesPropertyFilter(field: 'cf[10061]', label: 'Team', values: {'Core'}));
+      final filters = UpdatesFilters.empty.withValues('status', {'Open', 'In Progress'}).add(const UpdatesPropertyFilter(field: 'cf[10061]', label: 'Team', values: {'Core'}));
       final restored = UpdatesFilters.fromJson(filters.toJson());
       expect(restored.byField('status')!.values, {'Open', 'In Progress'});
       expect(restored.byField('cf[10061]')!.values, {'Core'});

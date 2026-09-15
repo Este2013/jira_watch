@@ -32,6 +32,15 @@ String jqlFieldLabel(String displayName) => displayName.replaceFirst(_fieldDisam
 
 final _fieldDisambiguator = RegExp(r'\s+-\s+(cf\[\d+\]|[^\[\]]+\[[^\[\]]+\])$');
 
+/// Whether a JQL function can stand in for a value of a field.
+///
+/// Two conditions. It has to take no arguments — Jira reports the ones that do
+/// with their empty argument list in place (`membersOf("")`), and there is no
+/// sensible way to ask for that argument inside a checkbox list. And it has to
+/// return something the field can be compared against: `currentUser()` returns
+/// a user, which suits `assignee` and suits `status` not at all.
+bool jqlFunctionFits({required String call, required List<String> functionTypes, required List<String> fieldTypes}) => call.endsWith('()') && functionTypes.any(fieldTypes.contains);
+
 /// One property the updates list can be narrowed by.
 class UpdatesPropertyFilter {
   const UpdatesPropertyFilter({
@@ -46,6 +55,21 @@ class UpdatesPropertyFilter {
   /// rather than `assignee in (...)`. Not a value Jira ever suggests, so it
   /// cannot collide with a real one.
   static const emptyValue = '__EMPTY__';
+
+  /// Marks a picked value as one of Jira's own JQL functions — `currentUser()`,
+  /// `openSprints()` — rather than a literal. A function has to reach the query
+  /// unquoted to be called at all, and the two are told apart here rather than
+  /// by guessing from a value's shape (a status really can be named
+  /// `currentUser()`).
+  static const functionPrefix = '__FN__';
+
+  /// A picked value standing for the JQL function [call], e.g. `currentUser()`.
+  static String function(String call) => '$functionPrefix$call';
+
+  static bool isFunction(String value) => value.startsWith(functionPrefix);
+
+  /// The JQL [value] stands for: a function call as-is, anything else quoted.
+  static String jqlFor(String value) => isFunction(value) ? value.substring(functionPrefix.length) : jqlLiteral(value);
 
   /// The JQL field this narrows: `status`, `assignee`, `cf[10061]`…
   final String field;
@@ -70,7 +94,11 @@ class UpdatesPropertyFilter {
   bool get isActive => values.isNotEmpty;
 
   /// What to show for [value] — its remembered name, or the value itself.
-  String labelFor(String value) => value == emptyValue ? 'No value' : (valueLabels[value] ?? value);
+  String labelFor(String value) => switch (value) {
+    emptyValue => 'No value',
+    _ when isFunction(value) => valueLabels[value] ?? value.substring(functionPrefix.length),
+    _ => valueLabels[value] ?? value,
+  };
 
   /// What the bar shows once something is picked: the lone value's name, or how
   /// many there are.
@@ -80,12 +108,16 @@ class UpdatesPropertyFilter {
   String? get clause {
     final picked = [
       for (final value in values)
-        if (value != emptyValue) jqlLiteral(value),
+        if (value != emptyValue) jqlFor(value),
     ];
     final wantsEmpty = values.contains(emptyValue);
     if (picked.isEmpty) return wantsEmpty ? '$field is EMPTY' : null;
 
-    final match = picked.length == 1 ? '$field = ${picked.single}' : '$field in (${picked.join(', ')})';
+    // `in` for anything involving a function: some of them return a list, and
+    // `=` against a list is not a query Jira will run. A lone literal keeps the
+    // plain comparison, which is what a person would have typed.
+    final isPlainSingle = picked.length == 1 && !values.any(isFunction);
+    final match = isPlainSingle ? '$field = ${picked.single}' : '$field in (${picked.join(', ')})';
     return wantsEmpty ? '($match OR $field is EMPTY)' : match;
   }
 

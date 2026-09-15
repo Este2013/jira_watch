@@ -227,21 +227,30 @@ class JiraApi with GlobalLoggy {
     }
   }
 
-  List<jira.FieldReferenceData>? _jqlFieldsCache;
+  jira.JQLReferenceData? _jqlReferenceCache;
 
-  /// Every field this site can be queried by, as Jira's own query editor lists
-  /// them — the menu behind the custom property filter. Cached: it only moves
-  /// when an admin adds or removes a field.
-  Future<List<jira.FieldReferenceData>> jqlFields({bool refresh = false}) async {
-    if (_jqlFieldsCache != null && !refresh) return _jqlFieldsCache!;
+  /// What Jira's own query editor knows about this site: every field it can be
+  /// queried by, and every function that can stand in for a value
+  /// (`currentUser()`, `openSprints()`…). Cached — it only moves when an admin
+  /// adds or removes a field.
+  Future<jira.JQLReferenceData?> jqlReferenceData({bool refresh = false}) async {
+    if (_jqlReferenceCache != null && !refresh) return _jqlReferenceCache;
     try {
-      final data = await jql.getAutoComplete();
-      return _jqlFieldsCache = data?.visibleFieldNames ?? const [];
+      return _jqlReferenceCache = await jql.getAutoComplete();
     } on jira.ApiException catch (e) {
       loggy.warning('GET /jql/autocompletedata returned ${e.code}');
-      return const [];
+      return null;
     }
   }
+
+  /// The fields behind the custom property filter's menu.
+  Future<List<jira.FieldReferenceData>> jqlFields({bool refresh = false}) async =>
+      (await jqlReferenceData(refresh: refresh))?.visibleFieldNames ?? const [];
+
+  /// The JQL functions this site offers, for the smart values a picker can
+  /// offer alongside the literal ones.
+  Future<List<jira.FunctionReferenceData>> jqlFunctions({bool refresh = false}) async =>
+      (await jqlReferenceData(refresh: refresh))?.visibleFunctionNames ?? const [];
 
   // PROJECTS //////////////////////////////////////////////////////////////////
 

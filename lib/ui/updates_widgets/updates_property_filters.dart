@@ -87,6 +87,12 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
   List<(String, String)> _suggestions = const [];
   bool _isLoading = true;
 
+  /// Jira's own JQL functions that fit this field — `currentUser()` for an
+  /// assignee, `openSprints()` for a sprint. They answer the questions a list
+  /// of literal values cannot ("mine", "the sprint we are in"), and they stay
+  /// right when the answer changes under them.
+  List<(String, String)> _functions = const [];
+
   Timer? _searchDebounce;
 
   /// Bumped per request so a slower earlier one cannot overwrite a newer one.
@@ -102,6 +108,7 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
   void initState() {
     super.initState();
     _load();
+    _loadFunctions();
   }
 
   @override
@@ -131,6 +138,26 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
           if (result.value case final value?) (value, stripSuggestionMarkup(result.displayName ?? value)),
       ];
       _isLoading = false;
+    });
+  }
+
+  Future<void> _loadFunctions() async {
+    final reference = await JiraApi().jqlReferenceData();
+    if (!mounted || reference == null) return;
+
+    var fieldTypes = const <String>[];
+    for (final field in reference.visibleFieldNames) {
+      if (field.value == widget.filter.field) {
+        fieldTypes = field.types;
+        break;
+      }
+    }
+    setState(() {
+      _functions = [
+        for (final function in reference.visibleFunctionNames)
+          if (function.value case final call?)
+            if (jqlFunctionFits(call: call, functionTypes: function.types, fieldTypes: fieldTypes)) (UpdatesPropertyFilter.function(call), stripSuggestionMarkup(function.displayName ?? call)),
+      ];
     });
   }
 
@@ -169,7 +196,15 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
       for (final value in _values)
         if (!suggested.contains(value) && value != UpdatesPropertyFilter.emptyValue) (value, widget.filter.labelFor(value)),
     ];
-    final isSearching = _searchController.text.trim().isNotEmpty;
+    final query = _searchController.text.trim().toLowerCase();
+    final isSearching = query.isNotEmpty;
+    // Matched here rather than at the server: these come from the site's JQL
+    // vocabulary, not from the field's values, so the suggestion endpoint knows
+    // nothing about them.
+    final functions = [
+      for (final (value, label) in _functions)
+        if (!isSearching || label.toLowerCase().contains(query)) (value, label),
+    ];
 
     return SizedBox(
       width: 300,
@@ -215,6 +250,11 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         for (final (value, label) in stranded) _valueTile(value, label),
+                        if (functions.isNotEmpty) ...[
+                          _sectionHeader(context, 'Jira values'),
+                          for (final (value, label) in functions) _valueTile(value, label),
+                          const Divider(height: 1),
+                        ],
                         if (!isSearching) _valueTile(UpdatesPropertyFilter.emptyValue, 'No value', subtitle: 'Items where ${widget.filter.label.toLowerCase()} is not set'),
                         for (final (value, label) in _suggestions) _valueTile(value, label),
                         if (_suggestions.isEmpty && !_isLoading)
@@ -252,6 +292,11 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
       ),
     );
   }
+
+  Widget _sectionHeader(BuildContext context, String text) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+    child: Text(text, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).hintColor)),
+  );
 
   Widget _valueTile(String value, String label, {String? subtitle}) => CheckboxListTile(
     dense: true,

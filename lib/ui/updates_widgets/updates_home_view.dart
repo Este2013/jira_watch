@@ -350,17 +350,20 @@ class _UpdatesPageState extends State<UpdatesPage> {
             }
             return KeyEventResult.ignored;
           },
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    children: [
-                      // filters (cached instance — not rebuilt by list interactions)
-                      _filterBar,
-                      // list
-                      Expanded(
+          // Unpadded out here so the tab strip runs to the edges of its pane,
+          // the way the other tabbed views do; everything below pads its own
+          // contents instead.
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    // filters (cached instance — not rebuilt by list interactions)
+                    _filterBar,
+                    // list
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                         child: Stack(
                           key: _listStackKey,
                           children: [
@@ -503,12 +506,16 @@ class _UpdatesPageState extends State<UpdatesPage> {
                           ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                if (minSizeForLargeView < constraints.maxWidth) VerticalDivider(),
-                if (minSizeForLargeView < constraints.maxWidth)
-                  Expanded(
+              ),
+              if (minSizeForLargeView < constraints.maxWidth) VerticalDivider(),
+              if (minSizeForLargeView < constraints.maxWidth)
+                Expanded(
+                  child: Padding(
+                    // Left edge unpadded: the divider already separates it.
+                    padding: const EdgeInsets.fromLTRB(0, 16, 16, 16),
                     child: selectedWorkItem == null
                         ? Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -519,8 +526,8 @@ class _UpdatesPageState extends State<UpdatesPage> {
                             key: Key(selectedWorkItem!.data['key']),
                           ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         );
       },
@@ -811,7 +818,7 @@ class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
       UpdatesProjectTabStrip(activeProject: activeProject, onSelect: _setProject),
       const Divider(height: 1),
       Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
         child: Row(
           spacing: 8,
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -915,11 +922,16 @@ class UpdatesProjectTabStrip extends StatelessWidget {
     return SizedBox(
       height: 40,
       child: Row(
-        spacing: 8,
         children: [
-          Expanded(
+          // Loose rather than filled, with the list sized to its content: the
+          // add button then sits right after the last tab while there is room
+          // for it there, and settles against the right edge once the tabs
+          // have taken the width — the way a browser's does.
+          Flexible(
             child: ListView(
               scrollDirection: Axis.horizontal,
+              shrinkWrap: true,
+              padding: const EdgeInsets.only(left: 8),
               children: [
                 _ProjectTab(
                   tooltip: 'Updates across every one of your projects',
@@ -958,6 +970,7 @@ class UpdatesProjectTabStrip extends StatelessWidget {
             },
             icon: Icon(Symbols.add),
           ),
+          const SizedBox(width: 8),
         ],
       ),
     );
@@ -1006,7 +1019,10 @@ class _ProjectTabState extends State<_ProjectTab> {
     final showClose = widget.onClose != null && (widget.isActive || _hovered);
 
     final content = ConstrainedBox(
-      constraints: widget.label == null ? const BoxConstraints() : const BoxConstraints(minWidth: 80, maxWidth: 180),
+      // A tab with a label takes a settled width, so its close button lands in
+      // the same place on every tab rather than trailing whatever the label
+      // happens to be.
+      constraints: widget.label == null ? const BoxConstraints() : const BoxConstraints(minWidth: 120, maxWidth: 160),
       child: Padding(
         padding: EdgeInsets.only(left: 12, right: widget.onClose == null ? 12 : 4),
         child: Row(
@@ -1014,7 +1030,7 @@ class _ProjectTabState extends State<_ProjectTab> {
             widget.leading,
             if (widget.label case final label?) ...[
               const SizedBox(width: 8),
-              Flexible(
+              Expanded(
                 child: Text(
                   label,
                   maxLines: 1,
