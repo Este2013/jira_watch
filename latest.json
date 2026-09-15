@@ -1,4 +1,11 @@
 {
+    "1.9.3": {
+        "changelog": "✨ Features:\n ᛫ Filter values can now be excluded (checkbox with a dash) as well as kept\n\n🪲 Bug fixes\n ᛫ JQL autocomplete\n     ᛫ Enter runs the query unless a suggestion was actually arrow-key selected\n     ᛫ Tab always completes with the first suggestion\n     ᛫ Accepting a suggestion no longer selects the whole query, so typing continues instead of replacing it",
+        "x64": "v1.9.3/Binaries (x64).zip",
+        "x64Url": "https://github.com/Este2013/jira_watch/releases/download/v1.9.3/jira_watch-1.9.3-windows-x64.zip",
+        "x64Sha256": "626d41768cbf3afdc4f02666b5a30f976e425b9d1d012c03e235c77f7b26b1c5",
+        "x64Size": 38111811
+    },
     "1.9.2": {
         "changelog": "✨ Features:\n ᛫ Web links appear under Related work items\n ᛫ Jira custom fields are now shown in ticket details\n ᛫ Ticket details layout can now be customized\n     ᛫ Drag properties into named, resizable groups, or pin them above the description\n     ᛫ Hide any property from a right-click menu, with an undo snackbar, and show it again from the footer\n     ᛫ Long lists (Related work items, web links) truncate behind a \"Show N more\" tile\n ᛫ Updates view: \n     ᛫ Projects are now organized in tabs\n     ᛫ Filter the list by Status, Assignee, Type, Priority, Labels, any custom property, and even JQL\n\n🪲 Bug fixes\n ᛫ Opening a ticket whose id Jira sends as a string rather than a number no longer crashes the app",
         "x64": "v1.9.2/Binaries (x64).zip",
