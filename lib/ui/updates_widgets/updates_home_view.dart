@@ -44,7 +44,9 @@ class _UpdatesPageState extends State<UpdatesPage> {
   late FutureOr<(Iterable<JiraWorkItemData>, bool, String?)> futurePage;
   String? nextPageToken;
 
-  Set<String> activeProjectFilters = {};
+  /// The project the list is narrowed to, or null for the combined feed of
+  /// every starred project (the "All" tab).
+  String? activeProject;
   dynamic timeFilter;
 
   JiraWorkItemData? selectedWorkItem;
@@ -102,7 +104,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
 
     // Set any eventual filters from the previous session
     var filters = SettingsModel().filters.value;
-    activeProjectFilters = ((filters['active_projects'] ?? []) as List).cast<String>().toSet();
+    activeProject = activeProjectFromFilters(filters);
 
     timeFilter = filters['time_filter'];
     if (timeFilter is List) {
@@ -110,8 +112,8 @@ class _UpdatesPageState extends State<UpdatesPage> {
     }
 
     _filterBar = UpdatesFilterBar(
-      onFiltersChanged: (projects, tf) {
-        activeProjectFilters = projects;
+      onFiltersChanged: (project, tf) {
+        activeProject = project;
         timeFilter = tf;
         _resetAndFetchFirstPage();
       },
@@ -131,9 +133,17 @@ class _UpdatesPageState extends State<UpdatesPage> {
     }
   }
 
-  void _setStateResetAndFetchFirstPage() => setState(() {
-    _resetAndFetchFirstPage();
-  });
+  void _setStateResetAndFetchFirstPage() {
+    // A project that stops being starred loses its tab, so fall back to the
+    // combined feed rather than keep filtering by something the strip no
+    // longer offers. The filter bar mirrors this on its own copy.
+    final starred = SettingsModel().starredProjects.value ?? const <String>[];
+    if (activeProject != null && !starred.contains(activeProject)) activeProject = null;
+    setState(() {
+      _resetAndFetchFirstPage();
+    });
+  }
+
   Future _resetAndFetchFirstPage() {
     pageShown = 0;
     hasMore = true;
@@ -156,7 +166,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
         DataModel().fetchLastUpdatedWorkItemsByPage(
             pageSize: pageSize,
             pageIndex: pageShown,
-            filterByProjectCodes: activeProjectFilters.isEmpty ? null : activeProjectFilters.toList(),
+            filterByProjectCodes: activeProject == null ? null : [activeProject!],
             before: beforeDateTime,
             after: afterDateTime,
             nextPageToken: nextPageToken,
@@ -281,7 +291,12 @@ class _UpdatesPageState extends State<UpdatesPage> {
         // every tab shares the one route the IndexedStack lives in, so it
         // only ever guards against a dialog already open on top, not
         // against this tab being the hidden one.
-        if (isAllowedToShowIssueDialog && !isIssueDialogShown && selectedWorkItem != null && minSizeForLargeView >= constraints.maxWidth && Visibility.of(context) && (ModalRoute.of(context)?.isCurrent ?? true)) {
+        if (isAllowedToShowIssueDialog &&
+            !isIssueDialogShown &&
+            selectedWorkItem != null &&
+            minSizeForLargeView >= constraints.maxWidth &&
+            Visibility.of(context) &&
+            (ModalRoute.of(context)?.isCurrent ?? true)) {
           // there is a selection AND
           // size is too small for side-by-side AND
           // there is no open dialog
@@ -678,13 +693,24 @@ class _UpdatesPageState extends State<UpdatesPage> {
   }
 }
 
-/// Self-contained filter bar (project filters, time filter, refresh). It owns
-/// its filter state and only reports changes back via [onFiltersChanged], so it
-/// can be cached by the parent and is never rebuilt by list interactions.
+/// The project a saved filter map narrows to, or null for the combined feed.
+///
+/// Migrates the pre-tabs `active_projects` set: a lone selected project becomes
+/// that project's tab, while none or several of them land on "All" — no single
+/// tab can stand for an arbitrary subset.
+String? activeProjectFromFilters(Map filters) {
+  if (filters.containsKey('active_project')) return filters['active_project'] as String?;
+  final legacy = ((filters['active_projects'] ?? const []) as List).cast<String>();
+  return legacy.length == 1 ? legacy.single : null;
+}
+
+/// Self-contained filter bar (project tabs, time filter, refresh). It owns its
+/// filter state and only reports changes back via [onFiltersChanged], so it can
+/// be cached by the parent and is never rebuilt by list interactions.
 class UpdatesFilterBar extends StatefulWidget {
   const UpdatesFilterBar({super.key, required this.onFiltersChanged, required this.onRefresh});
 
-  final void Function(Set<String> activeProjects, Object? timeFilter) onFiltersChanged;
+  final void Function(String? activeProject, Object? timeFilter) onFiltersChanged;
   final Future<void> Function() onRefresh;
 
   @override
@@ -692,19 +718,19 @@ class UpdatesFilterBar extends StatefulWidget {
 }
 
 class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
-  Set<String> activeProjectFilters = {};
+  String? activeProject;
   Object? timeFilter;
 
   @override
   void initState() {
     super.initState();
     final filters = SettingsModel().filters.value;
-    activeProjectFilters = ((filters['active_projects'] ?? []) as List).cast<String>().toSet();
+    activeProject = activeProjectFromFilters(filters);
     timeFilter = filters['time_filter'];
     if (timeFilter is List) {
       timeFilter = (timeFilter as List).map((f) => DateTime.parse(f)).toList();
     }
-    // Rebuild the project buttons (only) when the starred projects change.
+    // Rebuild the tab strip (only) when the starred projects change.
     SettingsModel().starredProjects.addListener(_onStarredChanged);
   }
 
@@ -714,11 +740,21 @@ class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
     super.dispose();
   }
 
-  void _onStarredChanged() => setState(() {});
+  void _onStarredChanged() {
+    // The same fallback the page applies to its own copy — the page is the one
+    // that refetches, so this only keeps the strip honest, without a second
+    // fetch of the first page.
+    final starred = SettingsModel().starredProjects.value ?? const <String>[];
+    if (activeProject != null && !starred.contains(activeProject)) {
+      activeProject = null;
+      _saveFilters();
+    }
+    setState(() {});
+  }
 
   void _saveFilters() {
     final filters = <String, dynamic>{};
-    filters['active_projects'] = activeProjectFilters.toList();
+    filters['active_project'] = activeProject;
     if (timeFilter is String?) {
       filters['time_filter'] = timeFilter;
     } else {
@@ -727,113 +763,180 @@ class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
     SettingsModel().filters.value = filters;
   }
 
-  void _toggleProject(String code) {
-    setState(() => activeProjectFilters.toggle(code));
+  void _setProject(String? projectCode) {
+    if (projectCode == activeProject) return;
+    setState(() => activeProject = projectCode);
     _saveFilters();
-    widget.onFiltersChanged(activeProjectFilters, timeFilter);
+    widget.onFiltersChanged(activeProject, timeFilter);
   }
 
   void _setTimeFilter(dynamic data) {
     setState(() => timeFilter = data);
     _saveFilters();
-    widget.onFiltersChanged(activeProjectFilters, timeFilter);
+    widget.onFiltersChanged(activeProject, timeFilter);
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8.0),
-    child: Row(
-      spacing: 8,
-      children: [
-        Expanded(
-          child: ProjectFilteringRow(
-            key: ValueKey(activeProjectFilters.join(' ')),
-            activeProjectFilters: activeProjectFilters,
-            toggleProjectCode: _toggleProject,
-          ),
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      UpdatesProjectTabStrip(activeProject: activeProject, onSelect: _setProject),
+      const Divider(height: 1),
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Row(
+          spacing: 8,
+          children: [
+            const Spacer(),
+            TimeFilterDropdown(
+              init: timeFilter ?? 'all time',
+              save: _setTimeFilter,
+            ),
+            RefreshFutureIconButton(tooltip: 'Refresh', onRefresh: widget.onRefresh),
+          ],
         ),
-        TimeFilterDropdown(
-          init: timeFilter ?? 'all time',
-          save: _setTimeFilter,
-        ),
-        RefreshFutureIconButton(tooltip: 'Refresh', onRefresh: widget.onRefresh),
-      ],
-    ),
-  );
-}
-
-class ProjectFilteringRow extends StatelessWidget {
-  const ProjectFilteringRow({super.key, required this.activeProjectFilters, required this.toggleProjectCode});
-  final void Function(String projectCode) toggleProjectCode;
-  final Set<String> activeProjectFilters;
-
-  @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: Row(
-        spacing: 8,
-        children:
-            (SettingsModel().starredProjects.value
-                      ?.map<Widget>(
-                        (p) => ProjectFilteringButton(
-                          projectCode: p,
-                          activeFilters: activeProjectFilters,
-                          toggleFilter: toggleProjectCode,
-                        ),
-                      )
-                      .toList() ??
-                  <Widget>[])
-              ..add(
-                IconButton(
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => SettingsDialog(initialPage: SettingsDialogPage.projects),
-                    );
-                  },
-                  icon: Icon(Symbols.add),
-                ),
-              ),
       ),
-    ),
+    ],
   );
 }
 
-class ProjectFilteringButton extends StatelessWidget {
-  const ProjectFilteringButton({
-    super.key,
-    required this.projectCode,
-    required this.activeFilters,
-    required this.toggleFilter,
-  });
+/// Display names of projects, resolved once each so rebuilding a tab never
+/// re-hits the API (and never flashes an empty tooltip).
+final Map<String, Future<String?>> _projectNameCache = {};
 
-  final String projectCode;
-  final Set<String> activeFilters;
-  final void Function(String code) toggleFilter;
+Future<String?> _projectName(String projectCode) => _projectNameCache.putIfAbsent(projectCode, () async {
+  final projects = await DataModel().fetchProjects();
+  final project = projects.firstWhere((p) => p['key'] == projectCode, orElse: () => null);
+  return project?['name'] as String?;
+});
+
+/// The project tabs above the updates list: a combined "All" feed followed by
+/// one tab per starred project, exactly one of them active.
+class UpdatesProjectTabStrip extends StatelessWidget {
+  const UpdatesProjectTabStrip({super.key, required this.activeProject, required this.onSelect});
+
+  /// The active project's code, or null while the "All" tab is selected.
+  final String? activeProject;
+  final void Function(String? projectCode) onSelect;
 
   @override
   Widget build(BuildContext context) {
-    Widget base = ClipOval(
-      child: JiraProjectAvatar(key: Key('Avatar of $projectCode'), projectCode: projectCode),
+    final starred = SettingsModel().starredProjects.value ?? const <String>[];
+    return SizedBox(
+      height: 40,
+      child: Row(
+        spacing: 8,
+        children: [
+          Expanded(
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                _ProjectTab(
+                  label: 'All',
+                  tooltip: 'Updates across every starred project',
+                  leading: const Icon(Symbols.inbox, size: 16),
+                  isActive: activeProject == null,
+                  onTap: () => onSelect(null),
+                ),
+                for (final projectCode in starred)
+                  _ProjectTab(
+                    key: ValueKey(projectCode),
+                    label: projectCode,
+                    tooltip: projectCode,
+                    tooltipFuture: _projectName(projectCode),
+                    leading: ClipOval(
+                      child: JiraProjectAvatar(
+                        key: Key('Tab avatar of $projectCode'),
+                        projectCode: projectCode,
+                        resolution: '16x16',
+                        size: 16,
+                      ),
+                    ),
+                    isActive: activeProject == projectCode,
+                    onTap: () => onSelect(projectCode),
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Star more projects',
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => SettingsDialog(initialPage: SettingsDialogPage.projects),
+              );
+            },
+            icon: Icon(Symbols.add),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProjectTab extends StatelessWidget {
+  const _ProjectTab({
+    super.key,
+    required this.label,
+    required this.tooltip,
+    required this.leading,
+    required this.isActive,
+    required this.onTap,
+    this.tooltipFuture,
+  });
+
+  final String label;
+  final String tooltip;
+
+  /// A nicer tooltip once it resolves (the project's name); [tooltip] stands in
+  /// until then, and if it resolves to nothing.
+  final Future<String?>? tooltipFuture;
+  final Widget leading;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final content = ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 80, maxWidth: 180),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: [
+            leading,
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontWeight: isActive ? FontWeight.w600 : null),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
 
-    if (activeFilters.contains(projectCode)) {
-      base = Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.green, width: 2),
-        ),
-        padding: EdgeInsets.all(2),
-        child: base,
-      );
-    }
-
-    return ClipOval(
+    return Padding(
+      padding: const EdgeInsets.only(right: 2),
       child: Material(
+        color: isActive ? scheme.surfaceContainerHighest : Colors.transparent,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
         child: InkWell(
-          onTap: () => toggleFilter(projectCode),
-          child: Tooltip(message: projectCode, child: base),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+          onTap: onTap,
+          child: tooltipFuture == null
+              ? Tooltip(message: tooltip, waitDuration: const Duration(milliseconds: 600), child: content)
+              : FutureBuilder<String?>(
+                  future: tooltipFuture,
+                  builder: (context, snapshot) => Tooltip(
+                    message: snapshot.data ?? tooltip,
+                    waitDuration: const Duration(milliseconds: 600),
+                    child: content,
+                  ),
+                ),
         ),
       ),
     );
@@ -1008,7 +1111,9 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                                 borderRadius: BorderRadius.circular(10000),
                                 child: Tooltip(
                                   message: assignee != null ? 'Assigned to ${assignee['displayName']}' : 'Unassigned',
-                                  child: avatarUrl != null ? JiraAvatar(key: Key('assignee-${widget.workItem['id']}'), url: avatarUrl) : Icon(Symbols.person_off, size: 18, color: Theme.of(context).disabledColor),
+                                  child: avatarUrl != null
+                                      ? JiraAvatar(key: Key('assignee-${widget.workItem['id']}'), url: avatarUrl)
+                                      : Icon(Symbols.person_off, size: 18, color: Theme.of(context).disabledColor),
                                 ),
                               ),
                             );
@@ -1435,7 +1540,8 @@ class _OnError400TestForProjectsState extends State<OnError400TestForProjects> {
                         subtitle: Text('Status: Error 400 - Project may have been deleted or is inaccessible.'),
                         leading: Icon(Symbols.error, color: Colors.red),
                         trailing: IconButton(
-                          onPressed: () => SettingsModel().starredProjects.value = List.from(SettingsModel().starredProjects.value?.where((p) => p != SettingsModel().starredProjects.value?[index]) ?? []),
+                          onPressed: () =>
+                              SettingsModel().starredProjects.value = List.from(SettingsModel().starredProjects.value?.where((p) => p != SettingsModel().starredProjects.value?[index]) ?? []),
                           icon: Icon(Symbols.delete_forever),
                           tooltip: 'Remove from my starred projects',
                         ),
@@ -1459,16 +1565,6 @@ class _OnError400TestForProjectsState extends State<OnError400TestForProjects> {
         ),
       ],
     );
-  }
-}
-
-extension<T> on Set<T> {
-  void toggle(T element) {
-    if (contains(element)) {
-      remove(element);
-      return;
-    }
-    add(element);
   }
 }
 
@@ -1779,7 +1875,8 @@ class _SelectionOutlinePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_SelectionOutlinePainter oldDelegate) => oldDelegate.color != color || oldDelegate.top != top || oldDelegate.bottom != bottom || oldDelegate.radius != radius || oldDelegate.strokeWidth != strokeWidth || oldDelegate.gap != gap;
+  bool shouldRepaint(_SelectionOutlinePainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.top != top || oldDelegate.bottom != bottom || oldDelegate.radius != radius || oldDelegate.strokeWidth != strokeWidth || oldDelegate.gap != gap;
 }
 
 /// Material 3 style FAB menu shown at the bottom-right of the Updates list when
@@ -1869,7 +1966,10 @@ class _SelectionFabMenuState extends State<SelectionFabMenu> {
                 children: [
                   // Only offer "unread" once everything is read; otherwise the
                   // sensible bulk action is to mark the unread ones as read.
-                  if (widget.allRead) _menuItem(Symbols.mark_email_unread, 'Mark all as unread', widget.onMarkAllUnread) else _menuItem(Symbols.mark_email_read, 'Mark all as read', widget.onMarkAllRead),
+                  if (widget.allRead)
+                    _menuItem(Symbols.mark_email_unread, 'Mark all as unread', widget.onMarkAllUnread)
+                  else
+                    _menuItem(Symbols.mark_email_read, 'Mark all as read', widget.onMarkAllRead),
                   _menuItem(Symbols.push_pin, 'Keep for later', widget.onKeepForLater),
                   _menuItem(Symbols.assignment_add, 'Add all to a task', widget.onAddToTask),
                   _menuItem(Symbols.open_in_browser, 'Open all on website', widget.onOpenAll),
