@@ -14,6 +14,34 @@ void main() {
     });
   });
 
+  group('unwrapJqlSuggestionValue', () {
+    test('leaves a plain value alone', () {
+      expect(unwrapJqlSuggestionValue('In Progress'), 'In Progress');
+      expect(unwrapJqlSuggestionValue('5b10a2'), '5b10a2');
+    });
+
+    test('strips a value Jira already quoted for its own JQL editor', () {
+      expect(unwrapJqlSuggestionValue('"In Progress"'), 'In Progress');
+    });
+
+    test('unescapes a quoted value that itself contains a quote', () {
+      expect(unwrapJqlSuggestionValue(r'"say \"hi\""'), 'say "hi"');
+    });
+
+    test('so re-quoting it once produces the original literal, not a doubled one', () {
+      expect(jqlLiteral(unwrapJqlSuggestionValue('"In Progress"')), '"In Progress"');
+    });
+
+    test('a value that merely starts or ends with a quote, not both, is untouched', () {
+      expect(unwrapJqlSuggestionValue('"unterminated'), '"unterminated');
+      expect(unwrapJqlSuggestionValue('unopened"'), 'unopened"');
+    });
+
+    test('a lone quote character is left as-is rather than emptied', () {
+      expect(unwrapJqlSuggestionValue('"'), '"');
+    });
+  });
+
   group('UpdatesPropertyFilter.clause', () {
     test('an empty filter narrows nothing', () {
       expect(const UpdatesPropertyFilter(field: 'status', label: 'Status').clause, isNull);

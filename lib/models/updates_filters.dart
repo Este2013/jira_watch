@@ -16,6 +16,21 @@ String jqlLiteral(String value) {
   return '"$escaped"';
 }
 
+/// Some fields' suggestion values come back from Jira's own
+/// `jql/autocompletedata/suggestions` endpoint already wrapped in JQL's own
+/// quoting — ready to be spliced straight into a query the way Jira's own
+/// editor would, rather than as a bare value to be quoted here.
+///
+/// Unwrapped back to the plain value wherever one of these is picked, so this
+/// app's own quoting ([jqlLiteral]) is applied exactly once — never onto an
+/// already-quoted string, which is how `status = "In Progress"` was turning
+/// into `status = "\"In Progress\""`.
+String unwrapJqlSuggestionValue(String value) {
+  if (value.length < 2 || !value.startsWith('"') || !value.endsWith('"')) return value;
+  final inner = value.substring(1, value.length - 1);
+  return inner.replaceAll(r'\"', '"').replaceAll(r'\\', r'\');
+}
+
 /// Jira marks the matching part of an autocomplete suggestion with HTML bold
 /// tags, and escapes the rest — neither belongs in a checkbox label.
 String stripSuggestionMarkup(String text) => text.replaceAll(_htmlTag, '').replaceAll('&quot;', '"').replaceAll('&#39;', "'").replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&');

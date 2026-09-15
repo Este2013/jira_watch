@@ -186,7 +186,7 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
     setState(() {
       _suggestions = [
         for (final result in results)
-          if (result.value case final value?) (value, stripSuggestionMarkup(result.displayName ?? value)),
+          if (result.value case final value?) (unwrapJqlSuggestionValue(value), stripSuggestionMarkup(result.displayName ?? value)),
       ];
       _isLoading = false;
     });
@@ -649,7 +649,8 @@ class _JqlFilterFieldState extends State<JqlFilterField> {
         final results = await JiraApi().fieldSuggestions(field, query: ctx.prefix.isEmpty ? null : ctx.prefix);
         final out = <_JqlSuggestion>[
           for (final result in results)
-            if (result.value case final value?) _JqlSuggestion(label: stripSuggestionMarkup(result.displayName ?? value), insertText: _jqlValueLiteral(value), mode: ctx.mode),
+            if (result.value case final value?)
+              _JqlSuggestion(label: stripSuggestionMarkup(result.displayName ?? value), insertText: _jqlValueLiteral(unwrapJqlSuggestionValue(value)), mode: ctx.mode),
         ];
 
         // The same smart values the chip filters offer, so the two pickers
@@ -707,8 +708,14 @@ class _JqlFilterFieldState extends State<JqlFilterField> {
       selection: TextSelection.collapsed(offset: ctx.replaceStart + insertion.length),
     );
     setState(() => _isDirty = true);
-    // The controller listener above schedules the next suggestion pass on its
-    // own — picking a field cascades straight into its operators.
+    // Accepted — this exact list no longer describes what's under the cursor,
+    // and leaving it up (or leaving _suggestions non-empty with the overlay
+    // gone) is what let a second, immediate Enter re-accept a suggestion that
+    // was no longer showing instead of running the query. The controller
+    // listener above schedules a fresh suggestion pass on its own — picking a
+    // field cascades straight into its operators — so this is only ever a gap
+    // until that lands, not a dead end.
+    _hideOverlay();
 
     // Accepting can be a tap on the overlay, which would otherwise leave
     // Material's own tap-to-focus behavior claiming it — after the frame, so
@@ -728,9 +735,18 @@ class _JqlFilterFieldState extends State<JqlFilterField> {
     }
   }
 
+  /// Removes the overlay and forgets its suggestions — the two always change
+  /// together, so nothing (Enter included) can mistake stale suggestions left
+  /// over from a moment ago for a dropdown that is still actually showing.
+  ///
+  /// A plain field write rather than `setState`: nothing in this widget's own
+  /// `build` reads `_suggestions` (only `onSubmitted`'s closure, at call time,
+  /// and the overlay's own builder, refreshed separately) — which also keeps
+  /// this callable from `dispose`, after `setState` would throw.
   void _hideOverlay() {
     _overlayEntry?.remove();
     _overlayEntry = null;
+    _suggestions = const [];
   }
 
   void _move(int delta) {
@@ -743,7 +759,6 @@ class _JqlFilterFieldState extends State<JqlFilterField> {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     if (event.logicalKey == LogicalKeyboardKey.escape && _overlayEntry != null) {
       _hideOverlay();
-      setState(() => _suggestions = const []);
       return KeyEventResult.handled;
     }
     if (_suggestions.isEmpty) return KeyEventResult.ignored;
