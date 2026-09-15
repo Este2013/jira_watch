@@ -10,6 +10,25 @@ library;
 /// Newest first. The order drives both the changelog dialog's paging and the version picker.
 final List<(String, List<ChangeLogSection>)> appChangeLog = [
   (
+    '1.9.3',
+    [
+      ChangeLogSection.features([
+        ChangeLogItem('Filter values can now be excluded (checkbox with a dash) as well as kept'),
+      ]),
+      ChangeLogSection.bugFixes([
+        ChangeLogItem(
+          'JQL autocomplete',
+          subItems: [
+            ChangeLogItem('Enter runs the query unless a suggestion was actually arrow-key selected'),
+            ChangeLogItem('Tab always completes with the first suggestion'),
+            ChangeLogItem('Accepting a suggestion no longer selects the whole query, so typing continues instead of replacing it'),
+          ],
+        ),
+      ]),
+    ],
+  ),
+
+  (
     '1.9.2',
     [
       ChangeLogSection.features([
