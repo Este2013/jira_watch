@@ -244,26 +244,40 @@ class JiraApi with GlobalLoggy {
   }
 
   /// The fields behind the custom property filter's menu.
-  Future<List<jira.FieldReferenceData>> jqlFields({bool refresh = false}) async =>
-      (await jqlReferenceData(refresh: refresh))?.visibleFieldNames ?? const [];
+  Future<List<jira.FieldReferenceData>> jqlFields({bool refresh = false}) async => (await jqlReferenceData(refresh: refresh))?.visibleFieldNames ?? const [];
 
   /// The JQL functions this site offers, for the smart values a picker can
   /// offer alongside the literal ones.
-  Future<List<jira.FunctionReferenceData>> jqlFunctions({bool refresh = false}) async =>
-      (await jqlReferenceData(refresh: refresh))?.visibleFunctionNames ?? const [];
+  Future<List<jira.FunctionReferenceData>> jqlFunctions({bool refresh = false}) async => (await jqlReferenceData(refresh: refresh))?.visibleFunctionNames ?? const [];
 
   /// Jira's own reading of [query]: the errors it would refuse it for, empty
   /// when it is good.
+  ///
+  /// Hand-decoded rather than through the generated [ParsedJqlQuery] model:
+  /// that model's `structure` is Jira's discriminated union of clause shapes
+  /// (a compound clause carries `clauses`, a leaf carries `field`/`operand`)
+  /// flattened into one class that requires every variant's fields at once, so
+  /// deserializing the structure of any *valid* query — the only time `strict`
+  /// validation returns one — throws. Reading `errors` off the raw JSON sidesteps
+  /// that; nothing here needs the parsed structure.
   ///
   /// An empty list also means "could not tell" — a site that will not answer
   /// the parse endpoint should not stop someone running a query, so the search
   /// itself stays the final word.
   Future<List<String>> jqlErrors(String query) async {
     try {
-      final parsed = await jql.parseJqlQueries('strict', jira.JqlQueriesToParse(queries: [query]));
-      return [for (final result in parsed?.queries ?? const <jira.ParsedJqlQuery>[]) ...result.errors];
-    } on jira.ApiException catch (e) {
-      loggy.warning('POST /jql/parse returned ${e.code}');
+      final response = await jql.parseJqlQueriesWithHttpInfo('strict', jira.JqlQueriesToParse(queries: [query]));
+      if (response.statusCode >= 400) {
+        loggy.warning('POST /jql/parse returned ${response.statusCode}');
+        return const [];
+      }
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+      final results = (decoded['queries'] as List? ?? const []).cast<Map<String, dynamic>>();
+      return [
+        for (final result in results) ...(result['errors'] as List? ?? const []).cast<String>(),
+      ];
+    } catch (e, st) {
+      loggy.warning('POST /jql/parse failed: $e\n$st');
       return const [];
     }
   }

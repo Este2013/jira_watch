@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:jira_platform_api/api.dart' as jira;
 import 'package:jira_watcher/dao/jira/jira_api.dart';
+import 'package:jira_watcher/models/jql_completion.dart';
 import 'package:jira_watcher/models/updates_filters.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -79,6 +81,18 @@ class _FilterValuePicker extends StatefulWidget {
 
 class _FilterValuePickerState extends State<_FilterValuePicker> {
   final _searchController = TextEditingController();
+  late final _searchFocusNode = FocusNode(debugLabel: 'Filter search')..onKeyEvent = _onSearchKey;
+
+  /// One persistent [FocusNode] per value currently offered, so arrow-key
+  /// navigation can move focus from tile to tile — and so a tile does not lose
+  /// its node (and the highlight that comes with it) on every rebuild a search
+  /// keystroke causes.
+  final Map<String, FocusNode> _tileFocusNodes = {};
+
+  /// The values in the exact order they are rendered, refreshed at the top of
+  /// every [build] — arrow-key handling runs from a [FocusNode] callback, well
+  /// outside `build`, so it reads this rather than recomputing the list.
+  List<String> _visibleOrder = const [];
 
   late Set<String> _values = {...widget.filter.values};
   late Map<String, String> _labels = {...widget.filter.valueLabels};
@@ -124,7 +138,44 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
       SchedulerBinding.instance.addPostFrameCallback((_) => notify(values, labels));
     }
     _searchController.dispose();
+    _searchFocusNode.dispose();
+    for (final node in _tileFocusNodes.values) {
+      node.dispose();
+    }
     super.dispose();
+  }
+
+  FocusNode _focusNodeFor(String value) => _tileFocusNodes.putIfAbsent(value, () {
+    final node = FocusNode(debugLabel: value);
+    node.onKeyEvent = (node, event) => _onTileKey(value, event);
+    return node;
+  });
+
+  KeyEventResult _onSearchKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.arrowDown) return KeyEventResult.ignored;
+    if (_visibleOrder.isEmpty) return KeyEventResult.ignored;
+    _focusNodeFor(_visibleOrder.first).requestFocus();
+    return KeyEventResult.handled;
+  }
+
+  KeyEventResult _onTileKey(String value, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final index = _visibleOrder.indexOf(value);
+    if (index < 0) return KeyEventResult.ignored;
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      if (index + 1 < _visibleOrder.length) _focusNodeFor(_visibleOrder[index + 1]).requestFocus();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      if (index == 0) {
+        _searchFocusNode.requestFocus();
+      } else {
+        _focusNodeFor(_visibleOrder[index - 1]).requestFocus();
+      }
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   Future<void> _load() async {
@@ -206,6 +257,16 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
         if (!isSearching || label.toLowerCase().contains(query)) (value, label),
     ];
 
+    // Mirrors the tile order built below exactly, so arrow-key handling (which
+    // runs outside `build`, from a FocusNode callback) always steps to the tile
+    // that is actually next on screen.
+    _visibleOrder = [
+      for (final (value, _) in stranded) value,
+      for (final (value, _) in functions) value,
+      if (!isSearching) UpdatesPropertyFilter.emptyValue,
+      for (final (value, _) in _suggestions) value,
+    ];
+
     return SizedBox(
       width: 300,
       child: Column(
@@ -216,6 +277,7 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
             child: TextField(
               controller: _searchController,
+              focusNode: _searchFocusNode,
               autofocus: true,
               onChanged: _onSearchChanged,
               decoration: InputDecoration(
@@ -252,11 +314,7 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
                         for (final (value, label) in stranded) _valueTile(value, label),
                         if (functions.isNotEmpty) ...[
                           _sectionHeader(context, 'Jira values'),
-                          for (final (value, label) in functions)
-                            // The call stays in sight under its plain-English
-                            // name: it is what lands in the query, and what a
-                            // JQL-mode reading of the same filter will show.
-                            _valueTile(value, label, subtitle: value.substring(UpdatesPropertyFilter.functionPrefix.length)),
+                          for (final (value, label) in functions) _valueTile(value, label),
                           const Divider(height: 1),
                         ],
                         if (!isSearching) _valueTile(UpdatesPropertyFilter.emptyValue, 'No value', subtitle: 'Items where ${widget.filter.label.toLowerCase()} is not set'),
@@ -304,6 +362,7 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
 
   Widget _valueTile(String value, String label, {String? subtitle}) => CheckboxListTile(
     dense: true,
+    focusNode: _focusNodeFor(value),
     value: _values.contains(value),
     onChanged: (picked) => _toggle(value, label, picked ?? false),
     title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -455,8 +514,27 @@ class JqlFilterField extends StatefulWidget {
   State<JqlFilterField> createState() => _JqlFilterFieldState();
 }
 
+/// One row in the JQL field's own autocomplete — what to insert, and where.
+class _JqlSuggestion {
+  const _JqlSuggestion({required this.label, required this.insertText, required this.mode, this.subtitle});
+
+  final String label;
+  final String insertText;
+  final JqlCompletionMode mode;
+  final String? subtitle;
+}
+
+/// A value fit to sit in JQL unquoted — a bare number — quoted otherwise.
+/// Mirrors [jqlLiteral]'s job for the chip filters, for the same reason: any
+/// value could be a reserved word or contain a space.
+String _jqlValueLiteral(String value) => RegExp(r'^-?\d+(\.\d+)?$').hasMatch(value) ? value : jqlLiteral(value);
+
 class _JqlFilterFieldState extends State<JqlFilterField> {
   late final _controller = TextEditingController(text: widget.initialJql);
+  late final _focusNode = FocusNode(debugLabel: 'JQL field')
+    ..onKeyEvent = _onKey
+    ..addListener(_onFocusChange);
+  final _layerLink = LayerLink();
 
   String? _error;
   bool _isChecking = false;
@@ -465,11 +543,260 @@ class _JqlFilterFieldState extends State<JqlFilterField> {
   /// apply button says there is something to apply.
   bool _isDirty = false;
 
+  // --- Autocomplete, driven by classifyJqlCursor -----------------------------
+
+  OverlayEntry? _overlayEntry;
+  List<_JqlSuggestion> _suggestions = const [];
+  int _highlighted = 0;
+  bool _suggestionsLoading = false;
+
+  /// The context the current [_suggestions] answer — accepting one needs to
+  /// know what span of text it replaces.
+  JqlCompletionContext? _suggestionContext;
+
+  Timer? _suggestDebounce;
+
+  /// Bumped per request so a slower earlier one cannot overwrite a newer one.
+  int _requestSeq = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_scheduleSuggest);
+  }
+
   @override
   void dispose() {
+    _controller.removeListener(_scheduleSuggest);
+    _suggestDebounce?.cancel();
+    _hideOverlay();
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
+
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus) _hideOverlay();
+  }
+
+  void _scheduleSuggest() {
+    _suggestDebounce?.cancel();
+    _suggestDebounce = Timer(const Duration(milliseconds: 200), _suggest);
+  }
+
+  Future<void> _suggest() async {
+    final selection = _controller.selection;
+    if (!_focusNode.hasFocus || !selection.isValid || !selection.isCollapsed) {
+      _hideOverlay();
+      return;
+    }
+
+    final seq = ++_requestSeq;
+    final ctx = classifyJqlCursor(_controller.text, selection.baseOffset);
+    setState(() => _suggestionsLoading = true);
+    final suggestions = await _suggestionsFor(ctx);
+    if (!mounted || seq != _requestSeq) return;
+
+    setState(() {
+      _suggestionsLoading = false;
+      _suggestions = suggestions;
+      _suggestionContext = ctx;
+      _highlighted = 0;
+    });
+    if (suggestions.isEmpty) {
+      _hideOverlay();
+    } else {
+      _refreshOverlay();
+    }
+  }
+
+  Future<List<_JqlSuggestion>> _suggestionsFor(JqlCompletionContext ctx) async {
+    final prefix = ctx.prefix.toLowerCase();
+    switch (ctx.mode) {
+      case JqlCompletionMode.field:
+        final fields = await JiraApi().jqlFields();
+        final seen = <String>{};
+        final out = <_JqlSuggestion>[];
+        for (final field in fields) {
+          final value = field.value;
+          if (value == null || field.deprecated == jira.FieldReferenceDataDeprecatedEnum.true_ || !seen.add(value)) continue;
+          final label = jqlFieldLabel(field.displayName ?? value);
+          if (prefix.isNotEmpty && !label.toLowerCase().contains(prefix) && !value.toLowerCase().contains(prefix)) continue;
+          out.add(_JqlSuggestion(label: label, insertText: value, mode: ctx.mode, subtitle: label == value ? null : value));
+        }
+        out.sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+        return out;
+
+      case JqlCompletionMode.op:
+        final field = ctx.field;
+        if (field == null) return const [];
+        final fields = await JiraApi().jqlFields();
+        var operators = const <String>[];
+        for (final f in fields) {
+          if (f.value == field) {
+            operators = f.operators;
+            break;
+          }
+        }
+        return [
+          for (final op in operators)
+            if (prefix.isEmpty || op.toLowerCase().startsWith(prefix)) _JqlSuggestion(label: op, insertText: op, mode: ctx.mode),
+        ];
+
+      case JqlCompletionMode.value:
+        final field = ctx.field;
+        if (field == null) return const [];
+        final results = await JiraApi().fieldSuggestions(field, query: ctx.prefix.isEmpty ? null : ctx.prefix);
+        final out = <_JqlSuggestion>[
+          for (final result in results)
+            if (result.value case final value?) _JqlSuggestion(label: stripSuggestionMarkup(result.displayName ?? value), insertText: _jqlValueLiteral(value), mode: ctx.mode),
+        ];
+
+        // The same smart values the chip filters offer, so the two pickers
+        // agree on what "mine" or "the sprint we are in" means.
+        final reference = await JiraApi().jqlReferenceData();
+        if (reference != null) {
+          var fieldTypes = const <String>[];
+          for (final f in reference.visibleFieldNames) {
+            if (f.value == field) {
+              fieldTypes = f.types;
+              break;
+            }
+          }
+          for (final function in reference.visibleFunctionNames) {
+            final call = function.value;
+            if (call == null || !jqlFunctionFits(call: call, functionTypes: function.types, fieldTypes: fieldTypes)) continue;
+            final label = jqlFunctionLabel(call);
+            if (prefix.isNotEmpty && !label.toLowerCase().contains(prefix)) continue;
+            out.add(_JqlSuggestion(label: label, insertText: call, mode: ctx.mode, subtitle: call));
+          }
+        }
+        return out;
+
+      case JqlCompletionMode.keyword:
+        final reference = await JiraApi().jqlReferenceData();
+        const priority = {'AND': 0, 'OR': 1, 'ORDER BY': 2};
+        final words = <String>{'AND', 'OR', 'ORDER BY', ...?reference?.jqlReservedWords};
+        final out =
+            [
+              for (final word in words)
+                if (prefix.isEmpty || word.toLowerCase().startsWith(prefix)) word,
+            ]..sort((a, b) {
+              final pa = priority[a] ?? 3, pb = priority[b] ?? 3;
+              return pa != pb ? pa.compareTo(pb) : a.compareTo(b);
+            });
+        return [for (final word in out) _JqlSuggestion(label: word, insertText: word, mode: ctx.mode)];
+    }
+  }
+
+  void _accept(_JqlSuggestion suggestion) {
+    final ctx = _suggestionContext;
+    if (ctx == null) return;
+
+    final insertion = switch (suggestion.mode) {
+      // "in"/"not in" open their value list right away, so the very next
+      // keystroke already lands in value mode instead of needing its own '('.
+      JqlCompletionMode.op when suggestion.insertText == 'in' || suggestion.insertText == 'not in' => '${suggestion.insertText} (',
+      _ => '${suggestion.insertText} ',
+    };
+
+    final text = _controller.text;
+    final newText = text.replaceRange(ctx.replaceStart, ctx.replaceEnd, insertion);
+    _controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: ctx.replaceStart + insertion.length),
+    );
+    setState(() => _isDirty = true);
+    // The controller listener above schedules the next suggestion pass on its
+    // own — picking a field cascades straight into its operators.
+  }
+
+  void _refreshOverlay() {
+    if (_overlayEntry == null) {
+      _overlayEntry = OverlayEntry(builder: _buildOverlay);
+      Overlay.of(context).insert(_overlayEntry!);
+    } else {
+      _overlayEntry!.markNeedsBuild();
+    }
+  }
+
+  void _hideOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  void _move(int delta) {
+    if (_suggestions.isEmpty) return;
+    setState(() => _highlighted = (_highlighted + delta).clamp(0, _suggestions.length - 1));
+    _refreshOverlay();
+  }
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.escape && _overlayEntry != null) {
+      _hideOverlay();
+      setState(() => _suggestions = const []);
+      return KeyEventResult.handled;
+    }
+    if (_suggestions.isEmpty) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      _move(1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      _move(-1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.tab) {
+      _accept(_suggestions[_highlighted]);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  Widget _buildOverlay(BuildContext context) => CompositedTransformFollower(
+    link: _layerLink,
+    showWhenUnlinked: false,
+    targetAnchor: Alignment.bottomLeft,
+    followerAnchor: Alignment.topLeft,
+    offset: const Offset(0, 4),
+    child: Align(
+      alignment: Alignment.topLeft,
+      child: Material(
+        elevation: 4,
+        borderRadius: BorderRadius.circular(8),
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          width: 320,
+          child: _suggestions.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: _suggestionsLoading ? const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))) : const SizedBox.shrink(),
+                )
+              : ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 240),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: _suggestions.length,
+                    itemBuilder: (context, index) {
+                      final suggestion = _suggestions[index];
+                      return Material(
+                        color: index == _highlighted ? Theme.of(context).colorScheme.surfaceContainerHighest : Colors.transparent,
+                        child: ListTile(
+                          dense: true,
+                          title: Text(suggestion.label, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: suggestion.subtitle == null ? null : Text(suggestion.subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          onTap: () => _accept(suggestion),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ),
+    ),
+  );
 
   Future<void> _apply() async {
     final query = _controller.text.trim();
@@ -494,40 +821,48 @@ class _JqlFilterFieldState extends State<JqlFilterField> {
   }
 
   @override
-  Widget build(BuildContext context) => TextField(
-    controller: _controller,
-    autofocus: true,
-    style: const TextStyle(fontFamily: 'monospace'),
-    onChanged: (_) => setState(() => _isDirty = true),
-    onSubmitted: (_) => _apply(),
-    decoration: InputDecoration(
-      isDense: true,
-      border: const OutlineInputBorder(),
-      hintText: 'status = "In Progress" AND assignee = currentUser()',
-      helperText: 'Combined with the project tab and the time range',
-      helperMaxLines: 1,
-      errorText: _error,
-      errorMaxLines: 3,
-      prefixIcon: const Padding(
-        padding: EdgeInsets.only(left: 8, right: 4),
-        child: Icon(Symbols.terminal, size: 18),
-      ),
-      prefixIconConstraints: const BoxConstraints(),
-      suffixIcon: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (widget.onSeedFromFilters != null)
+  Widget build(BuildContext context) => CompositedTransformTarget(
+    link: _layerLink,
+    child: TextField(
+      controller: _controller,
+      focusNode: _focusNode,
+      autofocus: true,
+      style: const TextStyle(fontFamily: 'monospace'),
+      onChanged: (_) => setState(() => _isDirty = true),
+      onSubmitted: (_) {
+        if (_suggestions.isNotEmpty) {
+          _accept(_suggestions[_highlighted]);
+        } else {
+          _apply();
+        }
+      },
+      decoration: InputDecoration(
+        isDense: true,
+        border: const OutlineInputBorder(),
+        hintText: 'status = "In Progress" AND assignee = currentUser()',
+        errorText: _error,
+        errorMaxLines: 3,
+        prefixIcon: const Padding(
+          padding: EdgeInsets.only(left: 8, right: 4),
+          child: Icon(Symbols.terminal, size: 18),
+        ),
+        prefixIconConstraints: const BoxConstraints(),
+        suffixIcon: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.onSeedFromFilters != null)
+              IconButton(
+                tooltip: 'Write out the filter chips instead',
+                icon: const Icon(Symbols.filter_alt, size: 18),
+                onPressed: widget.onSeedFromFilters,
+              ),
             IconButton(
-              tooltip: 'Write out the filter chips instead',
-              icon: const Icon(Symbols.filter_alt, size: 18),
-              onPressed: widget.onSeedFromFilters,
+              tooltip: 'Run this query',
+              icon: _isChecking ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(Symbols.play_arrow, fill: _isDirty ? 1 : 0, size: 18),
+              onPressed: _isChecking ? null : _apply,
             ),
-          IconButton(
-            tooltip: 'Run this query',
-            icon: _isChecking ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(Symbols.play_arrow, fill: _isDirty ? 1 : 0, size: 18),
-            onPressed: _isChecking ? null : _apply,
-          ),
-        ],
+          ],
+        ),
       ),
     ),
   );
