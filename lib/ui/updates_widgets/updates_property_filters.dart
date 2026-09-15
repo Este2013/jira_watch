@@ -578,7 +578,11 @@ class _JqlFilterFieldState extends State<JqlFilterField> {
 
   OverlayEntry? _overlayEntry;
   List<_JqlSuggestion> _suggestions = const [];
-  int _highlighted = 0;
+
+  /// Which suggestion arrow-down selection has reached, or -1 for "none" —
+  /// the dropdown's own default, so Enter runs the query rather than fighting
+  /// over what it means until the user actually asks to navigate the list.
+  int _highlighted = -1;
   bool _suggestionsLoading = false;
 
   /// The context the current [_suggestions] answer — accepting one needs to
@@ -632,7 +636,7 @@ class _JqlFilterFieldState extends State<JqlFilterField> {
       _suggestionsLoading = false;
       _suggestions = suggestions;
       _suggestionContext = ctx;
-      _highlighted = 0;
+      _highlighted = -1;
     });
     if (suggestions.isEmpty) {
       _hideOverlay();
@@ -778,11 +782,16 @@ class _JqlFilterFieldState extends State<JqlFilterField> {
     _overlayEntry?.remove();
     _overlayEntry = null;
     _suggestions = const [];
+    _highlighted = -1;
   }
 
+  /// Moves the arrow-down selection. `-1` (nothing highlighted, the default)
+  /// is a real stop on the way up as well as down, not just a starting point
+  /// — arrowing up off the first suggestion backs all the way out of
+  /// selecting one, the same as never having pressed the arrow at all.
   void _move(int delta) {
     if (_suggestions.isEmpty) return;
-    setState(() => _highlighted = (_highlighted + delta).clamp(0, _suggestions.length - 1));
+    setState(() => _highlighted = (_highlighted + delta).clamp(-1, _suggestions.length - 1));
     _refreshOverlay();
   }
 
@@ -802,7 +811,9 @@ class _JqlFilterFieldState extends State<JqlFilterField> {
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.tab) {
-      _accept(_suggestions[_highlighted]);
+      // Always the first suggestion, regardless of arrow-key selection — a
+      // quick "complete what I'm typing" that does not require navigating.
+      _accept(_suggestions.first);
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -884,7 +895,9 @@ class _JqlFilterFieldState extends State<JqlFilterField> {
       style: const TextStyle(fontFamily: 'monospace'),
       onChanged: (_) => setState(() => _isDirty = true),
       onSubmitted: (_) {
-        if (_suggestions.isNotEmpty) {
+        // Only once arrow-down has actually picked a suggestion — otherwise
+        // Enter's plain, expected job is running the query.
+        if (_highlighted >= 0 && _highlighted < _suggestions.length) {
           _accept(_suggestions[_highlighted]);
         } else {
           _apply();
