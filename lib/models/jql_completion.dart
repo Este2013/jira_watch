@@ -46,11 +46,14 @@ class JqlCompletionContext {
   final String? field;
 }
 
-enum _TokType { word, quoted, op, paren, comma, ws }
+enum JqlTokenType { word, quoted, op, paren, comma, ws }
 
-class _Tok {
-  const _Tok(this.type, this.start, this.end, this.text);
-  final _TokType type;
+/// One lexical token of a JQL string — shared by the cursor classifier below
+/// and by the JQL-to-chips parser in `jql_to_filters.dart`, so the two agree
+/// on what a "field", a "value" and an "operator" look like.
+class JqlToken {
+  const JqlToken(this.type, this.start, this.end, this.text);
+  final JqlTokenType type;
   final int start, end;
   final String text;
 }
@@ -71,22 +74,26 @@ const _symbolOps = {'=', '!=', '<', '<=', '>', '>=', '~', '!~'};
 /// `assignee IS EMPTY`, `assignee WAS IN (...)`, `status CHANGED`.
 const _operatorWords = {'not', 'in', 'is', 'was', 'changed'};
 
-_TokType _classify(String t) {
-  if (t.startsWith('"')) return _TokType.quoted;
-  if (t == '(' || t == ')') return _TokType.paren;
-  if (t == ',') return _TokType.comma;
-  if (t.trim().isEmpty) return _TokType.ws;
-  if (_symbolOps.contains(t)) return _TokType.op;
-  return _TokType.word;
+JqlTokenType _classify(String t) {
+  if (t.startsWith('"')) return JqlTokenType.quoted;
+  if (t == '(' || t == ')') return JqlTokenType.paren;
+  if (t == ',') return JqlTokenType.comma;
+  if (t.trim().isEmpty) return JqlTokenType.ws;
+  if (_symbolOps.contains(t)) return JqlTokenType.op;
+  return JqlTokenType.word;
 }
 
-List<_Tok> _tokenize(String text) => [
-  for (final m in _tokenPattern.allMatches(text)) _Tok(_classify(m.group(0)!), m.start, m.end, m.group(0)!),
+/// Splits [text] into [JqlToken]s: quoted strings, comparison operators,
+/// parens, commas, bare words (field names, values, `cf[10061]`), and
+/// whitespace — everything a JQL string is made of, without judging whether
+/// any of it forms a valid query.
+List<JqlToken> tokenizeJql(String text) => [
+  for (final m in _tokenPattern.allMatches(text)) JqlToken(_classify(m.group(0)!), m.start, m.end, m.group(0)!),
 ];
 
-_Tok? _prevNonWs(List<_Tok> tokens, int fromIndex) {
+JqlToken? _prevNonWs(List<JqlToken> tokens, int fromIndex) {
   for (var i = fromIndex; i >= 0; i--) {
-    if (tokens[i].type != _TokType.ws) return tokens[i];
+    if (tokens[i].type != JqlTokenType.ws) return tokens[i];
   }
   return null;
 }
@@ -94,16 +101,16 @@ _Tok? _prevNonWs(List<_Tok> tokens, int fromIndex) {
 /// What the JQL editor should offer for [text] with the caret at [cursor].
 JqlCompletionContext classifyJqlCursor(String text, int cursor) {
   cursor = cursor.clamp(0, text.length);
-  final tokens = _tokenize(text.substring(0, cursor));
+  final tokens = tokenizeJql(text.substring(0, cursor));
 
   // The token being typed right now: the last one, if it actually touches the
   // cursor — a trailing space, comma or paren means the next token has not
   // started yet, so there is nothing to replace, only to insert.
-  _Tok? partial;
+  JqlToken? partial;
   var contextTokens = tokens;
   if (tokens.isNotEmpty) {
     final last = tokens.last;
-    if (last.end == cursor && last.type != _TokType.ws && last.type != _TokType.paren && last.type != _TokType.comma) {
+    if (last.end == cursor && last.type != JqlTokenType.ws && last.type != JqlTokenType.paren && last.type != JqlTokenType.comma) {
       partial = last;
       contextTokens = tokens.sublist(0, tokens.length - 1);
     }
@@ -111,7 +118,7 @@ JqlCompletionContext classifyJqlCursor(String text, int cursor) {
 
   final replaceStart = partial?.start ?? cursor;
   var prefix = partial?.text ?? '';
-  if (partial?.type == _TokType.quoted) {
+  if (partial?.type == JqlTokenType.quoted) {
     var inner = prefix.substring(1);
     if (inner.endsWith('"')) inner = inner.substring(0, inner.length - 1);
     prefix = inner.replaceAll(r'\"', '"').replaceAll(r'\\', r'\');
@@ -121,22 +128,22 @@ JqlCompletionContext classifyJqlCursor(String text, int cursor) {
   // top-level AND/OR, or a grouping '(' — as opposed to one opening a value
   // list (`in (`) or a function call (`currentUser(`), which is content of
   // the clause and is walked straight through via the depth count.
-  final clause = <_Tok>[];
+  final clause = <JqlToken>[];
   var depth = 0;
   var i = contextTokens.length - 1;
   while (i >= 0) {
     final tok = contextTokens[i];
-    if (tok.type == _TokType.ws) {
+    if (tok.type == JqlTokenType.ws) {
       i--;
       continue;
     }
-    if (tok.type == _TokType.paren && tok.text == ')') {
+    if (tok.type == JqlTokenType.paren && tok.text == ')') {
       depth++;
       clause.insert(0, tok);
       i--;
       continue;
     }
-    if (tok.type == _TokType.paren && tok.text == '(') {
+    if (tok.type == JqlTokenType.paren && tok.text == '(') {
       if (depth > 0) {
         depth--;
         clause.insert(0, tok);
@@ -144,7 +151,7 @@ JqlCompletionContext classifyJqlCursor(String text, int cursor) {
         continue;
       }
       final before = _prevNonWs(contextTokens, i - 1);
-      final opensValue = before != null && before.type == _TokType.word && before.text.toLowerCase() != 'and' && before.text.toLowerCase() != 'or';
+      final opensValue = before != null && before.type == JqlTokenType.word && before.text.toLowerCase() != 'and' && before.text.toLowerCase() != 'or';
       if (opensValue) {
         clause.insert(0, tok);
         i--;
@@ -152,7 +159,7 @@ JqlCompletionContext classifyJqlCursor(String text, int cursor) {
       }
       break; // a genuine grouping paren: the clause starts after it
     }
-    if (depth == 0 && tok.type == _TokType.word) {
+    if (depth == 0 && tok.type == JqlTokenType.word) {
       final w = tok.text.toLowerCase();
       if (w == 'and' || w == 'or') break;
     }
@@ -160,19 +167,19 @@ JqlCompletionContext classifyJqlCursor(String text, int cursor) {
     i--;
   }
 
-  if (clause.isEmpty || clause.first.type != _TokType.word) {
+  if (clause.isEmpty || clause.first.type != JqlTokenType.word) {
     return JqlCompletionContext(mode: JqlCompletionMode.field, replaceStart: replaceStart, replaceEnd: cursor, prefix: prefix);
   }
   final field = clause.first.text;
 
   var opEnd = 1;
   final opWords = <String>[];
-  while (opEnd < clause.length && clause[opEnd].type == _TokType.word && _operatorWords.contains(clause[opEnd].text.toLowerCase())) {
+  while (opEnd < clause.length && clause[opEnd].type == JqlTokenType.word && _operatorWords.contains(clause[opEnd].text.toLowerCase())) {
     opWords.add(clause[opEnd].text.toLowerCase());
     opEnd++;
   }
   var hasOperator = opWords.isNotEmpty;
-  if (!hasOperator && opEnd < clause.length && clause[opEnd].type == _TokType.op) {
+  if (!hasOperator && opEnd < clause.length && clause[opEnd].type == JqlTokenType.op) {
     opEnd++;
     hasOperator = true;
   }
@@ -183,8 +190,8 @@ JqlCompletionContext classifyJqlCursor(String text, int cursor) {
 
   final afterOp = clause.sublist(opEnd);
   final last = afterOp.isEmpty ? null : afterOp.last;
-  final pendingListItem = last != null && (last.type == _TokType.comma || (last.type == _TokType.paren && last.text == '('));
-  final openParens = afterOp.where((t) => t.type == _TokType.paren && t.text == '(').length - afterOp.where((t) => t.type == _TokType.paren && t.text == ')').length;
+  final pendingListItem = last != null && (last.type == JqlTokenType.comma || (last.type == JqlTokenType.paren && last.text == '('));
+  final openParens = afterOp.where((t) => t.type == JqlTokenType.paren && t.text == '(').length - afterOp.where((t) => t.type == JqlTokenType.paren && t.text == ')').length;
 
   if (afterOp.isEmpty || pendingListItem || openParens > 0) {
     return JqlCompletionContext(mode: JqlCompletionMode.value, replaceStart: replaceStart, replaceEnd: cursor, prefix: prefix, field: field);

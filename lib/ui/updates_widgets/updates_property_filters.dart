@@ -709,6 +709,14 @@ class _JqlFilterFieldState extends State<JqlFilterField> {
     setState(() => _isDirty = true);
     // The controller listener above schedules the next suggestion pass on its
     // own — picking a field cascades straight into its operators.
+
+    // Accepting can be a tap on the overlay, which would otherwise leave
+    // Material's own tap-to-focus behavior claiming it — after the frame, so
+    // that settles first, put focus back on the field, cursor already where
+    // the insertion left it.
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
   }
 
   void _refreshOverlay() {

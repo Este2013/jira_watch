@@ -14,7 +14,9 @@ import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
 import 'package:jira_watcher/models/jira_work_item_data.dart';
+import 'package:jira_watcher/dao/jira/jira_api.dart';
 import 'package:jira_watcher/dao/jira/jira_auth.dart';
+import 'package:jira_watcher/models/jql_to_filters.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/models/updates_filters.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_property_filters.dart';
@@ -778,14 +780,33 @@ class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
 
   void _setPropertyFilters(UpdatesFilters filters) => _apply(query.copyWith(filters: filters));
 
-  void _toggleJqlMode() {
-    final entering = !query.jqlMode;
-    // Seeded from the chips only when there is nothing to lose — a query typed
-    // earlier survives a trip back to the chips and out again, and the field's
-    // own button re-seeds it on demand.
-    final seed = entering && query.rawJql.trim().isEmpty ? propertyFilters.clauses.join(' AND ') : query.rawJql;
-    _jqlSeed++;
-    _apply(query.copyWith(jqlMode: entering, rawJql: seed));
+  Future<void> _toggleJqlMode() async {
+    if (!query.jqlMode) {
+      // Entering: the chips are the source of truth going in, always — a chip
+      // changed since the last visit here must not leave a stale query typed
+      // before it sitting in the field.
+      _jqlSeed++;
+      _apply(query.copyWith(jqlMode: true, rawJql: propertyFilters.clauses.join(' AND ')));
+      return;
+    }
+
+    // Leaving: fold whatever is typed back into the chips, when it is a shape
+    // a chip could have written itself — anything else (an OR, a `!=`, JQL
+    // Jira accepts but no chip can express) leaves the chips exactly as they
+    // were, rather than show a filter set that lies about part of the query.
+    final parsed = parseJqlAsFilters(query.rawJql);
+    if (parsed == null) {
+      _apply(query.copyWith(jqlMode: false));
+      return;
+    }
+    final fields = await JiraApi().jqlFields();
+    if (!mounted) return;
+    final labels = {
+      for (final field in fields)
+        if (field.value != null) field.value!: jqlFieldLabel(field.displayName ?? field.value!),
+    };
+    final filters = applyParsedJqlToFilters(propertyFilters, parsed, (field) => labels[field] ?? field);
+    _apply(query.copyWith(jqlMode: false, filters: filters));
   }
 
   void _seedJqlFromFilters() {
