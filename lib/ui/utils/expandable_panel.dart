@@ -26,6 +26,11 @@ class _ExpandablePanelState extends State<ExpandablePanel> {
   @override
   Widget build(BuildContext context) => Card(
     clipBehavior: Clip.hardEdge,
+    // Card's own 4px default would inset this panel from whatever it sits
+    // beside, which reads as stray padding the moment one is laid out next
+    // to something that is not a Card — a pinned row holding a panel and a
+    // text field, say. Every caller already spaces its own children.
+    margin: EdgeInsets.zero,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

@@ -199,6 +199,9 @@ class _GroupTile extends StatelessWidget {
     if (_isBare) return _acceptingDrops(context, body);
 
     return Card(
+      // Spacing between groups is the row's and column's job, so this does
+      // not also carry Card's own default margin.
+      margin: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
         child: Column(

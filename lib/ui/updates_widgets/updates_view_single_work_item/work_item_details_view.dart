@@ -848,7 +848,7 @@ class RelatedWorkItemsSection extends StatelessWidget {
                   children: [
                     Text('Web links', style: Theme.of(context).textTheme.titleSmall),
                     SizedBox(height: 4),
-                    for (final link in webLinks) WebLinkTile(link as Map),
+                    TruncatedLinkList(children: [for (final link in webLinks) WebLinkTile(link as Map)]),
                   ],
                 ),
             ],
@@ -891,6 +891,46 @@ class WebLinkTile extends StatelessWidget {
   }
 }
 
+/// A run of links, capped until the reader asks for the rest.
+///
+/// An issue with sixty web links would otherwise bury everything below it,
+/// and the point of this section is to be glanced at.
+class TruncatedLinkList extends StatefulWidget {
+  const TruncatedLinkList({super.key, required this.children, this.limit = 10});
+
+  final List<Widget> children;
+  final int limit;
+
+  @override
+  State<TruncatedLinkList> createState() => _TruncatedLinkListState();
+}
+
+class _TruncatedLinkListState extends State<TruncatedLinkList> {
+  bool _showAll = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hiddenCount = widget.children.length - widget.limit;
+    if (hiddenCount <= 0) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: widget.children);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ...(_showAll ? widget.children : widget.children.take(widget.limit)),
+        ListTile(
+          dense: true,
+          leading: Icon(_showAll ? Symbols.expand_less : Symbols.expand_more, size: 20),
+          title: Text(
+            _showAll ? 'Show less' : 'Show $hiddenCount more',
+            style: TextStyle(color: Theme.of(context).colorScheme.primary),
+          ),
+          onTap: () => setState(() => _showAll = !_showAll),
+        ),
+      ],
+    );
+  }
+}
+
 class IssueLinkSection extends StatelessWidget {
   const IssueLinkSection(this.typeData, this.issueLinksData, {super.key});
 
@@ -908,13 +948,13 @@ class IssueLinkSection extends StatelessWidget {
         if (containsInward) ...[
           Text(typeData['inward'], style: Theme.of(context).textTheme.titleSmall),
           SizedBox(height: 4),
-          for (var i in issueLinksData.where((element) => element.$1 == 'in')) IssueLinkTile(i.$2),
+          TruncatedLinkList(children: [for (var i in issueLinksData.where((element) => element.$1 == 'in')) IssueLinkTile(i.$2)]),
         ],
         if (containsInward && containsOutward) SizedBox(height: 16),
         if (containsOutward) ...[
           Text(typeData['outward'], style: Theme.of(context).textTheme.titleSmall),
           SizedBox(height: 4),
-          for (var i in issueLinksData.where((element) => element.$1 == 'out')) IssueLinkTile(i.$2),
+          TruncatedLinkList(children: [for (var i in issueLinksData.where((element) => element.$1 == 'out')) IssueLinkTile(i.$2)]),
         ],
       ],
     );
