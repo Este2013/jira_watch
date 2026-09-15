@@ -48,6 +48,26 @@ void main() {
     });
   });
 
+  group('jqlFunctionLabel', () {
+    test('reads a call as words', () {
+      expect(jqlFunctionLabel('currentUser()'), 'Current user');
+      expect(jqlFunctionLabel('openSprints()'), 'Open sprints');
+      expect(jqlFunctionLabel('componentsLeadByUser()'), 'Components lead by user');
+    });
+
+    test('reads an underscored name too', () {
+      expect(jqlFunctionLabel('end_of_day()'), 'End of day');
+    });
+
+    test('drops the argument list', () {
+      expect(jqlFunctionLabel('membersOf("")'), 'Members of');
+    });
+
+    test('falls back to the call when there is no name in it', () {
+      expect(jqlFunctionLabel('()'), '()');
+    });
+  });
+
   group('JQL functions as values', () {
     const user = 'com.atlassian.jira.user.ApplicationUser';
 
@@ -260,6 +280,78 @@ void main() {
       ]);
       expect(salvaged.filters, hasLength(UpdatesFilters.defaults.length + 1));
       expect(salvaged.byField('cf[1]')!.values, isEmpty);
+    });
+  });
+
+  group('UpdatesQuery', () {
+    test('asks with the chips while JQL mode is off', () {
+      final query = UpdatesQuery(filters: UpdatesFilters.empty.withValues('status', {'Open'}), rawJql: 'assignee = currentUser()');
+      expect(query.clauses, ['status = "Open"']);
+    });
+
+    test('asks with the hand-written query while JQL mode is on, parenthesised', () {
+      final query = UpdatesQuery(
+        filters: UpdatesFilters.empty.withValues('status', {'Open'}),
+        jqlMode: true,
+        rawJql: 'assignee = currentUser() OR reporter = currentUser()',
+      );
+      expect(query.clauses, ['(assignee = currentUser() OR reporter = currentUser())']);
+    });
+
+    test('an empty hand-written query narrows nothing, chips or not', () {
+      const query = UpdatesQuery(jqlMode: true, rawJql: '   ');
+      expect(query.clauses, isEmpty);
+    });
+
+    test('round-trips through the saved filter map', () {
+      final query = UpdatesQuery(
+        activeProject: 'STUDIO',
+        timeFilter: 'week',
+        filters: UpdatesFilters.empty.withValues('labels', {'blocked'}),
+        jqlMode: true,
+        rawJql: 'status = "Open"',
+      );
+      final restored = UpdatesQuery.fromJson(query.toJson());
+      expect(restored.activeProject, 'STUDIO');
+      expect(restored.timeFilter, 'week');
+      expect(restored.filters.byField('labels')!.values, {'blocked'});
+      expect(restored.jqlMode, isTrue);
+      expect(restored.rawJql, 'status = "Open"');
+    });
+
+    test('round-trips a custom date range', () {
+      final range = [DateTime(2026, 1, 2), DateTime(2026, 3, 4)];
+      final restored = UpdatesQuery.fromJson(UpdatesQuery(timeFilter: range).toJson());
+      expect(restored.timeFilter, range);
+    });
+
+    test('drops a date range it cannot read rather than throwing on startup', () {
+      expect(
+        UpdatesQuery.fromJson({
+          'time_filter': ['not a date'],
+        }).timeFilter,
+        isNull,
+      );
+      expect(
+        UpdatesQuery.fromJson({
+          'time_filter': [17],
+        }).timeFilter,
+        isNull,
+      );
+    });
+
+    test('reads an untouched save as the plain starting query', () {
+      final query = UpdatesQuery.fromJson({});
+      expect(query.activeProject, isNull);
+      expect(query.jqlMode, isFalse);
+      expect(query.rawJql, isEmpty);
+      expect(query.filters.filters, UpdatesFilters.defaults);
+    });
+
+    test('clearing the project tab beats keeping it', () {
+      const query = UpdatesQuery(activeProject: 'STUDIO');
+      expect(query.copyWith(clearActiveProject: true).activeProject, isNull);
+      expect(query.copyWith().activeProject, 'STUDIO');
     });
   });
 }

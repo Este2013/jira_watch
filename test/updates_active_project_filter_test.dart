@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jira_watcher/ui/updates_widgets/updates_home_view.dart';
+import 'package:jira_watcher/models/updates_filters.dart';
 
 void main() {
   group('activeProjectFromFilters', () {

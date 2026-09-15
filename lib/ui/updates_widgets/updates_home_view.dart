@@ -46,13 +46,12 @@ class _UpdatesPageState extends State<UpdatesPage> {
   late FutureOr<(Iterable<JiraWorkItemData>, bool, String?)> futurePage;
   String? nextPageToken;
 
-  /// The project the list is narrowed to, or null for the combined feed of
-  /// every starred project (the "All" tab).
-  String? activeProject;
-  dynamic timeFilter;
+  /// Everything the filter bar narrows the list by: the project tab, the time
+  /// range, the property filters and any hand-written JQL.
+  UpdatesQuery query = const UpdatesQuery();
 
-  /// The property filters (status, assignee, …) narrowing the query.
-  UpdatesFilters propertyFilters = UpdatesFilters.empty;
+  String? get activeProject => query.activeProject;
+  dynamic get timeFilter => query.timeFilter;
 
   JiraWorkItemData? selectedWorkItem;
 
@@ -108,20 +107,11 @@ class _UpdatesPageState extends State<UpdatesPage> {
     scrollController.addListener(_onScrollNearBottom);
 
     // Set any eventual filters from the previous session
-    var filters = SettingsModel().filters.value;
-    activeProject = activeProjectFromFilters(filters);
-    propertyFilters = UpdatesFilters.fromJson(filters['property_filters']);
-
-    timeFilter = filters['time_filter'];
-    if (timeFilter is List) {
-      timeFilter = timeFilter.map((f) => DateTime.parse(f)).toList();
-    }
+    query = UpdatesQuery.fromJson(SettingsModel().filters.value);
 
     _filterBar = UpdatesFilterBar(
-      onFiltersChanged: (project, tf, properties) {
-        activeProject = project;
-        timeFilter = tf;
-        propertyFilters = properties;
+      onQueryChanged: (changed) {
+        query = changed;
         _resetAndFetchFirstPage();
       },
       onRefresh: _resetAndFetchFirstPage,
@@ -145,7 +135,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
     // combined feed rather than keep filtering by something the strip no
     // longer offers. The filter bar mirrors this on its own copy.
     final starred = SettingsModel().starredProjects.value ?? const <String>[];
-    if (activeProject != null && !starred.contains(activeProject)) activeProject = null;
+    if (activeProject != null && !starred.contains(activeProject)) query = query.copyWith(clearActiveProject: true);
     setState(() {
       _resetAndFetchFirstPage();
     });
@@ -174,7 +164,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
             pageSize: pageSize,
             pageIndex: pageShown,
             filterByProjectCodes: activeProject == null ? null : [activeProject!],
-            extraClauses: propertyFilters.clauses,
+            extraClauses: query.clauses,
             before: beforeDateTime,
             after: afterDateTime,
             nextPageToken: nextPageToken,
@@ -708,24 +698,13 @@ class _UpdatesPageState extends State<UpdatesPage> {
   }
 }
 
-/// The project a saved filter map narrows to, or null for the combined feed.
-///
-/// Migrates the pre-tabs `active_projects` set: a lone selected project becomes
-/// that project's tab, while none or several of them land on "All" — no single
-/// tab can stand for an arbitrary subset.
-String? activeProjectFromFilters(Map filters) {
-  if (filters.containsKey('active_project')) return filters['active_project'] as String?;
-  final legacy = ((filters['active_projects'] ?? const []) as List).cast<String>();
-  return legacy.length == 1 ? legacy.single : null;
-}
-
 /// Self-contained filter bar (project tabs, time filter, refresh). It owns its
 /// filter state and only reports changes back via [onFiltersChanged], so it can
 /// be cached by the parent and is never rebuilt by list interactions.
 class UpdatesFilterBar extends StatefulWidget {
-  const UpdatesFilterBar({super.key, required this.onFiltersChanged, required this.onRefresh});
+  const UpdatesFilterBar({super.key, required this.onQueryChanged, required this.onRefresh});
 
-  final void Function(String? activeProject, Object? timeFilter, UpdatesFilters propertyFilters) onFiltersChanged;
+  final void Function(UpdatesQuery query) onQueryChanged;
   final Future<void> Function() onRefresh;
 
   @override
@@ -733,24 +712,24 @@ class UpdatesFilterBar extends StatefulWidget {
 }
 
 class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
-  String? activeProject;
-  Object? timeFilter;
-  UpdatesFilters propertyFilters = UpdatesFilters.empty;
+  UpdatesQuery query = const UpdatesQuery();
+
+  String? get activeProject => query.activeProject;
+  Object? get timeFilter => query.timeFilter;
+  UpdatesFilters get propertyFilters => query.filters;
 
   /// A filter just added from the picker, whose panel opens by itself — adding
   /// one is only ever the first half of picking a value with it.
   String? _justAddedField;
 
+  /// Bumped whenever the JQL field's text is replaced from here (rather than
+  /// typed), so it is rebuilt around the new text.
+  int _jqlSeed = 0;
+
   @override
   void initState() {
     super.initState();
-    final filters = SettingsModel().filters.value;
-    activeProject = activeProjectFromFilters(filters);
-    propertyFilters = UpdatesFilters.fromJson(filters['property_filters']);
-    timeFilter = filters['time_filter'];
-    if (timeFilter is List) {
-      timeFilter = (timeFilter as List).map((f) => DateTime.parse(f)).toList();
-    }
+    query = UpdatesQuery.fromJson(SettingsModel().filters.value);
     // Rebuild the tab strip (only) when the starred projects change.
     SettingsModel().starredProjects.addListener(_onStarredChanged);
   }
@@ -767,48 +746,51 @@ class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
     // fetch of the first page.
     final starred = SettingsModel().starredProjects.value ?? const <String>[];
     if (activeProject != null && !starred.contains(activeProject)) {
-      activeProject = null;
-      _saveFilters();
+      query = query.copyWith(clearActiveProject: true);
+      _save();
     }
     setState(() {});
   }
 
-  void _saveFilters() {
-    final filters = <String, dynamic>{};
-    filters['active_project'] = activeProject;
-    filters['property_filters'] = propertyFilters.toJson();
-    if (timeFilter is String?) {
-      filters['time_filter'] = timeFilter;
-    } else {
-      filters['time_filter'] = (timeFilter as List).cast<DateTime>().map<String>((d) => d.toIso8601String()).toList();
-    }
-    SettingsModel().filters.value = filters;
+  void _save() => SettingsModel().filters.value = query.toJson();
+
+  /// Records [changed] and, unless it leaves the query Jira is asked exactly as
+  /// it was, has the list fetched again.
+  void _apply(UpdatesQuery changed) {
+    final wasAsking = query.clauses.join(' AND ');
+    setState(() => query = changed);
+    _save();
+    if (changed.clauses.join(' AND ') != wasAsking) widget.onQueryChanged(query);
   }
 
   void _setProject(String? projectCode) {
     if (projectCode == activeProject) return;
-    setState(() => activeProject = projectCode);
-    _saveFilters();
-    widget.onFiltersChanged(activeProject, timeFilter, propertyFilters);
+    setState(() => query = projectCode == null ? query.copyWith(clearActiveProject: true) : query.copyWith(activeProject: projectCode));
+    _save();
+    widget.onQueryChanged(query);
   }
 
   void _setTimeFilter(dynamic data) {
-    setState(() => timeFilter = data);
-    _saveFilters();
-    widget.onFiltersChanged(activeProject, timeFilter, propertyFilters);
+    setState(() => query = query.copyWith(timeFilter: data));
+    _save();
+    widget.onQueryChanged(query);
   }
 
-  void _setPropertyFilters(UpdatesFilters filters) {
-    if (filters.clauses.join(' AND ') == propertyFilters.clauses.join(' AND ')) {
-      // Nothing the query would notice — a filter added but not yet picked
-      // from, say. Save it (the bar remembers it) without refetching.
-      setState(() => propertyFilters = filters);
-      _saveFilters();
-      return;
-    }
-    setState(() => propertyFilters = filters);
-    _saveFilters();
-    widget.onFiltersChanged(activeProject, timeFilter, propertyFilters);
+  void _setPropertyFilters(UpdatesFilters filters) => _apply(query.copyWith(filters: filters));
+
+  void _toggleJqlMode() {
+    final entering = !query.jqlMode;
+    // Seeded from the chips only when there is nothing to lose — a query typed
+    // earlier survives a trip back to the chips and out again, and the field's
+    // own button re-seeds it on demand.
+    final seed = entering && query.rawJql.trim().isEmpty ? propertyFilters.clauses.join(' AND ') : query.rawJql;
+    _jqlSeed++;
+    _apply(query.copyWith(jqlMode: entering, rawJql: seed));
+  }
+
+  void _seedJqlFromFilters() {
+    _jqlSeed++;
+    _apply(query.copyWith(rawJql: propertyFilters.clauses.join(' AND ')));
   }
 
   @override
@@ -823,40 +805,56 @@ class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
           spacing: 8,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Expanded(
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  for (final filter in propertyFilters.filters)
-                    PropertyFilterButton(
-                      key: ValueKey(filter.field),
-                      filter: filter,
-                      openOnShow: filter.field == _justAddedField,
-                      onChanged: (values, labels) => _setPropertyFilters(propertyFilters.withValues(filter.field, values, valueLabels: labels)),
-                      onRemove: filter.isDefault ? null : () => _setPropertyFilters(propertyFilters.remove(filter.field)),
-                    ),
-                  AddPropertyFilterButton(
-                    existingFields: {for (final filter in propertyFilters.filters) filter.field},
-                    onAdd: (filter) {
-                      _justAddedField = filter.field;
-                      _setPropertyFilters(propertyFilters.add(filter));
-                      // Only the chip built right now opens itself; forgetting
-                      // the field afterwards keeps a later rebuild from
-                      // re-opening the panel behind the user's back.
-                      SchedulerBinding.instance.addPostFrameCallback((_) => _justAddedField = null);
-                    },
-                  ),
-                  if (propertyFilters.activeCount > 1)
-                    TextButton.icon(
-                      icon: const Icon(Symbols.filter_alt_off, size: 16),
-                      label: const Text('Clear filters'),
-                      onPressed: () => _setPropertyFilters(propertyFilters.cleared()),
-                    ),
-                ],
-              ),
+            IconButton(
+              tooltip: query.jqlMode ? 'Back to the filter chips' : 'Write the filter as JQL',
+              isSelected: query.jqlMode,
+              icon: const Icon(Symbols.data_object),
+              onPressed: _toggleJqlMode,
             ),
+            if (query.jqlMode)
+              Expanded(
+                child: JqlFilterField(
+                  key: ValueKey(_jqlSeed),
+                  initialJql: query.rawJql,
+                  onChanged: (jql) => _apply(query.copyWith(rawJql: jql)),
+                  onSeedFromFilters: propertyFilters.activeCount > 0 ? _seedJqlFromFilters : null,
+                ),
+              )
+            else
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    for (final filter in propertyFilters.filters)
+                      PropertyFilterButton(
+                        key: ValueKey(filter.field),
+                        filter: filter,
+                        openOnShow: filter.field == _justAddedField,
+                        onChanged: (values, labels) => _setPropertyFilters(propertyFilters.withValues(filter.field, values, valueLabels: labels)),
+                        onRemove: filter.isDefault ? null : () => _setPropertyFilters(propertyFilters.remove(filter.field)),
+                      ),
+                    AddPropertyFilterButton(
+                      existingFields: {for (final filter in propertyFilters.filters) filter.field},
+                      onAdd: (filter) {
+                        _justAddedField = filter.field;
+                        _setPropertyFilters(propertyFilters.add(filter));
+                        // Only the chip built right now opens itself; forgetting
+                        // the field afterwards keeps a later rebuild from
+                        // re-opening the panel behind the user's back.
+                        SchedulerBinding.instance.addPostFrameCallback((_) => _justAddedField = null);
+                      },
+                    ),
+                    if (propertyFilters.activeCount > 1)
+                      TextButton.icon(
+                        icon: const Icon(Symbols.filter_alt_off, size: 16),
+                        label: const Text('Clear filters'),
+                        onPressed: () => _setPropertyFilters(propertyFilters.cleared()),
+                      ),
+                  ],
+                ),
+              ),
             TimeFilterDropdown(
               init: timeFilter ?? 'all time',
               save: _setTimeFilter,

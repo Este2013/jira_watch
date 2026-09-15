@@ -252,6 +252,22 @@ class JiraApi with GlobalLoggy {
   Future<List<jira.FunctionReferenceData>> jqlFunctions({bool refresh = false}) async =>
       (await jqlReferenceData(refresh: refresh))?.visibleFunctionNames ?? const [];
 
+  /// Jira's own reading of [query]: the errors it would refuse it for, empty
+  /// when it is good.
+  ///
+  /// An empty list also means "could not tell" — a site that will not answer
+  /// the parse endpoint should not stop someone running a query, so the search
+  /// itself stays the final word.
+  Future<List<String>> jqlErrors(String query) async {
+    try {
+      final parsed = await jql.parseJqlQueries('strict', jira.JqlQueriesToParse(queries: [query]));
+      return [for (final result in parsed?.queries ?? const <jira.ParsedJqlQuery>[]) ...result.errors];
+    } on jira.ApiException catch (e) {
+      loggy.warning('POST /jql/parse returned ${e.code}');
+      return const [];
+    }
+  }
+
   // PROJECTS //////////////////////////////////////////////////////////////////
 
   Future<List<dynamic>> allProjects() async {

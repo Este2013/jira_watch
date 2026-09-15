@@ -156,7 +156,7 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
       _functions = [
         for (final function in reference.visibleFunctionNames)
           if (function.value case final call?)
-            if (jqlFunctionFits(call: call, functionTypes: function.types, fieldTypes: fieldTypes)) (UpdatesPropertyFilter.function(call), stripSuggestionMarkup(function.displayName ?? call)),
+            if (jqlFunctionFits(call: call, functionTypes: function.types, fieldTypes: fieldTypes)) (UpdatesPropertyFilter.function(call), jqlFunctionLabel(call)),
       ];
     });
   }
@@ -252,7 +252,11 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
                         for (final (value, label) in stranded) _valueTile(value, label),
                         if (functions.isNotEmpty) ...[
                           _sectionHeader(context, 'Jira values'),
-                          for (final (value, label) in functions) _valueTile(value, label),
+                          for (final (value, label) in functions)
+                            // The call stays in sight under its plain-English
+                            // name: it is what lands in the query, and what a
+                            // JQL-mode reading of the same filter will show.
+                            _valueTile(value, label, subtitle: value.substring(UpdatesPropertyFilter.functionPrefix.length)),
                           const Divider(height: 1),
                         ],
                         if (!isSearching) _valueTile(UpdatesPropertyFilter.emptyValue, 'No value', subtitle: 'Items where ${widget.filter.label.toLowerCase()} is not set'),
@@ -428,5 +432,103 @@ class _FieldPickerDialogState extends State<_FieldPickerDialog> {
       ),
     ),
     actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel'))],
+  );
+}
+
+/// The filter row, written by hand: the query as JQL rather than as chips.
+///
+/// It is checked against Jira's own parser before it is allowed to reach the
+/// list, so a typo reads as a message under the field rather than as an empty
+/// list with no explanation.
+class JqlFilterField extends StatefulWidget {
+  const JqlFilterField({super.key, required this.initialJql, required this.onChanged, this.onSeedFromFilters});
+
+  final String initialJql;
+
+  /// Called with a query Jira is happy to parse.
+  final void Function(String jql) onChanged;
+
+  /// Replaces what is typed with the chips' own query, where there is one.
+  final VoidCallback? onSeedFromFilters;
+
+  @override
+  State<JqlFilterField> createState() => _JqlFilterFieldState();
+}
+
+class _JqlFilterFieldState extends State<JqlFilterField> {
+  late final _controller = TextEditingController(text: widget.initialJql);
+
+  String? _error;
+  bool _isChecking = false;
+
+  /// True once the text differs from what the list is actually showing, so the
+  /// apply button says there is something to apply.
+  bool _isDirty = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _apply() async {
+    final query = _controller.text.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _error = null;
+        _isDirty = false;
+      });
+      widget.onChanged('');
+      return;
+    }
+
+    setState(() => _isChecking = true);
+    final errors = await JiraApi().jqlErrors(query);
+    if (!mounted) return;
+    setState(() {
+      _isChecking = false;
+      _error = errors.isEmpty ? null : errors.join('\n');
+      if (errors.isEmpty) _isDirty = false;
+    });
+    if (errors.isEmpty) widget.onChanged(query);
+  }
+
+  @override
+  Widget build(BuildContext context) => TextField(
+    controller: _controller,
+    autofocus: true,
+    style: const TextStyle(fontFamily: 'monospace'),
+    onChanged: (_) => setState(() => _isDirty = true),
+    onSubmitted: (_) => _apply(),
+    decoration: InputDecoration(
+      isDense: true,
+      border: const OutlineInputBorder(),
+      hintText: 'status = "In Progress" AND assignee = currentUser()',
+      helperText: 'Combined with the project tab and the time range',
+      helperMaxLines: 1,
+      errorText: _error,
+      errorMaxLines: 3,
+      prefixIcon: const Padding(
+        padding: EdgeInsets.only(left: 8, right: 4),
+        child: Icon(Symbols.terminal, size: 18),
+      ),
+      prefixIconConstraints: const BoxConstraints(),
+      suffixIcon: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.onSeedFromFilters != null)
+            IconButton(
+              tooltip: 'Write out the filter chips instead',
+              icon: const Icon(Symbols.filter_alt, size: 18),
+              onPressed: widget.onSeedFromFilters,
+            ),
+          IconButton(
+            tooltip: 'Run this query',
+            icon: _isChecking ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(Symbols.play_arrow, fill: _isDirty ? 1 : 0, size: 18),
+            onPressed: _isChecking ? null : _apply,
+          ),
+        ],
+      ),
+    ),
   );
 }

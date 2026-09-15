@@ -32,6 +32,21 @@ String jqlFieldLabel(String displayName) => displayName.replaceFirst(_fieldDisam
 
 final _fieldDisambiguator = RegExp(r'\s+-\s+(cf\[\d+\]|[^\[\]]+\[[^\[\]]+\])$');
 
+/// A JQL function call as a person would say it: `currentUser()` reads
+/// "Current user", `endOfDay()` reads "End of day".
+///
+/// The call itself stays visible next to it — this is a label, not a
+/// replacement, and the query is still written in Jira's words.
+String jqlFunctionLabel(String call) {
+  final name = call.replaceFirst(_callArguments, '').replaceAll('_', ' ').replaceAllMapped(_camelHump, (match) => ' ${match[1]!.toLowerCase()}');
+  final words = name.replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (words.isEmpty) return call;
+  return words[0].toUpperCase() + words.substring(1);
+}
+
+final _callArguments = RegExp(r'\(.*\)$');
+final _camelHump = RegExp(r'(?<=[a-z0-9])([A-Z])');
+
 /// Whether a JQL function can stand in for a value of a field.
 ///
 /// Two conditions. It has to take no arguments — Jira reports the ones that do
@@ -256,4 +271,100 @@ class UpdatesFilters {
 
   @override
   String toString() => 'UpdatesFilters(${clauses.join(' AND ')})';
+}
+
+/// The project a saved filter map narrows to, or null for the combined feed.
+///
+/// Migrates the pre-tabs `active_projects` set: a lone selected project becomes
+/// that project's tab, while none or several of them land on the home tab — no
+/// single tab can stand for an arbitrary subset.
+String? activeProjectFromFilters(Map filters) {
+  if (filters.containsKey('active_project')) return filters['active_project'] as String?;
+  final legacy = ((filters['active_projects'] ?? const []) as List).cast<String>();
+  return legacy.length == 1 ? legacy.single : null;
+}
+
+/// Everything the updates bar narrows the list by, and the one thing that gets
+/// saved between sessions.
+class UpdatesQuery {
+  const UpdatesQuery({
+    this.activeProject,
+    this.timeFilter,
+    this.filters = UpdatesFilters.empty,
+    this.jqlMode = false,
+    this.rawJql = '',
+  });
+
+  /// The project tab, or null on the home tab.
+  final String? activeProject;
+
+  /// Either a named range (`today`, `week`, `all time`) or a two-date list, as
+  /// the time dropdown has always kept it.
+  final Object? timeFilter;
+
+  /// The filter chips, whether or not they are the ones being used.
+  final UpdatesFilters filters;
+
+  /// Whether the query is being written by hand rather than picked from chips.
+  final bool jqlMode;
+
+  /// The hand-written query. Kept while the chips are showing, so switching
+  /// back and forth does not lose it.
+  final String rawJql;
+
+  /// What gets ANDed into the updates query: the hand-written JQL while that
+  /// mode is on and holds something, the chips' own clauses otherwise.
+  ///
+  /// Parenthesised, since a hand-written query is free to contain an `OR` and
+  /// would otherwise reach further than it reads.
+  List<String> get clauses => jqlMode && rawJql.trim().isNotEmpty ? ['(${rawJql.trim()})'] : filters.clauses;
+
+  UpdatesQuery copyWith({
+    String? activeProject,
+    bool clearActiveProject = false,
+    Object? timeFilter,
+    UpdatesFilters? filters,
+    bool? jqlMode,
+    String? rawJql,
+  }) => UpdatesQuery(
+    activeProject: clearActiveProject ? null : (activeProject ?? this.activeProject),
+    timeFilter: timeFilter ?? this.timeFilter,
+    filters: filters ?? this.filters,
+    jqlMode: jqlMode ?? this.jqlMode,
+    rawJql: rawJql ?? this.rawJql,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'active_project': activeProject,
+    'property_filters': filters.toJson(),
+    'jql_mode': jqlMode,
+    'raw_jql': rawJql,
+    'time_filter': timeFilter is List
+        ? [
+            for (final date in timeFilter as List)
+              if (date is DateTime) date.toIso8601String(),
+          ]
+        : timeFilter,
+  };
+
+  static UpdatesQuery fromJson(Map json) => UpdatesQuery(
+    activeProject: activeProjectFromFilters(json),
+    timeFilter: _timeFilterFromJson(json['time_filter']),
+    filters: UpdatesFilters.fromJson(json['property_filters']),
+    jqlMode: json['jql_mode'] == true,
+    rawJql: json['raw_jql'] as String? ?? '',
+  );
+
+  /// A saved custom range comes back as ISO strings; anything unreadable is
+  /// dropped rather than allowed to throw on startup.
+  static Object? _timeFilterFromJson(Object? saved) {
+    if (saved is! List) return saved;
+    final dates = <DateTime>[];
+    for (final entry in saved) {
+      final date = entry is String ? DateTime.tryParse(entry) : null;
+      if (date == null) return null;
+      dates.add(date);
+    }
+    return dates;
+  }
 }

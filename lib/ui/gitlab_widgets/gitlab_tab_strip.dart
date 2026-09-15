@@ -48,10 +48,15 @@ class _GitLabTabStripState extends State<GitLabTabStrip> {
         child: Row(
           spacing: 8,
           children: [
-            Expanded(
+            // Loose rather than filled, with the list sized to its content: the
+            // add button then sits right after the last tab while there is room
+            // for it there, and settles against the right edge once the tabs
+            // have taken the width — the way a browser's does.
+            Flexible(
               child: ListView(
                 controller: _scrollController,
                 scrollDirection: Axis.horizontal,
+                shrinkWrap: true,
                 children: [
                   for (final tab in model.tabs.list)
                     _ProjectTabChip(
