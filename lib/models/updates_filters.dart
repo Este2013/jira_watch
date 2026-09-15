@@ -77,6 +77,7 @@ class UpdatesPropertyFilter {
     required this.field,
     required this.label,
     this.values = const {},
+    this.excludedValues = const {},
     this.valueLabels = const {},
     this.isDefault = false,
   });
@@ -112,6 +113,12 @@ class UpdatesPropertyFilter {
   /// means "any", and the filter contributes nothing to the query.
   final Set<String> values;
 
+  /// The subset of [values] picked as "not this" rather than "this" — the
+  /// tristate checkbox's dashed state. Always a subset of [values]: excluding
+  /// something that is not even selected makes no sense, and [copyWith] trims
+  /// this the same way it trims [valueLabels].
+  final Set<String> excludedValues;
+
   /// What to call each picked value, remembered from the suggestion it was
   /// picked from. Without it an id-backed field reads back as an accountId or
   /// an option id after a restart, since that is all the query needs.
@@ -123,6 +130,8 @@ class UpdatesPropertyFilter {
 
   bool get isActive => values.isNotEmpty;
 
+  bool isExcluded(String value) => excludedValues.contains(value);
+
   /// What to show for [value] — its remembered name, or the value itself.
   String labelFor(String value) => switch (value) {
     emptyValue => 'No value',
@@ -130,51 +139,98 @@ class UpdatesPropertyFilter {
     _ => valueLabels[value] ?? value,
   };
 
-  /// What the bar shows once something is picked: the lone value's name, or how
-  /// many there are.
-  String get summary => values.length == 1 ? labelFor(values.single) : '${values.length} selected';
-
-  /// This filter as a JQL clause, or null while nothing is picked.
-  String? get clause {
-    final picked = [
-      for (final value in values)
-        if (value != emptyValue) jqlFor(value),
-    ];
-    final wantsEmpty = values.contains(emptyValue);
-    if (picked.isEmpty) return wantsEmpty ? '$field is EMPTY' : null;
-
-    // `in` for anything involving a function: some of them return a list, and
-    // `=` against a list is not a query Jira will run. A lone literal keeps the
-    // plain comparison, which is what a person would have typed.
-    final isPlainSingle = picked.length == 1 && !values.any(isFunction);
-    final match = isPlainSingle ? '$field = ${picked.single}' : '$field in (${picked.join(', ')})';
-    return wantsEmpty ? '($match OR $field is EMPTY)' : match;
+  /// [labelFor], marked as excluded where it is — what a single value reads as
+  /// on the chip itself, not just inside the panel.
+  String displayFor(String value) {
+    if (!isExcluded(value)) return labelFor(value);
+    // "Not No value" reads as a double negative; "has a value" says the same
+    // thing plainly.
+    if (value == emptyValue) return 'Has a value';
+    return 'Not ${labelFor(value)}';
   }
 
-  UpdatesPropertyFilter copyWith({String? label, Set<String>? values, Map<String, String>? valueLabels}) => UpdatesPropertyFilter(
-    field: field,
-    label: label ?? this.label,
-    values: values ?? this.values,
-    // Names are only meaningful for values that are still picked, so a narrowed
-    // selection drops the rest rather than hoarding them.
-    valueLabels: {
-      for (final entry in (valueLabels ?? this.valueLabels).entries)
-        if ((values ?? this.values).contains(entry.key)) entry.key: entry.value,
-    },
-    isDefault: isDefault,
-  );
+  /// What the bar shows once something is picked: the lone value's name, or how
+  /// many there are.
+  String get summary => values.length == 1 ? displayFor(values.single) : '${values.length} selected';
 
-  Map<String, dynamic> toJson() => {'field': field, 'label': label, 'values': values.toList(), 'valueLabels': valueLabels};
+  /// This filter as a JQL clause, or null while nothing is picked. Values kept
+  /// (a checked box) and values excluded (a dashed one) each become their own
+  /// comparison, ANDed together when both are in play.
+  String? get clause {
+    final kept = _clauseFor(values.difference(excludedValues), negative: false);
+    final excluded = _clauseFor(excludedValues, negative: true);
+    if (kept == null) return excluded;
+    if (excluded == null) return kept;
+    return '$kept AND $excluded';
+  }
+
+  /// One polarity's worth of [clause] — every value in [group] compared the
+  /// same way, [negative] picking `!=`/`not in`/`is not EMPTY` over
+  /// `=`/`in`/`is EMPTY`.
+  String? _clauseFor(Set<String> group, {required bool negative}) {
+    if (group.isEmpty) return null;
+    final picked = [
+      for (final value in group)
+        if (value != emptyValue) jqlFor(value),
+    ];
+    final hasEmpty = group.contains(emptyValue);
+    if (picked.isEmpty) return negative ? '$field is not EMPTY' : '$field is EMPTY';
+
+    // `in`/`not in` for anything involving a function: some of them return a
+    // list, and `=`/`!=` against a list is not a query Jira will run. A lone
+    // literal keeps the plain comparison, which is what a person would type.
+    final isPlainSingle = picked.length == 1 && !group.any(isFunction);
+    final match = negative
+        ? (isPlainSingle ? '$field != ${picked.single}' : '$field not in (${picked.join(', ')})')
+        : (isPlainSingle ? '$field = ${picked.single}' : '$field in (${picked.join(', ')})');
+    if (!hasEmpty) return match;
+    // Excluding a value and excluding "no value" both have to hold at once;
+    // matching a value or having none are alternatives — De Morgan's, and
+    // exactly the shape the far side of a chip's checkbox means.
+    return negative ? '($match AND $field is not EMPTY)' : '($match OR $field is EMPTY)';
+  }
+
+  UpdatesPropertyFilter copyWith({String? label, Set<String>? values, Set<String>? excludedValues, Map<String, String>? valueLabels}) {
+    final newValues = values ?? this.values;
+    return UpdatesPropertyFilter(
+      field: field,
+      label: label ?? this.label,
+      values: newValues,
+      // Excluding, like naming, is only meaningful for a value still picked.
+      excludedValues: {
+        for (final value in (excludedValues ?? this.excludedValues))
+          if (newValues.contains(value)) value,
+      },
+      // Names are only meaningful for values that are still picked, so a narrowed
+      // selection drops the rest rather than hoarding them.
+      valueLabels: {
+        for (final entry in (valueLabels ?? this.valueLabels).entries)
+          if (newValues.contains(entry.key)) entry.key: entry.value,
+      },
+      isDefault: isDefault,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'field': field,
+    'label': label,
+    'values': values.toList(),
+    'excludedValues': excludedValues.toList(),
+    'valueLabels': valueLabels,
+  };
 
   static UpdatesPropertyFilter? fromJson(Map json) {
     final field = json['field'];
     if (field is! String || field.isEmpty) return null;
     final values = json['values'];
+    final excludedValues = json['excludedValues'];
     final valueLabels = json['valueLabels'];
+    final readValues = values is List ? values.whereType<String>().toSet() : const <String>{};
     return UpdatesPropertyFilter(
       field: field,
       label: json['label'] as String? ?? field,
-      values: values is List ? values.whereType<String>().toSet() : const {},
+      values: readValues,
+      excludedValues: excludedValues is List ? excludedValues.whereType<String>().where(readValues.contains).toSet() : const {},
       valueLabels: valueLabels is Map
           ? {
               for (final entry in valueLabels.entries)
@@ -192,14 +248,16 @@ class UpdatesPropertyFilter {
       other.isDefault == isDefault &&
       other.values.length == values.length &&
       other.values.containsAll(values) &&
+      other.excludedValues.length == excludedValues.length &&
+      other.excludedValues.containsAll(excludedValues) &&
       other.valueLabels.length == valueLabels.length &&
       other.valueLabels.entries.every((e) => valueLabels[e.key] == e.value);
 
   @override
-  int get hashCode => Object.hash(field, label, isDefault, Object.hashAllUnordered(values), Object.hashAllUnordered(valueLabels.values));
+  int get hashCode => Object.hash(field, label, isDefault, Object.hashAllUnordered(values), Object.hashAllUnordered(excludedValues), Object.hashAllUnordered(valueLabels.values));
 
   @override
-  String toString() => 'UpdatesPropertyFilter($field: ${values.join(', ')})';
+  String toString() => 'UpdatesPropertyFilter($field: ${values.map((v) => isExcluded(v) ? 'NOT $v' : v).join(', ')})';
 }
 
 /// Every property filter shown in the updates bar, in the order it is shown.
@@ -235,9 +293,9 @@ class UpdatesFilters {
   }
 
   /// The filters, with [field]'s picked values replaced.
-  UpdatesFilters withValues(String field, Set<String> values, {Map<String, String>? valueLabels}) => UpdatesFilters([
+  UpdatesFilters withValues(String field, Set<String> values, {Set<String>? excludedValues, Map<String, String>? valueLabels}) => UpdatesFilters([
     for (final filter in filters)
-      if (filter.field == field) filter.copyWith(values: values, valueLabels: valueLabels) else filter,
+      if (filter.field == field) filter.copyWith(values: values, excludedValues: excludedValues, valueLabels: valueLabels) else filter,
   ]);
 
   /// The filters, plus a custom one — or unchanged if that field already has a
@@ -265,7 +323,12 @@ class UpdatesFilters {
   static UpdatesFilters resolve(List<UpdatesPropertyFilter> saved) {
     final savedByField = {for (final filter in saved) filter.field: filter};
     return UpdatesFilters([
-      for (final base in defaults) base.copyWith(values: savedByField[base.field]?.values ?? const {}, valueLabels: savedByField[base.field]?.valueLabels ?? const {}),
+      for (final base in defaults)
+        base.copyWith(
+          values: savedByField[base.field]?.values ?? const {},
+          excludedValues: savedByField[base.field]?.excludedValues ?? const {},
+          valueLabels: savedByField[base.field]?.valueLabels ?? const {},
+        ),
       for (final filter in saved)
         if (!defaults.any((d) => d.field == filter.field)) filter,
     ]);

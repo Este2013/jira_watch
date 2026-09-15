@@ -853,7 +853,7 @@ class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
                         key: ValueKey(filter.field),
                         filter: filter,
                         openOnShow: filter.field == _justAddedField,
-                        onChanged: (values, labels) => _setPropertyFilters(propertyFilters.withValues(filter.field, values, valueLabels: labels)),
+                        onChanged: (values, excluded, labels) => _setPropertyFilters(propertyFilters.withValues(filter.field, values, excludedValues: excluded, valueLabels: labels)),
                         onRemove: filter.isDefault ? null : () => _setPropertyFilters(propertyFilters.remove(filter.field)),
                       ),
                     AddPropertyFilterButton(

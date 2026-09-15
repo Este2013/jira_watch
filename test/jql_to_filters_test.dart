@@ -80,12 +80,52 @@ void main() {
       expect(parseJqlAsFilters('status = "Open" OR status = "Closed"'), isNull);
     });
 
-    test('rejects an operator no chip ever writes', () {
-      expect(parseJqlAsFilters('status != "Open"'), isNull);
+    test('a negated equality is a tristate exclusion', () {
+      final parsed = parseJqlAsFilters('status != "Closed"')!;
+      expect(parsed['status']!.values, {'Closed'});
+      expect(parsed['status']!.excludedValues, {'Closed'});
     });
 
-    test('rejects "not in"', () {
-      expect(parseJqlAsFilters('assignee not in ("5b10a2")'), isNull);
+    test('"not in" is a tristate exclusion over a list', () {
+      final parsed = parseJqlAsFilters('assignee not in ("5b10a2", "5c20b3")')!;
+      expect(parsed['assignee']!.values, {'5b10a2', '5c20b3'});
+      expect(parsed['assignee']!.excludedValues, {'5b10a2', '5c20b3'});
+    });
+
+    test('"is not EMPTY" excludes the "No value" tile', () {
+      final parsed = parseJqlAsFilters('assignee is not EMPTY')!;
+      expect(parsed['assignee']!.values, {UpdatesPropertyFilter.emptyValue});
+      expect(parsed['assignee']!.excludedValues, {UpdatesPropertyFilter.emptyValue});
+    });
+
+    test('a value excluded alongside "No value", the AND wrapper a chip writes', () {
+      final parsed = parseJqlAsFilters('(status != "Closed" AND status is not EMPTY)')!;
+      expect(parsed['status']!.values, {'Closed', UpdatesPropertyFilter.emptyValue});
+      expect(parsed['status']!.excludedValues, {'Closed', UpdatesPropertyFilter.emptyValue});
+    });
+
+    test('one field can hold both a kept clause and an excluded one', () {
+      final parsed = parseJqlAsFilters('status = "Open" AND status != "Closed"')!;
+      expect(parsed['status']!.values, {'Open', 'Closed'});
+      expect(parsed['status']!.excludedValues, {'Closed'});
+    });
+
+    test('the same, with lists on both sides', () {
+      final parsed = parseJqlAsFilters('status in ("Open", "In Progress") AND status not in ("Closed", "Won\'t fix")')!;
+      expect(parsed['status']!.values, {'Open', 'In Progress', 'Closed', "Won't fix"});
+      expect(parsed['status']!.excludedValues, {'Closed', "Won't fix"});
+    });
+
+    test('rejects two kept clauses for the same field', () {
+      expect(parseJqlAsFilters('status = "Open" AND status = "Closed"'), isNull);
+    });
+
+    test('rejects two excluded clauses for the same field', () {
+      expect(parseJqlAsFilters('status != "Open" AND status != "Closed"'), isNull);
+    });
+
+    test('rejects a kept and excluded clause that overlap on a value', () {
+      expect(parseJqlAsFilters('status = "Open" AND status != "Open"'), isNull);
     });
 
     test('rejects a trailing ORDER BY', () {
@@ -114,6 +154,7 @@ void main() {
       final clause = filter.clause!;
       final parsed = parseJqlAsFilters(clause)!;
       expect(parsed[filter.field]!.values, filter.values, reason: clause);
+      expect(parsed[filter.field]!.excludedValues, filter.excludedValues, reason: clause);
     }
 
     test('a single literal', () => expectRoundTrip(const UpdatesPropertyFilter(field: 'status', label: 'Status', values: {'Open'})));
@@ -142,6 +183,63 @@ void main() {
           field: 'assignee',
           label: 'Assignee',
           values: {UpdatesPropertyFilter.function('currentUser()'), '5b10a2', UpdatesPropertyFilter.emptyValue},
+        ),
+      ),
+    );
+
+    test(
+      'a single excluded value',
+      () => expectRoundTrip(
+        const UpdatesPropertyFilter(field: 'status', label: 'Status', values: {'Closed'}, excludedValues: {'Closed'}),
+      ),
+    );
+
+    test(
+      'several excluded values',
+      () => expectRoundTrip(
+        const UpdatesPropertyFilter(field: 'status', label: 'Status', values: {'Closed', "Won't fix"}, excludedValues: {'Closed', "Won't fix"}),
+      ),
+    );
+
+    test(
+      'excluding "No value" itself',
+      () => expectRoundTrip(
+        const UpdatesPropertyFilter(
+          field: 'assignee',
+          label: 'Assignee',
+          values: {UpdatesPropertyFilter.emptyValue},
+          excludedValues: {UpdatesPropertyFilter.emptyValue},
+        ),
+      ),
+    );
+
+    test(
+      'a value excluded alongside "No value"',
+      () => expectRoundTrip(
+        const UpdatesPropertyFilter(
+          field: 'assignee',
+          label: 'Assignee',
+          values: {'5b10a2', UpdatesPropertyFilter.emptyValue},
+          excludedValues: {'5b10a2', UpdatesPropertyFilter.emptyValue},
+        ),
+      ),
+    );
+
+    test(
+      'a kept value and an excluded value on the same field',
+      () => expectRoundTrip(
+        const UpdatesPropertyFilter(field: 'status', label: 'Status', values: {'Open', 'Closed'}, excludedValues: {'Closed'}),
+      ),
+    );
+
+    test(
+      'a kept list and an excluded list on the same field',
+      () => expectRoundTrip(
+        const UpdatesPropertyFilter(
+          field: 'status',
+          label: 'Status',
+          values: {'Open', 'In Progress', 'Closed', "Won't fix"},
+          excludedValues: {'Closed', "Won't fix"},
         ),
       ),
     );
@@ -193,6 +291,14 @@ void main() {
       final result = applyParsedJqlToFilters(current, parsed, label);
       expect(result.byField('assignee')!.valueLabels.containsKey('5b10a2'), isFalse);
       expect(result.byField('assignee')!.labelFor('5c20b3'), '5c20b3');
+    });
+
+    test('carries which values are excluded onto the chip', () {
+      final current = UpdatesFilters.empty;
+      final parsed = parseJqlAsFilters('status = "Open" AND status != "Closed"')!;
+      final result = applyParsedJqlToFilters(current, parsed, label);
+      expect(result.byField('status')!.values, {'Open', 'Closed'});
+      expect(result.byField('status')!.excludedValues, {'Closed'});
     });
   });
 }

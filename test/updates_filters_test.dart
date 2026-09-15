@@ -74,6 +74,90 @@ void main() {
         '(assignee = "5b10a2" OR assignee is EMPTY)',
       );
     });
+
+    test('a single excluded value negates the comparison', () {
+      expect(
+        const UpdatesPropertyFilter(field: 'status', label: 'Status', values: {'Closed'}, excludedValues: {'Closed'}).clause,
+        'status != "Closed"',
+      );
+    });
+
+    test('several excluded values become a not-in-list', () {
+      expect(
+        const UpdatesPropertyFilter(field: 'status', label: 'Status', values: {'Closed', 'Rejected'}, excludedValues: {'Closed', 'Rejected'}).clause,
+        'status not in ("Closed", "Rejected")',
+      );
+    });
+
+    test('excluding the empty sentinel alone asks for a set value', () {
+      expect(
+        const UpdatesPropertyFilter(
+          field: 'assignee',
+          label: 'Assignee',
+          values: {UpdatesPropertyFilter.emptyValue},
+          excludedValues: {UpdatesPropertyFilter.emptyValue},
+        ).clause,
+        'assignee is not EMPTY',
+      );
+    });
+
+    test('excluding the empty sentinel alongside an excluded value narrows with AND', () {
+      expect(
+        const UpdatesPropertyFilter(
+          field: 'assignee',
+          label: 'Assignee',
+          values: {'5b10a2', UpdatesPropertyFilter.emptyValue},
+          excludedValues: {'5b10a2', UpdatesPropertyFilter.emptyValue},
+        ).clause,
+        '(assignee != "5b10a2" AND assignee is not EMPTY)',
+      );
+    });
+
+    test('a kept value and an excluded value on the same field AND together', () {
+      expect(
+        const UpdatesPropertyFilter(field: 'status', label: 'Status', values: {'Open', 'Closed'}, excludedValues: {'Closed'}).clause,
+        'status = "Open" AND status != "Closed"',
+      );
+    });
+
+    test('an excluded function reaches the query as a call, negated', () {
+      final filter = UpdatesPropertyFilter(
+        field: 'assignee',
+        label: 'Assignee',
+        values: {UpdatesPropertyFilter.function('currentUser()')},
+        excludedValues: {UpdatesPropertyFilter.function('currentUser()')},
+      );
+      expect(filter.clause, 'assignee not in (currentUser())');
+    });
+  });
+
+  group('UpdatesPropertyFilter.displayFor / summary', () {
+    test('a kept value reads as its plain name', () {
+      const filter = UpdatesPropertyFilter(field: 'status', label: 'Status', values: {'Open'});
+      expect(filter.displayFor('Open'), 'Open');
+      expect(filter.summary, 'Open');
+    });
+
+    test('an excluded value reads as "Not X"', () {
+      const filter = UpdatesPropertyFilter(field: 'status', label: 'Status', values: {'Closed'}, excludedValues: {'Closed'});
+      expect(filter.displayFor('Closed'), 'Not Closed');
+      expect(filter.summary, 'Not Closed');
+    });
+
+    test('excluding "No value" reads as "Has a value", not a double negative', () {
+      const filter = UpdatesPropertyFilter(
+        field: 'assignee',
+        label: 'Assignee',
+        values: {UpdatesPropertyFilter.emptyValue},
+        excludedValues: {UpdatesPropertyFilter.emptyValue},
+      );
+      expect(filter.displayFor(UpdatesPropertyFilter.emptyValue), 'Has a value');
+    });
+
+    test('several values, kept or excluded alike, are just counted', () {
+      const filter = UpdatesPropertyFilter(field: 'status', label: 'Status', values: {'Open', 'Closed'}, excludedValues: {'Closed'});
+      expect(filter.summary, '2 selected');
+    });
   });
 
   group('jqlFunctionLabel', () {
@@ -173,6 +257,13 @@ void main() {
 
     test('forgets the names of values no longer picked', () {
       expect(filter.copyWith(values: const {}).valueLabels, isEmpty);
+    });
+
+    test('forgets an exclusion for a value no longer picked, the same way', () {
+      final excluded = filter.copyWith(excludedValues: {'5b10a2'});
+      expect(excluded.isExcluded('5b10a2'), isTrue);
+      expect(excluded.copyWith(values: const {}).excludedValues, isEmpty);
+      expect(excluded.copyWith(values: {UpdatesPropertyFilter.emptyValue}).excludedValues, isEmpty);
     });
   });
 
@@ -288,10 +379,27 @@ void main() {
       expect(restored.byField('cf[10061]')!.label, 'Team');
     });
 
+    test('round-trips which values are excluded', () {
+      final filters = UpdatesFilters.empty.withValues('status', {'Open', 'Closed'}, excludedValues: {'Closed'});
+      final restored = UpdatesFilters.fromJson(filters.toJson());
+      expect(restored.byField('status')!.values, {'Open', 'Closed'});
+      expect(restored.byField('status')!.excludedValues, {'Closed'});
+    });
+
+    test('drops a saved exclusion for a value no longer among the saved values', () {
+      final restored = UpdatesPropertyFilter.fromJson({
+        'field': 'status',
+        'label': 'Status',
+        'values': ['Open'],
+        'excludedValues': ['Open', 'Closed'],
+      })!;
+      expect(restored.excludedValues, {'Open'});
+    });
+
     test('saves empty defaults as nothing at all, but keeps empty custom ones', () {
       final filters = UpdatesFilters.empty.add(const UpdatesPropertyFilter(field: 'cf[1]', label: 'Team'));
       expect(filters.toJson(), [
-        {'field': 'cf[1]', 'label': 'Team', 'values': <String>[], 'valueLabels': <String, String>{}},
+        {'field': 'cf[1]', 'label': 'Team', 'values': <String>[], 'excludedValues': <String>[], 'valueLabels': <String, String>{}},
       ]);
       expect(UpdatesFilters.fromJson(filters.toJson()).byField('cf[1]'), isNotNull);
     });

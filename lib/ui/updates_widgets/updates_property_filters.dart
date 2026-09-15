@@ -16,8 +16,9 @@ class PropertyFilterButton extends StatefulWidget {
 
   final UpdatesPropertyFilter filter;
 
-  /// Called with the picked values and the names to remember them by.
-  final void Function(Set<String> values, Map<String, String> valueLabels) onChanged;
+  /// Called with the picked values, which of them are excluded rather than
+  /// kept, and the names to remember them by.
+  final void Function(Set<String> values, Set<String> excludedValues, Map<String, String> valueLabels) onChanged;
 
   /// Drops the filter from the bar entirely — custom filters only; the defaults
   /// are furniture, and emptying them is how they are turned off.
@@ -53,14 +54,14 @@ class _PropertyFilterButtonState extends State<PropertyFilterButton> {
       menuChildren: [_FilterValuePicker(filter: filter, onChanged: onChanged)],
       builder: (context, controller, child) => InputChip(
         label: Text(filter.isActive ? '${filter.label}: ${filter.summary}' : filter.label),
-        tooltip: filter.isActive ? filter.values.map(filter.labelFor).join(', ') : 'Filter by ${filter.label}',
+        tooltip: filter.isActive ? filter.values.map(filter.displayFor).join(', ') : 'Filter by ${filter.label}',
         avatar: Icon(filter.isActive ? Symbols.filter_alt : Symbols.arrow_drop_down, fill: filter.isActive ? 1 : 0),
         selected: filter.isActive,
         showCheckmark: false,
         onPressed: () => controller.isOpen ? controller.close() : controller.open(),
         // One affordance, whichever undo makes sense: clear what is picked, or —
         // once there is nothing left to clear — take the custom filter away.
-        onDeleted: filter.isActive ? () => onChanged(const {}, const {}) : widget.onRemove,
+        onDeleted: filter.isActive ? () => onChanged(const {}, const {}, const {}) : widget.onRemove,
         deleteIcon: const Icon(Symbols.close, size: 16),
         deleteButtonTooltipMessage: filter.isActive ? 'Clear' : 'Remove this filter',
       ),
@@ -73,7 +74,7 @@ class _FilterValuePicker extends StatefulWidget {
   const _FilterValuePicker({required this.filter, required this.onChanged});
 
   final UpdatesPropertyFilter filter;
-  final void Function(Set<String> values, Map<String, String> valueLabels) onChanged;
+  final void Function(Set<String> values, Set<String> excludedValues, Map<String, String> valueLabels) onChanged;
 
   @override
   State<_FilterValuePicker> createState() => _FilterValuePickerState();
@@ -95,6 +96,7 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
   List<String> _visibleOrder = const [];
 
   late Set<String> _values = {...widget.filter.values};
+  late Set<String> _excludedValues = {...widget.filter.excludedValues};
   late Map<String, String> _labels = {...widget.filter.valueLabels};
 
   /// Suggestions as `(value, display name)`.
@@ -133,9 +135,10 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
       // After the frame: this runs while the menu is being torn down, and the
       // list above would otherwise be asked to rebuild mid-teardown.
       final values = _values;
+      final excluded = _excludedValues;
       final labels = _labels;
       final notify = widget.onChanged;
-      SchedulerBinding.instance.addPostFrameCallback((_) => notify(values, labels));
+      SchedulerBinding.instance.addPostFrameCallback((_) => notify(values, excluded, labels));
     }
     _searchController.dispose();
     _searchFocusNode.dispose();
@@ -217,14 +220,23 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
     _searchDebounce = Timer(const Duration(milliseconds: 300), _load);
   }
 
-  void _toggle(String value, String label, bool picked) {
+  /// A tristate tile cycles false → true → null → false: unpicked, kept,
+  /// excluded.
+  void _toggle(String value, String label, bool? state) {
     setState(() {
-      if (picked) {
-        _values = {..._values, value};
-        _labels = {..._labels, value: label};
-      } else {
-        _values = {..._values}..remove(value);
-        _labels = {..._labels}..remove(value);
+      switch (state) {
+        case true:
+          _values = {..._values, value};
+          _excludedValues = {..._excludedValues}..remove(value);
+          _labels = {..._labels, value: label};
+        case false:
+          _values = {..._values}..remove(value);
+          _excludedValues = {..._excludedValues}..remove(value);
+          _labels = {..._labels}..remove(value);
+        case null:
+          _values = {..._values, value};
+          _excludedValues = {..._excludedValues, value};
+          _labels = {..._labels, value: label};
       }
     });
     _pendingApply = true;
@@ -234,7 +246,7 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
 
   void _apply() {
     _pendingApply = false;
-    widget.onChanged(_values, _labels);
+    widget.onChanged(_values, _excludedValues, _labels);
   }
 
   @override
@@ -317,7 +329,13 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
                           for (final (value, label) in functions) _valueTile(value, label),
                           const Divider(height: 1),
                         ],
-                        if (!isSearching) _valueTile(UpdatesPropertyFilter.emptyValue, 'No value', subtitle: 'Items where ${widget.filter.label.toLowerCase()} is not set'),
+                        if (!isSearching)
+                          _valueTile(
+                            UpdatesPropertyFilter.emptyValue,
+                            'No value',
+                            subtitle: 'Items where ${widget.filter.label.toLowerCase()} is not set',
+                            excludedLabel: 'Has a value',
+                          ),
                         for (final (value, label) in _suggestions) _valueTile(value, label),
                         if (_suggestions.isEmpty && !_isLoading)
                           Padding(
@@ -342,6 +360,7 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
                   onPressed: () {
                     setState(() {
                       _values = const {};
+                      _excludedValues = const {};
                       _labels = const {};
                     });
                     _applyDebounce?.cancel();
@@ -360,15 +379,27 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
     child: Text(text, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).hintColor)),
   );
 
-  Widget _valueTile(String value, String label, {String? subtitle}) => CheckboxListTile(
-    dense: true,
-    focusNode: _focusNodeFor(value),
-    value: _values.contains(value),
-    onChanged: (picked) => _toggle(value, label, picked ?? false),
-    title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-    subtitle: subtitle == null ? null : Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-    controlAffinity: ListTileControlAffinity.leading,
-  );
+  Widget _valueTile(String value, String label, {String? subtitle, String? excludedLabel}) {
+    final excluded = _excludedValues.contains(value);
+    return CheckboxListTile(
+      dense: true,
+      focusNode: _focusNodeFor(value),
+      // The cycle a tap steps through is Flutter's own: false → true → null,
+      // i.e. unpicked → kept → excluded — exactly the three states a filter
+      // value can be in, with the dash reading as "not this" for free.
+      tristate: true,
+      value: !_values.contains(value) ? false : (excluded ? null : true),
+      onChanged: (state) => _toggle(value, label, state),
+      title: Text(
+        excluded ? (excludedLabel ?? 'Not $label') : label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: excluded ? const TextStyle(fontStyle: FontStyle.italic) : null,
+      ),
+      subtitle: subtitle == null ? null : Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+      controlAffinity: ListTileControlAffinity.leading,
+    );
+  }
 }
 
 /// Adds a filter on any other field this site can be queried by.
