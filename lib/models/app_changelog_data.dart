@@ -10,6 +10,50 @@ library;
 /// Newest first. The order drives both the changelog dialog's paging and the version picker.
 final List<(String, List<ChangeLogSection>)> appChangeLog = [
   (
+    '1.9.2',
+    [
+      ChangeLogSection.features([
+        ChangeLogItem(
+          'Jira custom fields are now shown in ticket details',
+          subItems: [
+            ChangeLogItem('Labelled from Jira\'s own field metadata, and formatted by what the value actually is (rich text, user, option, multi-value, date...)'),
+            ChangeLogItem('The Development field gets its own card: branches, commits, pull requests and builds, with a jump into this app\'s GitLab view'),
+            ChangeLogItem('Web links appear under Related work items'),
+            ChangeLogItem('Fields with nothing useful to say (Rank, Epic Link, third-party time-in-status blobs) are hidden automatically'),
+            ChangeLogItem('The Debug tab\'s Custom fields section explains how each field, including empty ones, was classified'),
+          ],
+        ),
+        ChangeLogItem(
+          'Ticket details layout can now be customized',
+          subItems: [
+            ChangeLogItem('Drag properties into named, resizable groups, or pin them above the description'),
+            ChangeLogItem('Hide any property from a right-click menu, with an undo snackbar, and show it again from the footer'),
+            ChangeLogItem('Long lists (Related work items, web links) truncate behind a "Show N more" tile'),
+          ],
+        ),
+        ChangeLogItem(
+          'Updates view: projects are now tabs, like the GitLab view',
+          subItems: [
+            ChangeLogItem('A home tab shows the combined feed of every starred project'),
+            ChangeLogItem('Close a project\'s tab to unstar it, with an undo snackbar'),
+          ],
+        ),
+        ChangeLogItem(
+          'Updates view: filter the list by Status, Assignee, Type, Priority, Labels, or any other property',
+          subItems: [
+            ChangeLogItem('Each filter offers Jira\'s own smart values (currentUser(), openSprints()...) alongside its usual suggestions'),
+            ChangeLogItem('Write the filter as JQL instead, with live autocomplete and validation against Jira; the two stay in sync both ways'),
+          ],
+        ),
+      ]),
+      ChangeLogSection.bugFixes([
+        ChangeLogItem('Opening a ticket whose id Jira sends as a string rather than a number no longer crashes the app'),
+        ChangeLogItem('Valid JQL typed into the new filter field no longer crashes the app on Enter'),
+      ]),
+    ],
+  ),
+
+  (
     '1.9.1',
     [
       ChangeLogSection.features([
