@@ -892,6 +892,11 @@ class _JqlFilterFieldState extends State<JqlFilterField> {
       controller: _controller,
       focusNode: _focusNode,
       autofocus: true,
+      // Desktop's default: regaining focus selects everything, which fought
+      // with accepting a suggestion — the cursor `_accept` places right after
+      // the insertion would vanish under a full-query selection the instant
+      // focus was restored, so the next keystroke replaced the query outright.
+      selectAllOnFocus: false,
       style: const TextStyle(fontFamily: 'monospace'),
       onChanged: (_) => setState(() => _isDirty = true),
       onSubmitted: (_) {
