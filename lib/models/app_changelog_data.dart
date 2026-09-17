@@ -198,7 +198,6 @@ final List<(String, List<ChangeLogSection>)> appChangeLog = [
             ChangeLogItem('Assignee is now shown at the start of update view items'),
             ChangeLogItem('Can now sort To Do Tasks'),
           ]),
-
           ChangeLogSection.bugFixes([
             ChangeLogItem('Fixed wrong spacing between style nodes in ADF renderer'),
             ChangeLogItem('Fixed wrong alignment in bullet list when items were not plain text'),

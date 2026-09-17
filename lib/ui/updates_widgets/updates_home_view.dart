@@ -23,6 +23,7 @@ import 'package:jira_watcher/ui/updates_widgets/updates_property_filters.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
 import 'package:jira_watcher/ui/settings.dart';
 import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
+import 'package:jira_watcher/ui/utils/widgets/browser_tab_chip.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -952,14 +953,14 @@ class UpdatesProjectTabStrip extends StatelessWidget {
               shrinkWrap: true,
               padding: const EdgeInsets.only(left: 8),
               children: [
-                _ProjectTab(
+                BrowserTabChip(
                   tooltip: 'Updates across every one of your projects',
                   leading: const Icon(Symbols.home, size: 18),
                   isActive: activeProject == null,
                   onTap: () => onSelect(null),
                 ),
                 for (final projectCode in starred)
-                  _ProjectTab(
+                  BrowserTabChip(
                     key: ValueKey(projectCode),
                     label: projectCode,
                     tooltip: projectCode,
@@ -975,6 +976,7 @@ class UpdatesProjectTabStrip extends StatelessWidget {
                     isActive: activeProject == projectCode,
                     onTap: () => onSelect(projectCode),
                     onClose: () => _close(context, projectCode),
+                    closeTooltip: 'Remove from your projects',
                   ),
               ],
             ),
@@ -991,117 +993,6 @@ class UpdatesProjectTabStrip extends StatelessWidget {
           ),
           const SizedBox(width: 8),
         ],
-      ),
-    );
-  }
-}
-
-class _ProjectTab extends StatefulWidget {
-  const _ProjectTab({
-    super.key,
-    required this.tooltip,
-    required this.leading,
-    required this.isActive,
-    required this.onTap,
-    this.label,
-    this.tooltipFuture,
-    this.onClose,
-  });
-
-  /// What the tab reads; a tab with none is its icon alone, which is how the
-  /// home tab stays out of the way of the projects.
-  final String? label;
-  final String tooltip;
-
-  /// A nicer tooltip once it resolves (the project's name); [tooltip] stands in
-  /// until then, and if it resolves to nothing.
-  final Future<String?>? tooltipFuture;
-  final Widget leading;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  /// Closes the tab, if it can be closed at all.
-  final VoidCallback? onClose;
-
-  @override
-  State<_ProjectTab> createState() => _ProjectTabState();
-}
-
-class _ProjectTabState extends State<_ProjectTab> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    // The close button only shows where it is being aimed at, so a strip of
-    // tabs is not a row of crosses.
-    final showClose = widget.onClose != null && (widget.isActive || _hovered);
-
-    final content = ConstrainedBox(
-      // A tab with a label takes a settled width, so its close button lands in
-      // the same place on every tab rather than trailing whatever the label
-      // happens to be.
-      constraints: widget.label == null ? const BoxConstraints() : const BoxConstraints(minWidth: 120, maxWidth: 160),
-      child: Padding(
-        padding: EdgeInsets.only(left: 12, right: widget.onClose == null ? 12 : 4),
-        child: Row(
-          children: [
-            widget.leading,
-            if (widget.label case final label?) ...[
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontWeight: widget.isActive ? FontWeight.w600 : null),
-                ),
-              ),
-            ],
-            // Held open whether or not the button is showing, so a tab does not
-            // resize under the pointer as it arrives.
-            if (widget.onClose != null)
-              SizedBox(
-                width: 24,
-                child: showClose
-                    ? IconButton(
-                        icon: const Icon(Symbols.close),
-                        iconSize: 16,
-                        padding: const EdgeInsets.all(4),
-                        constraints: const BoxConstraints(),
-                        tooltip: 'Remove from your projects',
-                        onPressed: widget.onClose,
-                      )
-                    : null,
-              ),
-          ],
-        ),
-      ),
-    );
-
-    return Padding(
-      padding: const EdgeInsets.only(right: 2),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: Material(
-          color: widget.isActive ? scheme.surfaceContainerHighest : Colors.transparent,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-          child: InkWell(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-            onTap: widget.onTap,
-            child: widget.tooltipFuture == null
-                ? Tooltip(message: widget.tooltip, waitDuration: const Duration(milliseconds: 600), child: content)
-                : FutureBuilder<String?>(
-                    future: widget.tooltipFuture,
-                    builder: (context, snapshot) => Tooltip(
-                      message: snapshot.data ?? widget.tooltip,
-                      waitDuration: const Duration(milliseconds: 600),
-                      child: content,
-                    ),
-                  ),
-          ),
-        ),
       ),
     );
   }

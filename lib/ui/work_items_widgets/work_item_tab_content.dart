@@ -93,7 +93,14 @@ class _WorkItemSearchTabContentState extends State<WorkItemSearchTabContent> {
 
   void _onChanged(String value) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () => setState(() => _resultsFuture = _search(value.trim())));
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      // A block body, deliberately: `setState(() => _resultsFuture = ...)`
+      // makes the callback's own return value the assignment's value — a
+      // Future — which setState rejects outright as "looks async".
+      setState(() {
+        _resultsFuture = _search(value.trim());
+      });
+    });
   }
 
   /// A direct key match (`STUDIO-1234`) alongside a free-text search, the
