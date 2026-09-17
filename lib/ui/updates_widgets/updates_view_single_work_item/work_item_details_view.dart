@@ -1030,15 +1030,18 @@ class IssueLinkTile extends StatelessWidget {
           icon: Icon(Symbols.open_in_new),
           tooltip: 'Open in browser',
         ),
-    onTap: onSelect != null
-        ? () => onSelect!.call(issueLinkData['key'])
-        : () => showDialog(
-            context: context,
-            builder: (_) => SingleJiraWorkItemDialog(
-              JiraWorkItemData.fromJson({'data': issueLinkData}),
-              initialTab: JiraWorkItemTab.details,
-            ),
-          ),
+    onTap: () {
+      if (onSelect != null) return onSelect!.call(issueLinkData['key']);
+      final scope = IssueNavigationScope.maybeOf(context);
+      if (scope != null) return scope.onOpen(issueLinkData['key'] as String);
+      showDialog(
+        context: context,
+        builder: (_) => SingleJiraWorkItemDialog(
+          JiraWorkItemData.fromJson({'data': issueLinkData}),
+          initialTab: JiraWorkItemTab.details,
+        ),
+      );
+    },
   );
 }
 

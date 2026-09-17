@@ -10,6 +10,23 @@ import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+/// When present above a work item reference — a [WorkItemBadge], an ADF issue
+/// chip, an issue-link tile — tapping it calls [onOpen] instead of opening the
+/// usual [SingleJiraWorkItemDialog]. This is how a work item tab makes an
+/// internal link move within the tab, browser-history style, rather than
+/// always popping a dialog: it wraps its content in one of these, and every
+/// tap-handler below checks for it first.
+class IssueNavigationScope extends InheritedWidget {
+  const IssueNavigationScope({super.key, required this.onOpen, required super.child});
+
+  final void Function(String workItemKey) onOpen;
+
+  static IssueNavigationScope? maybeOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<IssueNavigationScope>();
+
+  @override
+  bool updateShouldNotify(IssueNavigationScope oldWidget) => onOpen != oldWidget.onOpen;
+}
+
 /// Shows a work item's icon and key, formatting appropriately for links and adding a copy button if requested.
 class WorkItemBadge extends StatefulWidget {
   const WorkItemBadge(
@@ -68,6 +85,11 @@ class _WorkItemBadgeState extends State<WorkItemBadge> {
                 GestureDetector(
                   onTap: () async {
                     if (widget.workItemKeyForDialog != null) {
+                      final scope = IssueNavigationScope.maybeOf(context);
+                      if (scope != null) {
+                        scope.onOpen(widget.workItemKeyForDialog!);
+                        return;
+                      }
                       showDialog(context: context, builder: (context) => SingleJiraWorkItemDialog(JiraWorkItemData({'key': widget.workItemKeyForDialog!})));
                       return;
                     }

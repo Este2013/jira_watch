@@ -10,6 +10,7 @@ import 'package:jira_watcher/ui/gitlab_widgets/gitlab_main.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
 import 'package:jira_watcher/ui/updates_dialog.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_home_view.dart';
+import 'package:jira_watcher/ui/work_items_widgets/work_items_workspace_view.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/settings.dart';
 import 'package:jira_watcher/ui/confluence_widgets/confluence_workspace_view.dart';
@@ -18,13 +19,12 @@ import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_work_item_search.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import 'utils/under_constuction_notice.dart';
 import 'utils/widgets/animated_icons.dart';
 import 'utils/widgets/notification_center.dart';
 
 enum HomePage {
   updates('Updates', Symbols.dashboard, 'View the latest changes made in projects you work on.'),
-  workItems('Work items', Symbols.bug_report, null),
+  workItems('Work items', Symbols.bug_report, 'Pin, tab, and group the work items you keep coming back to.'),
   toDo('To do', Symbols.assessment, 'Locally keep track of your own tasks.'),
   // GitLab draws its own mark instead of [icon]; see [buildIcon].
   confluence('Confluence', Symbols.book_2, 'Access your Confluence documentation.'),
@@ -108,7 +108,28 @@ class _HomeScreenState extends State<HomeScreen> with UiLoggy {
         ),
       ),
       // Work items
-      UnderConstructionNotice(),
+      ScaffoldMessenger(
+        child: Scaffold(
+          appBar: AppBar(
+            title: Row(
+              children: [
+                Expanded(child: Text(HomePage.workItems.title)),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      HomePage.workItems.subtitle!,
+                      style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+                    ),
+                  ),
+                ),
+                Spacer(),
+              ],
+            ),
+            actions: [],
+          ),
+          body: WorkItemsWorkspaceView(),
+        ),
+      ),
       // User's To-do-tasks view
       ScaffoldMessenger(child: TodoPagePreLoadView()),
       // Confluence

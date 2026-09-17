@@ -644,6 +644,11 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
             var workItem = JiraWorkItemData.fromJson({'data': asyncSnapshot.data!});
             return InkWell(
               onTap: () {
+                final scope = IssueNavigationScope.maybeOf(context);
+                if (scope != null && workItem.key != null) {
+                  scope.onOpen(workItem.key!);
+                  return;
+                }
                 showDialog(
                   context: context,
                   builder: (context) => SingleJiraWorkItemDialog(workItem, initialTab: JiraWorkItemTab.details),
@@ -681,7 +686,10 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                         child: Row(
                           spacing: 8,
                           children: [
-                            if (workItem.fields?['assignee']['avatarUrls'] != null) JiraAvatar(url: workItem.fields!['assignee']?['avatarUrls']?['16x16'], size: _scaled(context, 24)) else Icon(Symbols.broken_image),
+                            if (workItem.fields?['assignee']['avatarUrls'] != null)
+                              JiraAvatar(url: workItem.fields!['assignee']?['avatarUrls']?['16x16'], size: _scaled(context, 24))
+                            else
+                              Icon(Symbols.broken_image),
                             Expanded(
                               child: Text.rich(
                                 TextSpan(
@@ -700,7 +708,9 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                                       alignment: PlaceholderAlignment.middle,
                                       child: Padding(
                                         padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                                        child: (workItem.fields?['priority']['iconUrl'] != null) ? JiraAvatar(url: workItem.fields?['priority']?['iconUrl'], size: _scaled(context, 16)) : Icon(Symbols.broken_image),
+                                        child: (workItem.fields?['priority']['iconUrl'] != null)
+                                            ? JiraAvatar(url: workItem.fields?['priority']?['iconUrl'], size: _scaled(context, 16))
+                                            : Icon(Symbols.broken_image),
                                       ),
                                     ),
                                     TextSpan(text: ' ${workItem.fields?['priority']?['name'] ?? ''}'),
@@ -1162,6 +1172,11 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                 avatar: JiraAvatar(url: issue.fields?['issuetype']['iconUrl'], size: _scaled(context, 16)),
 
                 onPressed: () {
+                  final scope = IssueNavigationScope.maybeOf(context);
+                  if (scope != null) {
+                    scope.onOpen(issueKey);
+                    return;
+                  }
                   showDialog(
                     context: context,
                     builder: (context) => SingleJiraWorkItemDialog(issue, initialTab: JiraWorkItemTab.details),
@@ -1310,10 +1325,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       textBaseline: TextBaseline.alphabetic,
       children: [
         SizedBox(width: indentLevel * listIndent),
-        if (marker == null)
-          SelectableText('•', style: Theme.of(context).textTheme.bodyMedium)
-        else
-          Text(marker, style: Theme.of(context).textTheme.bodyMedium),
+        if (marker == null) SelectableText('•', style: Theme.of(context).textTheme.bodyMedium) else Text(marker, style: Theme.of(context).textTheme.bodyMedium),
         SizedBox(width: bulletGap),
         Expanded(child: bulletLine),
       ],
