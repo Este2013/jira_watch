@@ -10,6 +10,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/to_do_tasks_models.dart';
+import 'package:jira_watcher/models/work_item_tabs_model.dart';
+import 'package:jira_watcher/ui/home.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
@@ -637,15 +639,17 @@ class _UpdatesPageState extends State<UpdatesPage> {
     if (mounted) setState(() {});
   }
 
+  /// Pins every selected item — opening (or focusing) a tab per key in the
+  /// Work items view — and switches straight there, same as pinning a single
+  /// item does.
   void _keepAllForLater() {
     final keys = _selectedItems.map((w) => w.key!).toList();
     if (keys.isEmpty) return;
-    final title = keys.length <= 3 ? keys.join(', ') : '${keys.length} work items';
-    DataModel().todoTasks.createNewTask(title: title, workItemKeys: keys).whenComplete(() {
-      if (!mounted) return;
-      showAppSnackBar(context, SnackBar(content: Text('Saved ${keys.length} work items in your "To do" queue')));
-      clearMultiSelection();
-    });
+    currentHomePage.value = HomePage.workItems;
+    for (final key in keys) {
+      WorkItemTabsModel().openWorkItem(key);
+    }
+    clearMultiSelection();
   }
 
   void _addAllToTask() {
@@ -1085,7 +1089,7 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                     BottomNavigationBarItem(icon: Icon(isRead ? Symbols.mark_email_unread : Symbols.mark_email_read), label: isRead ? 'Mark as unread' : 'Mark as read'),
                     BottomNavigationBarItem(
                       icon: Transform.rotate(angle: pi / 4, child: Icon(Symbols.push_pin)),
-                      label: 'Keep for later',
+                      label: 'Pin',
                     ),
                     BottomNavigationBarItem(icon: Icon(Symbols.assignment_add), label: AddToTasksLabel.createLabelFor(widget.workItem)),
                     BottomNavigationBarItem(icon: Icon(Symbols.open_in_browser), label: 'View on website'),
@@ -1361,8 +1365,8 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                       onSelected: (value) => markAsReadOrUnread(updated, isRead),
                     ),
                     MenuItem(
-                      label: Text('Keep for later'),
-                      icon: Transform.rotate(angle: pi / 4, child: const Icon(Symbols.keep, fill: 1)),
+                      label: Text('Pin'),
+                      icon: Transform.rotate(angle: pi / 4, child: const Icon(Symbols.push_pin, fill: 1)),
                       onSelected: (value) => keepForLater(context),
                     ),
                     MenuItem(
@@ -1430,15 +1434,14 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
     if (mounted) setState(() {});
   }
 
-  Future<ToDoTask> keepForLater(BuildContext context) => DataModel().todoTasks
-      .createNewTask(
-        title: '${widget.workItem.key} — ${widget.workItem.fields?['summary']}',
-        workItemKeys: [widget.workItem.key!],
-      )
-      .whenComplete(
-        // ignore: use_build_context_synchronously
-        () => showAppSnackBar(context, SnackBar(content: Text('Saved in your "To do" queue as "${widget.workItem.key}"'))),
-      );
+  /// Pins the work item — opening (or focusing) its tab in the Work items
+  /// view and switching straight to it.
+  void keepForLater(BuildContext context) {
+    final key = widget.workItem.key;
+    if (key == null) return;
+    currentHomePage.value = HomePage.workItems;
+    WorkItemTabsModel().openWorkItem(key);
+  }
 
   void addToTasks(BuildContext context) {
     showDialog(
@@ -2025,7 +2028,7 @@ class _SelectionFabMenuState extends State<SelectionFabMenu> {
                     _menuItem(Symbols.mark_email_unread, 'Mark all as unread', widget.onMarkAllUnread)
                   else
                     _menuItem(Symbols.mark_email_read, 'Mark all as read', widget.onMarkAllRead),
-                  _menuItem(Symbols.push_pin, 'Keep for later', widget.onKeepForLater),
+                  _menuItem(Symbols.push_pin, 'Pin all', widget.onKeepForLater),
                   _menuItem(Symbols.assignment_add, 'Add all to a task', widget.onAddToTask),
                   _menuItem(Symbols.open_in_browser, 'Open all on website', widget.onOpenAll),
                 ],
@@ -2123,9 +2126,9 @@ class SelectionGroupBadge extends StatelessWidget {
                   child: const Text('Mark all as read'),
                 ),
               MenuItemButton(
-                leadingIcon: Transform.rotate(angle: pi / 4, child: const Icon(Symbols.keep)),
+                leadingIcon: Transform.rotate(angle: pi / 4, child: const Icon(Symbols.push_pin)),
                 onPressed: onKeepForLater,
-                child: const Text('Keep for later'),
+                child: const Text('Pin all'),
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Symbols.assignment_add),

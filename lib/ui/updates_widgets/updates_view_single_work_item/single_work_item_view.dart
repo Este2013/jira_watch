@@ -7,13 +7,13 @@ import 'package:jira_watcher/models/jira_work_item_data.dart';
 import 'package:jira_watcher/dao/jira/jira_auth.dart';
 import 'package:jira_watcher/dao/jira/jira_api.dart';
 import 'package:jira_watcher/models/data_model.dart';
-import 'package:jira_watcher/models/to_do_tasks_models.dart';
+import 'package:jira_watcher/models/work_item_tabs_model.dart';
+import 'package:jira_watcher/ui/home.dart';
 import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
 import 'package:jira_watcher/ui/updates_widgets/issue_ui_elements.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_home_view.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_history_view.dart';
 import 'package:jira_watcher/ui/utils/json_viewer.dart';
-import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
 import 'package:loggy/loggy.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -178,9 +178,9 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
                             onPressed: () => keepForLater(context),
                             leadingIcon: Transform.rotate(
                               angle: pi / 4,
-                              child: const Icon(Symbols.keep),
+                              child: const Icon(Symbols.push_pin),
                             ),
-                            child: const Text('Keep for later'),
+                            child: const Text('Pin'),
                           ),
                           MenuItemButton(
                             onPressed: () => addToTasks(context),
@@ -225,15 +225,16 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
     );
   }
 
-  Future<ToDoTask> keepForLater(BuildContext context) => DataModel().todoTasks
-      .createNewTask(
-        title: '${widget.workItem.key} — ${widget.workItem.fields?['summary']}',
-        workItemKeys: [widget.workItem.key!],
-      )
-      .whenComplete(
-        // ignore: use_build_context_synchronously
-        () => showAppSnackBar(context, SnackBar(content: Text('Saved in your "To do" queue as "${widget.workItem.key}"'))),
-      );
+  /// Pins the work item — opening (or focusing) its tab in the Work items
+  /// view and switching straight to it, the same "jump there and show it"
+  /// pattern the Development card already uses to land on a GitLab project.
+  void keepForLater(BuildContext context) {
+    final key = widget.workItem.key;
+    if (key == null) return;
+    currentHomePage.value = HomePage.workItems;
+    WorkItemTabsModel().openWorkItem(key);
+  }
+
   void addToTasks(BuildContext context) {
     showDialog(
       context: context,
