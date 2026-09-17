@@ -20,7 +20,13 @@ class WorkItemsWorkspaceView extends StatelessWidget {
           animation: Listenable.merge([model.tabs, model.groups, model.activeTabId, model.activeLeadingView, model.selectedGroupId]),
           builder: (context, _) => Column(
             children: [
-              const WorkItemsTabStrip(),
+              // Deliberately not `const`: a const widget is canonicalized to
+              // one identical instance across rebuilds, and Flutter's element
+              // reconciliation skips calling build() again on an unchanged
+              // identical child — so the strip would render once and then
+              // never again reflect a new tab, a closed one, or a group
+              // switch, no matter how often this AnimatedBuilder re-fires.
+              WorkItemsTabStrip(),
               const Divider(height: 1),
               Expanded(child: _content(model)),
             ],
@@ -35,7 +41,10 @@ class WorkItemsWorkspaceView extends StatelessWidget {
     if (leading != null) return WorkItemsLeadingViewContent(key: ValueKey(leading), view: leading);
 
     final tab = model.activeTab;
-    if (tab == null) return const WorkItemsLeadingViewContent(view: WorkItemsLeadingView.pinnedWorkItems);
+    // Not reached in practice — activeLeadingView and activeTabId are kept
+    // as an XOR by every mutator below — but not `const` regardless, on the
+    // same principle as everywhere else in this file.
+    if (tab == null) return WorkItemsLeadingViewContent(view: WorkItemsLeadingView.pinnedWorkItems);
 
     return tab.isSearchTab ? WorkItemSearchTabContent(key: ValueKey(tab.id), tab: tab) : WorkItemTabContent(key: ValueKey(tab.id), tab: tab);
   }

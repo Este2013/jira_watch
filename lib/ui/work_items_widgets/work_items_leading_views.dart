@@ -13,9 +13,16 @@ class WorkItemsLeadingViewContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => switch (view) {
-    WorkItemsLeadingView.pinnedWorkItems => const _PinnedWorkItemsView(),
+    // Deliberately not `const`: this widget itself is rebuilt fresh by its
+    // own parent, but a `const` child is canonicalized to one identical
+    // instance regardless — and Flutter skips rebuilding a child that is
+    // identical to what is already there, freezing it after its first
+    // render. _PinnedWorkItemsView reads live model state, so it cannot
+    // afford that.
+    WorkItemsLeadingView.pinnedWorkItems => _PinnedWorkItemsView(),
     // Dashboards (saved filter/JQL views, explored from within this one tab)
-    // and Mind map are their own, later phases of this feature.
+    // and Mind map are their own, later phases of this feature — static
+    // placeholders, so constant is exactly right here.
     WorkItemsLeadingView.dashboards => const UnderConstructionNotice(),
     WorkItemsLeadingView.mindMap => const UnderConstructionNotice(),
   };

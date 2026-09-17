@@ -17,6 +17,13 @@ class WorkItemsTabStrip extends StatelessWidget {
     return SizedBox(
       height: 40,
       child: Row(
+        // A horizontal ListView stretches its own children to the viewport's
+        // full cross-axis extent — sliver mechanics, not something a plain
+        // Row child gets by default — which is why the work item tabs below
+        // (inside one) already fill the strip's height while these leading
+        // ones, sitting directly in this Row, did not. Stretching the whole
+        // Row gives every direct child that same full-height look.
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (final view in WorkItemsLeadingView.values)
             BrowserTabChip(
@@ -29,7 +36,10 @@ class WorkItemsTabStrip extends StatelessWidget {
           // Furniture only once it has something to offer: with no group yet
           // defined, the only way to make one is still there (a tab's own
           // right-click menu), just not as a second, mostly-empty button here.
-          if (model.groups.list.isNotEmpty) const _TabGroupsButton(),
+          // Not `const`: it reads live model state (which group is selected,
+          // what groups exist), and a `const` instance would be canonicalized
+          // and then never rebuilt once Flutter sees the identical child again.
+          if (model.groups.list.isNotEmpty) _TabGroupsButton(),
           // Loose rather than filled, with the list sized to its content: the
           // add button then sits right after the last tab while there is room
           // for it there, and settles against the right edge once the tabs
@@ -72,10 +82,29 @@ class _TabGroupsButton extends StatelessWidget {
           ),
           const Divider(height: 1),
           for (final group in model.groups.list)
-            MenuItemButton(
-              leadingIcon: Icon(group.icon.icon, color: group.color, size: 16, fill: group.id == activeGroup?.id ? 1 : 0),
-              onPressed: () => model.selectGroup(group.id),
-              child: Text(group.name),
+            // A Row of siblings rather than a button nested inside a button:
+            // the "..." has to open the edit dialog on its own tap without
+            // that also registering as a select-this-group tap on the
+            // MenuItemButton wrapped around it.
+            Row(
+              children: [
+                Expanded(
+                  child: MenuItemButton(
+                    leadingIcon: Icon(group.icon.icon, color: group.color, size: 16, fill: group.id == activeGroup?.id ? 1 : 0),
+                    onPressed: () => model.selectGroup(group.id),
+                    child: Text(group.name),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Edit or delete "${group.name}"',
+                  icon: const Icon(Symbols.more_horiz, size: 16),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (_) => WorkItemTabGroupDialog(group: group),
+                  ),
+                ),
+              ],
             ),
           const Divider(height: 1),
           MenuItemButton(

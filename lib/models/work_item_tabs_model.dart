@@ -316,8 +316,14 @@ class WorkItemTabsModel with GlobalLoggy {
     activeLeadingView.value = null;
     activeTabId.value = tab.id;
     // Following a tab into a different group brings that group along, so the
-    // strip does not appear to lose the tab that was just clicked.
-    if (tab.groupId != selectedGroupId.value) selectedGroupId.value = tab.groupId;
+    // strip does not appear to lose the tab that was just clicked — and,
+    // since that is a genuine move away from whatever was selected before,
+    // an empty group left behind is cleaned up the same as selectGroup does.
+    if (tab.groupId != selectedGroupId.value) {
+      final leaving = selectedGroupId.value;
+      selectedGroupId.value = tab.groupId;
+      _pruneIfEmpty(leaving);
+    }
     requestSave();
   }
 
@@ -332,9 +338,23 @@ class WorkItemTabsModel with GlobalLoggy {
     requestSave();
   }
 
+  /// Changes which group's tabs the strip shows. A group emptied by closing
+  /// its last tab is not deleted on the spot — the strip still shows it,
+  /// empty, in case a tab is about to land back in it — only once selecting
+  /// something else confirms it is actually being left behind.
   void selectGroup(String? groupId) {
+    final leaving = selectedGroupId.value;
     selectedGroupId.value = groupId;
+    if (leaving != groupId) _pruneIfEmpty(leaving);
     requestSave();
+  }
+
+  /// Deletes [groupId] if it is a real group with no tabs left in it.
+  void _pruneIfEmpty(String? groupId) {
+    if (groupId == null) return;
+    if (groupById(groupId) == null) return;
+    if (tabs.list.any((t) => t.groupId == groupId)) return;
+    groups.removeWhere((g, _) => g.id == groupId);
   }
 
   WorkItemTabGroup createGroup({required String name, required Color color, required WorkItemGroupIcon icon}) {

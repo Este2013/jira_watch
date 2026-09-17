@@ -135,6 +135,32 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
                           style: Theme.of(context).textTheme.bodyMedium ?? TextStyle(),
                           child: Row(
                             children: [
+                              // Present only inside a work item tab, which is
+                              // the one place "back" and "forward" mean
+                              // anything — a dialog or an inline preview has
+                              // no history of its own to step through.
+                              if (IssueNavigationScope.maybeOf(context) case final scope? when scope.onBack != null || scope.onForward != null) ...[
+                                IconButton(
+                                  tooltip: 'Back',
+                                  icon: const Icon(Symbols.arrow_back),
+                                  iconSize: 18,
+                                  visualDensity: VisualDensity.compact,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  onPressed: scope.onBack,
+                                ),
+                                const SizedBox(width: 4),
+                                IconButton(
+                                  tooltip: 'Forward',
+                                  icon: const Icon(Symbols.arrow_forward),
+                                  iconSize: 18,
+                                  visualDensity: VisualDensity.compact,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  onPressed: scope.onForward,
+                                ),
+                                const SizedBox(width: 8),
+                              ],
                               WorkItemLinkWithParentsRow(workItem),
 
                               JiraWorkItemStatusIndicator(issue: workItem),

@@ -9,10 +9,12 @@ import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/si
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-/// A real (resolved) tab's content: a back/forward toolbar over the current
-/// work item, with an [IssueNavigationScope] so any issue reference clicked
-/// inside it — a linked issue, a mention, the Development card's own links —
-/// moves within this tab rather than popping the usual dialog.
+/// A real (resolved) tab's content: the current work item, with an
+/// [IssueNavigationScope] so any issue reference clicked inside it — a linked
+/// issue, a mention, the Development card's own links — moves within this tab
+/// rather than popping the usual dialog. The scope also carries the tab's
+/// back/forward, which [SingleJiraWorkItemView] renders in its own header
+/// rather than this widget drawing a second toolbar above it.
 class WorkItemTabContent extends StatelessWidget {
   const WorkItemTabContent({super.key, required this.tab});
 
@@ -24,47 +26,14 @@ class WorkItemTabContent extends StatelessWidget {
     if (key == null) return const SizedBox.shrink();
     final model = WorkItemTabsModel();
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-          child: Row(
-            children: [
-              IconButton(
-                tooltip: 'Back',
-                icon: const Icon(Symbols.arrow_back),
-                iconSize: 20,
-                visualDensity: VisualDensity.compact,
-                onPressed: tab.canGoBack ? () => model.goBack(tab) : null,
-              ),
-              IconButton(
-                tooltip: 'Forward',
-                icon: const Icon(Symbols.arrow_forward),
-                iconSize: 20,
-                visualDensity: VisualDensity.compact,
-                onPressed: tab.canGoForward ? () => model.goForward(tab) : null,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  key,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).hintColor, fontFamily: 'monospace'),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: IssueNavigationScope(
-            onOpen: (newKey) => model.navigate(tab, newKey),
-            // Keyed by the work item key alone: visiting the same key twice in
-            // a row (stepping back then forward again) reuses the state and
-            // does not refetch, but a genuinely different key always does.
-            child: SingleJiraWorkItemView(JiraWorkItemData({'key': key}), key: ValueKey(key)),
-          ),
-        ),
-      ],
+    return IssueNavigationScope(
+      onOpen: (newKey) => model.navigate(tab, newKey),
+      onBack: tab.canGoBack ? () => model.goBack(tab) : null,
+      onForward: tab.canGoForward ? () => model.goForward(tab) : null,
+      // Keyed by the work item key alone: visiting the same key twice in a
+      // row (stepping back then forward again) reuses the state and does not
+      // refetch, but a genuinely different key always does.
+      child: SingleJiraWorkItemView(JiraWorkItemData({'key': key}), key: ValueKey(key)),
     );
   }
 }
