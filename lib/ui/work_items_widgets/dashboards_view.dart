@@ -20,9 +20,19 @@ class DashboardsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final model = DashboardsModel();
-    return AnimatedBuilder(
-      animation: Listenable.merge([model.boards, model.selectedBoardId]),
-      builder: (context, _) => _build(context, model),
+    // `boards` is a `late final` set inside `isReady`'s own future — reading
+    // it before that resolves is exactly the LateInitializationError this
+    // guards against, the same reason `WorkItemsWorkspaceView` gates on its
+    // own model's `isReady` before ever touching `tabs` or `groups`.
+    return FutureBuilder<bool>(
+      future: model.isReady,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator());
+        return AnimatedBuilder(
+          animation: Listenable.merge([model.boards, model.selectedBoardId]),
+          builder: (context, _) => _build(context, model),
+        );
+      },
     );
   }
 
