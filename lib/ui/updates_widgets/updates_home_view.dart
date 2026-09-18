@@ -16,9 +16,7 @@ import 'package:jira_watcher/ui/to_do_widgets/to_do_main.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
 import 'package:jira_watcher/models/jira_work_item_data.dart';
-import 'package:jira_watcher/dao/jira/jira_api.dart';
 import 'package:jira_watcher/dao/jira/jira_auth.dart';
-import 'package:jira_watcher/models/jql_to_filters.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/models/updates_filters.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_property_filters.dart';
@@ -725,14 +723,6 @@ class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
   Object? get timeFilter => query.timeFilter;
   UpdatesFilters get propertyFilters => query.filters;
 
-  /// A filter just added from the picker, whose panel opens by itself — adding
-  /// one is only ever the first half of picking a value with it.
-  String? _justAddedField;
-
-  /// Bumped whenever the JQL field's text is replaced from here (rather than
-  /// typed), so it is rebuilt around the new text.
-  int _jqlSeed = 0;
-
   @override
   void initState() {
     super.initState();
@@ -783,42 +773,6 @@ class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
     widget.onQueryChanged(query);
   }
 
-  void _setPropertyFilters(UpdatesFilters filters) => _apply(query.copyWith(filters: filters));
-
-  Future<void> _toggleJqlMode() async {
-    if (!query.jqlMode) {
-      // Entering: the chips are the source of truth going in, always — a chip
-      // changed since the last visit here must not leave a stale query typed
-      // before it sitting in the field.
-      _jqlSeed++;
-      _apply(query.copyWith(jqlMode: true, rawJql: propertyFilters.clauses.join(' AND ')));
-      return;
-    }
-
-    // Leaving: fold whatever is typed back into the chips, when it is a shape
-    // a chip could have written itself — anything else (an OR, a `!=`, JQL
-    // Jira accepts but no chip can express) leaves the chips exactly as they
-    // were, rather than show a filter set that lies about part of the query.
-    final parsed = parseJqlAsFilters(query.rawJql);
-    if (parsed == null) {
-      _apply(query.copyWith(jqlMode: false));
-      return;
-    }
-    final fields = await JiraApi().jqlFields();
-    if (!mounted) return;
-    final labels = {
-      for (final field in fields)
-        if (field.value != null) field.value!: jqlFieldLabel(field.displayName ?? field.value!),
-    };
-    final filters = applyParsedJqlToFilters(propertyFilters, parsed, (field) => labels[field] ?? field);
-    _apply(query.copyWith(jqlMode: false, filters: filters));
-  }
-
-  void _seedJqlFromFilters() {
-    _jqlSeed++;
-    _apply(query.copyWith(rawJql: propertyFilters.clauses.join(' AND ')));
-  }
-
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -831,56 +785,7 @@ class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
           spacing: 8,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            IconButton(
-              tooltip: query.jqlMode ? 'Back to the filter chips' : 'Write the filter as JQL',
-              isSelected: query.jqlMode,
-              icon: const Icon(Symbols.data_object),
-              onPressed: _toggleJqlMode,
-            ),
-            if (query.jqlMode)
-              Expanded(
-                child: JqlFilterField(
-                  key: ValueKey(_jqlSeed),
-                  initialJql: query.rawJql,
-                  onChanged: (jql) => _apply(query.copyWith(rawJql: jql)),
-                  onSeedFromFilters: propertyFilters.activeCount > 0 ? _seedJqlFromFilters : null,
-                ),
-              )
-            else
-              Expanded(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    for (final filter in propertyFilters.filters)
-                      PropertyFilterButton(
-                        key: ValueKey(filter.field),
-                        filter: filter,
-                        openOnShow: filter.field == _justAddedField,
-                        onChanged: (values, excluded, labels) => _setPropertyFilters(propertyFilters.withValues(filter.field, values, excludedValues: excluded, valueLabels: labels)),
-                        onRemove: filter.isDefault ? null : () => _setPropertyFilters(propertyFilters.remove(filter.field)),
-                      ),
-                    AddPropertyFilterButton(
-                      existingFields: {for (final filter in propertyFilters.filters) filter.field},
-                      onAdd: (filter) {
-                        _justAddedField = filter.field;
-                        _setPropertyFilters(propertyFilters.add(filter));
-                        // Only the chip built right now opens itself; forgetting
-                        // the field afterwards keeps a later rebuild from
-                        // re-opening the panel behind the user's back.
-                        SchedulerBinding.instance.addPostFrameCallback((_) => _justAddedField = null);
-                      },
-                    ),
-                    if (propertyFilters.activeCount > 1)
-                      TextButton.icon(
-                        icon: const Icon(Symbols.filter_alt_off, size: 16),
-                        label: const Text('Clear filters'),
-                        onPressed: () => _setPropertyFilters(propertyFilters.cleared()),
-                      ),
-                  ],
-                ),
-              ),
+            Expanded(child: PropertyFilterRow(query: query, onQueryChanged: _apply)),
             TimeFilterDropdown(
               init: timeFilter ?? 'all time',
               save: _setTimeFilter,

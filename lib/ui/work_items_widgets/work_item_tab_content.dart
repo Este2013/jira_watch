@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/jira_work_item_data.dart';
+import 'package:jira_watcher/models/settings_model.dart';
+import 'package:jira_watcher/models/updates_filters.dart';
 import 'package:jira_watcher/models/work_item_tabs_model.dart';
 import 'package:jira_watcher/ui/updates_widgets/issue_ui_elements.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_property_filters.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -52,7 +55,16 @@ class WorkItemSearchTabContent extends StatefulWidget {
 class _WorkItemSearchTabContentState extends State<WorkItemSearchTabContent> {
   final _controller = TextEditingController();
   Timer? _debounce;
-  late Future<List> _resultsFuture = _search('');
+
+  /// The same chips and JQL mode the updates bar is filtered by, led by a
+  /// project chip seeded with the projects enabled in settings — so the tab
+  /// opens on a readable list of recent work items without being asked.
+  ///
+  /// Held here rather than saved: a search tab exists only until it resolves
+  /// into the work item picked from it.
+  late UpdatesQuery _query = UpdatesQuery(filters: UpdatesFilters.forSearch(projects: {...?SettingsModel().starredProjects.value}));
+
+  late Future<List> _resultsFuture = _search();
 
   @override
   void dispose() {
@@ -68,30 +80,45 @@ class _WorkItemSearchTabContentState extends State<WorkItemSearchTabContent> {
       // makes the callback's own return value the assignment's value — a
       // Future — which setState rejects outright as "looks async".
       setState(() {
-        _resultsFuture = _search(value.trim());
+        _resultsFuture = _search();
       });
     });
   }
 
-  /// A direct key match (`STUDIO-1234`) alongside a free-text search, the
-  /// same two-pronged approach the Ctrl+F search dialog uses — a key rarely
-  /// matches Jira's own text index well, since it is not part of the summary.
-  Future<List> _search(String query) async {
+  /// Takes the row's new query, and asks Jira again only when it actually
+  /// changed what is being asked — toggling into JQL mode and straight back
+  /// out of it is not a reason to refetch.
+  void _onQueryChanged(UpdatesQuery changed) {
+    final wasAsking = _query.clauses.join(' AND ');
+    setState(() {
+      _query = changed;
+      if (changed.clauses.join(' AND ') != wasAsking) _resultsFuture = _search();
+    });
+  }
+
+  /// A direct key match (`STUDIO-1234`) alongside the filtered list, the same
+  /// two-pronged approach the Ctrl+F search dialog uses — a key rarely matches
+  /// Jira's own text index well, since it is not part of the summary.
+  ///
+  /// The filters are asked for unconditionally, most recently updated first,
+  /// so there is a list to pick from before anything is typed at all.
+  Future<List> _search() async {
+    final text = _controller.text.trim();
     final results = <dynamic>[];
-    for (final match in RegExp(r'[A-Za-z]+-[0-9]+').allMatches(query)) {
+    for (final match in RegExp(r'[A-Za-z]+-[0-9]+').allMatches(text)) {
       final key = match.group(0);
       if (key == null) continue;
       final item = await DataModel().jiraApi.workItem(key);
       if (item != null) results.add(item);
     }
-    if (query.isNotEmpty || results.isEmpty) {
-      final searchResults = await DataModel().jiraApi.jqlSearch(
-        '${query.isEmpty ? '' : 'text ~ "$query"'} ORDER BY updated DESC',
-        fields: ['issuetype', 'priority', 'status', 'statusCategory', 'summary'],
-      );
-      for (final issue in (searchResults?['issues'] as List? ?? const [])) {
-        if (!results.any((r) => r['key'] == issue['key'])) results.add(issue);
-      }
+
+    final where = [if (text.isNotEmpty) 'text ~ ${jqlLiteral(text)}', ..._query.clauses].join(' AND ');
+    final searchResults = await DataModel().jiraApi.jqlSearch(
+      where.isEmpty ? 'ORDER BY updated DESC' : '$where ORDER BY updated DESC',
+      fields: ['issuetype', 'priority', 'status', 'statusCategory', 'summary'],
+    );
+    for (final issue in (searchResults?['issues'] as List? ?? const [])) {
+      if (!results.any((r) => r['key'] == issue['key'])) results.add(issue);
     }
     return results;
   }
@@ -100,7 +127,7 @@ class _WorkItemSearchTabContentState extends State<WorkItemSearchTabContent> {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.all(16),
+    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -115,7 +142,8 @@ class _WorkItemSearchTabContentState extends State<WorkItemSearchTabContent> {
             hintText: 'Search by key or text — pick a work item to open it in this tab',
           ),
         ),
-        const SizedBox(height: 16),
+        PropertyFilterRow(query: _query, onQueryChanged: _onQueryChanged),
+        const Divider(height: 1),
         Expanded(
           child: FutureBuilder<List>(
             future: _resultsFuture,
@@ -124,10 +152,7 @@ class _WorkItemSearchTabContentState extends State<WorkItemSearchTabContent> {
               final items = snapshot.data!;
               if (items.isEmpty) {
                 return Center(
-                  child: Text(
-                    _controller.text.trim().isEmpty ? 'Type to search' : 'Nothing matches',
-                    style: TextStyle(color: Theme.of(context).hintColor),
-                  ),
+                  child: Text('Nothing matches', style: TextStyle(color: Theme.of(context).hintColor)),
                 );
               }
               return ListView(children: [for (final item in items) IssueLinkTile(item, onSelect: _pick)]);

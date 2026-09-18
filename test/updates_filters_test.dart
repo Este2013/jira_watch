@@ -338,6 +338,31 @@ void main() {
     });
   });
 
+  group('UpdatesFilters.forSearch', () {
+    test('leads with a project chip, then the usual defaults', () {
+      final filters = UpdatesFilters.forSearch(projects: const {});
+      expect(filters.filters.map((f) => f.field), ['project', 'status', 'assignee', 'issuetype', 'priority', 'labels']);
+      // Every one of them is furniture: the search's chips are emptied, never
+      // removed.
+      expect(filters.filters.every((f) => f.isDefault), isTrue);
+    });
+
+    test('narrows to the enabled projects out of the box', () {
+      final filters = UpdatesFilters.forSearch(projects: const {'STUDIO'});
+      expect(filters.clauses, ['project = "STUDIO"']);
+      expect(filters.byField('project')!.summary, 'STUDIO');
+    });
+
+    test('asks for nothing at all when no project is enabled', () {
+      expect(UpdatesFilters.forSearch(projects: const {}).clauses, isEmpty);
+    });
+
+    test('several enabled projects become one `in` clause', () {
+      final filters = UpdatesFilters.forSearch(projects: const {'STUDIO', 'WAVE'});
+      expect(filters.clauses, ['project in ("STUDIO", "WAVE")']);
+    });
+  });
+
   group('UpdatesFilters.resolve', () {
     test('an empty save is just the defaults', () {
       expect(UpdatesFilters.resolve(const []).filters, UpdatesFilters.defaults);

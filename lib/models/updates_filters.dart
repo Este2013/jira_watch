@@ -279,6 +279,18 @@ class UpdatesFilters {
 
   static const UpdatesFilters empty = UpdatesFilters(defaults);
 
+  /// The filter set the work item search starts from: the same chips, led by a
+  /// project one the updates bar has no use for (it has its project tabs).
+  ///
+  /// [projects] seeds that chip — the projects enabled in settings — so the
+  /// search opens on the work items the user actually cares about rather than
+  /// on everything the site has ever held. Nothing is pinned down: the chip
+  /// empties and repicks like any other.
+  static UpdatesFilters forSearch({required Set<String> projects}) => UpdatesFilters([
+    const UpdatesPropertyFilter(field: 'project', label: 'Project', isDefault: true).copyWith(values: projects),
+    ...defaults,
+  ]);
+
   /// The JQL these filters add to the updates query, one clause per active
   /// filter (they are ANDed together by the caller).
   List<String> get clauses => [for (final filter in filters) ?filter.clause];
