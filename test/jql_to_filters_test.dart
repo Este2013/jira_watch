@@ -301,4 +301,46 @@ void main() {
       expect(result.byField('status')!.excludedValues, {'Closed'});
     });
   });
+
+  group('splitJqlTextSearch', () {
+    test('lifts the free-text clause out and leaves the rest parseable', () {
+      final (text, rest) = splitJqlTextSearch('text ~ "login bug" AND project = "STUDIO"');
+      expect(text, 'login bug');
+      expect(rest, 'project = "STUDIO"');
+      expect(parseJqlAsFilters(rest)!['project']!.values, {'STUDIO'});
+    });
+
+    test('handles the clause sitting last, or alone', () {
+      expect(splitJqlTextSearch('project = "STUDIO" AND text ~ "crash"'), ('crash', 'project = "STUDIO"'));
+      expect(splitJqlTextSearch('text ~ "crash"'), ('crash', ''));
+    });
+
+    test('reports no text for a query that has none, untouched', () {
+      expect(splitJqlTextSearch('project = "STUDIO"'), ('', 'project = "STUDIO"'));
+      expect(splitJqlTextSearch(''), ('', ''));
+    });
+
+    test('unescapes the value the same way a quoted chip value is', () {
+      expect(splitJqlTextSearch(r'text ~ "say \"hi\""').$1, 'say "hi"');
+    });
+
+    test('leaves two text clauses alone rather than losing one of them', () {
+      const jql = 'text ~ "one" AND text ~ "two"';
+      expect(splitJqlTextSearch(jql), ('', jql));
+    });
+
+    test('ignores a text comparison nested inside a group', () {
+      const jql = '(text ~ "one" OR text ~ "two")';
+      expect(splitJqlTextSearch(jql), ('', jql));
+    });
+
+    test('is the exact reverse of what UpdatesQuery writes out', () {
+      const query = UpdatesQuery(textSearch: 'login bug');
+      final written = query.copyWith(filters: UpdatesFilters.empty.withValues('status', {'Open'})).clauses.join(' AND ');
+      expect(written, 'text ~ "login bug" AND status = "Open"');
+      final (text, rest) = splitJqlTextSearch(written);
+      expect(text, 'login bug');
+      expect(parseJqlAsFilters(rest)!['status']!.values, {'Open'});
+    });
+  });
 }

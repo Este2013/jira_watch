@@ -83,6 +83,51 @@ Map<String, ParsedJqlClause>? parseJqlAsFilters(String jql) {
   return result;
 }
 
+/// A hand-written query's free-text half, split from the rest of it, as
+/// `(text, rest)`.
+///
+/// The work item search writes its text field into the query as `text ~
+/// "..."` — a shape no chip can hold, and one that would fail the parse above
+/// for the whole query. Lifting exactly that clause out first is what lets the
+/// search field stay in sync with hand-written JQL the same way the chips do:
+/// it gets its own clause back, and the chips get a query they can still read.
+///
+/// The query is left alone (and the text reported empty) unless there is
+/// exactly one such clause: a single field cannot hold two of them, and
+/// quietly dropping the second would lose part of what was typed.
+(String, String) splitJqlTextSearch(String jql) {
+  final tokens = [
+    for (final t in tokenizeJql(jql))
+      if (t.type != JqlTokenType.ws) t,
+  ];
+  if (tokens.isEmpty) return ('', jql);
+
+  final segments = _splitTopLevelAnd(tokens);
+  final found = [
+    for (var i = 0; i < segments.length; i++)
+      if (_textSearchValue(segments[i]) != null) i,
+  ];
+  if (found.length != 1) return ('', jql);
+
+  final rest = [
+    for (var i = 0; i < segments.length; i++)
+      if (i != found.single && segments[i].isNotEmpty) jql.substring(segments[i].first.start, segments[i].last.end),
+  ];
+  return (_textSearchValue(segments[found.single])!, rest.join(' AND '));
+}
+
+/// What a `text ~ "..."` segment searches for, or null for anything else.
+String? _textSearchValue(List<JqlToken> segment) {
+  if (segment.length != 3) return null;
+  if (segment[0].type != JqlTokenType.word || segment[0].text.toLowerCase() != 'text') return null;
+  if (segment[1].type != JqlTokenType.op || segment[1].text != '~') return null;
+  return switch (segment[2].type) {
+    JqlTokenType.quoted => _unquote(segment[2].text),
+    JqlTokenType.word => segment[2].text,
+    _ => null,
+  };
+}
+
 /// Splits at every top-level (depth 0) `AND`. A depth-0 `OR` is left in place
 /// — only the recognized wrapper shapes may contain one, and that check
 /// happens per segment, where the wrapper's own parens hold depth above 0 for

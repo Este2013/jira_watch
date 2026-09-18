@@ -75,14 +75,7 @@ class _WorkItemSearchTabContentState extends State<WorkItemSearchTabContent> {
 
   void _onChanged(String value) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      // A block body, deliberately: `setState(() => _resultsFuture = ...)`
-      // makes the callback's own return value the assignment's value — a
-      // Future — which setState rejects outright as "looks async".
-      setState(() {
-        _resultsFuture = _search();
-      });
-    });
+    _debounce = Timer(const Duration(milliseconds: 300), () => _onQueryChanged(_query.copyWith(textSearch: value)));
   }
 
   /// Takes the row's new query, and asks Jira again only when it actually
@@ -90,6 +83,10 @@ class _WorkItemSearchTabContentState extends State<WorkItemSearchTabContent> {
   /// out of it is not a reason to refetch.
   void _onQueryChanged(UpdatesQuery changed) {
     final wasAsking = _query.clauses.join(' AND ');
+    // The search text is the one part of the query the row can change without
+    // the field knowing: leaving JQL mode hands back whatever `text ~ ...` was
+    // typed there. Guarded, so echoing a keystroke never moves the cursor.
+    if (changed.textSearch != _controller.text) _controller.text = changed.textSearch;
     setState(() {
       _query = changed;
       if (changed.clauses.join(' AND ') != wasAsking) _resultsFuture = _search();
@@ -100,19 +97,18 @@ class _WorkItemSearchTabContentState extends State<WorkItemSearchTabContent> {
   /// two-pronged approach the Ctrl+F search dialog uses — a key rarely matches
   /// Jira's own text index well, since it is not part of the summary.
   ///
-  /// The filters are asked for unconditionally, most recently updated first,
-  /// so there is a list to pick from before anything is typed at all.
+  /// The query is asked for unconditionally, most recently updated first, so
+  /// there is a list to pick from before anything is typed at all.
   Future<List> _search() async {
-    final text = _controller.text.trim();
     final results = <dynamic>[];
-    for (final match in RegExp(r'[A-Za-z]+-[0-9]+').allMatches(text)) {
+    for (final match in RegExp(r'[A-Za-z]+-[0-9]+').allMatches(_query.textSearch)) {
       final key = match.group(0);
       if (key == null) continue;
       final item = await DataModel().jiraApi.workItem(key);
       if (item != null) results.add(item);
     }
 
-    final where = [if (text.isNotEmpty) 'text ~ ${jqlLiteral(text)}', ..._query.clauses].join(' AND ');
+    final where = _query.clauses.join(' AND ');
     final searchResults = await DataModel().jiraApi.jqlSearch(
       where.isEmpty ? 'ORDER BY updated DESC' : '$where ORDER BY updated DESC',
       fields: ['issuetype', 'priority', 'status', 'statusCategory', 'summary'],
@@ -131,18 +127,22 @@ class _WorkItemSearchTabContentState extends State<WorkItemSearchTabContent> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextField(
-          controller: _controller,
-          autofocus: true,
-          onChanged: _onChanged,
-          decoration: const InputDecoration(
-            isDense: true,
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Symbols.search),
-            hintText: 'Search by key or text — pick a work item to open it in this tab',
+        PropertyFilterRow(
+          query: _query,
+          onQueryChanged: _onQueryChanged,
+          searchField: TextField(
+            controller: _controller,
+            autofocus: true,
+            onChanged: _onChanged,
+            decoration: const InputDecoration(
+              isDense: true,
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Symbols.search),
+              hintText: 'Search by key or text — pick a work item to open it in this tab',
+            ),
           ),
         ),
-        PropertyFilterRow(query: _query, onQueryChanged: _onQueryChanged),
+        const SizedBox(height: 8),
         const Divider(height: 1),
         Expanded(
           child: FutureBuilder<List>(

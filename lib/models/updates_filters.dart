@@ -381,6 +381,7 @@ class UpdatesQuery {
     this.activeProject,
     this.timeFilter,
     this.filters = UpdatesFilters.empty,
+    this.textSearch = '',
     this.jqlMode = false,
     this.rawJql = '',
   });
@@ -395,6 +396,14 @@ class UpdatesQuery {
   /// The filter chips, whether or not they are the ones being used.
   final UpdatesFilters filters;
 
+  /// What is typed in the free-text field, where the bar has one — the work
+  /// item search does, the updates bar does not and leaves this empty.
+  ///
+  /// Part of the query rather than of the field, so that switching to JQL
+  /// writes it out and switching back reads it in again, exactly as the chips
+  /// do: what a person typed must not be the one thing the toggle loses.
+  final String textSearch;
+
   /// Whether the query is being written by hand rather than picked from chips.
   final bool jqlMode;
 
@@ -402,24 +411,30 @@ class UpdatesQuery {
   /// back and forth does not lose it.
   final String rawJql;
 
+  /// [textSearch] as JQL, or null while nothing is typed in it.
+  String? get textClause => textSearch.trim().isEmpty ? null : 'text ~ ${jqlLiteral(textSearch.trim())}';
+
   /// What gets ANDed into the updates query: the hand-written JQL while that
-  /// mode is on and holds something, the chips' own clauses otherwise.
+  /// mode is on and holds something, the free text and the chips' own clauses
+  /// otherwise.
   ///
   /// Parenthesised, since a hand-written query is free to contain an `OR` and
   /// would otherwise reach further than it reads.
-  List<String> get clauses => jqlMode && rawJql.trim().isNotEmpty ? ['(${rawJql.trim()})'] : filters.clauses;
+  List<String> get clauses => jqlMode && rawJql.trim().isNotEmpty ? ['(${rawJql.trim()})'] : [?textClause, ...filters.clauses];
 
   UpdatesQuery copyWith({
     String? activeProject,
     bool clearActiveProject = false,
     Object? timeFilter,
     UpdatesFilters? filters,
+    String? textSearch,
     bool? jqlMode,
     String? rawJql,
   }) => UpdatesQuery(
     activeProject: clearActiveProject ? null : (activeProject ?? this.activeProject),
     timeFilter: timeFilter ?? this.timeFilter,
     filters: filters ?? this.filters,
+    textSearch: textSearch ?? this.textSearch,
     jqlMode: jqlMode ?? this.jqlMode,
     rawJql: rawJql ?? this.rawJql,
   );
@@ -427,6 +442,7 @@ class UpdatesQuery {
   Map<String, dynamic> toJson() => {
     'active_project': activeProject,
     'property_filters': filters.toJson(),
+    'text_search': textSearch,
     'jql_mode': jqlMode,
     'raw_jql': rawJql,
     'time_filter': timeFilter is List
@@ -441,6 +457,7 @@ class UpdatesQuery {
     activeProject: activeProjectFromFilters(json),
     timeFilter: _timeFilterFromJson(json['time_filter']),
     filters: UpdatesFilters.fromJson(json['property_filters']),
+    textSearch: json['text_search'] as String? ?? '',
     jqlMode: json['jql_mode'] == true,
     rawJql: json['raw_jql'] as String? ?? '',
   );

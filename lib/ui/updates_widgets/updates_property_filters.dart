@@ -412,12 +412,24 @@ class _FilterValuePickerState extends State<_FilterValuePicker> {
 /// just been added (and so opens by itself), and when the JQL field has to be
 /// rebuilt around text replaced from out here rather than typed.
 class PropertyFilterRow extends StatefulWidget {
-  const PropertyFilterRow({super.key, required this.query, required this.onQueryChanged});
+  const PropertyFilterRow({super.key, required this.query, required this.onQueryChanged, this.searchField});
 
   final UpdatesQuery query;
 
   /// Called with the whole query whenever any part of this row changes it.
   final void Function(UpdatesQuery query) onQueryChanged;
+
+  /// A free-text field to lead with, where the caller has one. It takes the
+  /// place beside the toggle and pushes the chips onto their own line below —
+  /// and hand-written JQL then replaces the field rather than the chips, since
+  /// a typed query stands for the whole of both.
+  ///
+  /// Its text is expected to be [UpdatesQuery.textSearch], which this row
+  /// writes out and reads back with the rest of the query on each toggle. With
+  /// no field given, a `text ~ ...` clause is left where it is: there would be
+  /// nowhere to show it, and a filter nobody can see is worse than one the
+  /// chips admit they cannot parse.
+  final Widget? searchField;
 
   @override
   State<PropertyFilterRow> createState() => _PropertyFilterRowState();
@@ -439,11 +451,11 @@ class _PropertyFilterRowState extends State<PropertyFilterRow> {
 
   Future<void> _toggleJqlMode() async {
     if (!_query.jqlMode) {
-      // Entering: the chips are the source of truth going in, always — a chip
-      // changed since the last visit here must not leave a stale query typed
-      // before it sitting in the field.
+      // Entering: the chips (and the search field with them) are the source of
+      // truth going in, always — one of them changed since the last visit here
+      // must not leave a stale query typed before it sitting in the field.
       setState(() => _jqlSeed++);
-      widget.onQueryChanged(_query.copyWith(jqlMode: true, rawJql: _filters.clauses.join(' AND ')));
+      widget.onQueryChanged(_query.copyWith(jqlMode: true, rawJql: _writtenOut));
       return;
     }
 
@@ -451,7 +463,10 @@ class _PropertyFilterRowState extends State<PropertyFilterRow> {
     // a chip could have written itself — anything else (an OR, a `!=`, JQL
     // Jira accepts but no chip can express) leaves the chips exactly as they
     // were, rather than show a filter set that lies about part of the query.
-    final parsed = parseJqlAsFilters(_query.rawJql);
+    // The free-text clause comes out first, being the one part of the query
+    // that belongs to the field above rather than to any chip.
+    final (text, rest) = widget.searchField == null ? ('', _query.rawJql) : splitJqlTextSearch(_query.rawJql);
+    final parsed = parseJqlAsFilters(rest);
     if (parsed == null) {
       widget.onQueryChanged(_query.copyWith(jqlMode: false));
       return;
@@ -462,71 +477,95 @@ class _PropertyFilterRowState extends State<PropertyFilterRow> {
       for (final field in fields)
         if (field.value != null) field.value!: jqlFieldLabel(field.displayName ?? field.value!),
     };
-    widget.onQueryChanged(_query.copyWith(jqlMode: false, filters: applyParsedJqlToFilters(_filters, parsed, (field) => labels[field] ?? field)));
+    widget.onQueryChanged(
+      _query.copyWith(jqlMode: false, textSearch: text, filters: applyParsedJqlToFilters(_filters, parsed, (field) => labels[field] ?? field)),
+    );
   }
+
+  /// The chips and the search field as one query — what the JQL field is
+  /// seeded with, and what "use the filters' own query" replaces it with.
+  String get _writtenOut => _query.copyWith(jqlMode: false).clauses.join(' AND ');
 
   void _seedJqlFromFilters() {
     setState(() => _jqlSeed++);
-    widget.onQueryChanged(_query.copyWith(rawJql: _filters.clauses.join(' AND ')));
+    widget.onQueryChanged(_query.copyWith(rawJql: _writtenOut));
   }
 
-  @override
-  Widget build(BuildContext context) => Row(
+  Widget _jqlField() => JqlFilterField(
+    key: ValueKey(_jqlSeed),
+    initialJql: _query.rawJql,
+    onChanged: (jql) => widget.onQueryChanged(_query.copyWith(rawJql: jql)),
+    onSeedFromFilters: _query.copyWith(jqlMode: false).clauses.isNotEmpty ? _seedJqlFromFilters : null,
+  );
+
+  Widget _chips() => Wrap(
     spacing: 8,
-    crossAxisAlignment: CrossAxisAlignment.center,
+    runSpacing: 4,
+    crossAxisAlignment: WrapCrossAlignment.center,
     children: [
-      IconButton(
-        tooltip: _query.jqlMode ? 'Back to the filter chips' : 'Write the filter as JQL',
-        isSelected: _query.jqlMode,
-        icon: const Icon(Symbols.data_object),
-        onPressed: _toggleJqlMode,
+      for (final filter in _filters.filters)
+        PropertyFilterButton(
+          key: ValueKey(filter.field),
+          filter: filter,
+          openOnShow: filter.field == _justAddedField,
+          onChanged: (values, excluded, labels) => _setFilters(_filters.withValues(filter.field, values, excludedValues: excluded, valueLabels: labels)),
+          onRemove: filter.isDefault ? null : () => _setFilters(_filters.remove(filter.field)),
+        ),
+      AddPropertyFilterButton(
+        existingFields: {for (final filter in _filters.filters) filter.field},
+        onAdd: (filter) {
+          _justAddedField = filter.field;
+          _setFilters(_filters.add(filter));
+          // Only the chip built right now opens itself; forgetting the field
+          // afterwards keeps a later rebuild from re-opening the panel behind
+          // the user's back.
+          SchedulerBinding.instance.addPostFrameCallback((_) => _justAddedField = null);
+        },
       ),
-      if (_query.jqlMode)
-        Expanded(
-          child: JqlFilterField(
-            key: ValueKey(_jqlSeed),
-            initialJql: _query.rawJql,
-            onChanged: (jql) => widget.onQueryChanged(_query.copyWith(rawJql: jql)),
-            onSeedFromFilters: _filters.activeCount > 0 ? _seedJqlFromFilters : null,
-          ),
-        )
-      else
-        Expanded(
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              for (final filter in _filters.filters)
-                PropertyFilterButton(
-                  key: ValueKey(filter.field),
-                  filter: filter,
-                  openOnShow: filter.field == _justAddedField,
-                  onChanged: (values, excluded, labels) => _setFilters(_filters.withValues(filter.field, values, excludedValues: excluded, valueLabels: labels)),
-                  onRemove: filter.isDefault ? null : () => _setFilters(_filters.remove(filter.field)),
-                ),
-              AddPropertyFilterButton(
-                existingFields: {for (final filter in _filters.filters) filter.field},
-                onAdd: (filter) {
-                  _justAddedField = filter.field;
-                  _setFilters(_filters.add(filter));
-                  // Only the chip built right now opens itself; forgetting the
-                  // field afterwards keeps a later rebuild from re-opening the
-                  // panel behind the user's back.
-                  SchedulerBinding.instance.addPostFrameCallback((_) => _justAddedField = null);
-                },
-              ),
-              if (_filters.activeCount > 1)
-                TextButton.icon(
-                  icon: const Icon(Symbols.filter_alt_off, size: 16),
-                  label: const Text('Clear filters'),
-                  onPressed: () => _setFilters(_filters.cleared()),
-                ),
-            ],
-          ),
+      if (_filters.activeCount > 1)
+        TextButton.icon(
+          icon: const Icon(Symbols.filter_alt_off, size: 16),
+          label: const Text('Clear filters'),
+          onPressed: () => _setFilters(_filters.cleared()),
         ),
     ],
   );
+
+  @override
+  Widget build(BuildContext context) {
+    final searchField = widget.searchField;
+    final toggle = IconButton(
+      tooltip: _query.jqlMode ? 'Back to the filter chips' : 'Write the filter as JQL',
+      isSelected: _query.jqlMode,
+      icon: const Icon(Symbols.data_object),
+      onPressed: _toggleJqlMode,
+    );
+
+    // Without a search field there is one line, and JQL takes the chips' place
+    // on it.
+    if (searchField == null) {
+      return Row(
+        spacing: 8,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [toggle, Expanded(child: _query.jqlMode ? _jqlField() : _chips())],
+      );
+    }
+
+    // With one, JQL takes the *field's* place instead — a typed query says
+    // everything the field and the chips together were saying, so the chips
+    // below it would have nothing left to show.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          spacing: 8,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [toggle, Expanded(child: _query.jqlMode ? _jqlField() : searchField)],
+        ),
+        if (!_query.jqlMode) Padding(padding: const EdgeInsets.only(top: 8), child: _chips()),
+      ],
+    );
+  }
 }
 
 /// Adds a filter on any other field this site can be queried by.

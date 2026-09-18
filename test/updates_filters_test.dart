@@ -469,6 +469,7 @@ void main() {
         activeProject: 'STUDIO',
         timeFilter: 'week',
         filters: UpdatesFilters.empty.withValues('labels', {'blocked'}),
+        textSearch: 'login bug',
         jqlMode: true,
         rawJql: 'status = "Open"',
       );
@@ -476,8 +477,24 @@ void main() {
       expect(restored.activeProject, 'STUDIO');
       expect(restored.timeFilter, 'week');
       expect(restored.filters.byField('labels')!.values, {'blocked'});
+      expect(restored.textSearch, 'login bug');
       expect(restored.jqlMode, isTrue);
       expect(restored.rawJql, 'status = "Open"');
+    });
+
+    test('asks for the free text ahead of the chips, and for nothing when it is blank', () {
+      final filtered = UpdatesFilters.empty.withValues('status', {'Open'});
+      expect(const UpdatesQuery(textSearch: 'login bug').copyWith(filters: filtered).clauses, ['text ~ "login bug"', 'status = "Open"']);
+      expect(const UpdatesQuery(textSearch: '   ').copyWith(filters: filtered).clauses, ['status = "Open"']);
+    });
+
+    test('quotes free text that would otherwise break the query', () {
+      expect(const UpdatesQuery(textSearch: 'say "hi"').textClause, r'text ~ "say \"hi\""');
+    });
+
+    test('hand-written JQL stands for the free text too, not just the chips', () {
+      const query = UpdatesQuery(textSearch: 'login bug', jqlMode: true, rawJql: 'project = "STUDIO"');
+      expect(query.clauses, ['(project = "STUDIO")']);
     });
 
     test('round-trips a custom date range', () {
