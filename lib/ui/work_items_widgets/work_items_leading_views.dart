@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:jira_watcher/models/data_model.dart';
-import 'package:jira_watcher/models/jira_work_item_data.dart';
 import 'package:jira_watcher/models/work_item_tabs_model.dart';
-import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
 import 'package:jira_watcher/ui/utils/under_constuction_notice.dart';
+import 'package:jira_watcher/ui/utils/widgets/work_item_list_preview.dart';
+import 'package:jira_watcher/ui/work_items_widgets/dashboards_view.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 /// The content behind one of the strip's fixed leading items.
@@ -20,129 +19,55 @@ class WorkItemsLeadingViewContent extends StatelessWidget {
     // own parent, but a `const` child is canonicalized to one identical
     // instance regardless — and Flutter skips rebuilding a child that is
     // identical to what is already there, freezing it after its first
-    // render. _PinnedWorkItemsView reads live model state, so it cannot
-    // afford that.
+    // render. Both of these read live model state (DashboardsView owns its
+    // own listening, so it would in fact survive being const, but there is
+    // no upside to being the one exception in this switch), so neither can
+    // afford it.
+    WorkItemsLeadingView.dashboards => const DashboardsView(),
     WorkItemsLeadingView.pinnedWorkItems => _PinnedWorkItemsView(),
-    // Dashboards (saved filter/JQL views, explored from within this one tab)
-    // and Mind map are their own, later phases of this feature — static
-    // placeholders, so constant is exactly right here.
-    WorkItemsLeadingView.dashboards => const UnderConstructionNotice(),
+    // Mind map is its own, later phase of this feature — a static
+    // placeholder, so constant is exactly right here.
     WorkItemsLeadingView.mindMap => const UnderConstructionNotice(),
   };
 }
 
 /// The pinned work items: a permanent list, kept apart from the tabs, with
 /// whichever one is picked shown beside it — or in a dialog, when the window
-/// is too narrow to hold both, the same way the updates list decides.
-class _PinnedWorkItemsView extends StatefulWidget {
+/// is too narrow to hold both (see [WorkItemListPreview]).
+class _PinnedWorkItemsView extends StatelessWidget {
   const _PinnedWorkItemsView();
-
-  @override
-  State<_PinnedWorkItemsView> createState() => _PinnedWorkItemsViewState();
-}
-
-class _PinnedWorkItemsViewState extends State<_PinnedWorkItemsView> {
-  /// Matches the updates list's own threshold, so the app switches between
-  /// side-by-side and a dialog at one consistent width.
-  static const double _minSizeForSideBySide = 1200;
 
   /// The list is kept to a readable column rather than stretched across a
   /// wide window, the same as Confluence's own reading view.
   static const double _maxListWidth = 800;
 
-  String? _selectedKey;
-  bool _isDialogShown = false;
-  bool _isAllowedToShowDialog = true;
-
   WorkItemTabsModel get _model => WorkItemTabsModel();
-
-  void _select(String key) => setState(() {
-    _selectedKey = key;
-    _isAllowedToShowDialog = true;
-  });
 
   @override
   Widget build(BuildContext context) {
     final keys = _model.pinnedKeys.list;
     if (keys.isEmpty) return const _NothingPinnedYet();
 
-    // A pin can be removed while its work item is the one being previewed.
-    final selectedKey = keys.contains(_selectedKey) ? _selectedKey : null;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final canSplit = constraints.maxWidth > _minSizeForSideBySide;
-
-        // The same dance the updates list does: too narrow to show both, so
-        // the selection goes into a dialog instead — and back out of one the
-        // moment there is room again. Visibility.of keeps a resize made while
-        // another top-level page is showing from popping a dialog over it.
-        if (_isAllowedToShowDialog && !_isDialogShown && selectedKey != null && !canSplit && Visibility.of(context) && (ModalRoute.of(context)?.isCurrent ?? true)) {
-          SchedulerBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            showDialog(
-              context: context,
-              builder: (_) => SingleJiraWorkItemDialog(
-                JiraWorkItemData({'key': selectedKey}),
-                key: Key(selectedKey),
-                initialTab: JiraWorkItemTab.details,
-              ),
-            ).whenComplete(() {
-              if (mounted) setState(() => _isDialogShown = false);
-            });
-            setState(() {
-              _isDialogShown = true;
-              _isAllowedToShowDialog = false;
-            });
-          });
-        } else if (_isDialogShown && canSplit) {
-          SchedulerBinding.instance.addPostFrameCallback((_) => Navigator.of(context).pop());
-        }
-        if (canSplit && !_isAllowedToShowDialog) {
-          SchedulerBinding.instance.addPostFrameCallback((_) {
-            if (mounted) setState(() => _isAllowedToShowDialog = true);
-          });
-        }
-
-        return Row(
-          children: [
-            Expanded(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: _maxListWidth),
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    children: [
-                      for (final key in keys)
-                        _PinnedTile(
-                          key: ValueKey(key),
-                          workItemKey: key,
-                          isSelected: key == selectedKey,
-                          onSelect: () => _select(key),
-                        ),
-                    ],
-                  ),
+    return WorkItemListPreview(
+      availableKeys: keys,
+      placeholder: '← Pick a pinned work item to read it here',
+      listBuilder: (selectedKey, onSelect) => Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _maxListWidth),
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            children: [
+              for (final key in keys)
+                _PinnedTile(
+                  key: ValueKey(key),
+                  workItemKey: key,
+                  isSelected: key == selectedKey,
+                  onSelect: () => onSelect(key),
                 ),
-              ),
-            ),
-            if (canSplit) const VerticalDivider(width: 1),
-            if (canSplit)
-              Expanded(
-                child: selectedKey == null
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            '← Pick a pinned work item to read it here',
-                            style: TextStyle(color: Theme.of(context).hintColor),
-                          ),
-                        ),
-                      )
-                    : SingleJiraWorkItemView(JiraWorkItemData({'key': selectedKey}), key: ValueKey(selectedKey)),
-              ),
-          ],
-        );
-      },
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
