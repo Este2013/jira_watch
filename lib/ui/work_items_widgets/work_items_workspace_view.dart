@@ -17,7 +17,7 @@ class WorkItemsWorkspaceView extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator());
         return AnimatedBuilder(
-          animation: Listenable.merge([model.tabs, model.groups, model.activeTabId, model.activeLeadingView, model.selectedGroupId]),
+          animation: Listenable.merge([model.tabs, model.groups, model.pinnedKeys, model.activeTabId, model.activeLeadingView, model.selectedGroupId]),
           builder: (context, _) => Column(
             children: [
               // Deliberately not `const`: a const widget is canonicalized to

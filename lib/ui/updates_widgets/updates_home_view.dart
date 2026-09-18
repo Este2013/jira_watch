@@ -647,7 +647,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
     if (keys.isEmpty) return;
     currentHomePage.value = HomePage.workItems;
     for (final key in keys) {
-      WorkItemTabsModel().openWorkItem(key);
+      WorkItemTabsModel().pinAndOpen(key);
     }
     clearMultiSelection();
   }
@@ -1440,7 +1440,7 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
     final key = widget.workItem.key;
     if (key == null) return;
     currentHomePage.value = HomePage.workItems;
-    WorkItemTabsModel().openWorkItem(key);
+    WorkItemTabsModel().pinAndOpen(key);
   }
 
   void addToTasks(BuildContext context) {

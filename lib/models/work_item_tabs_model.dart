@@ -174,6 +174,14 @@ class WorkItemTabsModel with GlobalLoggy {
   late final ObservableList<WorkItemTab> tabs;
   late final ObservableList<WorkItemTabGroup> groups;
 
+  /// The work items pinned into the "Pinned work items" view, oldest first.
+  ///
+  /// Deliberately independent of [tabs]: a pin is a work item worth keeping
+  /// permanently to hand, so the tabs can be cleaned out to nothing without
+  /// costing a single pin. Opening a pinned item as a tab, and closing that
+  /// tab again, leave this list exactly as it was.
+  late final ObservableList<String> pinnedKeys;
+
   /// The active tab, or null while a leading view is showing instead. Exactly
   /// one of this and [activeLeadingView] is non-null at a time.
   final ValueNotifier<String?> activeTabId = ValueNotifier(null);
@@ -195,6 +203,7 @@ class WorkItemTabsModel with GlobalLoggy {
     if (!await file.exists()) {
       tabs = ObservableList();
       groups = ObservableList();
+      pinnedKeys = ObservableList();
       return true;
     }
     // A hand-edited or truncated file must degrade to no tabs, not take the page down.
@@ -203,12 +212,14 @@ class WorkItemTabsModel with GlobalLoggy {
       if (raw.trim().isEmpty) {
         tabs = ObservableList();
         groups = ObservableList();
+        pinnedKeys = ObservableList();
         return true;
       }
       final data = jsonDecode(raw) as Map<String, dynamic>;
       groups = ObservableList(
         initialData: (data['groups'] as List? ?? []).map((e) => WorkItemTabGroup.fromJson((e as Map).cast<String, dynamic>())).toList(),
       );
+      pinnedKeys = ObservableList(initialData: (data['pinned'] as List? ?? []).whereType<String>().toList());
       final list = (data['tabs'] as List? ?? []).map((e) => WorkItemTab.fromJson((e as Map).cast<String, dynamic>())).toList();
       tabs = ObservableList(initialData: list);
 
@@ -227,6 +238,7 @@ class WorkItemTabsModel with GlobalLoggy {
       loggy.error('work_item_tabs.json could not be read ($e). Starting with no open tabs.');
       tabs = ObservableList();
       groups = ObservableList();
+      pinnedKeys = ObservableList();
     }
     return true;
   }
@@ -244,7 +256,7 @@ class WorkItemTabsModel with GlobalLoggy {
   List<WorkItemTab> get visibleTabs => tabs.list.where((t) => t.groupId == selectedGroupId.value).toList();
 
   /// Focuses an already-open tab currently showing [key], if there is one —
-  /// otherwise opens a new one. Pinning a work item is opening it.
+  /// otherwise opens a new one, in the group the strip is showing.
   void openWorkItem(String key, {String? groupId}) {
     final existing = tabs.list.where((t) => t.currentKey == key).firstOrNull;
     if (existing != null) {
@@ -254,6 +266,30 @@ class WorkItemTabsModel with GlobalLoggy {
     final tab = WorkItemTab(id: _newId('tab'), history: [key], groupId: groupId ?? selectedGroupId.value);
     tabs.add(tab);
     setActiveTab(tab);
+  }
+
+  bool isPinned(String key) => pinnedKeys.list.contains(key);
+
+  /// Adds [key] to the pinned repository. Nothing about the tabs changes —
+  /// see [pinnedKeys] for why the two are kept apart.
+  void pin(String key) {
+    if (isPinned(key)) return;
+    pinnedKeys.add(key);
+    requestSave();
+  }
+
+  void unpin(String key) {
+    pinnedKeys.removeWhere((k, _) => k == key);
+    requestSave();
+  }
+
+  void togglePin(String key) => isPinned(key) ? unpin(key) : pin(key);
+
+  /// What "Pin" does from elsewhere in the app: keeps the work item for good
+  /// and opens it, so the pin lands somewhere visible rather than silently.
+  void pinAndOpen(String key) {
+    pin(key);
+    openWorkItem(key);
   }
 
   /// Opens a fresh, empty search tab ready to pick a work item — the "+"
@@ -400,6 +436,7 @@ class WorkItemTabsModel with GlobalLoggy {
           'selectedGroupId': selectedGroupId.value,
           'groups': groups.list.map((g) => g.toJson()).toList(),
           'tabs': tabs.list.map((t) => t.toJson()).toList(),
+          'pinned': pinnedKeys.list,
         }),
       );
     } on Object catch (e) {

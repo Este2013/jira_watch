@@ -158,6 +158,12 @@ class _WorkItemTabChip extends StatelessWidget {
         entries: <ContextMenuEntry>[
           MenuItem(label: Center(child: Text(tab.isSearchTab ? 'New tab' : (tab.currentKey ?? '?'))), enabled: false),
           const MenuDivider(),
+          if (tab.currentKey case final key?)
+            MenuItem(
+              label: Text(model.isPinned(key) ? 'Unpin' : 'Pin'),
+              icon: Icon(model.isPinned(key) ? Symbols.keep_off : Symbols.push_pin, fill: model.isPinned(key) ? 0 : 1),
+              onSelected: (_) => model.togglePin(key),
+            ),
           MenuItem.submenu(
             label: const Text('Add to group'),
             icon: const Icon(Symbols.tab_group),

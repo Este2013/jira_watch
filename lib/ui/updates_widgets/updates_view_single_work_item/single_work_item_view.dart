@@ -139,7 +139,7 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
                               // the one place "back" and "forward" mean
                               // anything — a dialog or an inline preview has
                               // no history of its own to step through.
-                              if (IssueNavigationScope.maybeOf(context) case final scope? when scope.onBack != null || scope.onForward != null) ...[
+                              if (IssueNavigationScope.maybeOf(context) case final scope? when scope.hasHistory) ...[
                                 IconButton(
                                   tooltip: 'Back',
                                   icon: const Icon(Symbols.arrow_back),
@@ -232,7 +232,7 @@ class _SingleJiraWorkItemViewState extends State<SingleJiraWorkItemView> with Ti
     final key = widget.workItem.key;
     if (key == null) return;
     currentHomePage.value = HomePage.workItems;
-    WorkItemTabsModel().openWorkItem(key);
+    WorkItemTabsModel().pinAndOpen(key);
   }
 
   void addToTasks(BuildContext context) {

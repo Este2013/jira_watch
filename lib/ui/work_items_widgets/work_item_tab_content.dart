@@ -28,6 +28,7 @@ class WorkItemTabContent extends StatelessWidget {
 
     return IssueNavigationScope(
       onOpen: (newKey) => model.navigate(tab, newKey),
+      hasHistory: true,
       onBack: tab.canGoBack ? () => model.goBack(tab) : null,
       onForward: tab.canGoForward ? () => model.goForward(tab) : null,
       // Keyed by the work item key alone: visiting the same key twice in a

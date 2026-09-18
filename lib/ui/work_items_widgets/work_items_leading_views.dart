@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:jira_watcher/models/data_model.dart';
+import 'package:jira_watcher/models/jira_work_item_data.dart';
 import 'package:jira_watcher/models/work_item_tabs_model.dart';
+import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
 import 'package:jira_watcher/ui/utils/under_constuction_notice.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -28,122 +31,208 @@ class WorkItemsLeadingViewContent extends StatelessWidget {
   };
 }
 
-/// Every currently open tab — every pinned work item — grouped the way the
-/// strip itself is: by tab group, with the neutral ones on their own. Picking
-/// one jumps straight to its tab.
-class _PinnedWorkItemsView extends StatelessWidget {
+/// The pinned work items: a permanent list, kept apart from the tabs, with
+/// whichever one is picked shown beside it — or in a dialog, when the window
+/// is too narrow to hold both, the same way the updates list decides.
+class _PinnedWorkItemsView extends StatefulWidget {
   const _PinnedWorkItemsView();
 
   @override
+  State<_PinnedWorkItemsView> createState() => _PinnedWorkItemsViewState();
+}
+
+class _PinnedWorkItemsViewState extends State<_PinnedWorkItemsView> {
+  /// Matches the updates list's own threshold, so the app switches between
+  /// side-by-side and a dialog at one consistent width.
+  static const double _minSizeForSideBySide = 1200;
+
+  /// The list is kept to a readable column rather than stretched across a
+  /// wide window, the same as Confluence's own reading view.
+  static const double _maxListWidth = 800;
+
+  String? _selectedKey;
+  bool _isDialogShown = false;
+  bool _isAllowedToShowDialog = true;
+
+  WorkItemTabsModel get _model => WorkItemTabsModel();
+
+  void _select(String key) => setState(() {
+    _selectedKey = key;
+    _isAllowedToShowDialog = true;
+  });
+
+  @override
   Widget build(BuildContext context) {
-    final model = WorkItemTabsModel();
-    final resolved = model.tabs.list.where((t) => !t.isSearchTab).toList();
+    final keys = _model.pinnedKeys.list;
+    if (keys.isEmpty) return const _NothingPinnedYet();
 
-    if (resolved.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          spacing: 16,
+    // A pin can be removed while its work item is the one being previewed.
+    final selectedKey = keys.contains(_selectedKey) ? _selectedKey : null;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final canSplit = constraints.maxWidth > _minSizeForSideBySide;
+
+        // The same dance the updates list does: too narrow to show both, so
+        // the selection goes into a dialog instead — and back out of one the
+        // moment there is room again. Visibility.of keeps a resize made while
+        // another top-level page is showing from popping a dialog over it.
+        if (_isAllowedToShowDialog && !_isDialogShown && selectedKey != null && !canSplit && Visibility.of(context) && (ModalRoute.of(context)?.isCurrent ?? true)) {
+          SchedulerBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            showDialog(
+              context: context,
+              builder: (_) => SingleJiraWorkItemDialog(
+                JiraWorkItemData({'key': selectedKey}),
+                key: Key(selectedKey),
+                initialTab: JiraWorkItemTab.details,
+              ),
+            ).whenComplete(() {
+              if (mounted) setState(() => _isDialogShown = false);
+            });
+            setState(() {
+              _isDialogShown = true;
+              _isAllowedToShowDialog = false;
+            });
+          });
+        } else if (_isDialogShown && canSplit) {
+          SchedulerBinding.instance.addPostFrameCallback((_) => Navigator.of(context).pop());
+        }
+        if (canSplit && !_isAllowedToShowDialog) {
+          SchedulerBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _isAllowedToShowDialog = true);
+          });
+        }
+
+        return Row(
           children: [
-            const Text('📌', style: TextStyle(fontSize: 72)),
-            const Text('Nothing pinned yet', style: TextStyle(fontSize: 24)),
-            Text(
-              'Pin a work item from anywhere in the app — "Keep for later" opens it here.',
-              style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+            Expanded(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: _maxListWidth),
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    children: [
+                      for (final key in keys)
+                        _PinnedTile(
+                          key: ValueKey(key),
+                          workItemKey: key,
+                          isSelected: key == selectedKey,
+                          onSelect: () => _select(key),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             ),
+            if (canSplit) const VerticalDivider(width: 1),
+            if (canSplit)
+              Expanded(
+                child: selectedKey == null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            '← Pick a pinned work item to read it here',
+                            style: TextStyle(color: Theme.of(context).hintColor),
+                          ),
+                        ),
+                      )
+                    : SingleJiraWorkItemView(JiraWorkItemData({'key': selectedKey}), key: ValueKey(selectedKey)),
+              ),
           ],
-        ),
-      );
-    }
-
-    final neutral = resolved.where((t) => t.groupId == null).toList();
-    final byGroup = <WorkItemTabGroup, List<WorkItemTab>>{
-      for (final group in model.groups.list)
-        if (resolved.any((t) => t.groupId == group.id)) group: resolved.where((t) => t.groupId == group.id).toList(),
-    };
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        for (final entry in byGroup.entries) ...[
-          _GroupHeader(group: entry.key),
-          for (final tab in entry.value) _PinnedTile(tab: tab),
-          const SizedBox(height: 16),
-        ],
-        if (neutral.isNotEmpty) ...[
-          if (byGroup.isNotEmpty) const _NeutralHeader(),
-          for (final tab in neutral) _PinnedTile(tab: tab),
-        ],
-      ],
+        );
+      },
     );
   }
 }
 
-class _GroupHeader extends StatelessWidget {
-  const _GroupHeader({required this.group});
-
-  final WorkItemTabGroup group;
+class _NothingPinnedYet extends StatelessWidget {
+  const _NothingPinnedYet();
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    child: Row(
-      spacing: 8,
+  Widget build(BuildContext context) => Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 16,
       children: [
-        Icon(group.icon.icon, color: group.color, size: 18),
-        Text(group.name, style: Theme.of(context).textTheme.titleSmall),
+        const Text('📌', style: TextStyle(fontSize: 72)),
+        const Text('Nothing pinned yet', style: TextStyle(fontSize: 24)),
+        Text(
+          'Pin a work item from anywhere in the app — it stays here until you unpin it, whatever becomes of your tabs.',
+          style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Theme.of(context).hintColor),
+        ),
       ],
     ),
   );
 }
 
-class _NeutralHeader extends StatelessWidget {
-  const _NeutralHeader();
+class _PinnedTile extends StatefulWidget {
+  const _PinnedTile({super.key, required this.workItemKey, required this.isSelected, required this.onSelect});
+
+  final String workItemKey;
+  final bool isSelected;
+  final VoidCallback onSelect;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    child: Text('Neutral', style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Theme.of(context).hintColor)),
-  );
+  State<_PinnedTile> createState() => _PinnedTileState();
 }
 
-class _PinnedTile extends StatelessWidget {
-  const _PinnedTile({required this.tab});
-
-  final WorkItemTab tab;
+class _PinnedTileState extends State<_PinnedTile> {
+  /// Fetched once per tile rather than inside `build`: this list rebuilds
+  /// every time anything in the model moves — picking a different pin
+  /// included — and a future built in `build` would re-request every pinned
+  /// work item on every one of those.
+  late final Future<Map<String, dynamic>?> _workItem = DataModel().jiraApi.workItem(widget.workItemKey);
 
   @override
   Widget build(BuildContext context) {
-    final key = tab.currentKey;
-    if (key == null) return const SizedBox.shrink();
-    return FutureBuilder<Map<String, dynamic>?>(
-      key: ValueKey('Pinned $key'),
-      future: DataModel().jiraApi.workItem(key),
-      builder: (context, snapshot) {
-        if (snapshot.data != null) {
-          return IssueLinkTile(
-            snapshot.data!,
-            onSelect: (_) => WorkItemTabsModel().setActiveTab(tab),
-            trailing: IconButton(
-              tooltip: 'Unpin (close the tab)',
-              icon: const Icon(Symbols.close),
-              onPressed: () => WorkItemTabsModel().close(tab),
-            ),
-          );
-        }
-        if (snapshot.hasError) {
+    final workItemKey = widget.workItemKey;
+    final isSelected = widget.isSelected;
+    final onSelect = widget.onSelect;
+    final model = WorkItemTabsModel();
+    final actions = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Open as a tab in this group',
+          icon: const Icon(Symbols.tab),
+          onPressed: () => model.openWorkItem(workItemKey),
+        ),
+        IconButton(
+          tooltip: 'Unpin',
+          icon: const Icon(Symbols.keep_off),
+          onPressed: () => model.unpin(workItemKey),
+        ),
+      ],
+    );
+
+    return ColoredBox(
+      color: isSelected ? Theme.of(context).colorScheme.surfaceContainerHighest : Colors.transparent,
+      child: FutureBuilder<Map<String, dynamic>?>(
+        future: _workItem,
+        builder: (context, snapshot) {
+          if (snapshot.data != null) {
+            return IssueLinkTile(snapshot.data!, onSelect: (_) => onSelect(), trailing: actions);
+          }
+          if (snapshot.hasError) {
+            return ListTile(
+              tileColor: Colors.red.withAlpha(40),
+              leading: const Icon(Symbols.error),
+              title: Text(workItemKey),
+              subtitle: const Text('Jira would not return this one'),
+              trailing: actions,
+              onTap: onSelect,
+            );
+          }
           return ListTile(
-            tileColor: Colors.red.withAlpha(40),
-            leading: const Icon(Symbols.error),
-            title: Text(key),
-            onTap: () => WorkItemTabsModel().setActiveTab(tab),
+            leading: const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+            title: Text(workItemKey),
+            trailing: actions,
+            onTap: onSelect,
           );
-        }
-        return const ListTile(
-          leading: SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-          title: Text('Loading…'),
-        );
-      },
+        },
+      ),
     );
   }
 }

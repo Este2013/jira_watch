@@ -17,21 +17,26 @@ import 'package:url_launcher/url_launcher.dart';
 /// always popping a dialog: it wraps its content in one of these, and every
 /// tap-handler below checks for it first.
 class IssueNavigationScope extends InheritedWidget {
-  const IssueNavigationScope({super.key, required this.onOpen, this.onBack, this.onForward, required super.child});
+  const IssueNavigationScope({super.key, required this.onOpen, this.hasHistory = false, this.onBack, this.onForward, required super.child});
 
   final void Function(String workItemKey) onOpen;
 
-  /// Steps the tab's own history back or forward, or null where that end of
-  /// history is not reachable (or there is no history to speak of, outside a
-  /// work item tab) — a single-work-item view checks these to show its own
-  /// back/forward buttons only where they mean something.
+  /// Whether this scope is somewhere with a history of its own to step
+  /// through — a work item tab. Separate from [onBack]/[onForward] being
+  /// null, which only says that *end* of the history is not reachable: a tab
+  /// showing its first work item still wants the buttons, greyed out, rather
+  /// than having them appear later and shove the breadcrumb sideways.
+  final bool hasHistory;
+
+  /// Steps that history back or forward, null at either end of it.
   final VoidCallback? onBack;
   final VoidCallback? onForward;
 
   static IssueNavigationScope? maybeOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<IssueNavigationScope>();
 
   @override
-  bool updateShouldNotify(IssueNavigationScope oldWidget) => onOpen != oldWidget.onOpen || onBack != oldWidget.onBack || onForward != oldWidget.onForward;
+  bool updateShouldNotify(IssueNavigationScope oldWidget) =>
+      onOpen != oldWidget.onOpen || hasHistory != oldWidget.hasHistory || onBack != oldWidget.onBack || onForward != oldWidget.onForward;
 }
 
 /// Shows a work item's icon and key, formatting appropriately for links and adding a copy button if requested.
