@@ -299,6 +299,12 @@ class CommentDebugDialog extends StatelessWidget {
                           children: [
                             Expanded(child: Divider()),
                             Text('Body content:'),
+                            IconButton(
+                              iconSize: 16,
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () => Clipboard.setData(ClipboardData(text: JsonEncoder.withIndent('  ').convert(comment.body))),
+                              icon: Icon(Symbols.content_copy),
+                            ),
                             Expanded(child: Divider()),
                           ],
                         ),
