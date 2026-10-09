@@ -10,6 +10,7 @@ import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
+import 'package:jira_watcher/ui/utils/jira_ui_utils/adf_emoji.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/ui/utils/spanning_table.dart';
 import 'package:jira_watcher/ui/utils/time_utils.dart';
@@ -1041,9 +1042,20 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
   ///  - Standard — Unicode emoji
   ///  - Atlassian — Non-standard emoji introduced by Atlassian
   ///  - Site — Non-standard customer defined emoji
+  ///
+  /// Only `shortName` is required on the node; `id` and `text` are both
+  /// optional and Jira does leave them out, so every one of the three is read
+  /// defensively. Reaching straight for `text` threw a type error that took the
+  /// whole comment down with it. [adfEmojiCharacter] recovers the character
+  /// from whichever attribute is actually there, and the shortname — `:clap:` —
+  /// is the last resort, since a reader can at least tell what was meant.
   Widget _buildEmoji(BuildContext context, Map<String, dynamic> node) {
     // TODO emotes are not supported in jira API. feature will not happen for atlassian-custom emotes.
-    String id = node['attrs']['id'], text = node['attrs']['text'], shortName = node['attrs']['shortName'];
+    final attrs = (node['attrs'] as Map<String, dynamic>?) ?? const {};
+    final id = attrs['id']?.toString() ?? '';
+    final text = attrs['text']?.toString();
+    final shortName = attrs['shortName']?.toString() ?? '';
+
     Widget? byId = {
       'atlassian-check_mark': Icon(Symbols.check_circle, color: Colors.green),
       'atlassian-cross_mark': Transform.rotate(
@@ -1051,17 +1063,28 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         child: Icon(Symbols.add_circle, color: Colors.red),
       ),
     }[id];
-    if (byId != null) return Tooltip(message: shortName, child: byId);
+    if (byId != null) return _tooltipped(shortName, byId);
     Widget? byName = {
       ':windows:': Icon(Symbols.window),
       ':macos:': Icon(Icons.apple),
     }[shortName.toLowerCase()];
-    if (byName != null) return Tooltip(message: shortName, child: byName);
+    if (byName != null) return _tooltipped(shortName, byName);
+
+    final character = adfEmojiCharacter(attrs);
+    if (character != null) return _tooltipped(shortName, Text(character));
+
     if (id.startsWith('atlassian-')) {
       loggy.warning('Do not know how to render the atlassian emoji: ID: $id, text: $text');
     }
-    return Text(text);
+
+    final fallback = shortName.isNotEmpty ? shortName : (text ?? '');
+    if (fallback.isEmpty) return const SizedBox.shrink();
+    return Text(fallback);
   }
+
+  /// Names the emoji on hover, when it has a name worth showing. An empty
+  /// message would draw an empty tooltip rather than none.
+  Widget _tooltipped(String shortName, Widget child) => shortName.isEmpty ? child : Tooltip(message: shortName, child: child);
 
   Widget _buildHeading(BuildContext context, Map<String, dynamic> node) {
     final headingLevel = node['attrs']['level'] ?? 1;
@@ -1272,8 +1295,9 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       } else if (node['type'] == 'hardBreak') {
         spans.add(const TextSpan(text: '\n'));
       } else if (node['type'] == 'emoji') {
-        // Basic emoji support: render as text using shortName or text attr.
-        spans.add(WidgetSpan(child: _buildEmoji(context, node)));
+        // Centred like the other inline nodes: left to default to the bottom of
+        // the line box, an emoji glyph sits visibly below the text beside it.
+        spans.add(WidgetSpan(child: _buildEmoji(context, node), alignment: PlaceholderAlignment.middle));
       } else {
         var nodeRender = _buildNode(context, node, 0);
         if (nodeRender != null) {
@@ -1689,8 +1713,11 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
         return ' • ${items.join('\n • ')}';
       // case 'codeBlock':
       //   return _buildCodeBlock(context, node);
-      // case 'emoji':
-      //   return _buildEmoji(context, node);
+      case 'emoji':
+        // The character when it can be had, the shortname otherwise — the
+        // default case would walk into a node that has no content and drop it.
+        final attrs = node['attrs'] as Map<String, dynamic>?;
+        return adfEmojiCharacter(attrs) ?? attrs?['shortName']?.toString() ?? '';
       // case 'heading':
       //   return _buildHeading(context, node);
       // case 'inlineCard':

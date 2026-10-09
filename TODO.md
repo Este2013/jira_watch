@@ -47,7 +47,7 @@
 ## BUGS
  - if project filters are changed before request completes, the newer request is not taken into account
  - if a workItem is selected and a refresh occurs, the selected workItem does not update on right side 
- - Emojis are not rendered in comments (there is no Atlassian API for that)
+ - Atlassian's own and site-custom emoji are not rendered in comments (there is no Atlassian API for that). Standard Unicode ones are.
  - Comments: nested replies are not shown as nested
  - Jira attachments in description (ex: application/json) is given to the JiraImage widget, instead of building a dedicated widget for non-image types => ```// TODO FIX #json&ips```
  - macOS: Advanced tab is unable to open any of the folders shown
