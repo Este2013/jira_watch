@@ -18,6 +18,7 @@ library;
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:jira_watcher/models/mind_map_model.dart';
 import 'package:jira_watcher/models/mind_map_suggestions.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -55,6 +56,9 @@ class MindMapNavigator extends StatefulWidget {
     required this.onAcceptGhost,
     required this.onNodeMenu,
     required this.onCentreTap,
+    required this.onAddChild,
+    required this.onEditCurrent,
+    required this.onGoBack,
     this.onShowOverflow,
   });
 
@@ -70,6 +74,15 @@ class MindMapNavigator extends StatefulWidget {
 
   /// Tapping the middle opens it — the inspector, on a narrow window.
   final VoidCallback onCentreTap;
+
+  /// `+`: a new topic inside whatever is in the middle.
+  final VoidCallback onAddChild;
+
+  /// `Enter` with nothing in the ring picked: edit the middle one.
+  final VoidCallback onEditCurrent;
+
+  /// `Escape` or `Backspace`: up a level.
+  final VoidCallback onGoBack;
 
   final void Function(List<MindMapNeighbour> hidden)? onShowOverflow;
 
@@ -104,6 +117,18 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
 
   String? _hovered;
 
+  /// Which chip in the ring the keyboard has picked out, as an index into the
+  /// satellites of the constellation currently drawn. Null means the keyboard
+  /// is "on" the middle node, which is where it starts and where Escape
+  /// returns it.
+  int? _highlight;
+
+  /// Where each chip is headed this layout, kept from the last build so the
+  /// arrow keys can ask which one actually lies to the right.
+  Map<String, Offset> _targets = const {};
+
+  final FocusNode _keyboard = FocusNode(debugLabel: 'Mind map navigator');
+
   @override
   void initState() {
     super.initState();
@@ -124,14 +149,145 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
       _fromScale = Map.of(_currentScale);
       _lastFocusId = focusId;
       _focusInitialised = true;
+      // A new constellation: the old index would point at whichever node
+      // happens to sit in that slot now, which is not what anyone picked.
+      _highlight = null;
       _controller.forward(from: 0);
     }
   }
 
   @override
   void dispose() {
+    _keyboard.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  // KEYBOARD //////////////////////////////////////////////////////////////////
+
+  /// The keys that drive the map without the mouse.
+  ///
+  /// Two modes, and which one you are in is visible: with nothing picked out in
+  /// the ring the keyboard acts on the node in the middle, and once an arrow
+  /// has picked one it acts on that. Escape steps back out of the inner mode
+  /// before it steps back up a level, so there is never a press that does
+  /// something bigger than the reader expected.
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+
+    final key = event.logicalKey;
+
+    // Arrows repeat, because holding one to go round the ring is the obvious
+    // thing to try.
+    if (key == LogicalKeyboardKey.arrowRight) return _move(const Offset(1, 0), 1);
+    if (key == LogicalKeyboardKey.arrowDown) return _move(const Offset(0, 1), 1);
+    if (key == LogicalKeyboardKey.arrowLeft) return _move(const Offset(-1, 0), -1);
+    if (key == LogicalKeyboardKey.arrowUp) return _move(const Offset(0, -1), -1);
+
+    // Nothing below this line should fire again just because a key is held
+    // down: every one of them opens something or moves the whole map.
+    if (event is KeyRepeatEvent) return KeyEventResult.ignored;
+
+    // Matched on the character first, since `+` is a shifted key on some
+    // layouts and a key of its own on others, and the logical key that arrives
+    // differs accordingly. The two named keys are belt and braces.
+    if (event.character == '+' || key == LogicalKeyboardKey.add || key == LogicalKeyboardKey.numpadAdd) {
+      widget.onAddChild();
+      return KeyEventResult.handled;
+    }
+
+    if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.numpadEnter) {
+      final picked = _highlighted;
+      if (picked == null) {
+        widget.onEditCurrent();
+      } else {
+        _activate(picked);
+      }
+      return KeyEventResult.handled;
+    }
+
+    if (key == LogicalKeyboardKey.escape) {
+      // Out of the ring first, up a level only once already there.
+      if (_highlight != null) {
+        setState(() => _highlight = null);
+      } else {
+        widget.onGoBack();
+      }
+      return KeyEventResult.handled;
+    }
+
+    if (key == LogicalKeyboardKey.backspace) {
+      widget.onGoBack();
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
+  }
+
+  /// The chip the keyboard has picked, or null — including when the ring has
+  /// changed under it and the index no longer points at anything.
+  _Satellite? get _highlighted {
+    final index = _highlight;
+    if (index == null) return null;
+    final satellites = _satellites();
+    return index < satellites.length ? satellites[index] : null;
+  }
+
+  /// Picks a chip out of the ring, or moves to the next one.
+  ///
+  /// The first press goes by direction, so pressing right lands on something
+  /// that is actually to the right. After that the ring is a loop and the
+  /// arrows simply walk it — [step] forward or back — because a ring has no
+  /// "further right" to offer once you are on it.
+  KeyEventResult _move(Offset direction, int step) {
+    final satellites = _satellites();
+    if (satellites.isEmpty) return KeyEventResult.ignored;
+
+    setState(() {
+      final current = _highlight;
+      if (current == null || current >= satellites.length) {
+        _highlight = _nearestTo(direction, satellites);
+      } else {
+        _highlight = (current + step + satellites.length) % satellites.length;
+      }
+    });
+    return KeyEventResult.handled;
+  }
+
+  /// The chip lying most nearly in [direction] from the middle.
+  int _nearestTo(Offset direction, List<_Satellite> satellites) {
+    var best = 0;
+    // Below every real dot product, so the first candidate always wins against
+    // it even when every chip lies the other way.
+    var bestScore = -2.0;
+    for (var i = 0; i < satellites.length; i++) {
+      final offset = _targets[satellites[i].id];
+      if (offset == null || offset.distance == 0) continue;
+      final unit = offset / offset.distance;
+      final score = unit.dx * direction.dx + unit.dy * direction.dy;
+      if (score > bestScore) {
+        bestScore = score;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  /// Does whatever a chip is for — the same act whether it was clicked or
+  /// chosen with the keyboard, so the two can never drift apart.
+  void _activate(_Satellite satellite) {
+    _keyboard.requestFocus();
+    setState(() => _highlight = null);
+
+    if (satellite.isOverflow) {
+      widget.onShowOverflow?.call(satellite.overflow);
+      return;
+    }
+    if (satellite.ghost case final ghost?) {
+      widget.onAcceptGhost(ghost);
+      return;
+    }
+    widget.onFocus(satellite.neighbour!.node.id);
   }
 
   /// The ring, in a deliberate order: the parent first so it always takes the
@@ -175,6 +331,7 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
           targets[ghostList[i].id] = Offset.fromDirection(-pi / 2 + step * i + step / 2, radius * 1.46);
         }
         targets[_centreId] = Offset.zero;
+        _targets = targets;
 
         return AnimatedBuilder(
           animation: _controller,
@@ -209,34 +366,55 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
             _current.removeWhere((id, _) => !onScreen.contains(id));
             _currentScale.removeWhere((id, _) => !onScreen.contains(id));
 
-            return Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _SpokesPainter(
-                      centre: centrePosition,
-                      satellites: satellites,
-                      positions: placed,
-                      hovered: _hovered,
-                      colour: Theme.of(context).colorScheme.outline,
-                      focusColour: widget.focused?.color ?? Theme.of(context).colorScheme.primary,
-                      opacity: t,
+            final highlighted = _highlighted?.id;
+
+            return Focus(
+              focusNode: _keyboard,
+              // Claimed on arrival so the map answers the keyboard without
+              // being clicked first. A text field taking focus — the search
+              // box, the notes — takes these keys with it, which is exactly
+              // right: typing a `+` into a note must not create a topic.
+              autofocus: true,
+              onKeyEvent: _onKey,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _SpokesPainter(
+                        centre: centrePosition,
+                        satellites: satellites,
+                        positions: placed,
+                        // The pointer wins when both are on something: it is
+                        // the more deliberate of the two.
+                        emphasised: _hovered ?? highlighted,
+                        colour: Theme.of(context).colorScheme.outline,
+                        focusColour: widget.focused?.color ?? Theme.of(context).colorScheme.primary,
+                        opacity: t,
+                      ),
                     ),
                   ),
-                ),
-                for (final satellite in satellites)
+                  for (final satellite in satellites)
+                    _placed(
+                      position: placed[satellite.id]!,
+                      scale: scaleOf(satellite.id, satellite.isGhost ? 0.88 : 1),
+                      child: _satelliteChip(satellite, isHighlighted: satellite.id == highlighted),
+                    ),
                   _placed(
-                    position: placed[satellite.id]!,
-                    scale: scaleOf(satellite.id, satellite.isGhost ? 0.88 : 1),
-                    child: _satelliteChip(satellite),
+                    position: centrePosition,
+                    scale: scaleOf(_centreId, 1.16),
+                    // The middle is where the keyboard is whenever the ring is
+                    // not, so it says so — otherwise Enter would be a guess.
+                    child: _centreChip(isHighlighted: highlighted == null),
                   ),
-                _placed(
-                  position: centrePosition,
-                  scale: scaleOf(_centreId, 1.16),
-                  child: _centreChip(),
-                ),
-              ],
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 10,
+                    child: Center(child: _KeyboardHint(inTheRing: highlighted != null)),
+                  ),
+                ],
+              ),
             );
           },
         );
@@ -274,7 +452,7 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
     ),
   );
 
-  Widget _centreChip() {
+  Widget _centreChip({required bool isHighlighted}) {
     final node = widget.focused;
     if (node == null) {
       return _MindMapChip(
@@ -283,6 +461,7 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
         icon: Symbols.workspaces,
         colour: Theme.of(context).colorScheme.primary,
         emphasis: _ChipEmphasis.centre,
+        isHighlighted: isHighlighted,
         onTap: widget.onCentreTap,
       );
     }
@@ -292,13 +471,19 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
       icon: node.kind.icon,
       colour: node.color,
       emphasis: _ChipEmphasis.centre,
+      isHighlighted: isHighlighted,
       showsInterior: node.hasInterior,
       onTap: widget.onCentreTap,
       onSecondaryTap: (position) => widget.onNodeMenu(node, position),
     );
   }
 
-  Widget _satelliteChip(_Satellite satellite) {
+  Widget _satelliteChip(_Satellite satellite, {required bool isHighlighted}) {
+    // Every chip goes through _activate, so a click and an Enter are the same
+    // act rather than two implementations of it.
+    void activate() => _activate(satellite);
+    void hover(bool hovering) => setState(() => _hovered = hovering ? satellite.id : null);
+
     if (satellite.isOverflow) {
       return _MindMapChip(
         title: '+${satellite.overflow.length} more',
@@ -306,7 +491,9 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
         icon: Symbols.more_horiz,
         colour: Theme.of(context).colorScheme.outline,
         emphasis: _ChipEmphasis.satellite,
-        onTap: () => widget.onShowOverflow?.call(satellite.overflow),
+        isHighlighted: isHighlighted,
+        onTap: activate,
+        onHover: hover,
       );
     }
 
@@ -317,9 +504,10 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
         icon: Symbols.add_circle,
         colour: Theme.of(context).colorScheme.outline,
         emphasis: _ChipEmphasis.ghost,
+        isHighlighted: isHighlighted,
         tooltip: 'Jira links this one. Click to put it on the map.',
-        onTap: () => widget.onAcceptGhost(ghost),
-        onHover: (hovering) => setState(() => _hovered = hovering ? satellite.id : null),
+        onTap: activate,
+        onHover: hover,
       );
     }
 
@@ -335,10 +523,58 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
       icon: neighbour.relation == MindMapRelation.parent ? Symbols.arrow_upward : node.kind.icon,
       colour: node.color,
       emphasis: _ChipEmphasis.satellite,
+      isHighlighted: isHighlighted,
       showsInterior: node.hasInterior,
-      onTap: () => widget.onFocus(node.id),
+      onTap: activate,
       onSecondaryTap: (position) => widget.onNodeMenu(node, position),
-      onHover: (hovering) => setState(() => _hovered = hovering ? satellite.id : null),
+      onHover: hover,
+    );
+  }
+}
+
+/// The line along the bottom saying what the keyboard does from here.
+///
+/// Shown rather than left to be discovered: a shortcut nobody knows about is a
+/// shortcut nobody uses, and the map is meant to be driven without the mouse.
+/// It says different things in the two modes, which is also how a reader can
+/// tell which one they are in.
+class _KeyboardHint extends StatelessWidget {
+  const _KeyboardHint({required this.inTheRing});
+
+  final bool inTheRing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hints = inTheRing
+        ? const [('Enter', 'open'), ('↑ ↓ ← →', 'next'), ('Esc', 'back to the middle')]
+        : const [('+', 'new topic'), ('Enter', 'edit'), ('↑ ↓ ← →', 'pick one'), ('Esc', 'up a level')];
+
+    return DefaultTextStyle(
+      style: theme.textTheme.labelSmall!.copyWith(color: theme.hintColor),
+      child: Wrap(
+        spacing: 14,
+        runSpacing: 4,
+        alignment: WrapAlignment.center,
+        children: [
+          for (final (key, what) in hints)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 4,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: theme.dividerColor),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(key),
+                ),
+                Text(what),
+              ],
+            ),
+        ],
+      ),
     );
   }
 }
@@ -352,6 +588,7 @@ class _MindMapChip extends StatelessWidget {
     required this.icon,
     required this.colour,
     required this.emphasis,
+    this.isHighlighted = false,
     this.subtitle,
     this.tooltip,
     this.showsInterior = false,
@@ -365,6 +602,12 @@ class _MindMapChip extends StatelessWidget {
   final IconData icon;
   final Color colour;
   final _ChipEmphasis emphasis;
+
+  /// Where the keyboard is. Drawn as a ring around the chip rather than by
+  /// changing its own colours, so it reads as "this is selected" on top of
+  /// whatever the chip already looked like.
+  final bool isHighlighted;
+
   final String? tooltip;
 
   /// Draws the dot that says there is something written inside this node, so a
@@ -384,6 +627,12 @@ class _MindMapChip extends StatelessWidget {
     final body = Container(
       constraints: const BoxConstraints(maxWidth: 158),
       padding: EdgeInsets.symmetric(horizontal: isCentre ? 14 : 10, vertical: isCentre ? 10 : 8),
+      foregroundDecoration: isHighlighted
+          ? BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: theme.colorScheme.primary, width: 2.5),
+            )
+          : null,
       decoration: BoxDecoration(
         color: isGhost ? theme.colorScheme.surface.withValues(alpha: 0.6) : Color.alphaBlend(colour.withValues(alpha: isCentre ? 0.28 : 0.16), theme.colorScheme.surface),
         borderRadius: BorderRadius.circular(14),
@@ -464,7 +713,7 @@ class _SpokesPainter extends CustomPainter {
     required this.centre,
     required this.satellites,
     required this.positions,
-    required this.hovered,
+    required this.emphasised,
     required this.colour,
     required this.focusColour,
     required this.opacity,
@@ -473,7 +722,10 @@ class _SpokesPainter extends CustomPainter {
   final Offset centre;
   final List<_Satellite> satellites;
   final Map<String, Offset> positions;
-  final String? hovered;
+
+  /// The one spoke drawn brighter and thicker: whatever the pointer is over,
+  /// or whatever the keyboard has picked.
+  final String? emphasised;
   final Color colour;
   final Color focusColour;
 
@@ -487,13 +739,13 @@ class _SpokesPainter extends CustomPainter {
       final end = positions[satellite.id];
       if (end == null) continue;
 
-      final isHovered = hovered == satellite.id;
+      final isEmphasised = emphasised == satellite.id;
       final relation = satellite.neighbour?.relation;
       final base = satellite.isGhost ? colour : (relation == MindMapRelation.connected ? colour : focusColour);
 
       final paint = Paint()
-        ..color = base.withValues(alpha: (satellite.isGhost ? 0.3 : (isHovered ? 0.95 : 0.5)) * opacity)
-        ..strokeWidth = isHovered ? 2.6 : (satellite.isGhost ? 1.1 : 1.8)
+        ..color = base.withValues(alpha: (satellite.isGhost ? 0.3 : (isEmphasised ? 0.95 : 0.5)) * opacity)
+        ..strokeWidth = isEmphasised ? 2.6 : (satellite.isGhost ? 1.1 : 1.8)
         ..strokeCap = StrokeCap.round;
 
       // The line stops short of both chips, so it reads as joining them rather
@@ -531,7 +783,7 @@ class _SpokesPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_SpokesPainter old) =>
-      old.centre != centre || old.positions.length != positions.length || old.hovered != hovered || old.opacity != opacity || !_samePositions(old.positions, positions);
+      old.centre != centre || old.positions.length != positions.length || old.emphasised != emphasised || old.opacity != opacity || !_samePositions(old.positions, positions);
 
   static bool _samePositions(Map<String, Offset> a, Map<String, Offset> b) {
     for (final entry in a.entries) {

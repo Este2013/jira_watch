@@ -205,6 +205,9 @@ class _MindMapViewState extends State<MindMapView> {
             onAcceptGhost: (ghost) => _acceptGhost(ghost, focused),
             onNodeMenu: (node, position) => _nodeMenu(context, node, position),
             onCentreTap: () => _openInspector(context, focused),
+            onAddChild: () => _newTopic(context),
+            onEditCurrent: () => _editCurrent(context, focused),
+            onGoBack: () => _goBack(focused),
             onShowOverflow: (hidden) => _showOverflow(context, hidden),
           ),
         ),
@@ -353,6 +356,20 @@ class _MindMapViewState extends State<MindMapView> {
       builder: (_) => MindMapTopicDialog(model: _model, parentId: _model.focusedNodeId.value),
     );
     if (created != null) _focus(created.id);
+  }
+
+  /// Enter, with nothing picked out in the ring. The home constellation is not
+  /// a node, so there is nothing there to edit.
+  void _editCurrent(BuildContext context, MindMapNode? focused) {
+    if (focused == null) return;
+    showDialog<MindMapNode>(context: context, builder: (_) => MindMapTopicDialog(model: _model, editing: focused));
+  }
+
+  /// Escape and Backspace: up a level, and off the last one back to the home
+  /// constellation. Already home, there is nowhere further to go.
+  void _goBack(MindMapNode? focused) {
+    if (focused == null) return;
+    _focus(focused.parentId);
   }
 
   Future<void> _attachKey(BuildContext context, String key) async {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jira_watcher/models/mind_map_model.dart';
 import 'package:jira_watcher/models/mind_map_suggestions.dart';
@@ -213,6 +214,191 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(model.nodeById(audio.id)!.notes, 'The flaky one.');
+    });
+  });
+
+  group('the keyboard', () {
+    /// The navigator claims focus on arrival, so a key can simply be sent.
+    Future<void> press(WidgetTester tester, LogicalKeyboardKey key) async {
+      await tester.sendKeyEvent(key);
+      await tester.pumpAndSettle();
+    }
+
+    /// Four children, which the ring lays out at twelve, three, six and nine
+    /// o'clock in the order they were created.
+    (MindMapModel, MindMapSuggestions, MindMapNode) compass() {
+      final (model, suggestions) = emptyMap();
+      final hub = model.createTopic(title: 'Hub');
+      for (final title in ['North', 'East', 'South', 'West']) {
+        model.createTopic(title: title, parentId: hub.id);
+      }
+      model.focus(hub.id);
+      return (model, suggestions, hub);
+    }
+
+    testWidgets('an arrow picks the node lying that way, not just the first one', (tester) async {
+      final (model, suggestions, _) = compass();
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.arrowRight);
+      await press(tester, LogicalKeyboardKey.enter);
+
+      expect(model.focusedNode!.title, 'East');
+    });
+
+    testWidgets('pressing down first picks the node below', (tester) async {
+      final (model, suggestions, _) = compass();
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.arrowDown);
+      await press(tester, LogicalKeyboardKey.enter);
+
+      expect(model.focusedNode!.title, 'South');
+    });
+
+    testWidgets('a second arrow walks on round the ring', (tester) async {
+      final (model, suggestions, _) = compass();
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.arrowRight); // East
+      await press(tester, LogicalKeyboardKey.arrowRight); // South
+      await press(tester, LogicalKeyboardKey.enter);
+
+      expect(model.focusedNode!.title, 'South');
+    });
+
+    testWidgets('and wraps round the end rather than stopping', (tester) async {
+      final (model, suggestions, _) = compass();
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.arrowRight); // East
+      await press(tester, LogicalKeyboardKey.arrowLeft); // back to North
+      await press(tester, LogicalKeyboardKey.arrowLeft); // past it, round to West
+      await press(tester, LogicalKeyboardKey.enter);
+
+      expect(model.focusedNode!.title, 'West');
+    });
+
+    testWidgets('escape lets go of the ring before it goes anywhere', (tester) async {
+      final (model, suggestions) = emptyMap();
+      final audio = model.createTopic(title: 'Audio');
+      model.createTopic(title: 'Wave Link', parentId: audio.id);
+      model.focus(audio.id);
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.arrowRight);
+      await press(tester, LogicalKeyboardKey.escape);
+
+      // Still here: the first escape only stepped out of the ring.
+      expect(model.focusedNodeId.value, audio.id);
+
+      await press(tester, LogicalKeyboardKey.escape);
+      expect(model.focusedNodeId.value, isNull);
+    });
+
+    testWidgets('escape with nothing picked goes up a level', (tester) async {
+      final (model, suggestions) = emptyMap();
+      final audio = model.createTopic(title: 'Audio');
+      final wave = model.createTopic(title: 'Wave Link', parentId: audio.id);
+      model.focus(wave.id);
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.escape);
+
+      expect(model.focusedNodeId.value, audio.id);
+    });
+
+    testWidgets('backspace goes up a level even from inside the ring', (tester) async {
+      final (model, suggestions) = emptyMap();
+      final audio = model.createTopic(title: 'Audio');
+      final wave = model.createTopic(title: 'Wave Link', parentId: audio.id);
+      model.createTopic(title: 'Mixer', parentId: wave.id);
+      model.focus(wave.id);
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.arrowRight);
+      await press(tester, LogicalKeyboardKey.backspace);
+
+      expect(model.focusedNodeId.value, audio.id);
+    });
+
+    testWidgets('escape at the home constellation does nothing', (tester) async {
+      final (model, suggestions) = emptyMap();
+      model.createTopic(title: 'Audio');
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.escape);
+
+      expect(model.focusedNodeId.value, isNull);
+    });
+
+    testWidgets('plus opens a new topic inside the current one', (tester) async {
+      final (model, suggestions) = emptyMap();
+      final audio = model.createTopic(title: 'Audio');
+      model.focus(audio.id);
+
+      await pumpView(tester, model, suggestions);
+      // The chord a keyboard actually sends: the key is `=`, and the `+` is in
+      // the character. LogicalKeyboardKey.add has no physical key to simulate.
+      await tester.sendKeyEvent(LogicalKeyboardKey.equal, character: '+');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Inside Audio'), findsOneWidget);
+    });
+
+    testWidgets('enter with nothing picked edits the node in the middle', (tester) async {
+      final (model, suggestions) = emptyMap();
+      final audio = model.createTopic(title: 'Audio');
+      model.focus(audio.id);
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.enter);
+
+      expect(find.text('Edit topic'), findsOneWidget);
+    });
+
+    testWidgets('enter at the home constellation has nothing to edit', (tester) async {
+      final (model, suggestions) = emptyMap();
+      model.createTopic(title: 'Audio');
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.enter);
+
+      expect(find.text('Edit topic'), findsNothing);
+    });
+
+    testWidgets('the ring is let go of when the map moves under it', (tester) async {
+      final (model, suggestions) = emptyMap();
+      final audio = model.createTopic(title: 'Audio');
+      final wave = model.createTopic(title: 'Wave Link', parentId: audio.id);
+      model.createTopic(title: 'Mixer', parentId: wave.id);
+      model.focus(audio.id);
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.arrowRight); // picks Wave Link
+      await press(tester, LogicalKeyboardKey.enter); // and opens it
+
+      // The second enter must edit the newly centred node rather than open
+      // whatever now sits in the slot the last pick was pointing at.
+      await press(tester, LogicalKeyboardKey.enter);
+      expect(find.text('Edit topic'), findsOneWidget);
+      expect(model.focusedNodeId.value, wave.id);
+    });
+
+    testWidgets('typing in the search box is not read as a shortcut', (tester) async {
+      final (model, suggestions) = emptyMap();
+      final audio = model.createTopic(title: 'Audio');
+      model.focus(audio.id);
+
+      await pumpView(tester, model, suggestions);
+      await tester.tap(find.byType(TextField).first);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, 'a+b');
+      await tester.pumpAndSettle();
+
+      // The plus landed in the box rather than opening the new-topic dialog.
+      expect(find.text('Inside Audio'), findsNothing);
+      expect(find.text('Nothing on the map matches that.'), findsOneWidget);
     });
   });
 }
