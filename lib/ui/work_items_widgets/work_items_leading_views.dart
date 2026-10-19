@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/work_item_tabs_model.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
-import 'package:jira_watcher/ui/utils/under_constuction_notice.dart';
 import 'package:jira_watcher/ui/utils/widgets/work_item_list_preview.dart';
 import 'package:jira_watcher/ui/work_items_widgets/dashboards_view.dart';
+import 'package:jira_watcher/ui/work_items_widgets/mind_map/mind_map_view.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 /// The content behind one of the strip's fixed leading items.
@@ -25,9 +25,7 @@ class WorkItemsLeadingViewContent extends StatelessWidget {
     // afford it.
     WorkItemsLeadingView.dashboards => const DashboardsView(),
     WorkItemsLeadingView.pinnedWorkItems => _PinnedWorkItemsView(),
-    // Mind map is its own, later phase of this feature — a static
-    // placeholder, so constant is exactly right here.
-    WorkItemsLeadingView.mindMap => const UnderConstructionNotice(),
+    WorkItemsLeadingView.mindMap => MindMapView(),
   };
 }
 

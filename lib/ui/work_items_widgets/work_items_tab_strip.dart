@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart';
 import 'package:jira_watcher/models/work_item_tabs_model.dart';
 import 'package:jira_watcher/ui/utils/widgets/browser_tab_chip.dart';
+import 'package:jira_watcher/ui/work_items_widgets/mind_map/mind_map_dialogs.dart';
 import 'package:jira_watcher/ui/work_items_widgets/work_item_tab_group_dialog.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -163,6 +164,12 @@ class _WorkItemTabChip extends StatelessWidget {
               label: Text(model.isPinned(key) ? 'Unpin' : 'Pin'),
               icon: Icon(model.isPinned(key) ? Symbols.keep_off : Symbols.push_pin, fill: model.isPinned(key) ? 0 : 1),
               onSelected: (_) => model.togglePin(key),
+            ),
+          if (tab.currentKey case final key?)
+            MenuItem(
+              label: const Text('Add to mind map'),
+              icon: const Icon(Symbols.hub),
+              onSelected: (_) => addToMindMap(context, key),
             ),
           MenuItem.submenu(
             label: const Text('Add to group'),
