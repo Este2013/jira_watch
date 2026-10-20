@@ -491,4 +491,192 @@ void main() {
       expect(find.text('Nothing on the map matches that.'), findsOneWidget);
     });
   });
+
+  group('links as nodes', () {
+    Future<void> press(WidgetTester tester, LogicalKeyboardKey key) async {
+      await tester.sendKeyEvent(key);
+      await tester.pumpAndSettle();
+    }
+
+    /// Two topics pointing at the same page, plus one link of its own.
+    (MindMapModel, MindMapSuggestions, MindMapNode, MindMapNode) shared() {
+      final (model, suggestions) = emptyMap();
+      final audio = model.createTopic(title: 'Audio');
+      final video = model.createTopic(title: 'Video');
+      model.addLink(audio.id, url: 'https://app.qase.io/run/42', title: 'Smoke run 42');
+      model.addLink(video.id, url: 'https://app.qase.io/run/42/', title: 'Smoke run 42');
+      model.addLink(audio.id, url: 'https://gitlab.com/x/-/merge_requests/9', title: 'The fix');
+      model.focus(audio.id);
+      return (model, suggestions, audio, video);
+    }
+
+    testWidgets('are hidden until the mode is turned on', (tester) async {
+      final (model, suggestions, _, _) = shared();
+
+      await pumpView(tester, model, suggestions);
+
+      expect(onTheMap('Smoke run 42'), findsNothing);
+    });
+
+    testWidgets('alt+L draws the focused node links around it', (tester) async {
+      final (model, suggestions, _, _) = shared();
+
+      await pumpView(tester, model, suggestions);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await press(tester, LogicalKeyboardKey.keyL);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.pumpAndSettle();
+
+      expect(onTheMap('Smoke run 42'), findsOneWidget);
+      expect(onTheMap('The fix'), findsOneWidget);
+      expect(model.linksAsNodes.value, isTrue);
+    });
+
+    testWidgets('alt+L again puts them away', (tester) async {
+      final (model, suggestions, _, _) = shared();
+      model.setLinksAsNodes(true);
+
+      await pumpView(tester, model, suggestions);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await press(tester, LogicalKeyboardKey.keyL);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.pumpAndSettle();
+
+      expect(onTheMap('Smoke run 42'), findsNothing);
+      expect(model.linksAsNodes.value, isFalse);
+    });
+
+    testWidgets('a link shared by two nodes says so', (tester) async {
+      final (model, suggestions, _, _) = shared();
+      model.setLinksAsNodes(true);
+
+      await pumpView(tester, model, suggestions);
+
+      expect(onTheMap('in 2 nodes'), findsOneWidget);
+    });
+
+    testWidgets('moving to a link shows every node holding it', (tester) async {
+      final (model, suggestions, audio, video) = shared();
+      model.setLinksAsNodes(true);
+
+      await pumpView(tester, model, suggestions);
+      await tester.tap(onTheMap('Smoke run 42'));
+      await tester.pumpAndSettle();
+
+      // Both holders are now in the ring — including the one the link was
+      // reached from, since the point is seeing the whole web at once.
+      expect(onTheMap('Audio'), findsOneWidget);
+      expect(onTheMap('Video'), findsOneWidget);
+      // And the map itself has not moved: escape comes back here.
+      expect(model.focusedNodeId.value, audio.id);
+      expect(video.id, isNotEmpty);
+    });
+
+    testWidgets('the same URL written two ways is one link', (tester) async {
+      // Audio has it without a trailing slash and Video with one.
+      final (model, suggestions, _, _) = shared();
+
+      expect(model.nodesLinking('https://app.qase.io/run/42'), hasLength(2));
+      expect(suggestions, isNotNull);
+    });
+
+    testWidgets('escape from a link comes back to the node', (tester) async {
+      final (model, suggestions, audio, _) = shared();
+      model.setLinksAsNodes(true);
+
+      await pumpView(tester, model, suggestions);
+      await tester.tap(onTheMap('Smoke run 42'));
+      await tester.pumpAndSettle();
+      await press(tester, LogicalKeyboardKey.escape);
+
+      expect(onTheMap('Smoke run 42'), findsOneWidget); // back in the ring
+      expect(find.text('Notes'), findsOneWidget); // the node inspector again
+      expect(model.focusedNodeId.value, audio.id);
+    });
+
+    testWidgets('a holder in the ring is a way into that node', (tester) async {
+      final (model, suggestions, _, video) = shared();
+      model.setLinksAsNodes(true);
+
+      await pumpView(tester, model, suggestions);
+      await tester.tap(onTheMap('Smoke run 42'));
+      await tester.pumpAndSettle();
+      await tester.tap(onTheMap('Video'));
+      await tester.pumpAndSettle();
+
+      expect(model.focusedNodeId.value, video.id);
+    });
+
+    testWidgets('the inspector lists the nodes holding the link', (tester) async {
+      final (model, suggestions, _, _) = shared();
+      model.setLinksAsNodes(true);
+
+      await pumpView(tester, model, suggestions);
+      await tester.tap(onTheMap('Smoke run 42'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Held by 2 nodes'), findsOneWidget);
+    });
+
+    testWidgets('turning the mode off while standing on a link steps back out', (tester) async {
+      final (model, suggestions, audio, _) = shared();
+      model.setLinksAsNodes(true);
+
+      await pumpView(tester, model, suggestions);
+      await tester.tap(onTheMap('Smoke run 42'));
+      await tester.pumpAndSettle();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await press(tester, LogicalKeyboardKey.keyL);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Held by 2 nodes'), findsNothing);
+      expect(model.focusedNodeId.value, audio.id);
+    });
+
+    testWidgets('ctrl+L adds a link to the node in the middle', (tester) async {
+      final (model, suggestions, _, _) = shared();
+
+      await pumpView(tester, model, suggestions);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await press(tester, LogicalKeyboardKey.keyL);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add a link'), findsOneWidget);
+    });
+
+    testWidgets('ctrl+L adds it to the node picked out of the ring instead', (tester) async {
+      final (model, suggestions) = emptyMap();
+      final audio = model.createTopic(title: 'Audio');
+      model.createTopic(title: 'Wave Link', parentId: audio.id);
+      model.focus(audio.id);
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.arrowRight); // picks Wave Link
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await press(tester, LogicalKeyboardKey.keyL);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add a link'), findsOneWidget);
+      // Typing a URL would file it on Wave Link, not on Audio.
+      await tester.enterText(find.widgetWithText(TextField, 'https://…'), 'https://example.com/x');
+      await tester.tap(find.widgetWithText(FilledButton, 'Add'));
+      await tester.pumpAndSettle();
+
+      expect(model.nodes.list.firstWhere((n) => n.title == 'Wave Link').links, hasLength(1));
+      expect(model.nodeById(audio.id)!.links, isEmpty);
+    });
+
+    testWidgets('a bare L is not a shortcut', (tester) async {
+      final (model, suggestions, _, _) = shared();
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.keyL);
+
+      expect(find.text('Add a link'), findsNothing);
+      expect(model.linksAsNodes.value, isFalse);
+    });
+  });
 }

@@ -10,6 +10,7 @@ import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/settings_model.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/single_work_item_view.dart';
 import 'package:jira_watcher/ui/updates_widgets/updates_view_single_work_item/work_item_details_view.dart';
+import 'package:jira_watcher/ui/utils/in_app_links.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/adf_emoji.dart';
 import 'package:jira_watcher/ui/utils/jira_ui_utils/jira_images.dart';
 import 'package:jira_watcher/ui/utils/spanning_table.dart';
@@ -742,7 +743,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
       recognizer = TapGestureRecognizer()
         ..onTap = () {
           if (targetUrl.isEmpty) return;
-          defaultLinkHandler(targetUrl);
+          defaultLinkHandler(context, targetUrl);
         };
       return RichText(
         textScaler: MediaQuery.textScalerOf(context),
@@ -1284,7 +1285,7 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
                   if (linkHandler != null) {
                     linkHandler!(href);
                   } else {
-                    defaultLinkHandler(href);
+                    defaultLinkHandler(context, href);
                   }
                 };
               break;
@@ -1683,7 +1684,12 @@ class _AdfRenderer extends StatelessWidget with UiLoggy {
     return const [];
   }
 
-  void defaultLinkHandler(String url) => launchUrl(Uri.parse(url));
+  /// Where a tapped link goes when the caller has not said.
+  ///
+  /// A work item or a wiki page on this site is shown by the app itself rather
+  /// than handed to a browser that would only ask the reader to sign in again
+  /// — see [openLink]. Everything else is launched exactly as before.
+  void defaultLinkHandler(BuildContext context, String url) => openLink(context, url);
 
   List<String> _buildPlainTextInlineSpans(List<Map<String, dynamic>> content, {TextStyle? style}) {
     final spans = <String>[];

@@ -12,6 +12,7 @@ import 'package:flutter_context_menu/flutter_context_menu.dart';
 import 'package:jira_watcher/models/mind_map_model.dart';
 import 'package:jira_watcher/models/mind_map_suggestions.dart';
 import 'package:jira_watcher/models/work_item_tabs_model.dart';
+import 'package:jira_watcher/ui/utils/in_app_links.dart';
 import 'package:jira_watcher/ui/work_items_widgets/mind_map/mind_map_dialogs.dart';
 import 'package:jira_watcher/ui/work_items_widgets/mind_map/mind_map_inspector.dart';
 import 'package:jira_watcher/ui/work_items_widgets/mind_map/mind_map_navigator.dart';
@@ -43,6 +44,13 @@ class _MindMapViewState extends State<MindMapView> {
   /// in `build` so the navigator is not handed a different future every frame.
   MindMapNodeSuggestions _nodeSuggestions = MindMapNodeSuggestions.empty;
   String? _suggestionsFor;
+
+  /// The link the navigator is centred on, when it is centred on one.
+  ///
+  /// A view state rather than a move of the map's own focus: the node it was
+  /// reached from stays focused underneath, so stepping back out of a link
+  /// lands exactly where it was opened from.
+  MindMapLink? _focusedLink;
 
   /// Past this, the inspector gets a column of its own. Below it, the
   /// navigator keeps the whole window and a node opens over it.
@@ -77,8 +85,31 @@ class _MindMapViewState extends State<MindMapView> {
   void _focus(String? nodeId) {
     setState(() {
       _search.clear();
+      _focusedLink = null;
       _model.focus(nodeId);
     });
+  }
+
+  /// Centres on a link: the nodes holding it come into the ring, connected to
+  /// it by the same dashed line any other loose connection gets.
+  void _focusLink(MindMapLink link) => setState(() {
+    _search.clear();
+    _focusedLink = link;
+  });
+
+  void _toggleLinkNodes() => setState(() {
+    final showing = !_model.linksAsNodes.value;
+    _model.setLinksAsNodes(showing);
+    // Turning the mode off while standing on a link would leave the middle
+    // showing something the map no longer draws.
+    if (!showing) _focusedLink = null;
+  });
+
+  Future<void> _addLinkTo(MindMapNode node) async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => MindMapLinkDialog(model: _model, nodeId: node.id),
+    );
   }
 
   @override
@@ -181,7 +212,10 @@ class _MindMapViewState extends State<MindMapView> {
                       ),
                     ),
                   if (_tags.isNotEmpty)
-                    TextButton(onPressed: () => setState(_tags.clear), child: Text('Clear', style: theme.textTheme.labelMedium)),
+                    TextButton(
+                      onPressed: () => setState(_tags.clear),
+                      child: Text('Clear', style: theme.textTheme.labelMedium),
+                    ),
                 ],
               ),
             ),
@@ -194,50 +228,70 @@ class _MindMapViewState extends State<MindMapView> {
     if (_searching) return _results(context);
     if (_model.nodes.list.isEmpty) return _EmptyMap(onCreate: () => _newTopic(context));
 
+    final link = _focusedLink;
+
+    // Standing on a link, the ring is everything that holds it — as loose
+    // connections, which is exactly what they are and exactly how they are
+    // drawn: a dashed line out to each.
+    final neighbours = link != null ? [for (final holder in _model.nodesLinking(link.url)) MindMapNeighbour(holder, MindMapRelation.connected)] : (focused == null ? [for (final root in _model.rootNodes) MindMapNeighbour(root, MindMapRelation.child)] : _model.neighboursOf(focused.id));
+
     final navigator = Stack(
       children: [
         Positioned.fill(
           child: MindMapNavigator(
             focused: focused,
-            neighbours: focused == null ? [for (final root in _model.rootNodes) MindMapNeighbour(root, MindMapRelation.child)] : _model.neighboursOf(focused.id),
-            ghosts: _nodeSuggestions.ghosts,
+            focusedLink: link,
+            neighbours: neighbours,
+            // The ring around a link is the nodes holding it; drawing its own
+            // node's other links there as well would say nothing about where
+            // the reader is standing.
+            links: (link == null && focused != null && _model.linksAsNodes.value) ? focused.links : const [],
+            holdersOf: (candidate) => _model.nodesLinking(candidate.url).length,
+            ghosts: link == null ? _nodeSuggestions.ghosts : const [],
             onFocus: _focus,
+            onFocusLink: _focusLink,
+            onOpenLink: (candidate) => openLink(context, candidate.url),
+            onAddLink: _addLinkTo,
+            onToggleLinkNodes: _toggleLinkNodes,
+            linkNodesOn: _model.linksAsNodes.value,
             onAcceptGhost: (ghost) => _acceptGhost(ghost, focused),
             onNodeMenu: (node, position) => _nodeMenu(context, node, position),
-            onCentreTap: () => _openInspector(context, focused),
-            onAddChild: () => _newTopic(context),
-            onEditCurrent: () => _editCurrent(context, focused),
-            onGoBack: () => _goBack(focused),
+            onCentreTap: () => link == null ? _openInspector(context, focused) : openLink(context, link.url),
+            onAddChild: () => link == null ? _newTopic(context) : null,
+            onEditCurrent: () => link == null ? _editCurrent(context, focused) : openLink(context, link.url),
+            onGoBack: () => link == null ? _goBack(focused) : setState(() => _focusedLink = null),
             onShowOverflow: (hidden) => _showOverflow(context, hidden),
           ),
         ),
-        if (focused != null)
+        if (focused != null || link != null)
           Positioned(
             left: 12,
             top: 12,
-            child: _breadcrumb(context, focused),
+            child: _breadcrumb(context, focused, link),
           ),
       ],
     );
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < _twoPaneWidth || focused == null) return navigator;
+        if (constraints.maxWidth < _twoPaneWidth || (focused == null && link == null)) return navigator;
         return Row(
           children: [
             Expanded(child: navigator),
             const VerticalDivider(width: 1),
             SizedBox(
               width: 380,
-              child: MindMapInspector(
-                // Keyed by node, so the notes field belongs to the node it is
-                // showing rather than carrying text across a jump.
-                key: ValueKey(focused.id),
-                model: _model,
-                suggestions: _suggestions,
-                node: focused,
-                onFocus: _focus,
-              ),
+              child: link != null
+                  ? MindMapLinkInspector(key: ValueKey(link.id), model: _model, link: link, onFocus: _focus)
+                  : MindMapInspector(
+                      // Keyed by node, so the notes field belongs to the node
+                      // it is showing rather than carrying text across a jump.
+                      key: ValueKey(focused!.id),
+                      model: _model,
+                      suggestions: _suggestions,
+                      node: focused,
+                      onFocus: _focus,
+                    ),
             ),
           ],
         );
@@ -245,45 +299,85 @@ class _MindMapViewState extends State<MindMapView> {
     );
   }
 
-  Widget _breadcrumb(BuildContext context, MindMapNode focused) {
+  Widget _breadcrumb(BuildContext context, MindMapNode? focused, MindMapLink? link) {
     final theme = Theme.of(context);
-    final path = _model.pathTo(focused.id);
+    final path = focused == null ? <MindMapNode>[] : _model.pathTo(focused.id);
 
     return Material(
       color: theme.colorScheme.surface.withValues(alpha: 0.86),
       borderRadius: BorderRadius.circular(20),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: 4,
-          children: [
-            InkWell(
-              onTap: () => _focus(null),
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                child: Icon(Symbols.workspaces, size: 16, color: theme.colorScheme.primary),
-              ),
-            ),
-            for (final node in path) ...[
-              Text('›', style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
+        // Capped and elided rather than left to grow: a deep path, or a link
+        // with a long title on the end of one, would otherwise run off the
+        // side of the map.
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 4,
+            children: [
               InkWell(
-                onTap: node.id == focused.id ? null : () => _focus(node.id),
+                onTap: () => _focus(null),
                 borderRadius: BorderRadius.circular(12),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  child: Text(
-                    node.title,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: node.id == focused.id ? null : theme.colorScheme.primary,
-                      fontWeight: node.id == focused.id ? FontWeight.w700 : null,
+                  child: Icon(Symbols.workspaces, size: 16, color: theme.colorScheme.primary),
+                ),
+              ),
+              for (final node in path) ...[
+                Text('›', style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
+                Builder(
+                  builder: (context) {
+                    // The node under a link stays clickable: it is where Escape
+                    // would take you, so saying so costs nothing.
+                    final isHere = node.id == focused?.id && link == null;
+                    return Flexible(
+                      child: InkWell(
+                        onTap: isHere ? null : () => _focus(node.id),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          child: Text(
+                            node.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: isHere ? null : theme.colorScheme.primary,
+                              fontWeight: isHere ? FontWeight.w700 : null,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+              if (link != null) ...[
+                Text('›', style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
+                Flexible(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 4,
+                      children: [
+                        Icon(link.icon, size: 13, color: theme.colorScheme.tertiary),
+                        Flexible(
+                          child: Text(
+                            link.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -362,7 +456,10 @@ class _MindMapViewState extends State<MindMapView> {
   /// a node, so there is nothing there to edit.
   void _editCurrent(BuildContext context, MindMapNode? focused) {
     if (focused == null) return;
-    showDialog<MindMapNode>(context: context, builder: (_) => MindMapTopicDialog(model: _model, editing: focused));
+    showDialog<MindMapNode>(
+      context: context,
+      builder: (_) => MindMapTopicDialog(model: _model, editing: focused),
+    );
   }
 
   /// Escape and Backspace: up a level, and off the last one back to the home
@@ -465,7 +562,10 @@ class _MindMapViewState extends State<MindMapView> {
       contextMenu: ContextMenu(
         position: position,
         entries: <ContextMenuEntry>[
-          MenuItem(label: Center(child: Text(node.title, maxLines: 1, overflow: TextOverflow.ellipsis)), enabled: false),
+          MenuItem(
+            label: Center(child: Text(node.title, maxLines: 1, overflow: TextOverflow.ellipsis)),
+            enabled: false,
+          ),
           const MenuDivider(),
           MenuItem(
             label: const Text('Open'),
@@ -475,17 +575,26 @@ class _MindMapViewState extends State<MindMapView> {
           MenuItem(
             label: const Text('Edit'),
             icon: const Icon(Symbols.edit),
-            onSelected: (_) => showDialog(context: context, builder: (_) => MindMapTopicDialog(model: _model, editing: node)),
+            onSelected: (_) => showDialog(
+              context: context,
+              builder: (_) => MindMapTopicDialog(model: _model, editing: node),
+            ),
           ),
           MenuItem(
             label: const Text('Connect to…'),
             icon: const Icon(Symbols.polyline),
-            onSelected: (_) => showDialog(context: context, builder: (_) => MindMapConnectDialog(model: _model, from: node)),
+            onSelected: (_) => showDialog(
+              context: context,
+              builder: (_) => MindMapConnectDialog(model: _model, from: node),
+            ),
           ),
           MenuItem(
             label: const Text('Move into…'),
             icon: const Icon(Symbols.drive_file_move),
-            onSelected: (_) => showDialog(context: context, builder: (_) => MindMapMoveDialog(model: _model, node: node)),
+            onSelected: (_) => showDialog(
+              context: context,
+              builder: (_) => MindMapMoveDialog(model: _model, node: node),
+            ),
           ),
           if (node.workItemKey case final key?) ...[
             const MenuDivider(),

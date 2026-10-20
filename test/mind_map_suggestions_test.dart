@@ -21,7 +21,7 @@ Map<String, dynamic> issue({
       for (final c in components) {'name': c},
     ],
     'labels': labels,
-    if (parent != null) 'parent': parent,
+    'parent': ?parent,
     'subtasks': subtasks,
     'issuelinks': links,
   },

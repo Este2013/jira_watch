@@ -7,13 +7,15 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:jira_watcher/models/mind_map_model.dart';
 import 'package:jira_watcher/models/mind_map_suggestions.dart';
 import 'package:jira_watcher/models/to_do_tasks_models.dart';
 import 'package:jira_watcher/models/work_item_tabs_model.dart';
+import 'package:jira_watcher/ui/utils/widgets/app_snackbar.dart';
+import 'package:jira_watcher/ui/utils/in_app_links.dart';
 import 'package:jira_watcher/ui/work_items_widgets/mind_map/mind_map_dialogs.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class MindMapInspector extends StatefulWidget {
   const MindMapInspector({
@@ -298,7 +300,7 @@ class _MindMapInspectorState extends State<MindMapInspector> {
     leading: Icon(link.icon, size: 20),
     title: Text(link.title, maxLines: 1, overflow: TextOverflow.ellipsis),
     subtitle: Text(link.note ?? link.url, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
-    onTap: () => launchUrl(Uri.parse(link.url)),
+    onTap: () => openLink(context, link.url),
     trailing: MenuAnchor(
       menuChildren: [
         MenuItemButton(
@@ -477,5 +479,105 @@ class _MindMapInspectorState extends State<MindMapInspector> {
   void _acceptGhost(MindMapGhost ghost, MindMapNode node) {
     acceptMindMapGhost(_model, near: node, ghost: ghost);
     _refreshSuggestions();
+  }
+}
+
+/// The inside of a link, when the navigator is centred on one.
+///
+/// A link is not a node, so there is nothing here to edit — but there is
+/// something worth reading: which nodes on the map hold it. Two unrelated
+/// topics pointing at the same page is the map noticing a connection nobody
+/// has written down, and this is where that shows.
+class MindMapLinkInspector extends StatelessWidget {
+  const MindMapLinkInspector({super.key, required this.model, required this.link, required this.onFocus});
+
+  final MindMapModel model;
+  final MindMapLink link;
+  final void Function(String nodeId) onFocus;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final holders = model.nodesLinking(link.url);
+    final destination = inAppLinkFor(link.url);
+
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 8,
+            children: [
+              Icon(link.icon, color: theme.colorScheme.tertiary),
+              Expanded(child: Text(link.title, style: theme.textTheme.titleLarge)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SelectableText(link.url, style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
+          const SizedBox(height: 12),
+          Row(
+            spacing: 8,
+            children: [
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  // Named for where it actually goes, so nobody is surprised
+                  // by a dialog when they expected a browser, or the reverse.
+                  icon: Icon(destination?.kind.icon ?? Symbols.open_in_new, size: 18),
+                  label: Text(
+                    destination == null ? 'Open in the browser' : 'Open the ${destination.kind.label.toLowerCase()}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onPressed: () => openLink(context, link.url),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Copy the link',
+                icon: const Icon(Symbols.content_copy),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: link.url));
+                  showAppSnackBar(context, const SnackBar(content: Text('Link copied.')), duration: const Duration(seconds: 2));
+                },
+              ),
+            ],
+          ),
+          if (link.note != null) ...[
+            const SizedBox(height: 16),
+            Text(link.note!, style: theme.textTheme.bodyMedium),
+          ],
+          const SizedBox(height: 24),
+          Text(
+            holders.length == 1 ? 'Held by one node' : 'Held by ${holders.length} nodes',
+            style: theme.textTheme.labelLarge?.copyWith(color: theme.hintColor),
+          ),
+          const SizedBox(height: 4),
+          for (final holder in holders)
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(holder.kind.icon, color: holder.color, size: 20),
+              title: Text(holder.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+              subtitle: Text(
+                [
+                  model.pathTo(holder.id).map((n) => n.title).join(' › '),
+                  ?model.linkOn(holder, link.url)?.group,
+                ].where((s) => s.isNotEmpty).join('  ·  '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: () => onFocus(holder.id),
+            ),
+          if (holders.length > 1) ...[
+            const SizedBox(height: 12),
+            Text(
+              'These all point at the same place. That is often worth a connection on the map, or a topic of its own.',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }

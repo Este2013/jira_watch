@@ -130,6 +130,22 @@ class MindMapLink {
   }
 }
 
+/// The form of a URL that decides whether two links are the same one.
+///
+/// Scheme and host are case-insensitive and a trailing slash means nothing, so
+/// two people pasting the same page should not leave the map holding two of it.
+/// Everything past the host is left exactly as written — a query or a fragment
+/// is frequently the whole point of a link, and normalising those away would
+/// merge two genuinely different destinations.
+String canonicalLinkUrl(String url) {
+  final trimmed = url.trim();
+  final uri = Uri.tryParse(trimmed);
+  if (uri == null || !uri.hasScheme || uri.host.isEmpty) return trimmed.toLowerCase();
+
+  final path = uri.path.endsWith('/') && uri.path.length > 1 ? uri.path.substring(0, uri.path.length - 1) : uri.path;
+  return uri.replace(scheme: uri.scheme.toLowerCase(), host: uri.host.toLowerCase(), path: path).toString();
+}
+
 /// One node of the map.
 ///
 /// Immutable: every mutator on [MindMapModel] replaces the node in the list
@@ -375,8 +391,15 @@ class MindMapModel with GlobalLoggy {
   /// of root topics.
   final ValueNotifier<String?> focusedNodeId = ValueNotifier(null);
 
+  /// Whether a node's links are drawn around it as nodes of their own.
+  ///
+  /// A way of looking at the map rather than a property of it — but a saved
+  /// one, because a reader who works this way works this way every time, and
+  /// having to switch it back on at every launch would be its own small tax.
+  final ValueNotifier<bool> linksAsNodes = ValueNotifier(false);
+
   /// Everything that should redraw the navigator when it changes.
-  Listenable get listenable => Listenable.merge([nodes, edges, focusedNodeId]);
+  Listenable get listenable => Listenable.merge([nodes, edges, focusedNodeId, linksAsNodes]);
 
   late Future<bool> isReady;
   bool _saveRequested = false;
@@ -417,6 +440,7 @@ class MindMapModel with GlobalLoggy {
 
       final savedFocus = data['focusedNodeId'] as String?;
       focusedNodeId.value = ids.contains(savedFocus) ? savedFocus : null;
+      linksAsNodes.value = data['linksAsNodes'] as bool? ?? false;
     } on Object catch (e) {
       loggy.error('mind_map.json could not be read ($e). Starting with an empty map.');
       nodes = ObservableList();
@@ -448,6 +472,28 @@ class MindMapModel with GlobalLoggy {
   /// Every work item key on the map, for the suggestion engine to match
   /// against.
   Set<String> get workItemKeys => nodes.list.map((n) => n.workItemKey?.toUpperCase()).whereType<String>().toSet();
+
+  /// Every node holding a link to [url] — what a link node is connected to.
+  ///
+  /// The same URL filed under three topics is the most interesting thing a map
+  /// can tell you about it: those three topics have something in common that
+  /// nobody has written down yet.
+  List<MindMapNode> nodesLinking(String url) {
+    final wanted = canonicalLinkUrl(url);
+    return nodes.list.where((n) => n.links.any((l) => canonicalLinkUrl(l.url) == wanted)).toList();
+  }
+
+  /// The link a node holds for [url], if it holds one.
+  MindMapLink? linkOn(MindMapNode node, String url) {
+    final wanted = canonicalLinkUrl(url);
+    return node.links.where((l) => canonicalLinkUrl(l.url) == wanted).firstOrNull;
+  }
+
+  void setLinksAsNodes(bool value) {
+    if (linksAsNodes.value == value) return;
+    linksAsNodes.value = value;
+    requestSave();
+  }
 
   List<String> get allTags {
     final tags = <String>{};
@@ -774,6 +820,7 @@ class MindMapModel with GlobalLoggy {
         JsonEncoder.withIndent(' ' * 4).convert({
           'schemaVersion': _schemaVersion,
           'focusedNodeId': focusedNodeId.value,
+          'linksAsNodes': linksAsNodes.value,
           'nodes': nodes.list.map((n) => n.toJson()).toList(),
           'edges': edges.list.map((e) => e.toJson()).toList(),
         }),

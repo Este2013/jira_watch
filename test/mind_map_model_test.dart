@@ -444,4 +444,66 @@ void main() {
       expect(restored.links.single.group, 'Runs');
     });
   });
+
+  group('the same link in two places', () {
+    test('is one link whatever the casing of its host', () {
+      expect(canonicalLinkUrl('https://App.Qase.IO/run/42'), canonicalLinkUrl('https://app.qase.io/run/42'));
+    });
+
+    test('is one link with or without a trailing slash', () {
+      expect(canonicalLinkUrl('https://app.qase.io/run/42/'), canonicalLinkUrl('https://app.qase.io/run/42'));
+    });
+
+    test('keeps a query and a fragment apart, since those are the destination', () {
+      expect(canonicalLinkUrl('https://x.com/p?a=1'), isNot(canonicalLinkUrl('https://x.com/p?a=2')));
+      expect(canonicalLinkUrl('https://x.com/p#one'), isNot(canonicalLinkUrl('https://x.com/p#two')));
+    });
+
+    test('does not confuse a path with the same letters in a different case', () {
+      expect(canonicalLinkUrl('https://x.com/Page'), isNot(canonicalLinkUrl('https://x.com/page')));
+    });
+
+    test('survives something that is not a URL at all', () {
+      expect(canonicalLinkUrl('  not a url  '), 'not a url');
+    });
+
+    test('is found on every node holding it', () {
+      final m = map();
+      final audio = m.createTopic(title: 'Audio');
+      final video = m.createTopic(title: 'Video');
+      m.createTopic(title: 'Unrelated');
+      m.addLink(audio.id, url: 'https://app.qase.io/run/42');
+      m.addLink(video.id, url: 'https://APP.qase.io/run/42/');
+
+      final holders = m.nodesLinking('https://app.qase.io/run/42');
+
+      expect(holders.map((n) => n.id), containsAll([audio.id, video.id]));
+      expect(holders, hasLength(2));
+    });
+
+    test('reports the node own copy of it, group and all', () {
+      final m = map();
+      final audio = m.createTopic(title: 'Audio');
+      m.addLink(audio.id, url: 'https://app.qase.io/run/42', group: 'Test runs');
+
+      expect(m.linkOn(m.nodeById(audio.id)!, 'https://app.qase.io/run/42/')?.group, 'Test runs');
+    });
+
+    test('is nothing when no node holds it', () {
+      final m = map();
+      m.createTopic(title: 'Audio');
+
+      expect(m.nodesLinking('https://nowhere.example/x'), isEmpty);
+    });
+  });
+
+  group('drawing links as nodes', () {
+    test('is off until it is turned on', () {
+      final m = map();
+
+      expect(m.linksAsNodes.value, isFalse);
+      m.setLinksAsNodes(true);
+      expect(m.linksAsNodes.value, isTrue);
+    });
+  });
 }

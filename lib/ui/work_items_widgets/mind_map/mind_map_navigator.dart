@@ -29,22 +29,45 @@ import 'package:material_symbols_icons/symbols.dart';
 /// Kept as one type so the layout does not have to care which it is — a ghost
 /// takes a slot like anything else, it is just drawn as not-quite-there.
 class _Satellite {
-  _Satellite.node(this.neighbour) : ghost = null, overflow = const [];
-  _Satellite.ghost(this.ghost) : neighbour = null, overflow = const [];
-  _Satellite.overflow(this.overflow) : neighbour = null, ghost = null;
+  _Satellite.node(this.neighbour) : ghost = null, link = null, holders = 0, overflow = const [];
+  _Satellite.ghost(this.ghost) : neighbour = null, link = null, holders = 0, overflow = const [];
+  _Satellite.link(this.link, this.holders) : neighbour = null, ghost = null, overflow = const [];
+  _Satellite.overflow(this.overflow) : neighbour = null, ghost = null, link = null, holders = 0;
 
   final MindMapNeighbour? neighbour;
   final MindMapGhost? ghost;
+
+  /// A link held by the focused node, drawn as a node of its own.
+  final MindMapLink? link;
+
+  /// How many nodes on the map hold that link — the number that makes a link
+  /// worth visiting, since one held in three places is three topics with
+  /// something in common.
+  final int holders;
 
   /// The neighbours that did not fit, on the "+N more" chip.
   final List<MindMapNeighbour> overflow;
 
   bool get isGhost => ghost != null;
+  bool get isLink => link != null;
   bool get isOverflow => overflow.isNotEmpty;
 
+  /// Orbits further out than the map's own nodes: things attached to the
+  /// focused node rather than part of the graph around it.
+  bool get isOuter => isGhost || isLink;
+
   /// Stable across rebuilds, so the animation can tell which chip is which.
-  String get id => neighbour?.node.id ?? (ghost != null ? 'ghost:${ghost!.workItemKey}' : 'overflow');
+  String get id {
+    if (neighbour != null) return neighbour!.node.id;
+    if (ghost != null) return 'ghost:${ghost!.workItemKey}';
+    if (link != null) return mindMapLinkChipId(link!.url);
+    return 'overflow';
+  }
 }
+
+/// The id a link travels under, so the same link is the same chip whether it
+/// is orbiting a node or sitting in the middle.
+String mindMapLinkChipId(String url) => 'link:${canonicalLinkUrl(url)}';
 
 class MindMapNavigator extends StatefulWidget {
   const MindMapNavigator({
@@ -53,7 +76,15 @@ class MindMapNavigator extends StatefulWidget {
     required this.neighbours,
     required this.ghosts,
     required this.onFocus,
+    required this.onFocusLink,
+    required this.onOpenLink,
+    required this.onAddLink,
+    required this.onToggleLinkNodes,
+    required this.linkNodesOn,
+    required this.holdersOf,
     required this.onAcceptGhost,
+    this.focusedLink,
+    this.links = const [],
     required this.onNodeMenu,
     required this.onCentreTap,
     required this.onAddChild,
@@ -65,10 +96,35 @@ class MindMapNavigator extends StatefulWidget {
   /// The node in the middle, or null for the home constellation of roots.
   final MindMapNode? focused;
 
+  /// A link in the middle instead, with the nodes holding it in the ring.
+  /// Takes precedence over [focused], which stays put underneath so that
+  /// stepping back out of a link returns to the node it was reached from.
+  final MindMapLink? focusedLink;
+
   final List<MindMapNeighbour> neighbours;
   final List<MindMapGhost> ghosts;
 
+  /// The focused node's own links, when they are being drawn as nodes.
+  final List<MindMapLink> links;
+
+  /// How many nodes on the map hold a given link.
+  final int Function(MindMapLink link) holdersOf;
+
   final void Function(String? nodeId) onFocus;
+  final void Function(MindMapLink link) onFocusLink;
+  final void Function(MindMapLink link) onOpenLink;
+
+  /// Ctrl+L on whichever node is selected.
+  final void Function(MindMapNode node) onAddLink;
+
+  /// Alt+L: draw links as nodes, or stop.
+  final VoidCallback onToggleLinkNodes;
+
+  /// Whether that mode is on — which is not the same as [links] being empty,
+  /// since a node may simply have none, and the hint must not then offer to
+  /// turn on what is already on.
+  final bool linkNodesOn;
+
   final void Function(MindMapGhost ghost) onAcceptGhost;
   final void Function(MindMapNode node, Offset globalPosition) onNodeMenu;
 
@@ -90,6 +146,10 @@ class MindMapNavigator extends StatefulWidget {
   /// "+N more" chip. Ten is about where the labels start colliding at a
   /// sensible radius.
   static const int maxSatellites = 10;
+
+  /// Links share the outer ring with ghosts, and like them they are capped:
+  /// a node with thirty links would otherwise bury the graph it belongs to.
+  static const int maxLinks = 6;
 
   /// Ghosts are advice, not content, so they never crowd out the real ring.
   static const int maxGhosts = 5;
@@ -197,6 +257,21 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
     // down: every one of them opens something or moves the whole map.
     if (event is KeyRepeatEvent) return KeyEventResult.ignored;
 
+    // Ctrl+L on whatever is selected, Alt+L for the mode itself. Checked
+    // before the bare keys below so a modifier never falls through to one.
+    if (key == LogicalKeyboardKey.keyL) {
+      final keyboard = HardwareKeyboard.instance;
+      if (keyboard.isControlPressed) {
+        if (_selectedNode case final node?) widget.onAddLink(node);
+        return KeyEventResult.handled;
+      }
+      if (keyboard.isAltPressed) {
+        widget.onToggleLinkNodes();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+
     // Matched on the character first, since `+` is a shifted key on some
     // layouts and a key of its own on others, and the logical key that arrives
     // differs accordingly. The two named keys are belt and braces.
@@ -240,6 +315,18 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
     _highlight = null;
     _lastArrow = null;
     _lastTurn = null;
+  }
+
+  /// The node the keyboard is acting on: whichever is picked out of the ring,
+  /// or the one in the middle.
+  ///
+  /// Null when that is not a node at all — the home constellation, a link, a
+  /// ghost or the overflow chip — so a shortcut that needs somewhere to write
+  /// simply does nothing rather than guessing at a target.
+  MindMapNode? get _selectedNode {
+    final picked = _highlighted;
+    if (picked != null) return picked.neighbour?.node;
+    return widget.focusedLink != null ? null : widget.focused;
   }
 
   /// The chip the keyboard has picked, or null — including when the ring has
@@ -348,6 +435,10 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
       widget.onAcceptGhost(ghost);
       return;
     }
+    if (satellite.link case final link?) {
+      widget.onFocusLink(link);
+      return;
+    }
     widget.onFocus(satellite.neighbour!.node.id);
   }
 
@@ -360,8 +451,11 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
     return [
       for (final neighbour in shown) _Satellite.node(neighbour),
       if (hidden.isNotEmpty) _Satellite.overflow(hidden),
-      // Ghosts only once the ring is not already full: advice is worth less
-      // than the map's own content, and a crowded ring is worth nothing.
+      // The outer orbit: things hanging off the focused node rather than part
+      // of the graph around it. Links are the reader's own content so they are
+      // always drawn when the mode is on; ghosts are advice, and give way once
+      // the inner ring has already overflowed.
+      for (final link in widget.links.take(MindMapNavigator.maxLinks)) _Satellite.link(link, widget.holdersOf(link)),
       if (hidden.isEmpty)
         for (final ghost in widget.ghosts.take(MindMapNavigator.maxGhosts)) _Satellite.ghost(ghost),
     ];
@@ -375,21 +469,21 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
         final size = Size(constraints.maxWidth, constraints.maxHeight);
         final centre = Offset(size.width / 2, size.height / 2);
 
-        final realCount = satellites.where((s) => !s.isGhost).length;
+        final realCount = satellites.where((s) => !s.isOuter).length;
         final radius = _radiusFor(size, realCount);
 
         // Targets: the real ring first, then ghosts further out, offset by half
         // a step so they sit in the gaps rather than directly behind anything.
         final targets = <String, Offset>{};
-        final ghostList = satellites.where((s) => s.isGhost).toList();
-        final realList = satellites.where((s) => !s.isGhost).toList();
+        final outerList = satellites.where((s) => s.isOuter).toList();
+        final realList = satellites.where((s) => !s.isOuter).toList();
 
         for (var i = 0; i < realList.length; i++) {
           targets[realList[i].id] = Offset.fromDirection(-pi / 2 + i * 2 * pi / max(realList.length, 1), radius);
         }
-        for (var i = 0; i < ghostList.length; i++) {
-          final step = 2 * pi / max(ghostList.length, 1);
-          targets[ghostList[i].id] = Offset.fromDirection(-pi / 2 + step * i + step / 2, radius * 1.46);
+        for (var i = 0; i < outerList.length; i++) {
+          final step = 2 * pi / max(outerList.length, 1);
+          targets[outerList[i].id] = Offset.fromDirection(-pi / 2 + step * i + step / 2, radius * 1.46);
         }
         targets[_centreId] = Offset.zero;
         _targets = targets;
@@ -451,6 +545,7 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
                         emphasised: _hovered ?? highlighted,
                         colour: Theme.of(context).colorScheme.outline,
                         focusColour: widget.focused?.color ?? Theme.of(context).colorScheme.primary,
+                        linkColour: Theme.of(context).colorScheme.tertiary,
                         opacity: t,
                       ),
                     ),
@@ -458,7 +553,7 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
                   for (final satellite in satellites)
                     _placed(
                       position: placed[satellite.id]!,
-                      scale: scaleOf(satellite.id, satellite.isGhost ? 0.88 : 1),
+                      scale: scaleOf(satellite.id, satellite.isOuter ? 0.88 : 1),
                       child: _satelliteChip(satellite, isHighlighted: satellite.id == highlighted),
                     ),
                   _placed(
@@ -472,7 +567,7 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
                     left: 0,
                     right: 0,
                     bottom: 10,
-                    child: Center(child: _KeyboardHint(inTheRing: highlighted != null)),
+                    child: Center(child: _KeyboardHint(inTheRing: highlighted != null, showingLinks: widget.linkNodesOn)),
                   ),
                 ],
               ),
@@ -483,10 +578,14 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
     );
   }
 
-  /// The id the middle chip animates under. A real node keeps its own id, so
-  /// the node being opened is recognised as the same chip travelling inward
-  /// rather than one vanishing and another appearing.
-  String get _centreId => widget.focused?.id ?? 'home';
+  /// The id the middle chip animates under. A real node — or a link — keeps its
+  /// own id, so the thing being opened is recognised as the same chip
+  /// travelling inward rather than one vanishing and another appearing.
+  String get _centreId {
+    final link = widget.focusedLink;
+    if (link != null) return mindMapLinkChipId(link.url);
+    return widget.focused?.id ?? 'home';
+  }
 
   /// Big enough that the chips in the ring do not touch, small enough to stay
   /// on screen. With few neighbours the ring stays compact rather than flinging
@@ -514,6 +613,19 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
   );
 
   Widget _centreChip({required bool isHighlighted}) {
+    if (widget.focusedLink case final link?) {
+      return _MindMapChip(
+        title: link.title,
+        subtitle: Uri.tryParse(link.url)?.host ?? link.url,
+        icon: link.icon,
+        colour: Theme.of(context).colorScheme.tertiary,
+        emphasis: _ChipEmphasis.centre,
+        isHighlighted: isHighlighted,
+        tooltip: link.url,
+        onTap: () => widget.onOpenLink(link),
+      );
+    }
+
     final node = widget.focused;
     if (node == null) {
       return _MindMapChip(
@@ -553,6 +665,22 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
         colour: Theme.of(context).colorScheme.outline,
         emphasis: _ChipEmphasis.satellite,
         isHighlighted: isHighlighted,
+        onTap: activate,
+        onHover: hover,
+      );
+    }
+
+    if (satellite.link case final link?) {
+      return _MindMapChip(
+        title: link.title,
+        // The number is the reason to go there: a link held in one place is a
+        // link, and one held in four is a thread running through the map.
+        subtitle: satellite.holders > 1 ? 'in ${satellite.holders} nodes' : (Uri.tryParse(link.url)?.host ?? 'link'),
+        icon: link.icon,
+        colour: Theme.of(context).colorScheme.tertiary,
+        emphasis: _ChipEmphasis.satellite,
+        isHighlighted: isHighlighted,
+        tooltip: link.url,
         onTap: activate,
         onHover: hover,
       );
@@ -600,16 +728,24 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
 /// It says different things in the two modes, which is also how a reader can
 /// tell which one they are in.
 class _KeyboardHint extends StatelessWidget {
-  const _KeyboardHint({required this.inTheRing});
+  const _KeyboardHint({required this.inTheRing, required this.showingLinks});
 
   final bool inTheRing;
+  final bool showingLinks;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final hints = inTheRing
-        ? const [('Enter', 'open'), ('↑ ↓ ← →', 'next'), ('Esc', 'back to the middle')]
-        : const [('+', 'new topic'), ('Enter', 'edit'), ('↑ ↓ ← →', 'pick one'), ('Esc', 'up a level')];
+        ? const [('Enter', 'open'), ('↑ ↓ ← →', 'next'), ('Ctrl L', 'add a link'), ('Esc', 'back to the middle')]
+        : [
+            const ('+', 'new topic'),
+            const ('Enter', 'edit'),
+            const ('↑ ↓ ← →', 'pick one'),
+            const ('Ctrl L', 'add a link'),
+            ('Alt L', showingLinks ? 'hide links' : 'links as nodes'),
+            const ('Esc', 'up a level'),
+          ];
 
     return DefaultTextStyle(
       style: theme.textTheme.labelSmall!.copyWith(color: theme.hintColor),
@@ -777,6 +913,7 @@ class _SpokesPainter extends CustomPainter {
     required this.emphasised,
     required this.colour,
     required this.focusColour,
+    required this.linkColour,
     required this.opacity,
   });
 
@@ -789,6 +926,7 @@ class _SpokesPainter extends CustomPainter {
   final String? emphasised;
   final Color colour;
   final Color focusColour;
+  final Color linkColour;
 
   /// Fades the spokes in with the move, so lines never arrive before the chips
   /// they are supposed to join.
@@ -802,11 +940,11 @@ class _SpokesPainter extends CustomPainter {
 
       final isEmphasised = emphasised == satellite.id;
       final relation = satellite.neighbour?.relation;
-      final base = satellite.isGhost ? colour : (relation == MindMapRelation.connected ? colour : focusColour);
+      final base = satellite.isOuter ? (satellite.isLink ? linkColour : colour) : (relation == MindMapRelation.connected ? colour : focusColour);
 
       final paint = Paint()
         ..color = base.withValues(alpha: (satellite.isGhost ? 0.3 : (isEmphasised ? 0.95 : 0.5)) * opacity)
-        ..strokeWidth = isEmphasised ? 2.6 : (satellite.isGhost ? 1.1 : 1.8)
+        ..strokeWidth = isEmphasised ? 2.6 : (satellite.isGhost ? 1.1 : 1.5)
         ..strokeCap = StrokeCap.round;
 
       // The line stops short of both chips, so it reads as joining them rather
@@ -821,7 +959,7 @@ class _SpokesPainter extends CustomPainter {
 
       if (satellite.isGhost) {
         _dashed(canvas, start, finish, paint, dash: 3, gap: 5);
-      } else if (relation == MindMapRelation.connected) {
+      } else if (satellite.isLink || relation == MindMapRelation.connected) {
         _dashed(canvas, start, finish, paint, dash: 9, gap: 6);
       } else {
         canvas.drawLine(start, finish, paint);
