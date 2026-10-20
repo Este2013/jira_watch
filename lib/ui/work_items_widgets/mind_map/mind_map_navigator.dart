@@ -123,6 +123,15 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
   /// returns it.
   int? _highlight;
 
+  /// The arrow last pressed and which way round the ring it turned.
+  ///
+  /// Held so that holding one arrow down walks the whole ring the same way
+  /// instead of reversing halfway round and bouncing between two chips. A
+  /// *different* arrow works its direction out afresh from where the pick now
+  /// sits — see [_turnFor].
+  LogicalKeyboardKey? _lastArrow;
+  int? _lastTurn;
+
   /// Where each chip is headed this layout, kept from the last build so the
   /// arrow keys can ask which one actually lies to the right.
   Map<String, Offset> _targets = const {};
@@ -151,7 +160,7 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
       _focusInitialised = true;
       // A new constellation: the old index would point at whichever node
       // happens to sit in that slot now, which is not what anyone picked.
-      _highlight = null;
+      _letGoOfThePick();
       _controller.forward(from: 0);
     }
   }
@@ -179,10 +188,10 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
 
     // Arrows repeat, because holding one to go round the ring is the obvious
     // thing to try.
-    if (key == LogicalKeyboardKey.arrowRight) return _move(const Offset(1, 0), 1);
-    if (key == LogicalKeyboardKey.arrowDown) return _move(const Offset(0, 1), 1);
-    if (key == LogicalKeyboardKey.arrowLeft) return _move(const Offset(-1, 0), -1);
-    if (key == LogicalKeyboardKey.arrowUp) return _move(const Offset(0, -1), -1);
+    if (key == LogicalKeyboardKey.arrowRight) return _move(const Offset(1, 0), 1, key);
+    if (key == LogicalKeyboardKey.arrowDown) return _move(const Offset(0, 1), 1, key);
+    if (key == LogicalKeyboardKey.arrowLeft) return _move(const Offset(-1, 0), -1, key);
+    if (key == LogicalKeyboardKey.arrowUp) return _move(const Offset(0, -1), -1, key);
 
     // Nothing below this line should fire again just because a key is held
     // down: every one of them opens something or moves the whole map.
@@ -209,7 +218,7 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
     if (key == LogicalKeyboardKey.escape) {
       // Out of the ring first, up a level only once already there.
       if (_highlight != null) {
-        setState(() => _highlight = null);
+        setState(_letGoOfThePick);
       } else {
         widget.onGoBack();
       }
@@ -222,6 +231,15 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
     }
 
     return KeyEventResult.ignored;
+  }
+
+  /// Back to the middle, forgetting which way the arrows were turning — the
+  /// next ring pick starts its own direction rather than inheriting one from
+  /// a ring that is no longer on screen.
+  void _letGoOfThePick() {
+    _highlight = null;
+    _lastArrow = null;
+    _lastTurn = null;
   }
 
   /// The chip the keyboard has picked, or null — including when the ring has
@@ -237,21 +255,64 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
   ///
   /// The first press goes by direction, so pressing right lands on something
   /// that is actually to the right. After that the ring is a loop and the
-  /// arrows simply walk it — [step] forward or back — because a ring has no
-  /// "further right" to offer once you are on it.
-  KeyEventResult _move(Offset direction, int step) {
+  /// arrows walk it — but which way round an arrow means depends on where on
+  /// the ring the pick is sitting, which is what [_turnFor] works out.
+  KeyEventResult _move(Offset direction, int fallback, LogicalKeyboardKey key) {
     final satellites = _satellites();
     if (satellites.isEmpty) return KeyEventResult.ignored;
 
-    setState(() {
-      final current = _highlight;
-      if (current == null || current >= satellites.length) {
+    final current = _highlight;
+    if (current == null || current >= satellites.length) {
+      setState(() {
         _highlight = _nearestTo(direction, satellites);
-      } else {
-        _highlight = (current + step + satellites.length) % satellites.length;
-      }
+        _lastArrow = key;
+        // That pick was made by direction, not by turning: which way round
+        // this key means from where it landed is not settled until it is
+        // pressed a second time.
+        _lastTurn = null;
+      });
+      return KeyEventResult.handled;
+    }
+
+    // The same arrow held down keeps turning the way it already was; a
+    // different one is read afresh against where the pick now sits.
+    final turn = (key == _lastArrow && _lastTurn != null) ? _lastTurn! : _turnFor(direction, current, satellites, fallback);
+    setState(() {
+      _highlight = (current + turn + satellites.length) % satellites.length;
+      _lastArrow = key;
+      _lastTurn = turn;
     });
     return KeyEventResult.handled;
+  }
+
+  /// Which way round the ring [direction] means from the chip at [index].
+  ///
+  /// There is no one answer for a circle: up is counter-clockwise on the right
+  /// of the ring and clockwise on the left, which is why a fixed mapping made
+  /// the up arrow move the pick downwards for half of every ring. So the two
+  /// chips either side are compared on where they actually are, and whichever
+  /// genuinely lies that way wins.
+  int _turnFor(Offset direction, int index, List<_Satellite> satellites, int fallback) {
+    final here = _targets[satellites[index].id];
+    final count = satellites.length;
+    if (here == null || count < 2) return fallback;
+
+    double scoreFor(int turn) {
+      final there = _targets[satellites[(index + turn + count) % count].id];
+      if (there == null) return double.negativeInfinity;
+      final travel = there - here;
+      if (travel.distance == 0) return double.negativeInfinity;
+      final unit = travel / travel.distance;
+      return unit.dx * direction.dx + unit.dy * direction.dy;
+    }
+
+    final forward = scoreFor(1);
+    final back = scoreFor(-1);
+    // Pressing up at the very top of the ring, or right at the far right:
+    // both ways lead away from what was asked for, equally. Rather than
+    // inventing an answer, carry on the way this arrow was already turning.
+    if ((forward - back).abs() < 0.02) return _lastTurn ?? fallback;
+    return forward > back ? 1 : -1;
   }
 
   /// The chip lying most nearly in [direction] from the middle.
@@ -277,7 +338,7 @@ class _MindMapNavigatorState extends State<MindMapNavigator> with SingleTickerPr
   /// chosen with the keyboard, so the two can never drift apart.
   void _activate(_Satellite satellite) {
     _keyboard.requestFocus();
-    setState(() => _highlight = null);
+    setState(_letGoOfThePick);
 
     if (satellite.isOverflow) {
       widget.onShowOverflow?.call(satellite.overflow);

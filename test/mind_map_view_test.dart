@@ -279,6 +279,96 @@ void main() {
       expect(model.focusedNode!.title, 'West');
     });
 
+    testWidgets('up from the left of the ring goes up, not down', (tester) async {
+      // The reported bug: with a fixed counter-clockwise up, picking the left
+      // node first and then pressing up moved the pick downwards.
+      final (model, suggestions, _) = compass();
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.arrowLeft); // West
+      await press(tester, LogicalKeyboardKey.arrowUp);
+      await press(tester, LogicalKeyboardKey.enter);
+
+      expect(model.focusedNode!.title, 'North');
+    });
+
+    testWidgets('up from the right of the ring also goes up', (tester) async {
+      final (model, suggestions, _) = compass();
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.arrowRight); // East
+      await press(tester, LogicalKeyboardKey.arrowUp);
+      await press(tester, LogicalKeyboardKey.enter);
+
+      expect(model.focusedNode!.title, 'North');
+    });
+
+    testWidgets('down from the left of the ring goes down', (tester) async {
+      final (model, suggestions, _) = compass();
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.arrowLeft); // West
+      await press(tester, LogicalKeyboardKey.arrowDown);
+      await press(tester, LogicalKeyboardKey.enter);
+
+      expect(model.focusedNode!.title, 'South');
+    });
+
+    testWidgets('right from the bottom of the ring goes right', (tester) async {
+      // The mirror of the same rule: at the bottom, clockwise points left.
+      final (model, suggestions, _) = compass();
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.arrowDown); // South
+      await press(tester, LogicalKeyboardKey.arrowRight);
+      await press(tester, LogicalKeyboardKey.enter);
+
+      expect(model.focusedNode!.title, 'East');
+    });
+
+    testWidgets('left from the top of the ring goes left', (tester) async {
+      final (model, suggestions, _) = compass();
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.arrowUp); // North
+      await press(tester, LogicalKeyboardKey.arrowLeft);
+      await press(tester, LogicalKeyboardKey.enter);
+
+      expect(model.focusedNode!.title, 'West');
+    });
+
+    testWidgets('holding one arrow walks the whole ring instead of bouncing', (tester) async {
+      // Each press on its own would reverse at the half-way point — right from
+      // the bottom node genuinely points back east — so the direction an arrow
+      // settled on is kept while that same arrow repeats.
+      final (model, suggestions, _) = compass();
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.arrowRight); // East
+      await press(tester, LogicalKeyboardKey.arrowRight); // South
+      await press(tester, LogicalKeyboardKey.arrowRight); // West, not back to East
+      await press(tester, LogicalKeyboardKey.enter);
+
+      expect(model.focusedNode!.title, 'West');
+    });
+
+    testWidgets('letting go of the ring forgets which way it was turning', (tester) async {
+      final (model, suggestions, _) = compass();
+
+      await pumpView(tester, model, suggestions);
+      await press(tester, LogicalKeyboardKey.arrowRight); // East
+      await press(tester, LogicalKeyboardKey.arrowRight); // South, turning clockwise
+      await press(tester, LogicalKeyboardKey.escape); // back to the middle
+
+      // A fresh pick, then up: read from where it lands rather than from the
+      // clockwise turn the last round had settled into.
+      await press(tester, LogicalKeyboardKey.arrowLeft); // West
+      await press(tester, LogicalKeyboardKey.arrowUp);
+      await press(tester, LogicalKeyboardKey.enter);
+
+      expect(model.focusedNode!.title, 'North');
+    });
+
     testWidgets('escape lets go of the ring before it goes anywhere', (tester) async {
       final (model, suggestions) = emptyMap();
       final audio = model.createTopic(title: 'Audio');
