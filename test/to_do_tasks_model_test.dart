@@ -179,6 +179,44 @@ void main() {
       ToDoTasksModel().deleteTaskById(b.id);
     });
 
+    test('moveLinkedWorkItem relocates the link, not copies it', () async {
+      await ToDoTasksModel().isReady;
+      final from = await ToDoTasksModel().createNewTask(title: 'from', workItemKeys: ['STUDIO-1']);
+      final to = await ToDoTasksModel().createNewTask(title: 'to');
+
+      final accepted = ToDoTasksModel().moveLinkedWorkItem('STUDIO-1', fromTaskId: from.id, toTaskId: to.id);
+      expect(accepted, isTrue);
+      expect(ToDoTasksModel().byId(from.id)!.linkedWorkItems.list, isEmpty);
+      expect(ToDoTasksModel().byId(to.id)!.linkedWorkItems.list, ['STUDIO-1']);
+
+      ToDoTasksModel().deleteTaskById(from.id);
+      ToDoTasksModel().deleteTaskById(to.id);
+    });
+
+    test('moveLinkedWorkItem never duplicates an entry the destination already has', () async {
+      await ToDoTasksModel().isReady;
+      final from = await ToDoTasksModel().createNewTask(title: 'from', workItemKeys: ['STUDIO-1']);
+      final to = await ToDoTasksModel().createNewTask(title: 'to', workItemKeys: ['STUDIO-1']);
+
+      ToDoTasksModel().moveLinkedWorkItem('STUDIO-1', fromTaskId: from.id, toTaskId: to.id);
+      expect(ToDoTasksModel().byId(from.id)!.linkedWorkItems.list, isEmpty);
+      expect(ToDoTasksModel().byId(to.id)!.linkedWorkItems.list, ['STUDIO-1']);
+
+      ToDoTasksModel().deleteTaskById(from.id);
+      ToDoTasksModel().deleteTaskById(to.id);
+    });
+
+    test('moveLinkedWorkItem onto the same task is a no-op', () async {
+      await ToDoTasksModel().isReady;
+      final task = await ToDoTasksModel().createNewTask(title: 'solo', workItemKeys: ['STUDIO-1']);
+
+      final accepted = ToDoTasksModel().moveLinkedWorkItem('STUDIO-1', fromTaskId: task.id, toTaskId: task.id);
+      expect(accepted, isFalse);
+      expect(ToDoTasksModel().byId(task.id)!.linkedWorkItems.list, ['STUDIO-1']);
+
+      ToDoTasksModel().deleteTaskById(task.id);
+    });
+
     test('deleting a task orphans its children instead of deleting them too', () async {
       await ToDoTasksModel().isReady;
       final parent = await ToDoTasksModel().createNewTask(title: 'parent');

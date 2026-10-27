@@ -281,6 +281,25 @@ class ToDoTasksModel with GlobalLoggy {
     return true;
   }
 
+  /// Moves a linked work item from one task to another — dragging its chip
+  /// out of one task's "Linked work items" list and dropping it onto a
+  /// different task reads as relocating it there, the same way dragging a
+  /// task itself onto another moves it ([setParent]), not as linking it
+  /// everywhere it happens to be dropped.
+  ///
+  /// A no-op between the same task, and never duplicates an entry the
+  /// destination already links — [fromTaskId] still gives it up regardless,
+  /// since the drag came from there.
+  bool moveLinkedWorkItem(String key, {required int fromTaskId, required int toTaskId}) {
+    if (fromTaskId == toTaskId) return false;
+    final from = byId(fromTaskId);
+    final to = byId(toTaskId);
+    if (from == null || to == null) return false;
+    from.linkedWorkItems.removeWhere((k, _) => k == key);
+    if (!to.linkedWorkItems.list.contains(key)) to.linkedWorkItems.add(key);
+    return true;
+  }
+
   // TAGS //////////////////////////////////////////////////////////////////
 
   /// Every distinct tag at least one task currently carries, for the

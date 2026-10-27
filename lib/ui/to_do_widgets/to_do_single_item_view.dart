@@ -263,6 +263,71 @@ class _SingleTaskViewState extends State<SingleTaskView> {
     super.initState();
   }
 
+  /// One linked work item's own row — [tkt]'s key, fetched and rendered as an
+  /// [IssueLinkTile] (or an error/loading stand-in), with a button to unlink
+  /// it outright. Factored out of the list below so the drag feedback and the
+  /// widget actually sitting in the list are built from the same thing.
+  Widget _linkedWorkItemTile(String tkt) => FutureBuilder(
+    future: DataModel().jiraApi.workItem(tkt, expand: ['changelog']),
+    builder: (context, asyncSnapshot) {
+      if (asyncSnapshot.data != null) {
+        var issueData = asyncSnapshot.data!;
+        return IssueLinkTile(
+          issueData,
+          trailing: IconButton(
+            onPressed: () => widget.taskController.linkedWorkItems.remove(issueData['key']),
+            icon: Icon(
+              Symbols.close,
+              size: 20,
+            ),
+          ),
+        );
+      }
+      if (asyncSnapshot.hasError) {
+        return ListTile(
+          tileColor: Colors.red.withAlpha(100),
+          leading: Icon(Symbols.error),
+
+          title: Text(tkt),
+          subtitle: Text(asyncSnapshot.error.toString()),
+          trailing: IconButton(
+            onPressed: () => Clipboard.setData(ClipboardData(text: asyncSnapshot.error.toString())),
+            icon: Icon(Symbols.content_copy),
+          ),
+        );
+      }
+      return ListTile(
+        leading: CircularProgressIndicator(),
+        title: Text(tkt),
+      );
+    },
+  );
+
+  /// [_linkedWorkItemTile], long-press-draggable onto one of this task's own
+  /// subtasks below — the same "drag it onto a task" gesture the task
+  /// hierarchy itself uses, and the same move-not-copy semantics (see
+  /// [ToDoTasksModel.moveLinkedWorkItem]). Built once into `tile` and reused
+  /// for both `child` and `childWhenDragging`, rather than called twice —
+  /// [_linkedWorkItemTile] fetches the work item itself, and a second call
+  /// would fire that fetch again for a widget that is never even shown.
+  Widget _draggableLinkedWorkItemTile(String tkt) {
+    final tile = _linkedWorkItemTile(tkt);
+    return LongPressDraggable<String>(
+      key: Key('Work item $tkt linked to task ${widget.taskController.id}'),
+      data: tkt,
+      feedback: Material(
+        elevation: 4,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Text(tkt),
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.4, child: tile),
+      child: tile,
+    );
+  }
+
   Future<void> _pickTagIcon(String tag) async {
     final currentName = ToDoTasksModel().iconNameForTag(tag) ?? 'label';
     final picked = await showDialog<String>(context: context, builder: (context) => GitLabBranchIconPickerDialog(selected: currentName));
@@ -433,43 +498,7 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                         builder: (context, child) => Column(
                           children: [
                             if (widget.taskController.linkedWorkItems.list.isEmpty) Text('No linked work items'),
-                            for (var tkt in widget.taskController.linkedWorkItems.list)
-                              FutureBuilder(
-                                key: Key('Work item $tkt linked to task ${widget.taskController.id}'),
-                                future: DataModel().jiraApi.workItem(tkt, expand: ['changelog']),
-                                builder: (context, asyncSnapshot) {
-                                  if (asyncSnapshot.data != null) {
-                                    var issueData = asyncSnapshot.data!;
-                                    return IssueLinkTile(
-                                      issueData,
-                                      trailing: IconButton(
-                                        onPressed: () => widget.taskController.linkedWorkItems.remove(issueData['key']),
-                                        icon: Icon(
-                                          Symbols.close,
-                                          size: 20,
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                  if (asyncSnapshot.hasError) {
-                                    return ListTile(
-                                      tileColor: Colors.red.withAlpha(100),
-                                      leading: Icon(Symbols.error),
-
-                                      title: Text(tkt),
-                                      subtitle: Text(asyncSnapshot.error.toString()),
-                                      trailing: IconButton(
-                                        onPressed: () => Clipboard.setData(ClipboardData(text: asyncSnapshot.error.toString())),
-                                        icon: Icon(Symbols.content_copy),
-                                      ),
-                                    );
-                                  }
-                                  return ListTile(
-                                    leading: CircularProgressIndicator(),
-                                    title: Text(tkt),
-                                  );
-                                },
-                              ),
+                            for (var tkt in widget.taskController.linkedWorkItems.list) _draggableLinkedWorkItemTile(tkt),
                           ],
                         ),
                       ),
@@ -599,8 +628,7 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                                   animation: childController,
                                   builder: (context, _) {
                                     final childCategoryData = ToDoTask.categoryDataFrom(childController.category.value);
-                                    return ListTile(
-                                      key: Key('Subtask ${childController.id} of task ${widget.taskController.id}'),
+                                    final tile = ListTile(
                                       leading: Icon(childCategoryData.$2, color: childCategoryData.$3),
                                       title: Text(
                                         childController.title.text.isEmpty ? 'no title' : childController.title.text,
@@ -614,6 +642,22 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                                         onPressed: () => ToDoTasksModel().setParent(childController.id, null),
                                       ),
                                       onTap: () => widget.onOpenChild?.call(childController.id),
+                                    );
+                                    // Drop a linked work item dragged from the
+                                    // list above to move its link onto this
+                                    // subtask instead of the task currently
+                                    // open. Always accepted — moveLinkedWorkItem
+                                    // itself is the one that knows not to
+                                    // duplicate an entry the subtask already
+                                    // has.
+                                    return DragTarget<String>(
+                                      key: Key('Subtask ${childController.id} of task ${widget.taskController.id}'),
+                                      onAcceptWithDetails: (details) =>
+                                          ToDoTasksModel().moveLinkedWorkItem(details.data, fromTaskId: widget.taskController.id, toTaskId: childController.id),
+                                      builder: (context, candidateData, rejectedData) => Container(
+                                        decoration: candidateData.isNotEmpty ? BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2)) : null,
+                                        child: tile,
+                                      ),
                                     );
                                   },
                                 ),
