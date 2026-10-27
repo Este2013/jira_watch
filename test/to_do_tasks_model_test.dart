@@ -73,6 +73,32 @@ void main() {
     var nextId = 900000;
     int newProjectishId() => nextId++;
 
+    test('a duplicated linked work item is deduplicated on load, not crashed on', () async {
+      // Regression: a duplicate key in linkedWorkItems is not just a
+      // cosmetic double-up — the UI list below renders one row per key,
+      // keyed by it, so two identical keys is a Flutter "duplicate keys"
+      // error, not a harmless repeat. createNewTask runs every task through
+      // the same fromToDoTask construction a loaded save file does, so this
+      // also covers a hand-edited or otherwise corrupted save healing
+      // itself the moment the task is touched.
+      await ToDoTasksModel().isReady;
+      final task = await ToDoTasksModel().createNewTask(title: 'dup-on-load', workItemKeys: ['STUDIO-1', 'STUDIO-1', 'STUDIO-2']);
+
+      expect(ToDoTasksModel().byId(task.id)!.linkedWorkItems.list, ['STUDIO-1', 'STUDIO-2']);
+
+      ToDoTasksModel().deleteTaskById(task.id);
+    });
+
+    test('editTask also deduplicates linkedWorkItems rather than adopting them as given', () async {
+      await ToDoTasksModel().isReady;
+      final task = await ToDoTasksModel().createNewTask(title: 'dup-on-edit');
+
+      await ToDoTasksModel().editTask(ToDoTask(id: task.id, dateAdded: task.dateAdded, linkedWorkItems: ['STUDIO-1', 'STUDIO-1'], events: const []));
+      expect(ToDoTasksModel().byId(task.id)!.linkedWorkItems.list, ['STUDIO-1']);
+
+      ToDoTasksModel().deleteTaskById(task.id);
+    });
+
     test('createNewTask persists tags and can be looked up by id', () async {
       await ToDoTasksModel().isReady;
       final id = newProjectishId();

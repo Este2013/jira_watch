@@ -374,6 +374,22 @@ class ToDoTasksModel with GlobalLoggy {
   }
 }
 
+/// [keys] with any repeat of an earlier entry dropped, first-seen order kept.
+///
+/// Applied wherever a task's linked work items are set wholesale — loading
+/// from disk, or [ToDoTaskEditingController.modify] — as a defensive,
+/// idempotent cleanup: a duplicate that got into the list once (an older
+/// build's bug, a hand-edited save file) heals itself the next time this
+/// task is touched, rather than crashing the list below the moment two rows
+/// share a key. [ToDoTasksModel.moveLinkedWorkItem] and the "link an existing
+/// key" UI already stop a *fresh* duplicate from being added in the first
+/// place; this is what cleans up one that slipped past an earlier version of
+/// that guard, or in from outside the app entirely.
+List<String> _deduplicatedWorkItems(Iterable<String> keys) {
+  final seen = <String>{};
+  return [for (final key in keys) if (seen.add(key)) key];
+}
+
 class ToDoTaskEditingController extends ChangeNotifier {
   final int id;
   late final DateTime dateAdded;
@@ -415,7 +431,7 @@ class ToDoTaskEditingController extends ChangeNotifier {
     dateAdded: task.dateAdded,
     title: TextEditingController(text: task.title),
     notes: TextEditingController(text: task.notes),
-    linkedWorkItems: ObservableList.from(task.linkedWorkItems),
+    linkedWorkItems: ObservableList.from(_deduplicatedWorkItems(task.linkedWorkItems)),
     toDoBefore: ValueNotifier(task.toDoBefore),
     isComplete: ValueNotifier(task.isComplete),
     category: ValueNotifier(task.category),
@@ -444,7 +460,7 @@ class ToDoTaskEditingController extends ChangeNotifier {
     isComplete.value = newTaskData.isComplete;
     toDoBefore.value = newTaskData.toDoBefore;
     linkedWorkItems.reset();
-    linkedWorkItems.addAll(newTaskData.linkedWorkItems);
+    linkedWorkItems.addAll(_deduplicatedWorkItems(newTaskData.linkedWorkItems));
     events.reset();
     events.addAll(newTaskData.events);
     tags.reset();

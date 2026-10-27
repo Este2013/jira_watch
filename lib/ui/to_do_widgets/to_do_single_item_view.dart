@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:jira_watcher/models/data_model.dart';
 import 'package:jira_watcher/models/to_do_tasks_models.dart';
@@ -253,6 +255,20 @@ class SingleTaskView extends StatefulWidget {
 class _SingleTaskViewState extends State<SingleTaskView> {
   late bool takingNotes, linkingItems, usingTimeline, usingTags, usingSubtasks;
 
+  /// One stable [GlobalKey] per linked work item, so [_showLinkedWorkItem]
+  /// can find that row's [BuildContext] again later to scroll to it —
+  /// recreated, rather than built fresh in the list below, since a
+  /// [GlobalKey] only tracks the same row across rebuilds if it is the exact
+  /// same instance every time.
+  final Map<String, GlobalKey> _linkedItemKeys = {};
+
+  GlobalKey _keyFor(String tkt) => _linkedItemKeys.putIfAbsent(tkt, GlobalKey.new);
+
+  /// The linked work item currently flashed to draw the eye to it — see
+  /// [_showLinkedWorkItem].
+  String? _highlightedLinkedKey;
+  Timer? _highlightTimer;
+
   @override
   void initState() {
     takingNotes = widget.taskController.notes.text.trim().isNotEmpty;
@@ -261,6 +277,40 @@ class _SingleTaskViewState extends State<SingleTaskView> {
     usingTags = widget.taskController.tags.isNotEmpty;
     usingSubtasks = ToDoTasksModel().childrenOf(widget.taskController.id).isNotEmpty;
     super.initState();
+  }
+
+  @override
+  void dispose() {
+    _highlightTimer?.cancel();
+    super.dispose();
+  }
+
+  /// Links [key] to this task, unless it already is one — either way, the
+  /// row ends up on screen and briefly highlighted: freshly added, that
+  /// confirms the link landed; already there, it makes plain that the
+  /// action was registered rather than silently ignored, instead of quietly
+  /// adding a second copy of the same key (which the list below cannot even
+  /// render — two rows sharing a key is a Flutter error, not just a
+  /// cosmetic duplicate).
+  void _linkWorkItem(String key) {
+    if (!widget.taskController.linkedWorkItems.list.contains(key)) {
+      widget.taskController.linkedWorkItems.add(key);
+    }
+    _showLinkedWorkItem(key);
+  }
+
+  /// Scrolls [tkt]'s row into view and flashes it, after the frame in which
+  /// it was (maybe just now) added actually lays it out.
+  void _showLinkedWorkItem(String tkt) {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      final context = _keyFor(tkt).currentContext;
+      if (context != null) Scrollable.ensureVisible(context, duration: const Duration(milliseconds: 300), alignment: 0.5);
+    });
+    _highlightTimer?.cancel();
+    setState(() => _highlightedLinkedKey = tkt);
+    _highlightTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted) setState(() => _highlightedLinkedKey = null);
+    });
   }
 
   /// One linked work item's own row — [tkt]'s key, fetched and rendered as an
@@ -311,9 +361,13 @@ class _SingleTaskViewState extends State<SingleTaskView> {
   /// [_linkedWorkItemTile] fetches the work item itself, and a second call
   /// would fire that fetch again for a widget that is never even shown.
   Widget _draggableLinkedWorkItemTile(String tkt) {
-    final tile = _linkedWorkItemTile(tkt);
+    final tile = AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      color: _highlightedLinkedKey == tkt ? Theme.of(context).colorScheme.primaryContainer : Colors.transparent,
+      child: _linkedWorkItemTile(tkt),
+    );
     return LongPressDraggable<String>(
-      key: Key('Work item $tkt linked to task ${widget.taskController.id}'),
+      key: _keyFor(tkt),
       data: tkt,
       feedback: Material(
         elevation: 4,
@@ -410,7 +464,7 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                               showDialog(context: context, builder: (context) => WorkItemSearchDialog(selectionMode: true)).then(
                                 (value) {
                                   if (value == null) return;
-                                  widget.taskController.linkedWorkItems.add(value);
+                                  _linkWorkItem(value);
                                   setState(() {
                                     linkingItems = true;
                                   });
@@ -484,8 +538,7 @@ class _SingleTaskViewState extends State<SingleTaskView> {
                               onPressed: () => showDialog(context: context, builder: (context) => WorkItemSearchDialog(selectionMode: true)).then(
                                 (value) {
                                   if (value == null) return;
-
-                                  widget.taskController.linkedWorkItems.add(value);
+                                  _linkWorkItem(value);
                                 },
                               ),
                             ),

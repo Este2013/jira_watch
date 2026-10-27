@@ -1249,8 +1249,16 @@ class _AddIssueToDoDialogState extends State<AddIssueToDoDialog> with TickerProv
 
               for (var t in edits) {
                 if (isItemSelected(t.toToDoTask())) {
+                  // Not every key in `_keys`: a multi-item link checked back
+                  // on can already hold some of them (isItemSelected only
+                  // requires *every* key to be linked already for a task to
+                  // start pre-checked, so one already-linked key among
+                  // several not yet linked starts unchecked) — re-adding
+                  // one already there duplicates it, which the list below
+                  // cannot even render (two rows sharing a key is a Flutter
+                  // error, not just a cosmetic double-up).
                   for (final k in _keys) {
-                    t.linkedWorkItems.add(k);
+                    if (!t.linkedWorkItems.list.contains(k)) t.linkedWorkItems.add(k);
                   }
                 } else {
                   for (final k in _keys) {
