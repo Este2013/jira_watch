@@ -10,6 +10,46 @@ library;
 /// Newest first. The order drives both the changelog dialog's paging and the version picker.
 final List<(String, List<ChangeLogSection>)> appChangeLog = [
   (
+    '1.10.0',
+    [
+      ChangeLogSection.features([
+        ChangeLogItem(
+          'A new "Work items" view: browser-style tabs, one per ticket, organized into named groups',
+          subItems: [
+            ChangeLogItem('Each tab remembers its own back/forward history — following a link inside a ticket moves within the tab instead of always opening a new dialog'),
+            ChangeLogItem('Tab groups: named, colored, and iconed; switch between them from a dropdown, or right-click a tab to add it to one'),
+            ChangeLogItem(
+              'The "+" button opens a search tab filtered by the same property chips and JQL as the Updates view, defaulting to your enabled projects and sorted by most recently updated',
+            ),
+            ChangeLogItem(
+              '"Pinned work items": pin a ticket from its tab\'s right-click menu, or with "Pin" in the Updates view — it stays in this permanent list regardless of which tabs get closed',
+            ),
+          ],
+        ),
+        ChangeLogItem('"Dashboards": save a filtered or JQL view of your work items as a named board you can come back to, independent of the live Updates list'),
+        ChangeLogItem(
+          '"Mind map": lay out topics and tickets as a navigable graph',
+          subItems: [
+            ChangeLogItem('Fully keyboard-driven: arrows pick a connected node and walk around it, Enter opens it, + adds a topic, Backspace steps up a level'),
+            ChangeLogItem('Placing a work item asks Jira what it links to and suggests which topic it belongs under, with the reason shown'),
+            ChangeLogItem('A focused node shows tickets Jira links that the map has not heard of yet, one click from being added'),
+          ],
+        ),
+        ChangeLogItem(
+          'Links to a ticket or a wiki page on your own site now open inside the app — with history, comments and attachments — instead of a browser asking you to sign in again',
+        ),
+        ChangeLogItem('To-do tasks: drag a linked work item onto one of a task\'s own subtasks to move the link there'),
+      ]),
+      ChangeLogSection.bugFixes([
+        ChangeLogItem('A comment or description containing certain emoji no longer fails to render'),
+        ChangeLogItem(
+          'To-do tasks: a work item linked to the same task twice no longer crashes the list — existing duplicates clean themselves up, and linking an item already there scrolls to and highlights it instead of adding a second copy',
+        ),
+      ]),
+    ],
+  ),
+
+  (
     '1.9.3',
     [
       ChangeLogSection.features([
