@@ -127,18 +127,22 @@ class _WorkItemSearchTabContentState extends State<WorkItemSearchTabContent> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextField(
-          controller: _controller,
-          autofocus: true,
-          onChanged: _onChanged,
-          decoration: const InputDecoration(
-            isDense: true,
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Symbols.search),
-            hintText: 'Search by key or text — pick a work item to open it in this tab',
+        PropertyFilterRow(
+          query: _query,
+          onQueryChanged: _onQueryChanged,
+          searchField: TextField(
+            controller: _controller,
+            autofocus: true,
+            onChanged: _onChanged,
+            decoration: const InputDecoration(
+              isDense: true,
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Symbols.search),
+              hintText: 'Search by key or text — pick a work item to open it in this tab',
+            ),
           ),
         ),
-        PropertyFilterRow(query: _query, onQueryChanged: _onQueryChanged),
+        const SizedBox(height: 8),
         const Divider(height: 1),
         Expanded(
           child: FutureBuilder<List>(
