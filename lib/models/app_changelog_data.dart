@@ -14,13 +14,8 @@ final List<(String, List<ChangeLogSection>)> appChangeLog = [
     [
       ChangeLogSection.features([
         ChangeLogItem(
-          'A new "Work items" view: browser-style tabs, one per ticket, organized into named groups',
+          '"Work items" view: browser-style tabs, one per ticket, organized into named groups',
           subItems: [
-            ChangeLogItem('Each tab remembers its own back/forward history — following a link inside a ticket moves within the tab instead of always opening a new dialog'),
-            ChangeLogItem('Tab groups: named, colored, and iconed; switch between them from a dropdown, or right-click a tab to add it to one'),
-            ChangeLogItem(
-              'The "+" button opens a search tab filtered by the same property chips and JQL as the Updates view, defaulting to your enabled projects and sorted by most recently updated',
-            ),
             ChangeLogItem(
               '"Pinned work items": pin a ticket from its tab\'s right-click menu, or with "Pin" in the Updates view — it stays in this permanent list regardless of which tabs get closed',
             ),
@@ -36,14 +31,14 @@ final List<(String, List<ChangeLogSection>)> appChangeLog = [
           ],
         ),
         ChangeLogItem(
-          'Links to a ticket or a wiki page on your own site now open inside the app — with history, comments and attachments — instead of a browser asking you to sign in again',
+          'Links to a ticket or a wiki page on your own site now open inside the app instead of a browser',
         ),
         ChangeLogItem('To-do tasks: drag a linked work item onto one of a task\'s own subtasks to move the link there'),
       ]),
       ChangeLogSection.bugFixes([
         ChangeLogItem('A comment or description containing certain emoji no longer fails to render'),
         ChangeLogItem(
-          'To-do tasks: a work item linked to the same task twice no longer crashes the list — existing duplicates clean themselves up, and linking an item already there scrolls to and highlights it instead of adding a second copy',
+          'To-do tasks: a work item linked to the same task twice no longer crashes the list — existing duplicates clean themselves up',
         ),
       ]),
     ],
