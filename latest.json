@@ -1,4 +1,11 @@
 {
+    "1.10.0": {
+        "changelog": "✨ Features:\n ᛫ \"Work items\" view: browser-style tabs, one per ticket, organized into named groups\n     ᛫ \"Pinned work items\": pin a ticket from its tab's right-click menu, or with \"Pin\" in the Updates view — it stays in this permanent list regardless of which tabs get closed\n ᛫ \"Dashboards\": save a filtered or JQL view of your work items as a named board you can come back to, independent of the live Updates list\n ᛫ \"Mind map\": lay out topics and tickets as a navigable graph\n     ᛫ Fully keyboard-driven: arrows pick a connected node and walk around it, Enter opens it, + adds a topic, Backspace steps up a level\n     ᛫ Placing a work item asks Jira what it links to and suggests which topic it belongs under, with the reason shown\n     ᛫ A focused node shows tickets Jira links that the map has not heard of yet, one click from being added\n ᛫ Links to a ticket or a wiki page on your own site now open inside the app instead of a browser\n ᛫ To-do tasks: drag a linked work item onto one of a task's own subtasks to move the link there\n\n🪲 Bug fixes\n ᛫ A comment or description containing certain emoji no longer fails to render\n ᛫ To-do tasks: a work item linked to the same task twice no longer crashes the list — existing duplicates clean themselves up",
+        "x64": "v1.10.0/Binaries (x64).zip",
+        "x64Url": "https://github.com/Este2013/jira_watch/releases/download/v1.10.0/jira_watch-1.10.0-windows-x64.zip",
+        "x64Sha256": "4862a8846af0ebffd67dfc5495b02ecb2699c2d1f2e61bdb6f1dadf5bede2f22",
+        "x64Size": 38325357
+    },
     "1.9.3": {
         "changelog": "✨ Features:\n ᛫ Filter values can now be excluded (checkbox with a dash) as well as kept\n\n🪲 Bug fixes\n ᛫ JQL autocomplete\n     ᛫ Enter runs the query unless a suggestion was actually arrow-key selected\n     ᛫ Tab always completes with the first suggestion\n     ᛫ Accepting a suggestion no longer selects the whole query, so typing continues instead of replacing it",
         "x64": "v1.9.3/Binaries (x64).zip",
