@@ -292,12 +292,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
         // every tab shares the one route the IndexedStack lives in, so it
         // only ever guards against a dialog already open on top, not
         // against this tab being the hidden one.
-        if (isAllowedToShowIssueDialog &&
-            !isIssueDialogShown &&
-            selectedWorkItem != null &&
-            minSizeForLargeView >= constraints.maxWidth &&
-            Visibility.of(context) &&
-            (ModalRoute.of(context)?.isCurrent ?? true)) {
+        if (isAllowedToShowIssueDialog && !isIssueDialogShown && selectedWorkItem != null && minSizeForLargeView >= constraints.maxWidth && Visibility.of(context) && (ModalRoute.of(context)?.isCurrent ?? true)) {
           // there is a selection AND
           // size is too small for side-by-side AND
           // there is no open dialog
@@ -508,7 +503,7 @@ class _UpdatesPageState extends State<UpdatesPage> {
                 Expanded(
                   child: Padding(
                     // Left edge unpadded: the divider already separates it.
-                    padding: const EdgeInsets.fromLTRB(0, 16, 16, 16),
+                    padding: const EdgeInsets.fromLTRB(0, 0, 16, 16),
                     child: selectedWorkItem == null
                         ? Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -785,7 +780,9 @@ class _UpdatesFilterBarState extends State<UpdatesFilterBar> {
           spacing: 8,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Expanded(child: PropertyFilterRow(query: query, onQueryChanged: _apply)),
+            Expanded(
+              child: PropertyFilterRow(query: query, onQueryChanged: _apply),
+            ),
             TimeFilterDropdown(
               init: timeFilter ?? 'all time',
               save: _setTimeFilter,
@@ -1075,9 +1072,7 @@ class _JiraWorkItemPreviewItemState extends State<JiraWorkItemPreviewItem> {
                                 borderRadius: BorderRadius.circular(10000),
                                 child: Tooltip(
                                   message: assignee != null ? 'Assigned to ${assignee['displayName']}' : 'Unassigned',
-                                  child: avatarUrl != null
-                                      ? JiraAvatar(key: Key('assignee-${widget.workItem['id']}'), url: avatarUrl)
-                                      : Icon(Symbols.person_off, size: 18, color: Theme.of(context).disabledColor),
+                                  child: avatarUrl != null ? JiraAvatar(key: Key('assignee-${widget.workItem['id']}'), url: avatarUrl) : Icon(Symbols.person_off, size: 18, color: Theme.of(context).disabledColor),
                                 ),
                               ),
                             );
@@ -1503,8 +1498,7 @@ class _OnError400TestForProjectsState extends State<OnError400TestForProjects> {
                         subtitle: Text('Status: Error 400 - Project may have been deleted or is inaccessible.'),
                         leading: Icon(Symbols.error, color: Colors.red),
                         trailing: IconButton(
-                          onPressed: () =>
-                              SettingsModel().starredProjects.value = List.from(SettingsModel().starredProjects.value?.where((p) => p != SettingsModel().starredProjects.value?[index]) ?? []),
+                          onPressed: () => SettingsModel().starredProjects.value = List.from(SettingsModel().starredProjects.value?.where((p) => p != SettingsModel().starredProjects.value?[index]) ?? []),
                           icon: Icon(Symbols.delete_forever),
                           tooltip: 'Remove from my starred projects',
                         ),
@@ -1838,8 +1832,7 @@ class _SelectionOutlinePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_SelectionOutlinePainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.top != top || oldDelegate.bottom != bottom || oldDelegate.radius != radius || oldDelegate.strokeWidth != strokeWidth || oldDelegate.gap != gap;
+  bool shouldRepaint(_SelectionOutlinePainter oldDelegate) => oldDelegate.color != color || oldDelegate.top != top || oldDelegate.bottom != bottom || oldDelegate.radius != radius || oldDelegate.strokeWidth != strokeWidth || oldDelegate.gap != gap;
 }
 
 /// Material 3 style FAB menu shown at the bottom-right of the Updates list when
@@ -1929,10 +1922,7 @@ class _SelectionFabMenuState extends State<SelectionFabMenu> {
                 children: [
                   // Only offer "unread" once everything is read; otherwise the
                   // sensible bulk action is to mark the unread ones as read.
-                  if (widget.allRead)
-                    _menuItem(Symbols.mark_email_unread, 'Mark all as unread', widget.onMarkAllUnread)
-                  else
-                    _menuItem(Symbols.mark_email_read, 'Mark all as read', widget.onMarkAllRead),
+                  if (widget.allRead) _menuItem(Symbols.mark_email_unread, 'Mark all as unread', widget.onMarkAllUnread) else _menuItem(Symbols.mark_email_read, 'Mark all as read', widget.onMarkAllRead),
                   _menuItem(Symbols.push_pin, 'Pin all', widget.onKeepForLater),
                   _menuItem(Symbols.assignment_add, 'Add all to a task', widget.onAddToTask),
                   _menuItem(Symbols.open_in_browser, 'Open all on website', widget.onOpenAll),
