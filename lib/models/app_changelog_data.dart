@@ -10,6 +10,17 @@ library;
 /// Newest first. The order drives both the changelog dialog's paging and the version picker.
 final List<(String, List<ChangeLogSection>)> appChangeLog = [
   (
+    '1.10.1',
+    [
+      ChangeLogSection.bugFixes([
+        ChangeLogItem(
+          'Confluence: clicking an article in a freshly opened space\'s page tree could throw an error and do nothing — now opens as expected',
+        ),
+      ]),
+    ],
+  ),
+
+  (
     '1.10.0',
     [
       ChangeLogSection.features([
