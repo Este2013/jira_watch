@@ -54,6 +54,20 @@ void main() {
       expect(t.canGoBack, isFalse);
     });
 
+    test('opening the first page in a tab that started on none does not throw', () {
+      // Regression: a RangeError from elementAtOrNull(-1) -- it throws on a
+      // negative index rather than returning null the way it does for one
+      // too large. Every space tab starts this way (pageId null), and this
+      // used to fire on the very first click in the tree, before pageId
+      // (set above the guard that threw) ever reached a rebuild to show it.
+      final t = tab();
+      t.openPage('1');
+
+      expect(t.pageId, '1');
+      expect(t.history, ['1']);
+      expect(t.historyIndex, 0);
+    });
+
     test('opening pages builds a trail that can be walked back and forward', () {
       final t = tab(pageId: '1');
       t.openPage('2');

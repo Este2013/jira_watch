@@ -71,7 +71,15 @@ class ConfluenceSpaceTab {
   void openPage(String? pageId, {String? title}) {
     this.pageId = pageId;
     pageTitle = title;
-    if (pageId == null || history.elementAtOrNull(historyIndex) == pageId) return;
+    // historyIndex is -1 on a tab that has never had a page open — nothing to
+    // compare against yet, so this is never the already-open page. Checked
+    // first: elementAtOrNull reads this as "find the one at this position",
+    // not "clamp it into range", and -1 is a position to it, not a miss —
+    // it throws a RangeError rather than returning null the way a too-large
+    // index safely does. That crash fired on literally the first click in
+    // any freshly opened space tab, and the page never opened because the
+    // throw happened before anything below got a chance to run.
+    if (pageId == null || (historyIndex >= 0 && history.elementAtOrNull(historyIndex) == pageId)) return;
 
     // Anything ahead of the cursor is dropped: navigating from partway back
     // starts a new branch, which is what a browser does and what a forward
